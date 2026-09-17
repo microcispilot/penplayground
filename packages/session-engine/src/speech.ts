@@ -4,6 +4,7 @@ import type { RoomObserver, RoomTransport } from './transport.js';
 
 export interface SayPipelineOptions {
   synthesizer: SpeechSynthesizer;
+  /** Default voice; a say may carry its own (the persona's voice for another language). */
   voice: string;
   sampleRate: 24000 | 44100 | 48000;
   transport: RoomTransport;
@@ -33,7 +34,8 @@ export function spokenText(text: string): string {
 }
 
 export class SayPipeline {
-  private readonly queue: Array<{ say: SayEvent; thread: string; take: number }> = [];
+  private readonly queue: Array<{ say: SayEvent; thread: string; take: number; voice: string }> =
+    [];
   private readonly lookahead: number;
   private inFlight = 0;
   private heardUpTo = 0;
@@ -46,9 +48,9 @@ export class SayPipeline {
     this.lookahead = opts.lookahead ?? 3;
   }
 
-  enqueue(say: SayEvent, thread: string, take = 0): void {
+  enqueue(say: SayEvent, thread: string, take = 0, voice = this.opts.voice): void {
     if (this.closed) return;
-    this.queue.push({ say, thread, take });
+    this.queue.push({ say, thread, take, voice });
     void this.drain();
   }
 
@@ -92,7 +94,7 @@ export class SayPipeline {
         this.enqueued += 1;
         this.inFlight += 1;
         const signal = this.controller.signal;
-        await this.speak(item.say, item.take, signal);
+        await this.speak(item.say, item.take, item.voice, signal);
         this.inFlight = Math.max(0, this.inFlight - 1);
       }
     } finally {
@@ -100,7 +102,12 @@ export class SayPipeline {
     }
   }
 
-  private async speak(say: SayEvent, take: number, signal: AbortSignal): Promise<void> {
+  private async speak(
+    say: SayEvent,
+    take: number,
+    voice: string,
+    signal: AbortSignal,
+  ): Promise<void> {
     const started = performance.now();
     let durationMs = 0;
     let chunkIndex = 0;
@@ -108,7 +115,7 @@ export class SayPipeline {
     try {
       const stream = this.opts.synthesizer.synthesize({
         text: spokenText(say.text),
-        voice: this.opts.voice,
+        voice,
         sampleRate: this.opts.sampleRate,
         tone: say.tone,
         signal,

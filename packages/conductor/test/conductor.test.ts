@@ -265,7 +265,13 @@ describe('Conductor', () => {
         segment: 0,
         thread: 't1',
         at: 0,
-        event: { type: 'note', question: 'why √d?', headline: 'keeps scores', detail: 'in range' },
+        event: {
+          type: 'note',
+          language: 'en-US',
+          question: 'why √d?',
+          headline: 'keeps scores',
+          detail: 'in range',
+        },
       },
     });
     c.handleServer({ kind: 'cue', cue: say(6, 't1.s1', 'Good question.', 't1') });

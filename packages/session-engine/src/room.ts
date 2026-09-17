@@ -79,6 +79,10 @@ export interface SessionRoomDeps {
   synthesizer: SpeechSynthesizer;
   /** Engine voice for this expert (resolved from the catalog voice id). */
   voice: string;
+  /** The persona's voice for a communication language; falls back to `voice`. */
+  voiceFor?: (language: string) => string;
+  /** Detects the language of a learner utterance (BCP-47) or null when unsure. */
+  languageOf?: (text: string) => string | null;
   sampleRate: 24000 | 44100 | 48000;
   transport: RoomTransport;
   observer?: RoomObserver;
@@ -137,13 +141,16 @@ export class SessionRoom {
   private adsShown = 0;
   private clockMs = 0;
   private lastFloorUtterance = new Map<string, string>();
+  /** Communication language: follows the learner turn by turn (RoomState.language). */
+  private language: string;
 
   constructor(deps: SessionRoomDeps) {
     this.d = deps;
     this.sessionId = deps.sessionId;
     this.observer = deps.observer ?? SILENT_OBSERVER;
     this.now = deps.now ?? (() => Date.now());
-    this.system = lessonSystemPrompt(deps.expert, deps.band, deps.language);
+    this.system = lessonSystemPrompt(deps.expert, deps.band);
+    this.language = deps.language;
     const host: Participant = {
       id: deps.host.id,
       name: deps.host.name,
@@ -318,6 +325,7 @@ export class SessionRoom {
             plan: this.plan,
             spoken: this.spoken,
             questions: this.questions,
+            language: this.language,
           }),
           schema: RecapOutput,
           schemaName: 'recap',
@@ -499,6 +507,7 @@ export class SessionRoom {
         previousTitles: plan.segments.slice(0, index).map((s) => s.title),
         modelContext: context.modelContext,
         evidenceTier: this.state.evidenceTier,
+        language: this.language,
       });
       const stream = this.d.model.streamEvents({
         messages,
@@ -565,7 +574,7 @@ export class SessionRoom {
       this.lessonOrder.push(event.id);
       this.spoken.push(event.text);
       if (this.state.mode === 'teaching' || this.state.mode === 'complete')
-        this.pipeline.enqueue(event, thread, 0);
+        this.pipeline.enqueue(event, thread, 0, this.voiceForCurrentLanguage());
     } else if (event.type === 'check') {
       const asking = this.lessonSays.get(event.askedBy);
       this.checks.set(event.id, { check: event, question: asking?.say.text ?? '', seq: cue.seq });
@@ -716,7 +725,7 @@ export class SessionRoom {
       const take = (this.takes.get(id) ?? 0) + 1;
       this.takes.set(id, take);
       this.d.transport.broadcast({ kind: 'say_take', sayId: id, take });
-      this.pipeline.enqueue(entry.say, 'lesson', take);
+      this.pipeline.enqueue(entry.say, 'lesson', take, this.voiceForCurrentLanguage());
     }
     this.state = { ...this.state, resume: null };
     this.broadcastState();
@@ -793,6 +802,7 @@ export class SessionRoom {
     }
     this.lastFloorUtterance.delete(utteranceId);
     this.ledger({ kind: 'caption', t: this.now(), participantId: p.id, text });
+    this.followLanguage(text);
     void this.decide(p, text);
   }
 
@@ -938,6 +948,7 @@ export class SessionRoom {
           recentSpeech: recent,
           modelContext: context.modelContext,
           status: context.status,
+          language: this.language,
         }),
         cacheKey: this.cacheKey(),
         maxOutputTokens: 700,
@@ -950,6 +961,8 @@ export class SessionRoom {
         if (this.turn !== turn) break;
         if (event.type === 'done' || event.type === 'check') continue;
         if (event.type === 'say') sayCount++;
+        // The model read the question: its declared language is authoritative for the switch.
+        if (event.type === 'note') this.setLanguage(event.language);
         this.emitTurnEvent(turn, event);
       }
       const usage = await stream.usage;
@@ -987,7 +1000,7 @@ export class SessionRoom {
     const event = cue.event;
     if (event.type === 'say') {
       turn.sayIds.add(event.id);
-      this.pipeline.enqueue(event, turn.id, 0);
+      this.pipeline.enqueue(event, turn.id, 0, this.voiceForCurrentLanguage());
       this.spoken.push(event.text);
     }
   }
@@ -1060,6 +1073,7 @@ export class SessionRoom {
           options: entry.check.options,
           answer: answerText,
           explain: entry.check.explain,
+          language: this.language,
         }),
         schema: GradeOutput,
         schemaName: 'grade',
@@ -1132,8 +1146,30 @@ export class SessionRoom {
     this.d.ledger?.append(this.sessionId, entry);
   }
 
+  /** Switch the communication language when the learner clearly wrote in another one (script change). */
+  private followLanguage(text: string): void {
+    const detected = this.d.languageOf?.(text);
+    if (detected) this.setLanguage(detected);
+  }
+
+  private setLanguage(tag: string): void {
+    const clean = /^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})?$/.test(tag.trim()) ? tag.trim() : null;
+    if (!clean) return;
+    const next = clean.split('-')[0]?.toLowerCase() ?? clean;
+    const current = this.language.split('-')[0]?.toLowerCase() ?? this.language;
+    if (next === current) return;
+    this.language = clean;
+    this.observer.event('room.language', { language: next });
+    this.state = { ...this.state, language: clean };
+    this.broadcastState();
+  }
+
+  private voiceForCurrentLanguage(): string {
+    return this.d.voiceFor?.(this.language) ?? this.d.voice;
+  }
+
   private cacheKey(): string {
-    return `pen:${this.d.expert.id}:${this.d.band}:${this.d.language}`;
+    return `pen:${this.d.expert.id}:${this.d.band}`;
   }
 
   private queryInputFor(text: string, revision: string): QueryInput {

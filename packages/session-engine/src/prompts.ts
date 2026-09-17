@@ -45,7 +45,7 @@ Return JSON {"events":[...]} where each event is one of:
   {"type":"say","id":"s1","text":"...","tone":"warm"}
   {"type":"board","id":"b1","anchor":"s1","op":"write","text":"...","lang":"","ref":"","ref2":"","place":"flow","emphasis":"ink"}
   {"type":"check","id":"c1","askedBy":"s9","options":["A","B","C"],"expected":"B","explain":"..."}
-  {"type":"note","question":"...","headline":"...","detail":"..."}
+  {"type":"note","language":"en-US","question":"...","headline":"...","detail":"..."}
   {"type":"done"}
 Ids are sequential per type starting at 1 (s1, s2… b1, b2… c1). Fields you do not need are empty strings or empty arrays, never omitted. End with {"type":"done"}.`;
 
@@ -68,15 +68,19 @@ export function bandPrompt(band: SelectionBand): string {
   }
 }
 
-export function languagePrompt(language: string): string {
-  return `LANGUAGE: speak and write the board in the learner's language (${language}). Keep code, identifiers and proper nouns as they are. Evidence may be in another language; teach in ${language} anyway.`;
+/**
+ * The communication language follows the learner turn by turn, so it is sent
+ * with each request rather than baked into the cached system prompt.
+ */
+export function languageLine(language: string): string {
+  return `LANGUAGE: speak and write the board in ${language} — the language the learner is using right now. Keep code, identifiers and proper nouns as they are. Evidence may be in another language; teach in ${language} anyway.`;
 }
 
-export function lessonSystemPrompt(expert: Expert, band: SelectionBand, language = 'en'): string {
+export function lessonSystemPrompt(expert: Expert, band: SelectionBand): string {
   return [
     personaPrompt(expert),
     bandPrompt(band),
-    languagePrompt(language),
+    'LANGUAGE: each request names the language to use; switch instantly when it changes, even mid-session.',
     SPEECH_RULES,
     BOARD_RULES,
     EVIDENCE_RULES,
@@ -113,6 +117,7 @@ export function segmentMessages(args: {
   previousTitles: string[];
   modelContext: string;
   evidenceTier: string;
+  language: string;
 }): Message[] {
   const order = args.segment.index + 1;
   return [
@@ -128,7 +133,8 @@ Goal: ${args.segment.goal}
 Length: about ${Math.round(args.segment.seconds / 60)} minute(s) of speech — ${Math.max(6, Math.round(args.segment.seconds / 7))} to ${Math.min(16, Math.max(8, Math.round(args.segment.seconds / 5)))} sentences, no more. One idea per sentence; cut anything that repeats.
 ${args.segment.hasCheck ? 'End with ONE short check-in question (a "say" that asks it, then a "check" event with options and the expected answer).' : 'End with a natural handoff to the next segment.'}
 ${order === args.plan.segments.length ? 'This is the last segment: close the session in two warm sentences.' : ''}
-Evidence tier: ${args.evidenceTier}.`,
+Evidence tier: ${args.evidenceTier}.
+${languageLine(args.language)}`,
     },
     { role: 'user', content: `EVIDENCE (AnswerContext):\n${args.modelContext}` },
   ];
@@ -143,6 +149,7 @@ export function answerMessages(args: {
   recentSpeech: string[];
   modelContext: string;
   status: string;
+  language: string;
 }): Message[] {
   const partial = args.status !== 'sufficient';
   return [
@@ -153,7 +160,8 @@ export function answerMessages(args: {
 
 ${args.askedBy} interrupted and asked: "${args.question}"
 
-Answer in 2–5 spoken sentences, directly, like a good teacher on a call. Start with a "note" event (question ≤ 12 words, headline 2–6 words, detail ≤ 20 words) so a card can be pinned on the board. Add at most one board op only if drawing helps. Finish with ONE short bridge sentence back to the lesson (e.g. "Okay, back to where we were."). ${partial ? 'The evidence is only partial: answer what you can, say plainly what you cannot support, and keep it short.' : ''}`,
+Answer in 2–5 spoken sentences, directly, like a good teacher on a call, in the language the learner asked in (they may switch languages at any time; follow the question even if it differs from LANGUAGE below). Start with a "note" event (language = the BCP-47 tag of the language the learner asked in; question ≤ 12 words, headline 2–6 words, detail ≤ 20 words) so a card can be pinned on the board. Add at most one board op only if drawing helps. Finish with ONE short bridge sentence back to the lesson (e.g. "Okay, back to where we were."). ${partial ? 'The evidence is only partial: answer what you can, say plainly what you cannot support, and keep it short.' : ''}
+${languageLine(args.language)}`,
     },
     { role: 'user', content: `EVIDENCE (AnswerContext):\n${args.modelContext}` },
   ];
@@ -166,12 +174,13 @@ export function gradeMessages(args: {
   options: string[];
   answer: string;
   explain: string;
+  language: string;
 }): Message[] {
   return [
     { role: 'system', content: args.system },
     {
       role: 'user',
-      content: `You asked: "${args.question}"${args.options.length ? `\nOptions: ${args.options.join(' | ')}` : ''}\nReference answer: ${args.expected}\nWhy: ${args.explain}\n\nThe learner said: "${args.answer}"\n\nGrade it (correct / partial / incorrect) and reply with one warm spoken sentence of feedback (≤ 30 words) that confirms or gently corrects, then says we're moving on.`,
+      content: `You asked: "${args.question}"${args.options.length ? `\nOptions: ${args.options.join(' | ')}` : ''}\nReference answer: ${args.expected}\nWhy: ${args.explain}\n\nThe learner said: "${args.answer}"\n\nGrade it (correct / partial / incorrect) and reply with one warm spoken sentence of feedback (≤ 30 words) that confirms or gently corrects, then says we're moving on.\n${languageLine(args.language)}`,
     },
   ];
 }
@@ -181,12 +190,13 @@ export function recapMessages(args: {
   plan: LessonPlan;
   spoken: string[];
   questions: string[];
+  language: string;
 }): Message[] {
   return [
     { role: 'system', content: args.system },
     {
       role: 'user',
-      content: `Write 4–6 recap bullet points (≤ 14 words each, plain statements, no "we") for the session "${args.plan.title}".\n\nWhat was said:\n${args.spoken.slice(-80).join('\n')}\n\nLearner questions: ${args.questions.join(' | ') || 'none'}`,
+      content: `Write 4–6 recap bullet points (≤ 14 words each, plain statements, no "we") for the session "${args.plan.title}".\n\nWhat was said:\n${args.spoken.slice(-80).join('\n')}\n\nLearner questions: ${args.questions.join(' | ') || 'none'}\n${languageLine(args.language)}`,
     },
   ];
 }

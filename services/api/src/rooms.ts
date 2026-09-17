@@ -9,7 +9,7 @@ import { encodeAudioFrame } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
-import { intakeTopic } from './language.js';
+import { detectSpokenLanguage, intakeTopic } from './language.js';
 import { observer } from './observability.js';
 import type { Services } from './services.js';
 
@@ -60,10 +60,17 @@ export class RoomRegistry {
     const { language, locale } = args.language
       ? { language: args.language.split('-')[0] ?? 'en', locale: args.language }
       : intake;
+    // Knowledge is stored under the English title (packs are shared by every language) unless the
+    // subject belongs to a language; the learner's own language only shapes communication.
     const resolution =
-      language === 'en' && quick.match === 'hit'
+      intake.sourceLanguage === 'en' && quick.match === 'hit'
         ? quick
-        : await registry.resolveTopic({ text: intake.title, language, locale, band: args.band });
+        : await registry.resolveTopic({
+            text: intake.sourceLanguage === 'en' ? intake.canonicalTitle : intake.title,
+            language: intake.sourceLanguage,
+            locale: intake.sourceLanguage === 'en' ? 'en-US' : locale,
+            band: args.band,
+          });
     const allowPremium = args.host.plan !== 'free';
     const expert =
       (args.expertId ? services.experts.get(args.expertId) : null) ??
@@ -104,6 +111,8 @@ export class RoomRegistry {
       model: services.modelFor(args.host.plan),
       synthesizer: services.synthesizer,
       voice: services.voices.voiceFor(expert, locale),
+      voiceFor: (lang) => services.voices.voiceFor(expert, lang),
+      languageOf: (text) => detectSpokenLanguage(text),
       sampleRate: 44100,
       transport,
       observer,
@@ -122,7 +131,7 @@ export class RoomRegistry {
     const record: SessionRecord = {
       id: sessionId,
       topic: args.topic,
-      title: resolution.title,
+      title: intake.title,
       promise: '',
       expertId: expert.id,
       hostId: args.host.id,

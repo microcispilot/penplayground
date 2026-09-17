@@ -47,6 +47,7 @@ export const ModelCheck = z.object({
 });
 export const ModelNote = z.object({
   type: z.literal('note'),
+  language: z.string(),
   question: z.string(),
   headline: z.string(),
   detail: z.string(),

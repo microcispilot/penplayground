@@ -361,10 +361,19 @@ describe('BoardExecutor', () => {
   it('pinNote places a card in the right column and stacks a second one', async () => {
     const { editor, executor } = ctx;
     executor.pinNote(
-      { type: 'note', question: 'why √d?', headline: 'Scale', detail: 'keeps softmax soft' },
+      {
+        type: 'note',
+        language: 'en-US',
+        question: 'why √d?',
+        headline: 'Scale',
+        detail: 'keeps softmax soft',
+      },
       'n1',
     );
-    executor.pinNote({ type: 'note', question: 'second', headline: '', detail: '' }, 'n2');
+    executor.pinNote(
+      { type: 'note', language: 'en-US', question: 'second', headline: '', detail: '' },
+      'n2',
+    );
     const a = editor.shapes.get('shape:note.n1');
     const b = editor.shapes.get('shape:note.n2');
     expect(a?.type).toBe(SHAPE_TYPE.noteCard);
@@ -380,7 +389,10 @@ describe('BoardExecutor', () => {
     executor.setDimmed(false);
     expect(dims).toEqual([true, false]);
     executor.execute(boardOp('b1', { op: 'write', text: 'x' }), { paceMs: null }).finish();
-    executor.pinNote({ type: 'note', question: 'q', headline: '', detail: '' }, 'n1');
+    executor.pinNote(
+      { type: 'note', language: 'en-US', question: 'q', headline: '', detail: '' },
+      'n1',
+    );
     await flush();
     const running = executor.execute(
       boardOp('b2', { op: 'write', text: 'slow words here', place: 'newline' }),

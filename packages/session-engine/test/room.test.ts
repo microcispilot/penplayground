@@ -127,6 +127,7 @@ function fakeModel() {
         events: [
           {
             type: 'note',
+            language: 'en-US',
             question: 'why divide by √d?',
             headline: 'keeps scores in range',
             detail: 'dot products grow with length',

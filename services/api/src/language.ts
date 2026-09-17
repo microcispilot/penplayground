@@ -86,8 +86,16 @@ import { z } from 'zod';
 export const TopicIntake = z.object({
   /** BCP-47 tag of the language the learner wrote in (en-US, es-ES, ja-JP …). */
   language: z.string(),
-  /** Clean topic title in that language, ≤ 8 words, no "I want to learn". */
+  /** Clean topic title in the learner's language, ≤ 8 words, no "I want to learn". */
   title: z.string(),
+  /** The same topic in English, ≤ 8 words: the key the knowledge is stored under. */
+  canonicalTitle: z.string(),
+  /**
+   * ISO 639-1 language the knowledge should be gathered in. "en" for anything
+   * universal (Swift, calculus, ECG). Only a subject that is intrinsically tied
+   * to a language keeps that language (Rumi's poems → "fa", Japanese keigo → "ja").
+   */
+  sourceLanguage: z.string(),
 });
 export type TopicIntake = z.infer<typeof TopicIntake>;
 
@@ -96,17 +104,25 @@ export type TopicIntake = z.infer<typeof TopicIntake>;
  * Catalan), so the cheap model reads the intent instead: language + a clean
  * title. Falls back to the statistical detector when the model is unavailable.
  */
-export async function intakeTopic(
-  model: LanguageModel,
-  text: string,
-): Promise<{ language: string; locale: string; title: string }> {
+export interface TopicIntakeResult {
+  language: string;
+  locale: string;
+  /** Title in the learner's language (shown in the UI). */
+  title: string;
+  /** English title: the key knowledge is stored under. */
+  canonicalTitle: string;
+  /** Language the knowledge is gathered in ("en" unless the subject is language-bound). */
+  sourceLanguage: string;
+}
+
+export async function intakeTopic(model: LanguageModel, text: string): Promise<TopicIntakeResult> {
   try {
     const { value } = await model.complete({
       messages: [
         {
           role: 'system',
           content:
-            'You classify a learning request. Return the BCP-47 language tag the learner wrote in (default en-US when unsure; code identifiers do not change the language) and a clean topic title in that same language, at most 8 words, without phrases like "I want to learn".',
+            'You classify a learning request. Return: language — the BCP-47 tag the learner wrote in (default en-US when unsure; code identifiers do not change it); title — a clean topic title in that language, ≤ 8 words, no "I want to learn"; canonicalTitle — the same topic in English, ≤ 8 words, the way an English textbook would name it; sourceLanguage — "en" unless the subject itself belongs to a language (poetry, literature, grammar, songs, law of a specific country in its language), in which case that ISO 639-1 code.',
         },
         { role: 'user', content: text },
       ],
@@ -117,14 +133,20 @@ export async function intakeTopic(
       purpose: 'intake',
     });
     const locale = normaliseLocale(value.language);
+    const source = /^[a-z]{2}$/.test(value.sourceLanguage.trim().toLowerCase())
+      ? value.sourceLanguage.trim().toLowerCase()
+      : 'en';
     return {
       language: locale.split('-')[0] ?? 'en',
       locale,
       title: value.title.trim().slice(0, 80) || text,
+      canonicalTitle:
+        value.canonicalTitle.trim().slice(0, 80) || value.title.trim().slice(0, 80) || text,
+      sourceLanguage: source,
     };
   } catch {
     const detected = detectLanguage(text);
-    return { ...detected, title: text };
+    return { ...detected, title: text, canonicalTitle: text, sourceLanguage: 'en' };
   }
 }
 
@@ -136,4 +158,26 @@ function normaliseLocale(tag: string): string {
   if (region) return `${lang}-${region}`;
   const known = Object.values(LOCALES).find((l) => l.startsWith(`${lang}-`));
   return known ?? `${lang}-${lang.toUpperCase()}`;
+}
+
+/**
+ * Language of a learner utterance mid-session. Confident only: a script change
+ * or a clear statistical winner on a long enough sentence; otherwise null so
+ * the session keeps its current language.
+ */
+export function detectSpokenLanguage(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed.length < 8) return null;
+  const nonLatin = /[^\p{Script=Latin}\s\d\p{P}\p{S}]/u.test(trimmed);
+  const ranked = francAll(trimmed, { minLength: 8, only: Object.keys(LOCALES) });
+  const top = ranked[0];
+  const second = ranked[1];
+  if (!top || top[0] === 'und') return null;
+  const margin = second ? top[1] - second[1] : 1;
+  const words = trimmed.split(/\s+/).length;
+  // Latin-script sentences are ambiguous in a few words ("¿y si uso let…?" scores Swedish):
+  // switch only on a script change or a decisive, long-enough sentence. The model still
+  // answers in the language of the question either way; this only moves voice + recognition.
+  if (!(nonLatin || (words >= 8 && margin >= 0.2))) return null;
+  return LOCALES[top[0]] ?? null;
 }

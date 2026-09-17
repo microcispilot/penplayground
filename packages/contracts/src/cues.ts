@@ -81,6 +81,8 @@ export type CheckEvent = z.infer<typeof CheckEvent>;
 
 export const NoteEvent = z.object({
   type: z.literal('note'),
+  /** BCP-47 language the learner asked in, as the model read it (drives voice + recognition switches). */
+  language: z.string().min(2).max(12),
   /** The learner's question, as understood. */
   question: z.string().max(200),
   /** 2–6 words. */

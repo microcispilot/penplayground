@@ -9,7 +9,7 @@ import type { CheckEvent, RoomState } from '@pen/contracts';
 import { AUDIO, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
-import type { Platform, SpeechRecognizer } from '../platform/types.js';
+import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../platform/types.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
 import { useRoomStore } from './store.js';
@@ -112,6 +112,7 @@ export class RoomSession {
     const presence: PresencePort = {
       setState: (state: RoomState) => {
         this.syncClock(state);
+        this.followLanguage(state.language);
         set({ state, preparation: state.preparation, phase: this.conductor.getPhase() });
         this.mic?.setPlaybackActive(state.mode === 'teaching' || state.mode === 'answering');
       },
@@ -249,32 +250,50 @@ export class RoomSession {
     });
     this.mic = mic;
     await mic.start();
-    const recognizer = this.o.platform.speech.create(
-      {
-        onPartial: (id, text) => this.conductor.onTranscript(this.utteranceId(id), text, false),
-        onFinal: (id, text) => {
-          this.conductor.onTranscript(this.utteranceId(id), text, true);
-          this.currentUtterance = null;
-        },
-        onError: (code, error) => {
-          console.warn('[stt]', code, error);
-          if (code === 'not-allowed' || code === 'unavailable')
-            set({
-              notice: {
-                text: 'Speech recognition is not available in this browser. Type your question instead.',
-                tone: 'danger',
-              },
-            });
-        },
-      },
-      { language: useRoomStore.getState().state?.language ?? navigator.language ?? 'en-US' },
-    );
+    const recognizer = this.o.platform.speech.create(this.recognizerHandlers(), {
+      language: useRoomStore.getState().state?.language ?? navigator.language ?? 'en-US',
+    });
+    this.recognizerLanguage = useRoomStore.getState().state?.language ?? null;
     this.recognizer = recognizer;
     // Without an on-device recognizer the room transcribes server-side; if that is
     // not configured either, the API answers the first frames with STT_UNAVAILABLE
     // and the conductor shows it.
     this.serverSpeech = !recognizer.available;
     if (recognizer.available) await recognizer.start();
+  }
+
+  private recognizerLanguage: string | null = null;
+
+  private recognizerHandlers(): SpeechRecognizerHandlers {
+    const set = (patch: Parameters<ReturnType<typeof useRoomStore.getState>['set']>[0]) =>
+      useRoomStore.getState().set(patch);
+    return {
+      onPartial: (id, text) => this.conductor.onTranscript(this.utteranceId(id), text, false),
+      onFinal: (id, text) => {
+        this.conductor.onTranscript(this.utteranceId(id), text, true);
+        this.currentUtterance = null;
+      },
+      onError: (code, error) => {
+        console.warn('[stt]', code, error);
+        if (code === 'not-allowed' || code === 'unavailable')
+          set({
+            notice: {
+              text: 'Speech recognition is not available in this browser. Type your question instead.',
+              tone: 'danger',
+            },
+          });
+      },
+    };
+  }
+
+  /** The room switched communication language (the learner did): recognise in that language from now on. */
+  private followLanguage(language: string): void {
+    if (!this.recognizer || this.recognizerLanguage === language) return;
+    this.recognizerLanguage = language;
+    this.recognizer.stop();
+    const recognizer = this.o.platform.speech.create(this.recognizerHandlers(), { language });
+    this.recognizer = recognizer;
+    if (recognizer.available) void recognizer.start();
   }
 
   disableMic(): void {

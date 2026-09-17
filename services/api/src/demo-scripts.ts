@@ -134,6 +134,7 @@ const answers: Record<string, LessonEvent[]> = {
   'square root': [
     {
       type: 'note',
+      language: 'en-US',
       question: 'why ÷ √d ?',
       headline: 'keeps the dot products',
       detail: 'from blowing up as vectors grow',
@@ -153,6 +154,7 @@ const answers: Record<string, LessonEvent[]> = {
   heads: [
     {
       type: 'note',
+      language: 'en-US',
       question: 'do heads differ?',
       headline: 'each head learns',
       detail: 'its own projection',
@@ -168,6 +170,7 @@ const answers: Record<string, LessonEvent[]> = {
   default: [
     {
       type: 'note',
+      language: 'en-US',
       question: 'your question',
       headline: 'short answer',
       detail: 'pinned here for the recap',
@@ -261,7 +264,15 @@ export const demoScripts: {
       },
     },
     { purpose: 'intent', value: { intent: 'question', command: 'none' } },
-    { purpose: 'intake', value: { language: 'en-US', title: 'How Transformers work in LLMs' } },
+    {
+      purpose: 'intake',
+      value: {
+        language: 'en-US',
+        title: 'How Transformers work in LLMs',
+        canonicalTitle: 'How Transformers work in LLMs',
+        sourceLanguage: 'en',
+      },
+    },
     {
       purpose: 'knowledge.outline',
       value: {
