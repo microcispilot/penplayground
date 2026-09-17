@@ -5,13 +5,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { BoardSurface } from '../components/BoardSurface.js';
 import {
-  AdCard,
   BottomBar,
   CaptionOverlay,
   CheckCard,
   PreparingView,
   RecapPanel,
 } from '../components/RoomChrome.js';
+import { VideoAd } from '../components/VideoAd.js';
 import { useApp } from '../lib/context.js';
 import { RoomSession } from '../room/RoomSession.js';
 import { useRoomStore } from '../room/store.js';
@@ -115,11 +115,11 @@ export function Room() {
     return (
       <div className="relative">
         {ui.ad && session ? (
-          <AdCard
-            durationMs={ui.ad.durationMs}
-            skippableAfterMs={ui.ad.skippableAfterMs}
-            startedAt={ui.ad.startedAt}
-            onSkip={() => session.skipAd()}
+          <VideoAd
+            ad={ui.ad}
+            {...(ui.state?.language ? { locale: ui.state.language } : {})}
+            onEvent={(name, props) => session.adEvent(name, props)}
+            onEnd={() => session.skipAd()}
           />
         ) : null}
         <PreparingView
@@ -169,11 +169,11 @@ export function Room() {
               />
             ) : null}
             {ui.ad && session ? (
-              <AdCard
-                durationMs={ui.ad.durationMs}
-                skippableAfterMs={ui.ad.skippableAfterMs}
-                startedAt={ui.ad.startedAt}
-                onSkip={() => session.skipAd()}
+              <VideoAd
+                ad={ui.ad}
+                locale={state.language}
+                onEvent={(name, props) => session.adEvent(name, props)}
+                onEnd={() => session.skipAd()}
               />
             ) : null}
             {ui.notice ? (

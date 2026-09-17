@@ -24,4 +24,4 @@ Use these words exactly, in code, docs and UI copy.
 - **Replay** — deterministic re-execution of a recording ledger through the conductor, with scrubbing.
 - **Export** — an MP4 rendered from a replay (board frames + mixed audio) for YouTube or download.
 - **Plan** — a billing tier: `free`, `plus`, `classroom`. **Entitlement** — a capability a plan grants (`rooms`, `export`, `no_ads`, `premium_voices`).
-- **Ad card** — a skippable, visible card shown between segments on the free plan. Never spoken by the expert.
+- **Video ad** — a skippable in-stream video (Google IMA, VAST tag from the server) shown over the board between segments on the free plan, or while a topic miss is prepared. Never spoken by the expert. **Ad slot** — `boundary` or `preparation`. **Ad tag** — the VAST/VMAP URL that names the demand source (`PEN_AD_TAG_URL`).

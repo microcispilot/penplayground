@@ -9,6 +9,8 @@ export {
   SPEECH_RULES,
 } from './prompts.js';
 export {
+  type AdOutcome,
+  type AdPolicy,
   hueFor,
   type KnowledgeAcquirer,
   type LedgerSink,

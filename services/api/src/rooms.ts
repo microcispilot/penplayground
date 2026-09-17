@@ -120,14 +120,7 @@ export class RoomRegistry {
       acquirer: services.acquirer,
       ledger: services.ledger,
       targetMinutes: 14,
-      ads:
-        args.host.plan === 'free'
-          ? {
-              everySegments: services.cfg.PEN_ADS_EVERY_SEGMENTS,
-              durationMs: 15_000,
-              skippableAfterMs: 5_000,
-            }
-          : null,
+      ads: services.ads.policyFor(args.host.plan, services.cfg.PEN_ADS_EVERY_SEGMENTS),
     });
     const record: SessionRecord = {
       id: sessionId,
@@ -232,12 +225,20 @@ export class RoomRegistry {
     if (!live) return;
     await live.room.end();
     const state = live.room.getState();
+    // Per-session economics: the ad tally (and its revenue estimate) travels with the session's end.
+    const ads = this.services.ads.tally(sessionId);
     this.services.analytics.capture(live.record.hostId, 'session_ended', {
       durationMs: state.clockMs,
       segments: state.plan?.segments.length ?? 0,
       questions: live.room.backlog().filter((c) => c.event.type === 'note').length,
       completed: state.mode === 'complete',
+      adsCompleted: ads.completed,
+      adsSkipped: ads.skipped,
+      adsErrors: ads.errors,
+      adRevenueEstimateUsd: ads.revenueUsd,
     });
+    observer.event('room.economics', { sessionId, ...ads });
+    this.services.ads.forget(sessionId);
     await this.services.sessions.patch(sessionId, {
       endedAt: Date.now(),
       durationMs: state.clockMs,

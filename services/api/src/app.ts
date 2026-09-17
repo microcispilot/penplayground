@@ -96,6 +96,7 @@ export function buildApp(services: Services): App {
       stt: services.cfg.PEN_STT_PROVIDER,
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
+      ads: services.ads.demand.source,
     }),
   );
 

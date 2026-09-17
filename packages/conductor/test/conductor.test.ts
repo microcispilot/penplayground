@@ -332,6 +332,9 @@ describe('Conductor', () => {
       afterSeq: 3,
       skippableAfterMs: 5000,
       durationMs: 15000,
+      format: 'video',
+      tagUrl: 'https://ads.example.test/vast',
+      slot: 'boundary',
     });
     c.audioEvents.onSayStart('L0.s4@0');
     c.audioEvents.onSayEnd('L0.s4@0', 1000);

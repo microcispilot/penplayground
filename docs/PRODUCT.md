@@ -84,12 +84,17 @@ during preparation.
 
 | Tier | Price idea | What it buys |
 |------|-----------|--------------|
-| **Free** | $0, ad-supported (a skippable card between segments; on a topic miss one card runs while sources are gathered, counted against the same budget) | Solo sessions, replay of your own sessions, standard voices, 3 sessions/day cap. |
+| **Free** | $0, ad-supported (a skippable YouTube-style video ad between segments; on a topic miss one ad runs while sources are gathered, counted against the same budget) | Solo sessions, replay of your own sessions, standard voices, 3 sessions/day cap. |
 | **Standard** | $19/mo ($190/yr) | No ads. Unlimited solo sessions. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
 | **Professional** | $38/mo ($380/yr) | Everything in Standard. Host rooms with up to 12 participants. Shared replays. Class transcripts. Guest questions pinned by name. |
 
-Ads never appear inside the live lesson audio; they are a
-visible card between segments, skippable after 5 s, and never on paid tiers.
+Ads never appear inside the live lesson audio; they are a visible in-stream
+**video** over the board between segments (only video, like YouTube), labelled
+"Ad · 1 of 1" with a countdown, skippable after 5 s whatever the creative says,
+never longer than 30 s, and never on paid tiers. If the ad cannot load (blocker,
+no fill) the lesson resumes within 2 s — no dead air. Demand comes from the
+highest-paying network a new site can join, Google Ad Manager through the IMA
+SDK, behind one swappable tag (ADR-0014, `docs/ADS.md`).
 
 ## Cost thesis
 

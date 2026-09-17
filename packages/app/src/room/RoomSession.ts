@@ -5,10 +5,11 @@ import {
   estimateSpeechMs,
   type PresencePort,
 } from '@pen/conductor';
-import type { CheckEvent, RoomState } from '@pen/contracts';
+import type { AdEventName, AdSlot, CheckEvent, RoomState } from '@pen/contracts';
 import { AUDIO, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
+import { track } from '../lib/analytics.js';
 import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../platform/types.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
@@ -47,6 +48,13 @@ export class RoomSession {
   private clockTimer: ReturnType<typeof setInterval> | null = null;
   private clockBase = 0;
   private clockAt = 0;
+  /**
+   * The conductor's `showAd` port carries only the timing; the tag and slot
+   * come from the `ad` message itself, kept here by id until the ad starts.
+   */
+  private readonly adsById = new Map<string, { tagUrl: string; slot: AdSlot }>();
+  /** Pending conductor timers (the ad ceiling) by handle, so one can be fired early. */
+  private readonly conductorTimers = new Map<ReturnType<typeof setTimeout>, () => void>();
 
   constructor(private readonly o: RoomSessionOptions) {
     const store = useRoomStore.getState();
@@ -121,7 +129,20 @@ export class RoomSession {
         this.mic?.setPlaybackActive(speaking);
       },
       showCheck: (check: CheckEvent | null) => set({ check }),
-      showAd: (ad) => set({ ad: ad ? { ...ad, startedAt: Date.now() } : null }),
+      showAd: (ad) => {
+        if (!ad) {
+          set({ ad: null });
+          return;
+        }
+        const details = this.adsById.get(ad.adId);
+        if (!details) {
+          // Cannot happen with a well-formed stream; never hold the lesson on a blank overlay.
+          console.warn('[ads] no tag for', ad.adId);
+          queueMicrotask(() => this.conductor.skipAd());
+          return;
+        }
+        set({ ad: { ...ad, ...details, startedAt: Date.now() } });
+      },
       notice: (text, tone) => set({ notice: text ? { text, tone } : null }),
     };
 
@@ -132,6 +153,20 @@ export class RoomSession {
       presence,
       transport: { send: (m) => this.client.send(m) },
       participantId: o.participantId,
+      // The conductor's only timer is the ad ceiling; keeping its callback lets skipAd() fire it
+      // early when the conductor has lost track of the ad phase (see skipAd).
+      setTimeout: (fn, ms) => {
+        const handle = setTimeout(() => {
+          this.conductorTimers.delete(handle);
+          fn();
+        }, ms);
+        this.conductorTimers.set(handle, fn);
+        return handle;
+      },
+      clearTimeout: (handle) => {
+        clearTimeout(handle as ReturnType<typeof setTimeout>);
+        this.conductorTimers.delete(handle as ReturnType<typeof setTimeout>);
+      },
     });
 
     const token = o.api.authToken;
@@ -142,6 +177,8 @@ export class RoomSession {
       o.sessionId,
       {
         onMessage: (m) => {
+          // Before the conductor: a preparation ad starts synchronously inside handleServer.
+          if (m.kind === 'ad') this.adsById.set(m.adId, { tagUrl: m.tagUrl, slot: m.slot });
           this.conductor.handleServer(m);
           set({ phase: this.conductor.getPhase() });
           if (m.kind === 'prep') set({ preparation: m.progress });
@@ -324,8 +361,36 @@ export class RoomSession {
     this.conductor.control(action);
   }
 
+  /** Every ad outcome resumes the lesson the same way (or ends the preparation card). */
   skipAd(): void {
     this.conductor.skipAd();
+    // Conductor.applyState() resets the phase to 'playing' on an `answering`/`checking` state
+    // (unlike `teaching`, which guards the ad), so a state broadcast during an ad — a check's
+    // feedback turn, say — leaves the overlay up with skipAd() a no-op until the 30 s ceiling.
+    // Until the conductor guards those branches too, fire its ceiling timer now: that is
+    // endAd() — overlay down, audio and board resumed — exactly what a skip means.
+    if (useRoomStore.getState().ad && this.conductor.getPhase() !== 'ad') {
+      const pending = [...this.conductorTimers.entries()];
+      for (const [handle, fn] of pending) {
+        clearTimeout(handle);
+        this.conductorTimers.delete(handle);
+        fn();
+      }
+    }
+  }
+
+  /**
+   * Ad measurement (ADR-0014): product analytics for every step, and the room
+   * for the outcome tally behind the session's revenue estimate. Folds into the
+   * generic telemetry `report` message once that lands.
+   */
+  adEvent(name: AdEventName, props: Record<string, string | number | boolean>): void {
+    track(name, props);
+    const adId = typeof props.adId === 'string' ? props.adId : null;
+    const atMs = typeof props.atMs === 'number' ? Math.max(0, Math.round(props.atMs)) : 0;
+    if (!adId) return;
+    const code = typeof props.code === 'string' ? props.code : undefined;
+    this.client.send({ kind: 'ad_event', adId, event: name, atMs, ...(code ? { code } : {}) });
   }
 
   toggleCaptions(): void {

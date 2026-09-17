@@ -1,5 +1,12 @@
 import type { ConductorPhase } from '@pen/conductor';
-import type { CheckEvent, Expert, NoteEvent, PreparationProgress, RoomState } from '@pen/contracts';
+import type {
+  AdSlot,
+  CheckEvent,
+  Expert,
+  NoteEvent,
+  PreparationProgress,
+  RoomState,
+} from '@pen/contracts';
 import { create } from 'zustand';
 import type { RoomConnectionStatus } from './RoomClient.js';
 
@@ -22,7 +29,15 @@ export interface RoomUiState {
   caption: CaptionLine | null;
   hint: string | null;
   check: CheckEvent | null;
-  ad: { adId: string; durationMs: number; skippableAfterMs: number; startedAt: number } | null;
+  /** The ad the conductor is holding the lesson for, with the tag the player requests (ADR-0014). */
+  ad: {
+    adId: string;
+    durationMs: number;
+    skippableAfterMs: number;
+    startedAt: number;
+    tagUrl: string;
+    slot: AdSlot;
+  } | null;
   notice: { text: string; tone: 'neutral' | 'danger' } | null;
   preparation: PreparationProgress | null;
   micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';

@@ -154,6 +154,24 @@ chromium`; `pnpm --filter @pen/api test` includes `test/export.integration.test.
 renders a real session and inspects the MP4 with ffprobe (it skips itself when either tool is
 missing).
 
+## Video ads (free plan)
+
+Runbook: `docs/ADS.md`. Two things live in the deploy surface:
+
+- **`PEN_AD_TAG_URL`** in `api.env` — the Google Ad Manager VAST tag. Empty means the free plan
+  shows no ads and the API logs `ads.off` with the reason; `/api/health` reports
+  `"ads":"off" | "configured"`. `PEN_AD_ECPM_USD` only feeds the per-session revenue estimate.
+- **`/ads.txt`** — served by the web container from `apps/web/public/ads.txt`
+  (`deploy/web/nginx.conf` sets `text/plain`, cached 1 h). The file ships with a commented
+  placeholder line; replace `pub-XXXXXXXXXXXXXXXX` with the Ad Manager/AdSense publisher id,
+  uncomment, and redeploy the web image:
+
+  ```
+  google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+  ```
+
+  Check with `curl -s https://DOMAIN/ads.txt`.
+
 ## Updates
 
 ```sh

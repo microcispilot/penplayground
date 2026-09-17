@@ -31,3 +31,7 @@
 - [ ] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
 - [ ] Fake model: completion for the knowledge outline purpose (Sentry issue)
 - [ ] Session thumbnails: one background structured call → sketch spec → SVG/PNG; cards + OG use it
+- [x] Video ads (ADR-0014): Google Ad Manager via IMA behind `PEN_AD_TAG_URL`; player + overlay, measurement, revenue estimate, ads.txt, e2e against the sample tag
+- [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
+- [ ] Ads: fold `ad_event` into the telemetry `report` message; Ad Manager reporting API replaces the eCPM estimate
+- [ ] Ads: TCF 2.2 consent (EEA/UK) and child-directed tagging before serving there

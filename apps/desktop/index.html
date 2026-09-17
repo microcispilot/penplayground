@@ -2,7 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss: ws:; media-src 'self' blob:; worker-src 'self' blob:; child-src blob:" />
+    <!--
+      Video ads (ADR-0014, docs/ADS.md) need the Google IMA SDK and the hosts it talks to:
+        script-src  imasdk.googleapis.com (the SDK), *.googlesyndication.com (creative helpers)
+        frame-src   imasdk.googleapis.com (the SDK renders creatives in a same-origin iframe),
+                    *.doubleclick.net / *.googlesyndication.com (click-through, safeframes)
+        media-src   https: blob: (creatives stream from *.googlevideo.com / *.googlesyndication.com;
+                    the CDN hostnames are many and change, so the scheme is allowed rather than a list)
+        connect-src already allows https: (pubads.g.doubleclick.net tag requests, tracking pixels)
+      Everything else stays as tight as before.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://imasdk.googleapis.com https://*.googlesyndication.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss: ws:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-src https://imasdk.googleapis.com https://*.doubleclick.net https://*.googlesyndication.com; child-src blob: https://imasdk.googleapis.com" />
     <title>Pen Playground</title>
   </head>
   <body>

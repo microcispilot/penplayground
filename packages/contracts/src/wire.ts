@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AdEventName, AdFormat, AdSlot } from './ads.js';
 import { Cue } from './cues.js';
 import { CheckId, ParticipantId, SayId, SessionId } from './ids.js';
 import { PreparationProgress, RoomState } from './session.js';
@@ -60,6 +61,20 @@ export const ClientProgress = z.object({
 });
 /** The host's conductor finished the current turn/ad and resumed the lesson. */
 export const ClientResumed = z.object({ kind: z.literal('resumed') });
+/**
+ * One step of an ad's lifecycle as the host's player saw it (ADR-0014). The room keeps the
+ * per-session ad outcome (completed/skipped/error) so estimated ad revenue can sit next to the
+ * session's cost. Folds into the generic telemetry `report` message once that lands.
+ */
+export const ClientAdEvent = z.object({
+  kind: z.literal('ad_event'),
+  adId: z.string().min(1).max(80),
+  event: AdEventName,
+  /** Milliseconds into the ad when the event happened. */
+  atMs: z.number().int().nonnegative(),
+  /** IMA error code (ad_error) or the reason that ended the ad. */
+  code: z.string().max(40).optional(),
+});
 export const ClientMessage = z.discriminatedUnion('kind', [
   ClientAuth,
   ClientJoin,
@@ -71,6 +86,7 @@ export const ClientMessage = z.discriminatedUnion('kind', [
   ClientCheckAnswer,
   ClientProgress,
   ClientResumed,
+  ClientAdEvent,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -106,12 +122,18 @@ export const ServerCheckResult = z.object({
 });
 export const ServerAd = z.object({
   kind: z.literal('ad'),
-  /** Free plan only: a skippable card between segments. */
+  /** Free plan only: a skippable video ad between segments (ADR-0014). */
   adId: z.string(),
   /** Inserted after this cue seq; -1 = now, while the session is being prepared (topic miss). */
   afterSeq: z.number().int().min(-1),
+  /** The learner can skip from here on, whatever the creative's own skip offset says. */
   skippableAfterMs: z.number().int().nonnegative(),
+  /** Hard ceiling: the conductor resumes the lesson here even if the creative has not ended. */
   durationMs: z.number().int().positive(),
+  format: AdFormat,
+  /** VAST/VMAP tag the player requests through the IMA SDK; server-chosen so the network is swappable. */
+  tagUrl: z.string().url(),
+  slot: AdSlot,
 });
 /** All cues of a turn (answer or check feedback) have been emitted; once their audio has played, the host sends `resumed`. */
 export const ServerTurnDone = z.object({
