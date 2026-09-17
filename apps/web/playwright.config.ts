@@ -46,6 +46,8 @@ export default defineConfig({
         PEN_LLM_PROVIDER: 'fake',
         PEN_TTS_PROVIDER: 'silent',
         PEN_DATA_DIR: '.pen-data-e2e',
+        // Each e2e API gets its own in-memory database: two processes on one PGlite dir abort.
+        DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
       },
       timeout: 60_000,
@@ -67,6 +69,7 @@ export default defineConfig({
         PEN_LLM_PROVIDER: 'fake',
         PEN_TTS_PROVIDER: 'silent',
         PEN_DATA_DIR: '.pen-data-e2e-rooms',
+        DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
         PEN_DEV_PLAN: 'professional',
         LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
