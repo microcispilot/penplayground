@@ -16,6 +16,7 @@ import {
   FishBridgeSynthesizer,
   FishCloudSynthesizer,
   SilentSynthesizer,
+  type SpeechRecognizerFactory,
   type SpeechSynthesizer,
 } from '@pen/voice';
 import { Analytics } from './analytics.js';
@@ -25,6 +26,7 @@ import { demoScripts } from './demo-scripts.js';
 import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
+import { createRecognizer } from './stt.js';
 import { ExpertVoices } from './voices.js';
 
 export interface Services {
@@ -32,6 +34,8 @@ export interface Services {
   onten: Onten;
   experts: ExpertCatalog;
   synthesizer: SpeechSynthesizer;
+  /** Server-side STT; null when clients transcribe on-device (`PEN_STT_PROVIDER=browser`). */
+  recognizer: SpeechRecognizerFactory | null;
   voices: ExpertVoices;
   ledger: FileLedger;
   db: Connection;
@@ -103,6 +107,7 @@ export async function buildServices(
     }
   })();
 
+  const recognizer = createRecognizer(cfg);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
   const models = new Map<PlanCode, LanguageModel>();
   const modelFor = (plan: PlanCode): LanguageModel => {
@@ -149,6 +154,7 @@ export async function buildServices(
     onten,
     experts,
     synthesizer,
+    recognizer,
     voices,
     ledger,
     db,

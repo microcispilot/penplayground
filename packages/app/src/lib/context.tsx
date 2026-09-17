@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { ApiClient, type Participant } from '../api/client.js';
-import { identify, initAnalytics } from './analytics.js';
 import type { Platform } from '../platform/types.js';
+import { identify, initAnalytics } from './analytics.js';
 
 interface AppContextValue {
   platform: Platform;

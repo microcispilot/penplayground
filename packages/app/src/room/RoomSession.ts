@@ -6,7 +6,7 @@ import {
   type PresencePort,
 } from '@pen/conductor';
 import type { CheckEvent, RoomState } from '@pen/contracts';
-import { AUDIO } from '@pen/contracts';
+import { AUDIO, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
 import type { Platform, SpeechRecognizer } from '../platform/types.js';
@@ -34,6 +34,12 @@ export class RoomSession {
   private readonly conductor: Conductor;
   private mic: Microphone | null = null;
   private recognizer: SpeechRecognizer | null = null;
+  /**
+   * No on-device recognizer (Electron, browsers without Web Speech): stream the
+   * mic's 16 kHz utterance blocks to the API, which transcribes server-side and
+   * answers with captions.
+   */
+  private serverSpeech = false;
   private utteranceCounter = 0;
   private currentUtterance: string | null = null;
   private disposed = false;
@@ -201,9 +207,29 @@ export class RoomSession {
       createResamplerWorker: () => this.o.platform.mic.createResamplerWorker(),
       onSpeechStart: () => {
         this.conductor.onSpeechStart();
-        if (!this.currentUtterance) this.currentUtterance = `u${++this.utteranceCounter}`;
+        // Server STT: one VAD segment is one utterance. Browser STT keeps the id
+        // until the recognizer's final, which may lag the VAD.
+        if (this.serverSpeech || !this.currentUtterance)
+          this.currentUtterance = `u${++this.utteranceCounter}`;
+        if (this.serverSpeech)
+          this.client.send({ kind: 'utterance_start', utteranceId: this.currentUtterance });
       },
-      onSpeechEnd: () => this.conductor.onSpeechEnd(),
+      onUtteranceBlock: (pcm16k) => {
+        if (!this.serverSpeech || !this.currentUtterance) return;
+        this.client.sendAudio(
+          encodeAudioFrame(
+            { dir: 'up', utteranceId: this.currentUtterance, sampleRate: 16000 },
+            pcm16k,
+          ),
+        );
+      },
+      onSpeechEnd: () => {
+        this.conductor.onSpeechEnd();
+        if (this.serverSpeech && this.currentUtterance) {
+          this.client.send({ kind: 'utterance_end', utteranceId: this.currentUtterance });
+          this.currentUtterance = null;
+        }
+      },
       onLevel: (rms) => set({ micLevel: rms }),
       onError: (code, error) => {
         console.warn('[mic]', code, error);
@@ -244,17 +270,19 @@ export class RoomSession {
       { language: useRoomStore.getState().state?.language ?? navigator.language ?? 'en-US' },
     );
     this.recognizer = recognizer;
+    // Without an on-device recognizer the room transcribes server-side; if that is
+    // not configured either, the API answers the first frames with STT_UNAVAILABLE
+    // and the conductor shows it.
+    this.serverSpeech = !recognizer.available;
     if (recognizer.available) await recognizer.start();
-    else
-      set({
-        notice: {
-          text: 'Speech recognition is not available here; questions can be typed.',
-          tone: 'neutral',
-        },
-      });
   }
 
   disableMic(): void {
+    if (this.serverSpeech && this.currentUtterance) {
+      this.client.send({ kind: 'utterance_end', utteranceId: this.currentUtterance });
+      this.currentUtterance = null;
+    }
+    this.serverSpeech = false;
     this.recognizer?.stop();
     this.recognizer = null;
     this.mic?.stop();

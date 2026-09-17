@@ -18,7 +18,7 @@ interface Seat {
   socket: WebSocket;
 }
 
-interface LiveRoom {
+export interface LiveRoom {
   room: SessionRoom;
   seats: Map<WebSocket, Seat>;
   record: SessionRecord;

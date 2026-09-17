@@ -16,7 +16,10 @@ export function initAnalytics(platform: Platform): void {
   posthog.register({ app: `pen-academy-${platform.name}` });
 }
 
-export function track(event: string, properties: Record<string, string | number | boolean> = {}): void {
+export function track(
+  event: string,
+  properties: Record<string, string | number | boolean> = {},
+): void {
   if (posthog.__loaded) posthog.capture(event, properties);
 }
 

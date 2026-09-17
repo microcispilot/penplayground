@@ -18,7 +18,8 @@ import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
-import { RoomRegistry } from './rooms.js';
+import { RecognizerRouter } from './recognizer-router.js';
+import { type LiveRoom, RoomRegistry } from './rooms.js';
 import { DATA_DIR, type Services } from './services.js';
 
 export interface App {
@@ -283,11 +284,45 @@ export function buildApp(services: Services): App {
       let authTimer: NodeJS.Timeout | null = null;
       // Messages are processed strictly in order per socket (auth before join, join before control).
       let chain: Promise<void> = Promise.resolve();
+      /** Server-side STT for this participant; created on their first utterance. */
+      let stt: RecognizerRouter | null = null;
+      let sttUnavailableSent = false;
 
       const fail = (ws: { send(data: string): void }, code: ServerErrorCode, message: string) =>
         ws.send(
           JSON.stringify({ kind: 'error', code, message, spoken: false } satisfies ServerMessage),
         );
+
+      const recognizerFor = (
+        ws: WSContext<WebSocket>,
+        live: LiveRoom,
+        participantId: string,
+      ): RecognizerRouter | null => {
+        const factory = services.recognizer;
+        if (!factory) return null;
+        stt ??= new RecognizerRouter({
+          factory,
+          language: () => live.room.getState().language,
+          onTranscript: (utteranceId, text, final) =>
+            live.room.handle(participantId, {
+              kind: 'transcript',
+              utteranceId,
+              text: text.slice(0, 4000),
+              final,
+            }),
+          onError: (code, error, ctx) => {
+            observer.error('stt.session', error, {
+              code,
+              provider: factory.id,
+              participantId,
+              utteranceId: ctx.utteranceId,
+            });
+            fail(ws, 'STT_UNAVAILABLE', "We couldn't hear that clearly. Please say it again.");
+          },
+          onEvent: (name, data) => observer.event(name, { ...data, participantId }),
+        });
+        return stt;
+      };
 
       async function handle(evt: MessageEvent, ws: WSContext<WebSocket>): Promise<void> {
         const raw = ws.raw;
@@ -303,14 +338,21 @@ export function buildApp(services: Services): App {
                   ? new Uint8Array(await evt.data.arrayBuffer())
                   : null;
             if (!bytes) return;
-            const { header } = decodeAudioFrame(bytes);
+            const { header, pcm } = decodeAudioFrame(bytes);
             if (header.dir !== 'up') return;
-            if (services.cfg.PEN_STT_PROVIDER === 'browser')
-              fail(
-                ws,
-                'STT_UNAVAILABLE',
-                'Server-side transcription is not enabled; use on-device speech recognition.',
-              );
+            if (!services.recognizer) {
+              // Once per socket: the client streams many frames per utterance.
+              if (!sttUnavailableSent) {
+                sttUnavailableSent = true;
+                fail(
+                  ws,
+                  'STT_UNAVAILABLE',
+                  'Speech recognition is not available here; questions can be typed.',
+                );
+              }
+              return;
+            }
+            stt?.audio(header.utteranceId, pcm);
             return;
           }
           const parsed = ClientMessage.safeParse(JSON.parse(evt.data));
@@ -358,6 +400,13 @@ export function buildApp(services: Services): App {
             await rooms.end(sessionId);
             return;
           }
+          if (msg.kind === 'utterance_start' || msg.kind === 'utterance_end') {
+            live.room.handle(claims.sub, msg);
+            const router = recognizerFor(ws, live, claims.sub);
+            if (msg.kind === 'utterance_start') router?.utteranceStart(msg.utteranceId);
+            else router?.utteranceEnd(msg.utteranceId);
+            return;
+          }
           live.room.handle(claims.sub, msg);
         } catch (error) {
           observer.error('ws.message', error);
@@ -379,6 +428,8 @@ export function buildApp(services: Services): App {
         },
         onClose(_evt, ws) {
           if (authTimer) clearTimeout(authTimer);
+          stt?.close();
+          stt = null;
           if (sessionId && ws.raw) rooms.detach(sessionId, ws.raw);
         },
         onError(evt) {
