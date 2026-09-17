@@ -4,8 +4,14 @@ import { ArrowLeft, Pause, Play } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { BoardSurface } from '../components/BoardSurface.js';
+import { describeReplayRate, PaceMenu } from '../components/PaceMenu.js';
 import { CaptionOverlay } from '../components/RoomChrome.js';
 import { formatClock, useApp } from '../lib/context.js';
+import {
+  REPLAY_RATE_PREFERENCE_KEY,
+  readPacePreference,
+  writePacePreference,
+} from '../lib/pace-preference.js';
 import { ReplaySession } from '../room/ReplaySession.js';
 import { useRoomStore } from '../room/store.js';
 
@@ -49,15 +55,23 @@ export function Replay() {
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
+  // The viewer's speed is a habit: remembered per device, never applied to an export render.
+  const [rate, setRate] = useState(() =>
+    exportMode ? 1 : (readPacePreference(platform.storage, REPLAY_RATE_PREFERENCE_KEY) ?? 1),
+  );
   const clockRef = useRef(0);
   const curtainRef = useRef<HTMLDivElement>(null);
   /** The session instance the export was started for (StrictMode re-runs effects; sessions are per mount). */
   const exportStartedFor = useRef<ReplaySession | null>(null);
   const beginRef = useRef<() => Promise<void>>(async () => undefined);
+  /** The rate a freshly created session starts with (the effect above must not re-run on rate changes). */
+  const rateRef = useRef(rate);
+  rateRef.current = rate;
   const ui = useRoomStore();
 
   useEffect(() => {
     const s = new ReplaySession(api, id, { mode: exportMode ? 'export' : 'play' });
+    if (!exportMode) s.setPlaybackRate(rateRef.current);
     setSession(s);
     Promise.all([s.load(), api.getSession(id)])
       .then(([st, meta]) => {
@@ -174,12 +188,19 @@ export function Replay() {
     if (!started || exportMode) return;
     const t = setInterval(() => {
       if (!paused) {
-        clockRef.current += 250;
+        // The clock counts recorded time: at 2× it advances twice as fast, like a video's scrubber.
+        clockRef.current += 250 * rate;
         useRoomStore.getState().set({ clockMs: clockRef.current });
       }
     }, 250);
     return () => clearInterval(t);
-  }, [started, paused, exportMode]);
+  }, [started, paused, exportMode, rate]);
+
+  const changeRate = (next: number) => {
+    setRate(next);
+    writePacePreference(platform.storage, next, REPLAY_RATE_PREFERENCE_KEY);
+    session?.setPlaybackRate(next);
+  };
 
   if (error) {
     return (
@@ -249,6 +270,7 @@ export function Replay() {
         <span className="min-w-0 flex-1 truncate text-sm">{title}</span>
         <Pill tone="accent">Replay</Pill>
         <span className="text-sm text-fg-2 tabular">{formatClock(ui.clockMs)}</span>
+        <PaceMenu value={rate} onChange={changeRate} label="Speed" describe={describeReplayRate} />
         <IconButton
           label={paused ? 'Resume' : 'Pause'}
           onClick={() => {

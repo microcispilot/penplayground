@@ -7,10 +7,11 @@ import {
 } from '@pen/conductor';
 import type { Cue, DownstreamAudioHeader, LedgerEntry, RoomState } from '@pen/contracts';
 import { LedgerEntry as LedgerEntrySchema } from '@pen/contracts';
-import { PcmPlayer } from '@pen/voice/client';
+import { MediaSayPlayer } from '@pen/voice/client';
 import { z } from 'zod';
 import type { ApiClient } from '../api/client.js';
 import { LazyBoard } from './LazyBoard.js';
+import { type PaceTimeline, paceTimeline } from './pace-timeline.js';
 import { useRoomStore } from './store.js';
 
 const LedgerResponse = z.object({ entries: z.array(LedgerEntrySchema) });
@@ -141,18 +142,28 @@ class ObservedLazyBoard extends LazyBoard {
 
 /**
  * Deterministic replay of a saved session: the recording ledger is replayed
- * through the same conductor and player the live room uses, so the board is
- * written at the same pace and captions land on the same words. Audio is
- * fetched lazily, a few sentences ahead, from the ledger's audio files.
+ * through the same conductor the live room uses, so the board is written at
+ * the same pace and captions land on the same words. Audio is fetched lazily,
+ * a few sentences ahead, from the ledger's audio files.
+ *
+ * Playback goes through `MediaSayPlayer` rather than the live `PcmPlayer`:
+ * the viewer can watch at 0.75–1.3× and a media element time-stretches with
+ * the pitch preserved, where Web Audio would shift it (ADR-0010). The recorded
+ * teaching pace is replayed as well: the ledger's `pace` entries become
+ * `state` updates, so the board's writing speed follows what the room had.
  */
 export class ReplaySession {
   readonly board = new ObservedLazyBoard();
   readonly mode: ReplayMode;
-  private readonly player: PcmPlayer | null;
+  private readonly player: MediaSayPlayer | null;
   private exportClock: ExportClock | null = null;
   private exportHooks: ExportHooks | null = null;
   private conductor: Conductor | null = null;
   private cues: Cue[] = [];
+  private cueOfSay = new Map<string, Cue>();
+  private paces: PaceTimeline = paceTimeline([]);
+  private state: RoomState | null = null;
+  private playbackRate = 1;
   private audio = new Map<string, AudioRef[]>(); // key: sayId@take
   private sayOrder: string[] = [];
   private fed = 0;
@@ -167,12 +178,13 @@ export class ReplaySession {
   ) {
     useRoomStore.getState().reset();
     this.mode = opts.mode ?? 'play';
-    // Export mode never touches Web Audio: headless Chromium has no output device.
+    // Export mode never touches browser media: headless Chromium has no output device.
     this.player =
       this.mode === 'play'
-        ? new PcmPlayer({
+        ? new MediaSayPlayer({
             onError: (code, detail) => console.warn('[replay]', code, detail),
             onSayStart: (id) => {
+              this.followRecordedPace(id);
               this.conductor?.audioEvents.onSayStart(id);
               void this.feedAhead();
             },
@@ -180,6 +192,34 @@ export class ReplaySession {
             onProgress: (id, ms) => this.conductor?.audioEvents.onProgress(id, ms),
           })
         : null;
+  }
+
+  /** The viewer's playback speed (1 = as recorded); pitch is preserved. */
+  get rate(): number {
+    return this.playbackRate;
+  }
+
+  /**
+   * Watch faster or slower, like a video's speed menu: the audio stretches
+   * (pitch preserved) and the conductor re-times board ops and captions so
+   * they still land on the words. Applies to the sentence playing now.
+   */
+  setPlaybackRate(rate: number): void {
+    const r = Number.isFinite(rate) && rate > 0 ? rate : 1;
+    this.playbackRate = r;
+    if (this.player) this.player.playbackRate = r;
+    this.conductor?.setPlaybackRate(r);
+  }
+
+  /** The room's pace when this sentence was emitted becomes the replay's state (board rate follows). */
+  private followRecordedPace(key: string): void {
+    if (this.paces.constant || !this.state || !this.conductor) return;
+    const cue = this.cueOfSay.get(key.slice(0, key.lastIndexOf('@')));
+    if (!cue) return;
+    const pace = this.paces.at(cue.at);
+    if (Math.abs(pace - this.state.pace) < 1e-6) return;
+    this.state = { ...this.state, pace };
+    this.conductor.handleServer({ kind: 'state', state: this.state });
   }
 
   /** Resolves once the real board is mounted (the export must not start writing into a buffer). */
@@ -229,8 +269,12 @@ export class ReplaySession {
   private prepare(entries: LedgerEntry[]): RoomState {
     const participants: RoomState['participants'] = [];
     let hostId = '';
+    this.paces = paceTimeline(entries);
     for (const e of entries) {
-      if (e.kind === 'cue') this.cues.push(e.cue);
+      if (e.kind === 'cue') {
+        this.cues.push(e.cue);
+        if (e.cue.event.type === 'say') this.cueOfSay.set(e.cue.event.id, e.cue);
+      }
       if (e.kind === 'audio') {
         const [file, off] = e.audioRef.split('#');
         const key = `${e.header.sayId}@${e.header.take}`;
@@ -272,6 +316,7 @@ export class ReplaySession {
       plan: null,
       segment: 0,
       clockMs: 0,
+      pace: this.paces.initial,
       preparation: null,
       evidenceTier: 'reviewed_pack_source',
       startedAt: entries[0]?.t ?? 0,
@@ -302,6 +347,7 @@ export class ReplaySession {
       const plan = this.exportPlan();
       const clock = new ExportClock(plan, {
         onSayStart: (key, index) => {
+          this.followRecordedPace(key);
           this.conductor?.audioEvents.onSayStart(key);
           const say = plan[index];
           if (say) this.exportHooks?.onSayStart(say.sayId, say.take, index, plan.length);
@@ -313,6 +359,7 @@ export class ReplaySession {
       this.exportClock = clock;
       audio = clock;
     }
+    this.state = state;
     this.conductor = new Conductor({
       audio,
       board: this.board,
@@ -321,7 +368,8 @@ export class ReplaySession {
       transport: { send: () => undefined },
       participantId: '__viewer__',
     });
-    await this.player?.prime(44100);
+    this.conductor.setPlaybackRate(this.playbackRate);
+    if (this.player) this.player.playbackRate = this.playbackRate;
     this.conductor.handleServer({ kind: 'ready', participantId: '__viewer__', state, backlog: [] });
     for (const cue of this.cues) this.conductor.handleServer({ kind: 'cue', cue });
     for (const [key, refs] of this.audio) {

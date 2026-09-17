@@ -13,6 +13,28 @@ test.describe('a learner starts a session', () => {
       timeout: 20_000,
     });
 
+    // The host opens the pace menu and picks 1.3×: the room broadcasts the new pace and the pill follows.
+    const pill = page.getByTestId('pace-pill');
+    await expect(pill).toHaveText(/^1×/);
+    await expect(pill).toHaveAttribute('aria-expanded', 'false');
+    await pill.click();
+    const menu = page.getByRole('group', { name: 'Pace' });
+    await expect(menu).toBeVisible();
+    await expect(page.getByTestId('pace-option-1')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('pace-option-1.3')).toHaveAttribute('aria-pressed', 'false');
+    await page.getByTestId('pace-option-1.3').click();
+    await expect(menu).toBeHidden();
+    await expect(pill).toHaveText(/^1\.3×/);
+    await expect(pill).toHaveAttribute('aria-label', 'Pace: 1.3×');
+    // Reopen: the broadcast state marks 1.3× as the pressed preset; Escape closes and returns focus.
+    await pill.click();
+    await expect(page.getByTestId('pace-option-1.3')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(pill).toBeFocused();
+    // The choice is remembered for the next hosted session.
+    expect(await page.evaluate(() => localStorage.getItem('pen.pace'))).toBe('1.3');
+
     // A typed question interrupts; the acknowledgement and answer arrive; the lesson resumes.
     await page.getByLabel('Ask a question').fill('Why do we divide by the square root of d?');
     await page.getByRole('button', { name: 'Ask' }).click();

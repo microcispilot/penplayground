@@ -57,6 +57,25 @@ describe('FishCloudSynthesizer', () => {
     });
     expect((c.init.headers as Record<string, string>).model).toBe('s2.1-pro');
   });
+  it("sends prosody.speed for a pace and clamps it to Fish's range", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(streamOf([new Uint8Array(44100 * 2 * 0.1)]), { status: 200 });
+    };
+    const tts = new FishCloudSynthesizer({ apiKey: 'k', fetchImpl });
+    const drain = async (speed: number) => {
+      for await (const _ of tts.synthesize({ text: 'Hi.', voice: 'v', sampleRate: 44100, speed })) {
+        /* consume */
+      }
+    };
+    await drain(0.95);
+    await drain(1.235);
+    await drain(0.3);
+    expect(bodies[0]?.prosody).toEqual({ speed: 0.95, volume: 0 });
+    expect(bodies[1]?.prosody).toEqual({ speed: 1.235, volume: 0 });
+    expect(bodies[2]?.prosody).toEqual({ speed: 0.5, volume: 0 });
+  });
   it('strips delivery tags', () => {
     expect(stripDeliveryTags('Good [warm tone] one.  Really.')).toBe('Good one. Really.');
   });

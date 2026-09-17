@@ -62,12 +62,12 @@ class FakeExec implements BoardExecution {
   }
 }
 class FakeBoard implements BoardPort {
-  executed: Array<{ op: BoardEvent; paceMs: number | null; exec: FakeExec }> = [];
+  executed: Array<{ op: BoardEvent; paceMs: number | null; rate: number; exec: FakeExec }> = [];
   notes: string[] = [];
   dimmed = false;
-  execute(op: BoardEvent, opts: { paceMs: number | null }) {
+  execute(op: BoardEvent, opts: { paceMs: number | null; rate?: number }) {
     const exec = new FakeExec();
-    this.executed.push({ op, paceMs: opts.paceMs, exec });
+    this.executed.push({ op, paceMs: opts.paceMs, rate: opts.rate ?? 1, exec });
     return exec;
   }
   pinNote(note: { headline: string }) {
@@ -80,10 +80,12 @@ class FakeBoard implements BoardPort {
 }
 class FakeCaptions implements CaptionPort {
   expert: string[] = [];
+  reveals: number[] = [];
   learner: string[] = [];
   hints: Array<string | null> = [];
-  showExpert(text: string) {
+  showExpert(text: string, revealMs: number) {
     this.expert.push(text);
+    this.reveals.push(revealMs);
   }
   showLearner(_n: string, text: string) {
     this.learner.push(text);
@@ -134,6 +136,7 @@ function state(mode: RoomState['mode'], extra: Partial<RoomState> = {}): RoomSta
     plan: null,
     segment: 0,
     clockMs: 0,
+    pace: 1,
     preparation: null,
     evidenceTier: 'reviewed_pack_source',
     startedAt: 0,
@@ -323,6 +326,74 @@ describe('Conductor', () => {
     });
   });
 
+  it("reveals a check-in when the question's words end, before the beat of silence, and only once", () => {
+    const { c, presence, transport, timers } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L1.s2', 'Quick one: what is a vector?') });
+    c.handleServer({
+      kind: 'cue',
+      cue: {
+        seq: 1,
+        segment: 1,
+        thread: 'lesson',
+        at: 0,
+        event: {
+          type: 'check',
+          id: 'L1.c1',
+          askedBy: 'L1.s2',
+          options: ['A', 'B'],
+          expected: 'B',
+          explain: 'x',
+        },
+      },
+    });
+    // 2200 ms of audio = 1500 ms of words + the 700 ms check beat at 1×.
+    c.handleServer({ kind: 'say_complete', sayId: 'L1.s2', durationMs: 2200 });
+    c.audioEvents.onSayStart('L1.s2@0');
+    const reveal = timers.at(-1);
+    expect(reveal?.ms).toBe(1500);
+    const shown = () => presence.checks.filter((x) => x !== null);
+    expect(shown()).toHaveLength(0);
+    reveal?.fn();
+    expect(shown().at(-1)).toMatchObject({ id: 'L1.c1' });
+    // The question's say counts as heard (only its beat remains), then the check: progress stays monotonic.
+    expect(transport.sent.filter((m) => m.kind === 'progress')).toEqual([
+      { kind: 'progress', seq: 0, clockMs: 0 },
+      { kind: 'progress', seq: 1, clockMs: 0 },
+    ]);
+    c.audioEvents.onSayEnd('L1.s2@0', 2200);
+    expect(shown()).toHaveLength(1);
+    expect(transport.sent.filter((m) => m.kind === 'progress')).toHaveLength(2);
+  });
+
+  it('a barge-in during the question cancels the pending reveal', () => {
+    const { c, audio, presence, timers } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L1.s2', 'Quick one?') });
+    c.handleServer({
+      kind: 'cue',
+      cue: {
+        seq: 1,
+        segment: 1,
+        thread: 'lesson',
+        at: 0,
+        event: {
+          type: 'check',
+          id: 'L1.c1',
+          askedBy: 'L1.s2',
+          options: [],
+          expected: 'B',
+          explain: 'x',
+        },
+      },
+    });
+    c.handleServer({ kind: 'say_complete', sayId: 'L1.s2', durationMs: 2200 });
+    c.handleAudio(frame('L1.s2'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L1.s2@0');
+    audio.clock = { sayId: 'L1.s2@0', offsetMs: 300 };
+    c.onSpeechStart();
+    timers.at(-1)?.fn();
+    expect(presence.checks.filter((x) => x !== null)).toHaveLength(0);
+  });
+
   it('ad card: pauses after the marked cue, resumes on skip', () => {
     const { c, audio, presence, timers } = setup();
     c.handleServer({ kind: 'cue', cue: say(3, 'L0.s4', 'End of segment.') });
@@ -355,5 +426,62 @@ describe('Conductor', () => {
     c.control('resume');
     expect(audio.cancelled).toBe(1);
     expect(transport.sent.at(-1)).toEqual({ kind: 'control', action: 'resume' });
+  });
+});
+
+describe('Conductor pace', () => {
+  it('writes board ops at the room pace: rate follows state.pace, the with-op still finishes with the sentence', () => {
+    const { c, board } = setup();
+    c.handleServer({ kind: 'state', state: state('teaching', { pace: 1.3 }) });
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'A sentence.') });
+    c.handleServer({ kind: 'cue', cue: boardCue(1, 'L0.b1', 'L0.s1', 'the cat sat') });
+    c.handleServer({ kind: 'cue', cue: boardCue(2, 'L0.b2', 'now', 'aside') });
+    c.handleServer({ kind: 'say_complete', sayId: 'L0.s1', durationMs: 2600 });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    expect(board.executed.map((e) => [e.op.id, e.paceMs, e.rate])).toEqual([
+      ['L0.b2', null, 1.3],
+      ['L0.b1', 2600, 1.3],
+    ]);
+    expect(c.boardRate).toBe(1.3);
+  });
+
+  it('a pace change mid-sentence applies from the next sentence: ops of the current one keep their rate', () => {
+    const { c, board } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'First.') });
+    c.handleServer({ kind: 'cue', cue: boardCue(1, 'L0.b1', 'after:L0.s1', 'after one') });
+    c.handleServer({ kind: 'cue', cue: say(2, 'L0.s2', 'Second.') });
+    c.handleServer({ kind: 'cue', cue: boardCue(3, 'L0.b2', 'L0.s2', 'with two') });
+    c.handleServer({ kind: 'say_complete', sayId: 'L0.s2', durationMs: 1800 });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    // The host picks 0.75× while sentence one is still being spoken.
+    c.handleServer({ kind: 'state', state: state('teaching', { pace: 0.75 }) });
+    expect(c.boardRate).toBe(1);
+    c.audioEvents.onSayEnd('L0.s1@0', 1500);
+    expect(board.executed.map((e) => [e.op.id, e.rate])).toEqual([['L0.b1', 1]]);
+    c.handleAudio(frame('L0.s2'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s2@0');
+    expect(c.boardRate).toBe(0.75);
+    expect(board.executed.map((e) => [e.op.id, e.paceMs, e.rate])).toEqual([
+      ['L0.b1', null, 1],
+      ['L0.b2', 1800, 0.75],
+    ]);
+  });
+
+  it('replay playback rate re-times board ops and captions to wall time on top of the recorded pace', () => {
+    const { c, board, captions } = setup();
+    c.handleServer({ kind: 'state', state: state('teaching', { pace: 0.9 }) });
+    c.setPlaybackRate(2);
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'Twice as fast.') });
+    c.handleServer({ kind: 'cue', cue: boardCue(1, 'L0.b1', 'L0.s1', 'the cat sat') });
+    c.handleServer({ kind: 'say_complete', sayId: 'L0.s1', durationMs: 3000 });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    expect(captions.expert).toEqual(['Twice as fast.']);
+    expect(captions.reveals).toEqual([1500]);
+    expect(board.executed.map((e) => [e.op.id, e.paceMs, e.rate])).toEqual([['L0.b1', 1500, 1.8]]);
+    c.setPlaybackRate(Number.NaN);
+    expect(c.boardRate).toBe(0.9);
   });
 });

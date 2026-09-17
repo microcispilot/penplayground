@@ -1,3 +1,5 @@
+import { PACE } from './pace.js';
+
 /** Product-level timing constants (docs/PRODUCT.md, ADR-0002, ADR-0004). */
 export const TIMING = {
   /** Learner's last word → expert's first audible phoneme. */
@@ -11,10 +13,10 @@ export const TIMING = {
   /** Trailing silence that ends a learner utterance. */
   endOfUtteranceMs: 800,
   preRollMs: 250,
-  /** Human handwriting pace on the board, characters per second. */
-  handwritingCps: 11,
-  /** Typewriter pace for code/markdown blocks, characters per second. */
-  typewriterCps: 40,
+  /** Human handwriting pace on the board at 1×, characters per second (see pace.ts). */
+  handwritingCps: PACE.handwritingCps,
+  /** Typewriter pace for code/markdown blocks at 1×, characters per second. */
+  typewriterCps: PACE.typewriterCps,
   /** Longest the board may stay untouched while the expert is silent before an honest status line appears. */
   deadAirCeilingMs: 2000,
 } as const;

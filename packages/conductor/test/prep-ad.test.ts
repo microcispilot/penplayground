@@ -96,6 +96,7 @@ function state(
     plan: null,
     segment: 0,
     clockMs: 0,
+    pace: 1,
     preparation:
       phase === 'preparing'
         ? {

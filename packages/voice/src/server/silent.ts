@@ -12,7 +12,9 @@ export class SilentSynthesizer implements SpeechSynthesizer {
   async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
     const words = request.text.trim().split(/\s+/).filter(Boolean).length || 1;
     const wpm = this.opts.wordsPerMinute ?? 150;
-    const totalMs = Math.max(350, Math.round((words / wpm) * 60_000));
+    // A faster pace is shorter audio, exactly as Fish's prosody.speed shortens it.
+    const speed = Math.min(2, Math.max(0.5, request.speed ?? 1));
+    const totalMs = Math.max(350, Math.round(((words / wpm) * 60_000) / speed));
     const frameMs = 120;
     const frameBytes = Math.floor((request.sampleRate * frameMs) / 1000) * 2;
     let clock = 0;
