@@ -20,7 +20,7 @@ import {
   StaticVoiceResolver,
   type VoiceResolver,
 } from '@pen/voice';
-import type { Billing } from './billing.js';
+import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
 import { FileLedger } from './ledger.js';
