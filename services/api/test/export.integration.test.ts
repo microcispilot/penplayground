@@ -135,7 +135,11 @@ async function boot(): Promise<Harness> {
       return result;
     },
   };
-  services.exports = new ExportJobs({ sessionsDir: join(dataDir, 'sessions'), renderer });
+  services.exports = new ExportJobs({
+    sessionsDir: join(dataDir, 'sessions'),
+    renderer,
+    onError: (area, error) => console.warn(`[export.integration] ${area}:`, error),
+  });
   services.renderUnavailable = null;
   const { app, rooms, injectWebSocket } = buildApp(services);
   const server = serve({ fetch: app.fetch, port: apiPort, hostname: '127.0.0.1' });

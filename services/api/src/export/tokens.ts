@@ -10,7 +10,7 @@ export class DownloadTokens {
   private readonly key: Uint8Array;
   constructor(
     secret: string,
-    private readonly ttlSeconds = 60 * 60,
+    private readonly ttlSeconds = 15 * 60,
     private readonly issuer = 'pen-academy',
   ) {
     this.key = new TextEncoder().encode(secret);

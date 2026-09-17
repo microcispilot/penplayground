@@ -125,6 +125,9 @@ export function buildMuxArgs(input: MuxInput): string[] {
     '2',
     '-movflags',
     '+faststart',
+    // The container is declared, not inferred: the file is written under a temp name first.
+    '-f',
+    'mp4',
     input.outputPath,
   ];
 }
@@ -193,7 +196,8 @@ export function chooseCurtain(
     }
   }
   // Only accept a pair that agrees with the page to within 10 % (or 2 s, whichever is larger).
-  if (best && best.error <= Math.max(2000, doneMs * 0.1)) return { lead: best.lead, tail: best.tail };
+  if (best && best.error <= Math.max(2000, doneMs * 0.1))
+    return { lead: best.lead, tail: best.tail };
   return { lead: first, tail: null };
 }
 
@@ -225,7 +229,10 @@ export function runFfmpeg(
     let stderr = '';
     let pending = '';
     let settled = false;
-    const timer = setTimeout(() => finish(new Error(`timed out after ${opts.timeoutMs ?? 0} ms`)), opts.timeoutMs ?? 10 * 60_000);
+    const timer = setTimeout(
+      () => finish(new Error(`timed out after ${opts.timeoutMs ?? 0} ms`)),
+      opts.timeoutMs ?? 10 * 60_000,
+    );
     const onAbort = () => finish(new Error('aborted'));
     opts.signal?.addEventListener('abort', onAbort, { once: true });
     const finish = (error: Error | null, code?: number | null) => {
@@ -274,7 +281,9 @@ export function parseFfmpegVersion(versionOutput: string): [number, number] | nu
 export function ffmpegVersionOk(version: [number, number] | null): boolean {
   if (!version) return false;
   const [maj, min] = version;
-  return maj > MIN_FFMPEG_VERSION[0] || (maj === MIN_FFMPEG_VERSION[0] && min >= MIN_FFMPEG_VERSION[1]);
+  return (
+    maj > MIN_FFMPEG_VERSION[0] || (maj === MIN_FFMPEG_VERSION[0] && min >= MIN_FFMPEG_VERSION[1])
+  );
 }
 
 /** `ffprobe` lives next to `ffmpeg` (same package on every platform we ship). */

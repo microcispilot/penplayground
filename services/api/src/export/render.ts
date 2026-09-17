@@ -6,17 +6,23 @@ import type { FileLedger } from '../ledger.js';
 import {
   buildBlackdetectArgs,
   buildMuxArgs,
+  chooseCurtain,
   EXPORT_HEIGHT,
   EXPORT_WIDTH,
+  ffmpegVersionOk,
+  MIN_FFMPEG_VERSION,
   parseBlackIntervals,
+  parseFfmpegVersion,
   runFfmpeg,
 } from './ffmpeg.js';
-import type { Renderer, RenderResult } from './jobs.js';
+import { RenderError, type Renderer, type RenderResult } from './jobs.js';
 import { alignToTape, planExport } from './plan.js';
 
 export interface PlaywrightRendererOptions {
   /** Origin that serves the web app (`/replay/:id?export=1`). */
   baseUrl: string;
+  /** Origins the page may reach besides `baseUrl` (the API when it is not proxied). */
+  allowedOrigins?: string[] | undefined;
   ffmpegPath: string;
   /** System Chromium; when absent Playwright's own `chromium` channel is used. */
   chromiumPath?: string | undefined;
@@ -44,12 +50,14 @@ const BRIDGE_SCRIPT = `window.__penExport = {
   onError: (...a) => window.__penExportOnError(...a),
 };`;
 
-/** Longest a single render may take, regardless of session length. */
-const MAX_RENDER_MS = 45 * 60_000;
+/** Longest a single render may take, regardless of session length (45 min of speech + transcode). */
+const MAX_RENDER_MS = 90 * 60_000;
 /** Frames written after the curtain drops so the trailing black interval is on tape. */
 const CURTAIN_SETTLE_MS = 700;
-/** The page's leading curtain must be at least this long to be the sync marker (screencast is 25 fps). */
+/** The page's curtain must be at least this long to be a sync marker (screencast is 25 fps). */
 const MIN_CURTAIN_SEC = 0.08;
+/** Beyond this the page clock and the recording disagree too much to trust either. */
+const MAX_DRIFT_MS = 500;
 
 /**
  * Renders a session deterministically: headless Chromium plays the replay page
@@ -61,8 +69,9 @@ const MIN_CURTAIN_SEC = 0.08;
  * (a `requestAnimationFrame` that lifts the curtain and starts the export clock
  * in the same tick), and drops the curtain again when done. `blackdetect` finds
  * both edges on the recording, so t=0 of the output is the very frame the clock
- * started, and the trailing edge measures end-to-end drift between the page's
- * clock and the recording (`syncDriftMs`, reported and asserted in tests).
+ * started; the trailing edge measures end-to-end drift between the page's clock
+ * and the recording (`syncDriftMs`), which is reported, applied as a linear
+ * correction to the audio offsets, and asserted in the integration test.
  */
 export class PlaywrightRenderer implements Renderer {
   private readonly browserType: BrowserType;
@@ -71,10 +80,16 @@ export class PlaywrightRenderer implements Renderer {
     this.browserType = o.browserType ?? chromium;
   }
 
-  /** Are ffmpeg and a Chromium reachable? Checked once at boot; the API refuses exports otherwise. */
+  /** Are a recent-enough ffmpeg and a launchable Chromium here? Checked once at boot; the API refuses exports otherwise. */
   async available(): Promise<{ ok: true } | { ok: false; reason: string }> {
     try {
-      await runFfmpeg(this.o.ffmpegPath, ['-version'], { timeoutMs: 10_000 });
+      const { stdout } = await runFfmpeg(this.o.ffmpegPath, ['-version'], { timeoutMs: 10_000 });
+      const version = parseFfmpegVersion(stdout);
+      if (!ffmpegVersionOk(version))
+        return {
+          ok: false,
+          reason: `ffmpeg ${version ? version.join('.') : '(unknown version)'} is older than ${MIN_FFMPEG_VERSION.join('.')}`,
+        };
     } catch (error) {
       return {
         ok: false,
@@ -87,7 +102,33 @@ export class PlaywrightRenderer implements Renderer {
         ok: false,
         reason: `Chromium not found at ${exe || '(none)'}; run \`pnpm exec playwright install chromium\` or set PEN_CHROMIUM_PATH`,
       };
+    // The path check passes with only the headless shell installed; a real launch is the truth.
+    try {
+      const browser = await this.launch();
+      await browser.close();
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `Chromium failed to launch: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`,
+      };
+    }
     return { ok: true };
+  }
+
+  private launch(): Promise<Browser> {
+    const launch = this.o.chromiumPath
+      ? { executablePath: this.o.chromiumPath }
+      : { channel: 'chromium' as const };
+    return this.browserType.launch({
+      ...launch,
+      headless: true,
+      args: [
+        '--autoplay-policy=no-user-gesture-required',
+        '--hide-scrollbars',
+        '--force-device-scale-factor=1',
+        ...(this.o.chromiumArgs ?? []),
+      ],
+    });
   }
 
   async render(input: {
@@ -98,10 +139,15 @@ export class PlaywrightRenderer implements Renderer {
     signal: AbortSignal;
   }): Promise<RenderResult> {
     const { sessionId, sessionDir, outputPath, onProgress, signal } = input;
+    signal.throwIfAborted();
     const entries = this.o.ledger.read(sessionId);
-    if (entries.length === 0) throw new Error('no ledger for this session');
+    if (entries.length === 0)
+      throw new RenderError('This session has nothing to export.', 'no ledger for this session');
     const plan = planExport(entries, join(sessionDir, 'audio'));
     const scratch = mkdtempSync(join(this.o.tmpDir ?? tmpdir(), 'pen-export-'));
+    // Written next to the final file so the last step is an atomic same-filesystem rename
+    // (the scratch dir may be a tmpfs on another mount).
+    const tmpOut = `${outputPath}.tmp`;
     let browser: Browser | null = null;
     try {
       const capture = await this.record(
@@ -116,8 +162,9 @@ export class PlaywrightRenderer implements Renderer {
         },
       );
       onProgress(0.84);
-      const curtain = await this.findCurtain(capture.videoPath, capture.doneMs);
+      const curtain = await this.findCurtain(capture.videoPath, capture.doneMs, signal);
       onProgress(0.88);
+      // The recording's clock vs the page's: correct the audio offsets by the measured stretch.
       const tapeStarts = alignToTape(capture.sayStarts, capture.doneMs, curtain.driftMs);
       const says = plan.says.flatMap((say, i) => {
         const offsetMs = tapeStarts[i];
@@ -133,8 +180,7 @@ export class PlaywrightRenderer implements Renderer {
           },
         ];
       });
-      const tmpOut = join(scratch, 'export.mp4');
-      const durationSec = capture.doneMs / 1000;
+      const durationSec = (curtain.measuredMs ?? capture.doneMs) / 1000;
       await runFfmpeg(
         this.o.ffmpegPath,
         buildMuxArgs({
@@ -144,14 +190,19 @@ export class PlaywrightRenderer implements Renderer {
           says,
           outputPath: tmpOut,
         }),
-        { timeoutMs: MAX_RENDER_MS, signal },
+        {
+          timeoutMs: MAX_RENDER_MS,
+          signal,
+          onProgress: (outMs) =>
+            onProgress(0.88 + 0.11 * Math.min(1, outMs / Math.max(1, durationSec * 1000))),
+        },
       );
       renameSync(tmpOut, outputPath);
       this.o.onEvent?.('export.rendered', {
         sessionId,
         says: says.length,
         estimatedSays: plan.says.filter((s) => s.estimated).length,
-        durationMs: Math.round(capture.doneMs),
+        durationMs: Math.round(durationSec * 1000),
         curtainSec: curtain.videoStartSec,
         syncDriftMs: curtain.driftMs ?? -1,
       });
@@ -165,6 +216,7 @@ export class PlaywrightRenderer implements Renderer {
       const b = browser as Browser | null;
       if (b) await b.close().catch(() => undefined);
       rmSync(scratch, { recursive: true, force: true });
+      rmSync(tmpOut, { force: true });
     }
   }
 
@@ -178,26 +230,25 @@ export class PlaywrightRenderer implements Renderer {
     signal: AbortSignal,
     onBrowser: (b: Browser) => void,
   ): Promise<{ videoPath: string; doneMs: number; sayStarts: number[] }> {
-    const launch = this.o.chromiumPath
-      ? { executablePath: this.o.chromiumPath }
-      : { channel: 'chromium' as const };
-    const browser = await this.browserType.launch({
-      ...launch,
-      headless: true,
-      args: [
-        '--autoplay-policy=no-user-gesture-required',
-        '--hide-scrollbars',
-        '--force-device-scale-factor=1',
-        ...(this.o.chromiumArgs ?? []),
-      ],
-    });
+    const browser = await this.launch();
     onBrowser(browser);
+    signal.throwIfAborted();
     onProgress(0.03);
     const context = await browser.newContext({
       viewport: { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
       deviceScaleFactor: 1,
       recordVideo: { dir: scratch, size: { width: EXPORT_WIDTH, height: EXPORT_HEIGHT } },
       colorScheme: 'light',
+    });
+    // The render host must not fetch arbitrary URLs that lesson content may carry.
+    const allowed = new Set(
+      [this.o.baseUrl, ...(this.o.allowedOrigins ?? [])].map((u) => new URL(u).origin),
+    );
+    await context.route('**/*', (route) => {
+      const url = route.request().url();
+      const ok =
+        url.startsWith('data:') || url.startsWith('blob:') || allowed.has(new URL(url).origin);
+      return ok ? route.continue() : route.abort('blockedbyclient');
     });
     const page = await context.newPage();
     const sayStarts: number[] = [];
@@ -207,13 +258,27 @@ export class PlaywrightRenderer implements Renderer {
       settle = resolve;
       fail = reject;
     });
+    // `fail` may fire before `finished` is awaited (during goto); never let that surface as unhandled.
+    finished.catch(() => undefined);
+    // Uncaught page errors are recorded, not fatal: the replay reports its own failures through
+    // `onError`, and blocked third-party requests (analytics, fonts) must never sink a render.
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => {
+      if (pageErrors.length < 5) pageErrors.push(error.message.slice(0, 200));
+    });
     const hooks: PageHooks = {
       onSayStart: (_sayId, _take, videoTimeMs, index) => {
         sayStarts[index] = videoTimeMs;
         onProgress(0.05 + 0.75 * Math.min(1, (index + 1) / Math.max(1, total)));
       },
       onDone: (doneMs) => settle({ doneMs }),
-      onError: (message) => fail(new Error(`replay page: ${message}`)),
+      onError: (message) =>
+        fail(
+          new RenderError(
+            'The replay could not be played back.',
+            `replay page: ${message}${pageErrors.length ? ` | page errors: ${pageErrors.join(' | ')}` : ''}`,
+          ),
+        ),
     };
     await page.exposeFunction('__penExportOnSayStart', hooks.onSayStart);
     await page.exposeFunction('__penExportOnDone', hooks.onDone);
@@ -221,18 +286,28 @@ export class PlaywrightRenderer implements Renderer {
     // A string, not a function: tsx/esbuild `keepNames` would inject a `__name` helper into a
     // stringified function that the page does not have.
     await page.addInitScript({ content: BRIDGE_SCRIPT });
-    page.on('pageerror', (error) => fail(new Error(`replay page threw: ${error.message}`)));
+
     page.on('crash', () => fail(new Error('replay page crashed')));
     const onAbort = () => fail(new Error('render aborted'));
     signal.addEventListener('abort', onAbort, { once: true });
-    const budgetMs = Math.min(MAX_RENDER_MS, 45_000 + spokenMs * 1.5);
+    if (signal.aborted) onAbort();
+    const budgetMs = Math.min(MAX_RENDER_MS, 120_000 + spokenMs * 1.5);
     const timer = setTimeout(
-      () => fail(new Error(`replay did not finish within ${Math.round(budgetMs / 1000)} s`)),
+      () =>
+        fail(
+          new RenderError(
+            'The replay took too long to play back.',
+            `replay did not finish within ${Math.round(budgetMs / 1000)} s${pageErrors.length ? ` | page errors: ${pageErrors.join(' | ')}` : ''}`,
+          ),
+        ),
       budgetMs,
     );
     try {
       const url = `${this.o.baseUrl.replace(/\/$/, '')}/replay/${encodeURIComponent(sessionId)}?export=1`;
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await Promise.race([
+        page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }),
+        finished,
+      ]);
       onProgress(0.05);
       const { doneMs } = await finished;
       // Keep recording briefly so the dropped curtain is on tape for the trailing sync edge.
@@ -242,16 +317,15 @@ export class PlaywrightRenderer implements Renderer {
       await page.close();
       await context.close();
       const videoPath = await video.path();
-      if (sayStarts.length !== total || sayStarts.some((t) => t === undefined))
-        throw new Error(
-          `page reported ${sayStarts.filter((t) => t !== undefined).length}/${total} say starts`,
-        );
-      for (let i = 1; i < sayStarts.length; i++) {
-        const a = sayStarts[i - 1] ?? 0;
-        const b = sayStarts[i] ?? 0;
-        if (b < a) throw new Error(`say starts not monotonic at ${i}: ${a} > ${b}`);
+      for (let i = 0; i < total; i++) {
+        const t = sayStarts[i];
+        if (t === undefined)
+          throw new Error(`page never reported the start of say ${i + 1}/${total}`);
+        const prev = sayStarts[i - 1];
+        if (i > 0 && prev !== undefined && t < prev)
+          throw new Error(`say starts not monotonic at ${i}: ${prev} > ${t}`);
       }
-      return { videoPath, doneMs, sayStarts };
+      return { videoPath, doneMs, sayStarts: sayStarts.slice(0, total) };
     } finally {
       clearTimeout(timer);
       signal.removeEventListener('abort', onAbort);
@@ -262,20 +336,26 @@ export class PlaywrightRenderer implements Renderer {
   private async findCurtain(
     videoPath: string,
     doneMs: number,
-  ): Promise<{ videoStartSec: number; driftMs: number | null }> {
+    signal: AbortSignal,
+  ): Promise<{ videoStartSec: number; measuredMs: number | null; driftMs: number | null }> {
     const { stderr } = await runFfmpeg(this.o.ffmpegPath, buildBlackdetectArgs(videoPath), {
-      timeoutMs: 10 * 60_000,
+      timeoutMs: MAX_RENDER_MS,
+      signal,
     });
-    const intervals = parseBlackIntervals(stderr).filter(
-      (b) => b.endSec - b.startSec >= MIN_CURTAIN_SEC,
-    );
-    const lead = intervals[0];
-    if (!lead) throw new Error('sync curtain not found on the recording');
-    const videoStartSec = lead.endSec;
-    const tail = intervals
-      .slice(1)
-      .find((b) => b.startSec >= videoStartSec + (doneMs / 1000) * 0.5);
-    const driftMs = tail ? Math.round((tail.startSec - videoStartSec) * 1000 - doneMs) : null;
-    return { videoStartSec, driftMs };
+    const curtain = chooseCurtain(parseBlackIntervals(stderr), doneMs, MIN_CURTAIN_SEC);
+    if (!curtain)
+      throw new RenderError(
+        'The recording could not be aligned.',
+        'sync curtain not found on the recording',
+      );
+    const videoStartSec = curtain.lead.endSec;
+    const measuredMs = curtain.tail ? (curtain.tail.startSec - videoStartSec) * 1000 : null;
+    const driftMs = measuredMs === null ? null : Math.round(measuredMs - doneMs);
+    if (driftMs !== null && Math.abs(driftMs) > MAX_DRIFT_MS)
+      throw new RenderError(
+        'The recording could not be aligned.',
+        `video/page drift ${driftMs} ms exceeds ${MAX_DRIFT_MS} ms`,
+      );
+    return { videoStartSec, measuredMs, driftMs };
   }
 }

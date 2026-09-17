@@ -118,7 +118,9 @@ export function Replay() {
     });
   };
 
-  beginRef.current = begin;
+  useEffect(() => {
+    beginRef.current = begin;
+  });
 
   // Export mode: the render starts itself once everything that can affect a frame is in place.
   useEffect(() => {
@@ -127,7 +129,12 @@ export function Replay() {
     // No cleanup cancellation: a disposed session (unmount) simply ignores the clock.
     const run = async () => {
       await beginRef.current();
-      await session.boardReady;
+      await Promise.race([
+        session.boardReady,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('board did not mount within 30 s')), 30_000),
+        ),
+      ]);
       await document.fonts.ready.catch(() => undefined);
       // Two frames so the mounted board has painted at least once behind the curtain.
       await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));

@@ -18,7 +18,7 @@
 - [x] Billing: Stripe checkout/portal/webhook, plan from the participant row (needs price ids)
 - [x] Replay from the ledger through the conductor
 - [ ] Google sign-in (accounts on the same participant row)
-- [ ] MP4 export (mediabunny) + YouTube upload (OAuth verification lead time)
+- [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
 - [ ] LiveKit rooms audio (human-to-human voice)
 - [ ] Desktop: package and sign (needs Apple ID / Windows cert)
 - [ ] Sentry projects + source maps (needs go-ahead, docs/QUESTIONS.md #9)

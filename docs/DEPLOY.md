@@ -116,11 +116,8 @@ ledger and is reused until the ledger changes.
 
 Prerequisites, all inside the **api** container:
 
-- an image built with `--build-arg WITH_RENDER=1` (see `services/api/Dockerfile`).
-  `deploy/deploy.sh` does not pass the arg yet: build the API image by hand with the same tag it
-  would use (`docker buildx build --platform linux/amd64 --load -f services/api/Dockerfile
-  --build-arg WITH_RENDER=1 --build-arg GIT_SHA=$(git rev-parse HEAD) -t pen-academy-api:<tag> .`)
-  and then run `deploy/deploy.sh --skip-build`. The runtime becomes
+- an image built with `--build-arg WITH_RENDER=1` (see `services/api/Dockerfile`); `deploy.sh`
+  passes it by default (`PEN_WITH_RENDER=0` opts out). The runtime becomes
   `mcr.microsoft.com/playwright:v1.63.0-noble` + `apt ffmpeg` (~1.9 GB). Without it the API
   boots normally with export disabled: `/api/health` reports `render:false` and the endpoint
   answers `503 RENDER_UNAVAILABLE`; the web app shows the failure in place.

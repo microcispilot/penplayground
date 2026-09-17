@@ -4,8 +4,11 @@ import {
   buildBlackdetectArgs,
   buildMuxArgs,
   buildVideoFilter,
+  chooseCurtain,
+  ffmpegVersionOk,
   ffprobePathFor,
   parseBlackIntervals,
+  parseFfmpegVersion,
 } from '../src/export/ffmpeg.js';
 import { alignToTape, exportFilename } from '../src/export/plan.js';
 
@@ -23,14 +26,14 @@ const says = [
 ];
 
 describe('export ffmpeg builder', () => {
-  it('places every say at its video offset with adelay and mixes without normalisation', () => {
+  it('places every say at its video offset with adelay, trimmed to the ledger length, and mixes without normalisation', () => {
     const { filter, label } = buildAudioFilter(says);
     expect(label).toBe('[a]');
     expect(filter).toBe(
       [
-        '[1:a]aresample=44100,adelay=delays=0:all=1[d0]',
-        '[2:a]aresample=44100,adelay=delays=3212:all=1[d1]',
-        '[3:a]aresample=44100,adelay=delays=5730:all=1[d2]',
+        '[1:a]atrim=end=3.200,aresample=44100,adelay=delays=0:all=1[d0]',
+        '[2:a]atrim=end=2.500,aresample=44100,adelay=delays=3212:all=1[d1]',
+        '[3:a]atrim=end=1.800,aresample=44100,adelay=delays=5730:all=1[d2]',
         '[d0][d1][d2]amix=inputs=3:normalize=0:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad[a]',
       ].join(';'),
     );
@@ -60,11 +63,14 @@ describe('export ffmpeg builder', () => {
       outputPath: '/out/export.mp4',
     });
     // Input 0 is the video; PCM inputs follow in say order with their format declared before `-i`.
-    expect(args.slice(0, 7)).toEqual([
+    expect(args.slice(0, 10)).toEqual([
       '-hide_banner',
       '-nostdin',
+      '-nostats',
       '-loglevel',
       'error',
+      '-progress',
+      'pipe:1',
       '-y',
       '-i',
       '/tmp/v.webm',
@@ -93,7 +99,7 @@ describe('export ffmpeg builder', () => {
       // Output options come after every input's own `-ar`/`-ac`.
       expect(args[args.lastIndexOf(pair[0] ?? '') + 1]).toBe(pair[1]);
     }
-    expect(args.at(-1)).toBe('/out/export.mp4');
+    expect(args.slice(-3)).toEqual(['-f', 'mp4', '/out/export.mp4']);
   });
 
   it('parses blackdetect intervals from ffmpeg stderr', () => {
@@ -147,5 +153,44 @@ describe('alignToTape', () => {
 
   it('never divides by zero on an empty recording', () => {
     expect(alignToTape([0], 0, 50)).toEqual([0]);
+  });
+});
+
+describe('chooseCurtain', () => {
+  const lead = { startSec: 0.4, endSec: 1.2 };
+  const tail = { startSec: 29.4, endSec: 30.1 };
+
+  it('takes the first interval as the lead and the matching closing curtain as the tail', () => {
+    expect(chooseCurtain([lead, tail], 28_166)).toEqual({ lead, tail });
+  });
+
+  it('ignores padding black before the app painted and a short flicker in the middle', () => {
+    const pad = { startSec: 0, endSec: 0.24 };
+    const flicker = { startSec: 12, endSec: 12.05 };
+    expect(chooseCurtain([pad, lead, flicker, tail], 28_166)).toEqual({ lead, tail });
+  });
+
+  it('keeps the lead but reports no tail when nothing plausible closes the export', () => {
+    const early = { startSec: 5, endSec: 5.5 };
+    expect(chooseCurtain([lead, early], 28_166)).toEqual({ lead, tail: null });
+  });
+
+  it('is null with no black at all', () => {
+    expect(chooseCurtain([], 1000)).toBeNull();
+  });
+});
+
+describe('ffmpeg version gate', () => {
+  it('parses distro and upstream banners', () => {
+    expect(parseFfmpegVersion('ffmpeg version 8.1.1 Copyright (c) 2000-2026')).toEqual([8, 1]);
+    expect(parseFfmpegVersion('ffmpeg version n6.1.1-3ubuntu5')).toEqual([6, 1]);
+    expect(parseFfmpegVersion('ffmpeg version 4.2.7-0ubuntu0.1')).toEqual([4, 2]);
+    expect(parseFfmpegVersion('garbage')).toBeNull();
+  });
+  it('requires 4.4 or newer', () => {
+    expect(ffmpegVersionOk([4, 4])).toBe(true);
+    expect(ffmpegVersionOk([8, 1])).toBe(true);
+    expect(ffmpegVersionOk([4, 2])).toBe(false);
+    expect(ffmpegVersionOk(null)).toBe(false);
   });
 });

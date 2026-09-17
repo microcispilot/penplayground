@@ -1,15 +1,57 @@
-import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ExportJobs, type Renderer, type RenderResult } from '../src/export/jobs.js';
+import { ExportJobs, ExportRefused, type Renderer, type RenderResult } from '../src/export/jobs.js';
+
+/** One spoken sentence in the ledger: a say cue plus `ms` of 44.1 kHz audio. */
+function sayLines(n: number, ms: number): string {
+  const cue = {
+    kind: 'cue',
+    t: 1_000_000 + n,
+    cue: {
+      seq: n,
+      segment: 0,
+      thread: 'lesson',
+      at: 1_000_000 + n,
+      event: { type: 'say', id: `L0.s${n}`, text: `sentence ${n}`, tone: 'neutral' },
+    },
+  };
+  const audio = {
+    kind: 'audio',
+    t: 1_000_000 + n,
+    header: {
+      dir: 'down',
+      sayId: `L0.s${n}`,
+      audioChunkId: 0,
+      audioClockMs: 0,
+      sampleRate: 44100,
+      durationMs: ms,
+      textSpan: null,
+      final: true,
+      take: 0,
+    },
+    audioRef: `L0.s${n}.0.pcm#0`,
+  };
+  return `${JSON.stringify(cue)}\n${JSON.stringify(audio)}\n`;
+}
 
 function fixture() {
   const sessionsDir = mkdtempSync(join(tmpdir(), 'pen-export-jobs-'));
   const session = (id: string, ledgerAt = 1_000_000) => {
     const dir = join(sessionsDir, id);
     mkdirSync(join(dir, 'audio'), { recursive: true });
-    writeFileSync(join(dir, 'ledger.jsonl'), '{"kind":"join"}\n');
+    writeFileSync(
+      join(dir, 'ledger.jsonl'),
+      `${JSON.stringify({ kind: 'join', t: ledgerAt, participantId: 'p_hosthost', name: 'Ada' })}\n${sayLines(1, 3000)}`,
+    );
     utimesSync(join(dir, 'ledger.jsonl'), ledgerAt / 1000, ledgerAt / 1000);
     return dir;
   };
@@ -88,9 +130,16 @@ describe('ExportJobs', () => {
     expect(jobs.request('s').status).toBe('ready');
     expect(jobs.request('s').status).toBe('ready');
     expect(fake.calls).toEqual([]);
-    // The ledger moves on (the session was appended to): the file is stale.
+    // A participant leaving after the end touches the ledger but changes no speech: still fresh.
+    appendFileSync(
+      join(dir, 'ledger.jsonl'),
+      `${JSON.stringify({ kind: 'leave', t: 5_000_000, participantId: 'p_guestguest' })}\n`,
+    );
     utimesSync(join(dir, 'ledger.jsonl'), 3_000, 3_000);
-    expect(jobs.status('s')?.status).not.toBe('ready');
+    expect(jobs.status('s')?.status).toBe('ready');
+    // New speech in the ledger: the file is stale.
+    appendFileSync(join(dir, 'ledger.jsonl'), sayLines(2, 2000));
+    expect(jobs.status('s')?.status).toBe('stale');
     const again = jobs.request('s');
     expect(again.status).toBe('queued');
     fake.release();
@@ -113,15 +162,18 @@ describe('ExportJobs', () => {
     expect(fake.calls).toEqual(['s']);
   });
 
-  it('records a failure with its message, reports it, and lets the next request retry', async () => {
+  it('records a failure for the user, reports the raw error, and lets the next request retry', async () => {
     const { sessionsDir, session } = fixture();
     session('s');
-    const failing = fakeRenderer({ fail: 'ffmpeg failed (exit 1): boom' });
-    const errors: string[] = [];
+    const failing = fakeRenderer({
+      fail: 'ffmpeg failed (exit 1): /srv/data/sessions/s/audio boom',
+    });
+    const errors: Array<{ area: string; message: string; ref: unknown }> = [];
     const jobs = new ExportJobs({
       sessionsDir,
       renderer: failing.renderer,
-      onError: (area) => errors.push(area),
+      onError: (area, error, data) =>
+        errors.push({ area, message: error instanceof Error ? error.message : '', ref: data?.ref }),
     });
     jobs.request('s');
     await new Promise((r) => setTimeout(r, 10));
@@ -129,37 +181,89 @@ describe('ExportJobs', () => {
     await jobs.idle();
     const failed = jobs.status('s');
     expect(failed?.status).toBe('failed');
-    expect(failed?.error).toContain('boom');
-    expect(errors).toEqual(['export.render']);
+    // Users never see paths or tool output; the ref ties the message to the Sentry event.
+    expect(failed?.error).toMatch(/^The render failed\. Please try again \(ref [a-z0-9]+\)\.$/);
+    expect(failed?.error).not.toContain('/srv');
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.area).toBe('export.render');
+    expect(errors[0]?.message).toContain('boom');
+    expect(failed?.error).toContain(String(errors[0]?.ref));
     expect(jobs.request('s').status).toBe('queued');
     failing.release();
     await jobs.idle();
   });
 
-  it('treats a persisted rendering/queued record from a previous process as failed', () => {
+  const persistedRendering = (pid: number, heartbeatAt: number) => ({
+    sessionId: 's',
+    status: 'rendering',
+    progress: 0.4,
+    error: null,
+    createdAt: 1,
+    startedAt: 2,
+    finishedAt: null,
+    output: null,
+    bytes: null,
+    durationMs: null,
+    syncDriftMs: null,
+    ledgerFingerprint: null,
+    pid,
+    heartbeatAt,
+  });
+
+  it('treats a persisted rendering record with a cold heartbeat as a crashed process', () => {
     const { sessionsDir, session } = fixture();
     const dir = session('s');
-    writeFileSync(
-      join(dir, 'export.json'),
-      JSON.stringify({
-        sessionId: 's',
-        status: 'rendering',
-        progress: 0.4,
-        error: null,
-        createdAt: 1,
-        startedAt: 2,
-        finishedAt: null,
-        output: null,
-        bytes: null,
-        durationMs: null,
-        syncDriftMs: null,
-        ledgerMtimeMs: null,
-      }),
-    );
-    const jobs = new ExportJobs({ sessionsDir, renderer: fakeRenderer().renderer });
+    writeFileSync(join(dir, 'export.json'), JSON.stringify(persistedRendering(4242, 1_000)));
+    const jobs = new ExportJobs({ sessionsDir, renderer: fakeRenderer().renderer, pid: 1 });
     const st = jobs.status('s');
     expect(st?.status).toBe('failed');
     expect(st?.error).toMatch(/interrupted/);
+  });
+
+  it('leaves another live process’s rendering job alone while its heartbeat is warm', () => {
+    const { sessionsDir, session } = fixture();
+    const dir = session('s');
+    const now = 10_000_000;
+    writeFileSync(join(dir, 'export.json'), JSON.stringify(persistedRendering(4242, now - 5_000)));
+    const jobs = new ExportJobs({
+      sessionsDir,
+      renderer: fakeRenderer().renderer,
+      pid: 1,
+      now: () => now,
+    });
+    expect(jobs.status('s')?.status).toBe('rendering');
+    // Asking again does not start a second render here.
+    expect(jobs.request('s').status).toBe('rendering');
+    expect(jobs.pending).toBe(0);
+  });
+
+  it('refuses when the queue is full, the session is too long, or there is no ledger', async () => {
+    const { sessionsDir, session } = fixture();
+    session('a');
+    session('b');
+    const long = session('long');
+    writeFileSync(join(long, 'ledger.jsonl'), sayLines(1, 20 * 60_000));
+    mkdirSync(join(sessionsDir, 'empty'), { recursive: true });
+    const fake = fakeRenderer();
+    const jobs = new ExportJobs({
+      sessionsDir,
+      renderer: fake.renderer,
+      maxQueue: 1,
+      maxSpokenMs: 15 * 60_000,
+    });
+    jobs.request('a');
+    let refused: unknown = null;
+    try {
+      jobs.request('b');
+    } catch (e) {
+      refused = e;
+    }
+    expect(refused).toBeInstanceOf(ExportRefused);
+    expect((refused as ExportRefused).code).toBe('QUEUE_FULL');
+    expect(() => jobs.request('long')).toThrow(/15 minutes/);
+    expect(() => jobs.request('empty')).toThrow(ExportRefused);
+    fake.release();
+    await jobs.idle();
   });
 
   it('a ready record whose file is gone is no longer ready', async () => {

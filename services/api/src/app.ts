@@ -8,6 +8,7 @@ import {
   hasEntitlement,
   type ServerErrorCode,
   type ServerMessage,
+  SessionId,
 } from '@pen/contracts';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -15,7 +16,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { WSContext } from 'hono/ws';
 import type { WebSocket } from 'ws';
 import { z } from 'zod';
-import { exportFilename } from './export/index.js';
+import { ExportRefused, exportFilename } from './export/index.js';
 import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
 import { logger } from './logger.js';
@@ -229,6 +230,9 @@ export function buildApp(services: Services): App {
   > => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
+    // Ids become directory names under the data dir: only well-formed ones get anywhere near the disk.
+    if (!SessionId.safeParse(c.req.param('id')).success)
+      return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
     const record = await services.sessions.get(c.req.param('id'));
     if (!record) return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
     if (record.hostId !== claims.sub)
@@ -261,7 +265,7 @@ export function buildApp(services: Services): App {
     claims: Claims,
     sessionId: string,
   ) => {
-    if (!job)
+    if (!job || job.status === 'stale')
       return {
         status: 'none' as const,
         progress: 0,
@@ -287,13 +291,21 @@ export function buildApp(services: Services): App {
     const access = await exportAccess(c);
     if (!access.ok) return c.json(access.body, access.status);
     if (services.renderUnavailable) {
-      observer.error('export.unavailable', new Error(services.renderUnavailable));
+      // A known boot condition (logged once at startup), not a new incident per click.
+      observer.event('export.unavailable', { sessionId: access.record.id });
       return c.json(
         { error: 'RENDER_UNAVAILABLE', message: 'Video export is temporarily unavailable.' },
         503,
       );
     }
-    const job = services.exports.request(access.record.id);
+    let job: ReturnType<typeof services.exports.request>;
+    try {
+      job = services.exports.request(access.record.id);
+    } catch (error) {
+      if (!(error instanceof ExportRefused)) throw error;
+      const status = error.code === 'QUEUE_FULL' ? 503 : error.code === 'TOO_LONG' ? 413 : 409;
+      return c.json({ error: `EXPORT_${error.code}`, message: error.message }, status);
+    }
     services.analytics.capture(access.claims.sub, 'export_requested', { status: job.status });
     return c.json(
       await exportView(job, access.claims, access.record.id),
@@ -310,6 +322,7 @@ export function buildApp(services: Services): App {
   /** The file itself: a bearer works, and so does the short-lived `token` the status endpoint hands out for `<a download>`. */
   app.get('/api/sessions/:id/export.mp4', async (c) => {
     const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success) return c.json({ error: 'NOT_FOUND' }, 404);
     const token = c.req.query('token');
     let participantId: string | null = token
       ? await services.downloadTokens.verify(token, id)
@@ -325,13 +338,18 @@ export function buildApp(services: Services): App {
     const job = services.exports.status(id);
     if (job?.status !== 'ready' || !job.output || !existsSync(job.output))
       return c.json({ error: 'NOT_READY', message: 'The video is not ready yet.' }, 404);
-    const size = statSync(job.output).size;
+    const st = statSync(job.output);
+    const size = st.size;
+    // A resumed download after a re-render must never splice two files.
+    const etag = `"${Math.round(st.mtimeMs)}-${size}"`;
+    c.header('ETag', etag);
     c.header('Content-Type', 'video/mp4');
     c.header('Content-Disposition', `attachment; filename="${exportFilename(record.title)}"`);
     c.header('Cache-Control', 'private, no-store');
     c.header('Accept-Ranges', 'bytes');
+    const ifRange = c.req.header('if-range');
     const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '');
-    if (range && (range[1] || range[2])) {
+    if (range && (range[1] || range[2]) && (!ifRange || ifRange === etag)) {
       const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
       const end = range[1] && range[2] ? Math.min(size - 1, Number(range[2])) : size - 1;
       if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) {

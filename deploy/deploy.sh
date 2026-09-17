@@ -10,7 +10,8 @@
 #   PEN_DOMAIN=penplayground.com \
 #   deploy/deploy.sh [--tag TAG] [--skip-build] [--skip-ship] [--no-up]
 #
-# Optional: PEN_DEPLOY_ROOT (default /srv/pen-playground), PEN_DEPLOY_EXPECTED_HOSTNAME (default
+# Optional: PEN_WITH_RENDER=0 to skip the Playwright+ffmpeg runtime (no MP4 export),
+# PEN_DEPLOY_ROOT (default /srv/pen-playground), PEN_DEPLOY_EXPECTED_HOSTNAME (default
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST (web build args).
 #
@@ -89,6 +90,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
   docker buildx build --platform linux/amd64 --load \
     -f services/api/Dockerfile \
     --build-arg "GIT_SHA=$GIT_SHA" \
+    --build-arg "WITH_RENDER=${PEN_WITH_RENDER:-1}" \
     -t "$API_IMAGE" -t pen-playground-api:latest .
 
   log "building $WEB_IMAGE (linux/amd64)"

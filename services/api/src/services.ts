@@ -161,6 +161,7 @@ export async function buildServices(
   const intake = new TopicIntake(modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
   const renderer = new PlaywrightRenderer({
     baseUrl: cfg.PEN_RENDER_BASE_URL ?? cfg.PEN_PUBLIC_URL,
+    allowedOrigins: [cfg.PEN_API_URL, cfg.PEN_PUBLIC_URL],
     ffmpegPath: cfg.PEN_FFMPEG_PATH,
     chromiumPath: cfg.PEN_CHROMIUM_PATH,
     chromiumArgs: cfg.PEN_CHROMIUM_ARGS?.split(/\s+/).filter(Boolean),

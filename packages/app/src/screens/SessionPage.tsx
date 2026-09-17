@@ -23,7 +23,7 @@ const LedgerResponse = z.object({
 
 const EXPORT_POLL_MS = 2000;
 /** Download links carry a short-lived token; refresh one older than this before using it. */
-const EXPORT_LINK_MAX_AGE_MS = 20 * 60_000;
+const EXPORT_LINK_MAX_AGE_MS = 10 * 60_000;
 
 function formatBytes(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)} GB`;
@@ -39,11 +39,9 @@ function formatBytes(n: number): string {
  */
 function ExportControl({
   sessionId,
-  title,
   plan,
 }: {
   sessionId: string;
-  title: string;
   plan: 'free' | 'standard' | 'professional';
 }) {
   const { api } = useApp();
@@ -53,20 +51,27 @@ function ExportControl({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Bumped on unmount / re-run so an in-flight poll never reschedules or sets state afterwards. */
+  const generation = useRef(0);
   const entitled = hasEntitlement(plan, 'export');
 
   const stopPolling = useCallback(() => {
+    generation.current += 1;
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   }, []);
 
   const poll = useCallback(async () => {
+    const gen = generation.current;
     try {
       const next = await api.exportStatus(sessionId);
+      if (gen !== generation.current) return;
       setStatus({ ...next, at: Date.now() });
+      setProblem(null);
       if (next.status === 'queued' || next.status === 'rendering')
         timer.current = setTimeout(() => void poll(), EXPORT_POLL_MS);
     } catch (error) {
+      if (gen !== generation.current) return;
       setProblem(error instanceof Error ? error.message : 'Could not check the export.');
     }
   }, [api, sessionId]);
@@ -77,21 +82,34 @@ function ExportControl({
     return stopPolling;
   }, [entitled, poll, stopPolling]);
 
-  const save = (url: string) => {
-    // Same-origin in production (the web proxy) and `Content-Disposition: attachment` elsewhere:
-    // either way the browser saves rather than navigates.
+  /**
+   * Save through a hidden anchor. `Content-Disposition: attachment` makes the browser save
+   * rather than navigate, and names the file. A pre-flight range request catches an expired
+   * token or a vanished file so an error page never replaces the app (or the desktop window).
+   */
+  const save = async (url: string): Promise<boolean> => {
+    try {
+      const head = await fetch(url, { headers: { range: 'bytes=0-0' } });
+      if (!head.ok) {
+        setProblem(
+          head.status === 401
+            ? 'The download link expired. Try again.'
+            : 'The video is not available right now.',
+        );
+        return false;
+      }
+    } catch {
+      setProblem('Could not reach the server.');
+      return false;
+    }
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pen-${
-      title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'session'
-    }.mp4`;
+    a.download = '';
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     a.remove();
+    return true;
   };
 
   const onClick = async () => {
@@ -116,18 +134,21 @@ function ExportControl({
           return;
         }
       }
-      save(url);
+      await save(url);
       return;
     }
     setBusy(true);
+    stopPolling();
+    const gen = generation.current;
     try {
-      stopPolling();
       const job = await api.requestExport(sessionId);
+      if (gen !== generation.current) return;
       setStatus({ ...job, at: Date.now() });
-      if (job.status === 'ready' && job.downloadUrl) save(job.downloadUrl);
+      if (job.status === 'ready' && job.downloadUrl) await save(job.downloadUrl);
       else if (job.status === 'queued' || job.status === 'rendering')
         timer.current = setTimeout(() => void poll(), EXPORT_POLL_MS);
     } catch (error) {
+      if (gen !== generation.current) return;
       const message =
         error instanceof ApiError
           ? error.code === 'ENTITLEMENT_REQUIRED'
@@ -137,7 +158,7 @@ function ExportControl({
       setProblem(message);
       if (error instanceof ApiError && error.status === 402) toast(message, 'danger');
     } finally {
-      setBusy(false);
+      if (gen === generation.current) setBusy(false);
     }
   };
 
@@ -165,24 +186,41 @@ function ExportControl({
       : status?.status === 'ready' && status.bytes
         ? `MP4 · 1280×720 · ${formatBytes(status.bytes)}`
         : null);
+  const failed = Boolean(problem) || status?.status === 'failed';
+  // Screen readers hear the stage and every 10 % step, not every 2 s poll.
+  const announced = rendering
+    ? rendering.status === 'queued'
+      ? 'Preparing your video'
+      : `Rendering your video, ${Math.floor(rendering.progress * 10) * 10} percent`
+    : status?.status === 'ready'
+      ? 'Your video is ready to download'
+      : '';
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
         variant="secondary"
         leading={rendering ? undefined : <Download size={14} />}
         loading={busy || rendering !== null}
-        aria-live="polite"
         onClick={() => void onClick()}
+        {...(rendering
+          ? {
+              role: 'progressbar',
+              'aria-valuemin': 0,
+              'aria-valuemax': 100,
+              'aria-valuenow': Math.round(rendering.progress * 100),
+              'aria-valuetext': label,
+            }
+          : {})}
       >
         {label}
       </Button>
+      <span role="status" className="sr-only">
+        {announced}
+      </span>
       {detail ? (
         <span
-          className={cn(
-            'text-xs',
-            problem || status?.status === 'failed' ? 'text-danger' : 'text-fg-3',
-          )}
-          role={problem || status?.status === 'failed' ? 'alert' : undefined}
+          className={cn('text-xs', failed ? 'text-danger' : 'text-fg-3')}
+          role={failed ? 'alert' : undefined}
         >
           {detail}
         </span>
@@ -335,7 +373,7 @@ export function SessionPage() {
                   Share
                 </Button>
                 {s && participant && isHost && !live ? (
-                  <ExportControl sessionId={s.id} title={s.title} plan={participant.plan} />
+                  <ExportControl sessionId={s.id} plan={participant.plan} />
                 ) : null}
               </div>
             </div>

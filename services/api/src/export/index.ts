@@ -3,14 +3,19 @@ export {
   buildBlackdetectArgs,
   buildMuxArgs,
   buildVideoFilter,
+  chooseCurtain,
+  ffmpegVersionOk,
   ffprobePathFor,
   parseBlackIntervals,
+  parseFfmpegVersion,
   runFfmpeg,
 } from './ffmpeg.js';
 export {
   ExportJobRecord,
   ExportJobs,
+  ExportRefused,
   ExportStatus,
+  RenderError,
   type Renderer,
   type RenderResult,
 } from './jobs.js';
