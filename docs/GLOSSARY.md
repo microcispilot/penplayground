@@ -26,3 +26,13 @@ Use these words exactly, in code, docs and UI copy.
 - **Export** — an MP4 rendered from a replay (board frames + mixed audio) for YouTube or download.
 - **Plan** — a billing tier: `free`, `plus`, `classroom`. **Entitlement** — a capability a plan grants (`rooms`, `export`, `no_ads`, `premium_voices`).
 - **Ad card** — a skippable, visible card shown between segments on the free plan. Never spoken by the expert.
+- **Stage sample** — one timed step of a session on the session clock (`intake`, `resolve`, `context`, `prepare`, `llm`, `tts`, `stt`, `board`, `turn`, `ad`, `join`, `leave`): start, duration, ok, and content-free `meta` (ids, counts, first-token / first-chunk times, `reused`, `savedUsd`). A ledger entry (`metric`).
+- **Cost line** — one priced unit of provider work (`llm` tokens in / cached / out, `tts` bytes, `stt` seconds, `search` requests, `onten` requests) with its USD from the single price table. A ledger entry (`cost`).
+- **Interaction event** — what a participant did (typed / spoke a question, interrupted, paused, skipped an ad, toggled captions or the mic…) or was shown (screen, phase, note, check, ad, recap, first audio, answer start, board op done), reported by the client and stamped by the server. A ledger entry (`interaction`).
+- **Telemetry port** — the small interface (`sample`, `cost`, `error`) instrumented modules write to; `SessionMetrics` implements it per session (ledger + PostHog), `NullMetrics` in tests.
+- **Session telemetry** — the summary computed from a session's ledger: totals, latency percentiles (question → first audio, model first token, voice first chunk, hearing final, barge-in), cost by component, reuse, and the stages, interactions and errors themselves. Served host-only; rendered by the **Insights** tab.
+- **Turn latency** — the learner's final words (final transcript or typed question) → the first audible chunk of the expert's reply (the acknowledgement), measured server-side.
+- **Canonical id** — the Onten registry's `${lang}.${slug}` for a topic (`en.how-transformers-work-in-llms`); groups same-intent sessions for reuse statistics.
+- **Reuse** — work a session served from earlier sessions instead of generating: a registry pack hit (no preparation), lesson memo segments (no model call), an Onten speculation hit, a cached intake translation. Each carries `savedUsd`; `freshEquivalentUsd` is what the session would have cost with zero reuse.
+- **Lesson memo** — the persona's taught lesson for a topic scope and band (plan + cues per segment + what each cost), grown segment by segment as sessions get further; the next learner generates only what is missing.
+

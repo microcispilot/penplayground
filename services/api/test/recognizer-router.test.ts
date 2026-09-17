@@ -5,7 +5,7 @@ import type {
   SttErrorCode,
 } from '@pen/voice';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RecognizerRouter } from '../src/recognizer-router.js';
+import { RecognizerRouter, type RecognizerRouterOptions } from '../src/recognizer-router.js';
 
 class FakeSession implements RecognizerSession {
   readonly pushed: number[] = [];
@@ -58,7 +58,7 @@ function harness(overrides: Partial<ConstructorParameters<typeof RecognizerRoute
 const pcm = (bytes: number) => new Uint8Array(bytes);
 
 describe('RecognizerRouter', () => {
-  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] }));
   afterEach(() => vi.useRealTimers());
 
   it('opens one session with the room language, buffers audio until open, then replays in order', async () => {
@@ -186,6 +186,29 @@ describe('RecognizerRouter', () => {
     expect(h.sessions[0]?.closed).toBe(true);
     h.router.utteranceStart('u2');
     expect(h.sessions).toHaveLength(1);
+  });
+
+  it('reports endpoint-to-final latency and recognised audio per utterance', async () => {
+    vi.setSystemTime(10_000);
+    const done: Parameters<NonNullable<RecognizerRouterOptions['onUtteranceDone']>>[0][] = [];
+    const h = harness({ onUtteranceDone: (info) => done.push(info) });
+    h.router.utteranceStart('u1');
+    h.opens[0]?.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    const s = h.sessions[0] as FakeSession;
+    h.router.audio('u1', pcm(32_000)); // 1000 ms of 16 kHz s16le
+    vi.setSystemTime(11_000);
+    h.router.utteranceEnd('u1');
+    vi.setSystemTime(11_340);
+    s.o.onFinal('Hallo Welt');
+    expect(done).toEqual([
+      { utteranceId: 'u1', finalMs: 340, audioMs: 1000, chars: 10, startedAt: 10_000 },
+    ]);
+    // A final that lands before the endpoint has no endpoint latency.
+    h.router.utteranceStart('u2');
+    h.router.audio('u2', pcm(3200));
+    s.o.onFinal('early');
+    expect(done[1]).toMatchObject({ utteranceId: 'u2', finalMs: null, audioMs: 100, chars: 5 });
   });
 
   it('ends a still-open utterance when the client starts the next one', async () => {

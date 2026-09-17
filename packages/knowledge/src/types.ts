@@ -1,4 +1,4 @@
-import type { PreparationProgress } from '@pen/contracts';
+import type { PreparationProgress, TelemetryPort } from '@pen/contracts';
 import type { LanguageModel } from '@pen/llm';
 import type {
   HostContextPolicy,
@@ -150,4 +150,6 @@ export interface PrepareArgs {
   resolution: TopicResolution;
   onProgress: (progress: PreparationProgress) => void;
   signal: AbortSignal;
+  /** The session's telemetry: outline/evalset model calls and every search request are priced into it (ADR-0011). */
+  telemetry?: TelemetryPort;
 }

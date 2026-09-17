@@ -3,6 +3,7 @@ export { ApiClient, ApiError } from './api/client.js';
 export type {
   KeyValueStorage,
   MicrophoneAssets,
+  Monitor,
   Platform,
   SpeechRecognizer,
   SpeechRecognizerFactory,

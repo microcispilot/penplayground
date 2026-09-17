@@ -6,6 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { BoardSurface } from '../components/BoardSurface.js';
 import { describeReplayRate, PaceMenu } from '../components/PaceMenu.js';
 import { CaptionOverlay } from '../components/RoomChrome.js';
+import { setAnalyticsContext, trackInteraction } from '../lib/analytics.js';
 import { formatClock, useApp } from '../lib/context.js';
 import {
   REPLAY_RATE_PREFERENCE_KEY,
@@ -95,6 +96,10 @@ export function Replay() {
     if (!session || !state) return;
     const set = useRoomStore.getState().set;
     setStarted(true);
+    if (!exportMode) {
+      setAnalyticsContext({ sessionId: id, role: null, phase: 'replay' });
+      trackInteraction('replay_started', { cues: state.plan?.segments.length ?? 0 });
+    }
     await session.start(state, {
       captions: {
         showExpert: (text, revealMs) =>
@@ -277,6 +282,7 @@ export function Replay() {
             if (!session) return;
             if (paused) session.resume();
             else session.pause();
+            trackInteraction(paused ? 'resume' : 'pause', { replay: true });
             setPaused(!paused);
           }}
           disabled={!started}

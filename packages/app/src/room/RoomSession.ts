@@ -1,5 +1,6 @@
 import {
   type AudioPort,
+  type BoardPort,
   type CaptionPort,
   Conductor,
   estimateSpeechMs,
@@ -9,6 +10,13 @@ import type { CheckEvent, RoomState } from '@pen/contracts';
 import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
+import {
+  reportClientError,
+  setAnalyticsContext,
+  setRoomReporter,
+  takeStartClickedAt,
+  trackInteraction,
+} from '../lib/analytics.js';
 import { readPacePreference, writePacePreference } from '../lib/pace-preference.js';
 import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../platform/types.js';
 import { LiveKitAudioRoom } from './audio/livekit.js';
@@ -56,6 +64,16 @@ export class RoomSession {
   private clockTimer: ReturnType<typeof setInterval> | null = null;
   private clockBase = 0;
   private clockAt = 0;
+  // ── telemetry (ADR-0011): what this client heard and showed, and when ──
+  /** Start click on Home, or `start()` when the room was opened another way. */
+  private startedAt = 0;
+  private firstAudioReported = false;
+  /** When the learner's question was submitted (typed or final transcript); cleared by the answer's first audio. */
+  private questionAt: number | null = null;
+  private lastMode: string | null = null;
+  private lastPhase: string | null = null;
+  private adShownAt: { adId: string; at: number } | null = null;
+  private currentThread: string | null = null;
 
   constructor(private readonly o: RoomSessionOptions) {
     const store = useRoomStore.getState();
@@ -65,12 +83,16 @@ export class RoomSession {
     this.player = new PcmPlayer({
       onError: (code, detail) => {
         console.warn('[playback]', code, detail);
+        reportClientError(code, detail, 'tts');
         if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED') {
           set({ notice: { text: 'Tap anywhere to enable sound.', tone: 'neutral' } });
           this.armSoundGesture();
         }
       },
-      onSayStart: (id) => this.conductor.audioEvents.onSayStart(id),
+      onSayStart: (id) => {
+        this.onAudibleSay(id);
+        this.conductor.audioEvents.onSayStart(id);
+      },
       onSayEnd: (id, ms) => this.conductor.audioEvents.onSayEnd(id, ms),
       onProgress: (id, ms) => this.conductor.audioEvents.onProgress(id, ms),
       onUnderrun: () => set({ hint: 'Buffering…' }),
@@ -89,6 +111,42 @@ export class RoomSession {
       get clock() {
         return player.clock;
       },
+    };
+
+    // Board ops: how long each took to render, reported so the ledger has the `board` stage.
+    const board = this.board;
+    const timedBoard: BoardPort = {
+      execute: (op, opts) => {
+        const started = performance.now();
+        const exec = board.execute(op, opts);
+        let cancelled = false;
+        void exec.done.then(() =>
+          trackInteraction('board_done', {
+            ms: Math.round(performance.now() - started),
+            op: op.op,
+            chars: op.text.length,
+            anchored: opts.paceMs !== null,
+            ok: !cancelled,
+          }),
+        );
+        // Explicit delegation: the real board's execution is a class instance, so spreading it would drop its methods.
+        return {
+          done: exec.done,
+          pause: () => exec.pause(),
+          resume: () => exec.resume(),
+          finish: () => exec.finish(),
+          cancel: () => {
+            cancelled = true;
+            exec.cancel();
+          },
+        };
+      },
+      pinNote: (note, id) => {
+        board.pinNote(note, id);
+        trackInteraction('note_shown', { id });
+      },
+      setDimmed: (d) => board.setDimmed(d),
+      clear: () => board.clear(),
     };
 
     const captions: CaptionPort = {
@@ -125,20 +183,39 @@ export class RoomSession {
         set({ state, preparation: state.preparation, phase: this.conductor.getPhase() });
         this.expertSpeaking = state.mode === 'teaching' || state.mode === 'answering';
         this.syncPlaybackActive();
+        this.onPhase(state);
       },
       setSpeaking: (speaking) => {
         set({ speaking, phase: this.conductor.getPhase() });
         this.expertSpeaking = speaking;
         this.syncPlaybackActive();
       },
-      showCheck: (check: CheckEvent | null) => set({ check }),
-      showAd: (ad) => set({ ad: ad ? { ...ad, startedAt: Date.now() } : null }),
+      showCheck: (check: CheckEvent | null) => {
+        set({ check });
+        if (check)
+          trackInteraction('check_shown', { checkId: check.id, options: check.options.length });
+      },
+      showAd: (ad) => {
+        set({ ad: ad ? { ...ad, startedAt: Date.now() } : null });
+        if (ad) {
+          this.adShownAt = { adId: ad.adId, at: Date.now() };
+          trackInteraction('ad_shown', { adId: ad.adId, durationMs: ad.durationMs });
+        } else if (this.adShownAt) {
+          const { adId, at } = this.adShownAt;
+          this.adShownAt = null;
+          trackInteraction(this.adSkipped ? 'ad_skipped' : 'ad_ended', {
+            adId,
+            ms: Date.now() - at,
+          });
+          this.adSkipped = false;
+        }
+      },
       notice: (text, tone) => set({ notice: text ? { text, tone } : null }),
     };
 
     this.conductor = new Conductor({
       audio,
-      board: this.board,
+      board: timedBoard,
       captions,
       presence,
       transport: { send: (m) => this.client.send(m) },
@@ -178,6 +255,12 @@ export class RoomSession {
       o.sessionId,
       {
         onMessage: (m) => {
+          if (m.kind === 'ready') {
+            const role = m.state.hostId === o.participantId ? 'host' : 'guest';
+            setAnalyticsContext({ sessionId: o.sessionId, role });
+            // From here every interaction also reaches the session's ledger.
+            setRoomReporter((event, props) => this.client.send({ kind: 'report', event, props }));
+          }
           this.conductor.handleServer(m);
           set({ phase: this.conductor.getPhase() });
           if (m.kind === 'ready') this.applyRememberedPace(m.state);
@@ -193,14 +276,18 @@ export class RoomSession {
           if (m.kind === 'prep') set({ preparation: m.progress });
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
-          if (
-            m.kind === 'error' &&
-            (m.code === 'SESSION_NOT_FOUND' ||
+          if (m.kind === 'cue' && m.cue.event.type === 'say') this.currentThread = m.cue.thread;
+          if (m.kind === 'error') {
+            // Server errors are already in Sentry; the ledger only needs to know the client showed one.
+            trackInteraction('error_shown', { code: m.code, spoken: m.spoken });
+            if (
+              m.code === 'SESSION_NOT_FOUND' ||
               m.code === 'UNAUTHORIZED' ||
               m.code === 'ROOM_FULL' ||
-              m.code === 'ENTITLEMENT_REQUIRED')
-          )
-            set({ errorText: m.message });
+              m.code === 'ENTITLEMENT_REQUIRED'
+            )
+              set({ errorText: m.message });
+          }
         },
         onAudio: (header, pcm) => this.conductor.handleAudio(header, pcm),
         onStatus: (connection) => set({ connection }),
@@ -243,6 +330,7 @@ export class RoomSession {
 
   /** Call from a user gesture (Start / Join click) so the AudioContext is unlocked. */
   async start(): Promise<void> {
+    this.startedAt = takeStartClickedAt() ?? Date.now();
     await this.player.prime(AUDIO.ttsSampleRate);
     // React StrictMode mounts twice: the first instance is disposed before prime() resolves.
     if (this.disposed) return;
@@ -268,6 +356,7 @@ export class RoomSession {
       useRoomStore.getState().set(patch);
     if (this.mic) return;
     set({ micState: 'starting' });
+    trackInteraction('mic_on');
     const mic = new Microphone({
       workletSource: this.o.platform.mic.workletSource,
       createResamplerWorker: () => this.o.platform.mic.createResamplerWorker(),
@@ -279,7 +368,16 @@ export class RoomSession {
         return stream;
       },
       onSpeechStart: () => {
+        const before = this.conductor.getPhase();
+        const detectedAt = performance.now();
         this.conductor.onSpeechStart();
+        // Barge-in: confirmed speech → playback cancelled (the 20 ms gain ramp runs inside the player).
+        if (before !== 'listening' && this.conductor.getPhase() === 'listening')
+          trackInteraction('interrupt', {
+            'latency.bargeInMs': Math.round((performance.now() - detectedAt) * 10) / 10,
+            fadeMs: 20,
+            mode: useRoomStore.getState().state?.mode ?? '',
+          });
         // Server STT: one VAD segment is one utterance. Browser STT keeps the id
         // until the recognizer's final, which may lag the VAD.
         if (this.serverSpeech || !this.currentUtterance)
@@ -306,6 +404,7 @@ export class RoomSession {
       onLevel: (rms) => set({ micLevel: rms }),
       onError: (code, error) => {
         console.warn('[mic]', code, error);
+        reportClientError(code, error, 'stt');
         if (code === 'PEN_MICROPHONE_DENIED')
           set({
             micState: 'denied',
@@ -348,9 +447,18 @@ export class RoomSession {
       onFinal: (id, text) => {
         this.conductor.onTranscript(this.utteranceId(id), text, true);
         this.currentUtterance = null;
+        if (text.trim()) {
+          this.questionAt = Date.now();
+          trackInteraction('question_spoken', { chars: text.trim().length });
+        }
       },
       onError: (code, error) => {
         console.warn('[stt]', code, error);
+        reportClientError(
+          `PEN_STT_${code.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
+          error,
+          'stt',
+        );
         if (code === 'not-allowed' || code === 'unavailable')
           set({
             notice: {
@@ -373,6 +481,7 @@ export class RoomSession {
   }
 
   disableMic(): void {
+    if (this.mic) trackInteraction('mic_off');
     if (this.serverSpeech && this.currentUtterance) {
       this.client.send({ kind: 'utterance_end', utteranceId: this.currentUtterance });
       this.currentUtterance = null;
@@ -402,24 +511,33 @@ export class RoomSession {
   /** Typed question fallback (accessibility, no mic). */
   ask(text: string): void {
     const id = `u${++this.utteranceCounter}`;
+    this.questionAt = Date.now();
+    trackInteraction('question_typed', { chars: text.length });
     this.conductor.onTranscript(id, text, true);
   }
 
   answerCheck(checkId: string, text: string): void {
+    this.questionAt = Date.now();
+    trackInteraction('check_answered', { checkId, chars: text.length });
     this.conductor.answerCheck(checkId, text);
     useRoomStore.getState().set({ check: null });
   }
 
   control(action: 'pause' | 'resume' | 'end'): void {
+    trackInteraction(action);
     this.conductor.control(action);
   }
 
+  private adSkipped = false;
+
   skipAd(): void {
+    this.adSkipped = true;
     this.conductor.skipAd();
   }
 
   toggleCaptions(): void {
     const st = useRoomStore.getState();
+    trackInteraction(st.captionsOn ? 'captions_off' : 'captions_on');
     st.set({ captionsOn: !st.captionsOn });
   }
 
@@ -459,8 +577,41 @@ export class RoomSession {
     this.disableMic();
     void this.audio.disconnect();
     this.conductor.dispose();
+    setRoomReporter(null);
+    setAnalyticsContext({ sessionId: null, role: null, phase: null });
     this.client.close();
     this.player.dispose();
+  }
+
+  /** A sentence became audible: first audio of the visit, or the first audio of an answer. */
+  private onAudibleSay(id: string): void {
+    const now = Date.now();
+    if (!this.firstAudioReported) {
+      this.firstAudioReported = true;
+      trackInteraction('first_audio', { 'latency.fromStartMs': Math.max(0, now - this.startedAt) });
+    }
+    // Turn threads are named t1, t2…; the lesson thread never answers a question.
+    const thread = this.currentThread;
+    if (this.questionAt !== null && thread && thread !== 'lesson' && thread !== 'system') {
+      trackInteraction('answer_started', {
+        'latency.questionToFirstAudioMs': Math.max(0, now - this.questionAt),
+        thread,
+        sayId: id.split('@')[0] ?? id,
+      });
+      this.questionAt = null;
+    }
+  }
+
+  /** Room phase/mode transitions as "shown" events (also Sentry breadcrumbs through analytics). */
+  private onPhase(state: RoomState): void {
+    const phase = state.phase;
+    const mode = state.mode;
+    if (phase === this.lastPhase && mode === this.lastMode) return;
+    this.lastPhase = phase;
+    this.lastMode = mode;
+    setAnalyticsContext({ phase: `${phase}:${mode}` });
+    trackInteraction('phase_shown', { phase, mode, segment: state.segment });
+    if (phase === 'ended') trackInteraction('recap_shown', { points: state.recap?.length ?? 0 });
   }
 
   private utteranceId(recognizerId: string): string {

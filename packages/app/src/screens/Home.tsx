@@ -7,6 +7,7 @@ import { ApiError, type SessionRecord } from '../api/client.js';
 import { AppHeader, PenMark } from '../components/AppHeader.js';
 import { HeroBoard } from '../components/HeroBoard.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
+import { markStartClicked } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -176,6 +177,7 @@ export function Home() {
   };
 
   const start = async (topic: string, expertId?: string) => {
+    markStartClicked();
     const t = topic.trim();
     if (!t || starting) return;
     if (!participant) {

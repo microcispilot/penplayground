@@ -1,5 +1,5 @@
-import type { DownstreamAudioHeader, GapKind, SayEvent } from '@pen/contracts';
-import { gapMsFor, ttsSpeedFor } from '@pen/contracts';
+import type { DownstreamAudioHeader, GapKind, SayEvent, TelemetryPort } from '@pen/contracts';
+import { gapMsFor, NULL_TELEMETRY, ttsSpeedFor, ttsUsd } from '@pen/contracts';
 import type { SpeechSynthesizer } from '@pen/voice';
 import type { RoomObserver, RoomTransport } from './transport.js';
 
@@ -27,6 +27,10 @@ export interface SayPipelineOptions {
   gapAfter?: (say: SayEvent, thread: string) => GapKind | null | Promise<GapKind | null>;
   onComplete?: (sayId: string, durationMs: number) => void;
   onFailure?: (sayId: string, error: unknown) => void;
+  /** The first audio chunk of a sentence went out (turn latency is measured from here). */
+  onFirstChunk?: (sayId: string, thread: string, take: number) => void;
+  /** Per-sentence `tts` samples and byte-priced cost lines (ADR-0011). */
+  telemetry?: TelemetryPort;
 }
 
 /** Silence is framed like speech so the player's contiguous-clock validation holds. */
@@ -67,6 +71,7 @@ export class SayPipeline {
   private readonly queue: Array<{ say: SayEvent; thread: string; take: number; voice: string }> =
     [];
   private readonly lookahead: number;
+  private readonly telemetry: TelemetryPort;
   private inFlight = 0;
   private heardUpTo = 0;
   private enqueued = 0;
@@ -76,6 +81,7 @@ export class SayPipeline {
 
   constructor(private readonly opts: SayPipelineOptions) {
     this.lookahead = opts.lookahead ?? 3;
+    this.telemetry = opts.telemetry ?? NULL_TELEMETRY;
   }
 
   enqueue(say: SayEvent, thread: string, take = 0, voice = this.opts.voice): void {
@@ -140,15 +146,40 @@ export class SayPipeline {
     signal: AbortSignal,
   ): Promise<void> {
     const started = performance.now();
+    const startedAt = Date.now();
     // The pace is read once per sentence: the voice, the beat after it and the
     // board all follow this one number, and a change waits for the next sentence.
     const pace = this.opts.pace?.() ?? 1;
+    const engine = this.opts.synthesizer.id;
+    const text = spokenText(say.text);
+    const bytes = new TextEncoder().encode(text).length;
     let durationMs = 0;
+    /** Spoken audio only; the beat after the sentence is reported separately as `gapMs`. */
+    let speechMs = 0;
+    let gapMs = 0;
     let chunkIndex = 0;
-    let first = true;
+    let firstChunkMs = -1;
+    // No synthesis cache exists yet (ADR-0011): every sentence is generated, so `reused` is always false here.
+    const meta = { sayId: say.id, thread, take, engine, bytes, pace, reused: false };
+    const finish = (ok: boolean, extra: Record<string, string | number | boolean>) =>
+      this.telemetry.sample({
+        stage: 'tts',
+        ms: performance.now() - started,
+        ok,
+        startedAt,
+        meta: { ...meta, firstChunkMs, audioMs: speechMs, gapMs, ...extra },
+      });
+    // The provider bills the request's bytes whether or not we play them all (barge-in).
+    this.telemetry.cost({
+      component: 'tts',
+      unit: 'bytes',
+      units: bytes,
+      usd: ttsUsd(engine, bytes),
+      meta: { engine, thread, reused: false },
+    });
     try {
       const stream = this.opts.synthesizer.synthesize({
-        text: spokenText(say.text),
+        text,
         voice,
         sampleRate: this.opts.sampleRate,
         speed: ttsSpeedFor(pace),
@@ -157,15 +188,19 @@ export class SayPipeline {
       });
       let previous: { header: DownstreamAudioHeader; pcm: Uint8Array } | null = null;
       for await (const chunk of stream) {
-        if (signal.aborted) return;
-        if (first) {
+        if (signal.aborted) {
+          finish(true, { cancelled: true });
+          return;
+        }
+        if (firstChunkMs < 0) {
+          firstChunkMs = Math.round(performance.now() - started);
           this.opts.observer.event('tts.first_chunk', {
             sayId: say.id,
-            ms: Math.round(performance.now() - started),
-            engine: this.opts.synthesizer.id,
+            ms: firstChunkMs,
+            engine,
             pace,
           });
-          first = false;
+          this.opts.onFirstChunk?.(say.id, thread, take);
         }
         const header: DownstreamAudioHeader = {
           dir: 'down',
@@ -181,15 +216,22 @@ export class SayPipeline {
         if (previous) this.opts.transport.broadcastAudio(previous.header, previous.pcm);
         previous = { header, pcm: chunk.pcm };
         durationMs = chunk.audioClockMs + chunk.durationMs;
+        speechMs = durationMs;
       }
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        finish(true, { cancelled: true });
+        return;
+      }
       // The beat after the sentence is audio too: it rides the same clock, the
       // same ledger and the same replay as the words (ADR-0002, ADR-0010).
       // The speech itself is already on its way to the speakers; only the tail
       // waits for the decision, so the wait is never audible.
       const gapKind = this.opts.gapAfter ? await this.opts.gapAfter(say, thread) : 'sentence';
-      if (signal.aborted) return;
-      const gapMs = gapKind ? gapMsFor(gapKind, pace) : 0;
+      if (signal.aborted) {
+        finish(true, { cancelled: true });
+        return;
+      }
+      gapMs = gapKind ? gapMsFor(gapKind, pace) : 0;
       if (previous && gapMs === 0) {
         this.opts.transport.broadcastAudio({ ...previous.header, final: true }, previous.pcm);
       } else if (gapMs > 0) {
@@ -237,11 +279,23 @@ export class SayPipeline {
         );
       }
       this.opts.transport.broadcast({ kind: 'say_complete', sayId: say.id, durationMs });
+      finish(true, { cancelled: false });
       this.opts.onComplete?.(say.id, durationMs);
     } catch (error) {
-      if (signal.aborted) return;
-      this.opts.observer.error('tts', error, { sayId: say.id });
+      if (signal.aborted) {
+        finish(true, { cancelled: true });
+        return;
+      }
+      const ref = this.opts.observer.error('tts', error, { sayId: say.id, engine });
+      finish(false, { cancelled: false });
+      this.telemetry.error({ code: ttsErrorCode(error), stage: 'tts', ref: ref ?? null });
       this.opts.onFailure?.(say.id, error);
     }
   }
+}
+
+/** "TTS_UPSTREAM_502: …" → "TTS_UPSTREAM_502"; anything else → TTS_ERROR. Never the message. */
+export function ttsErrorCode(error: unknown): string {
+  const head = (error instanceof Error ? error.message : String(error)).split(':')[0]?.trim() ?? '';
+  return /^TTS_[A-Z0-9_]{1,60}$/.test(head) ? head : 'TTS_ERROR';
 }

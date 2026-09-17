@@ -159,6 +159,7 @@ describe('GoogleSignIn (link/upgrade logic)', () => {
       recap: [],
       views: 0,
       thumbnail: null,
+      canonicalId: null,
     });
     const result = await signIn().signIn('ok:ada', other);
     expect(result.outcome).toBe('existing');

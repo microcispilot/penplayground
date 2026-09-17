@@ -60,10 +60,13 @@ export const sessions = pgTable(
     recap: jsonb('recap').$type<string[]>().notNull().default([]),
     views: integer('views').notNull().default(0),
     thumbnail: text('thumbnail'),
+    /** `${lang}.${slug}` from the Onten registry: groups same-intent sessions for reuse statistics. */
+    canonicalId: text('canonical_id'),
   },
   (t) => [
     index('sessions_host_idx').on(t.hostId, t.startedAt),
     index('sessions_public_idx').on(t.visibility, t.views),
+    index('sessions_canonical_idx').on(t.canonicalId, t.startedAt),
   ],
 );
 

@@ -23,6 +23,23 @@ export interface Platform {
    * that is not built yet.
    */
   readonly googleClientId: string | null;
+  /** Error monitor (Sentry in the hosts); absent when no DSN is configured. */
+  readonly monitor?: Monitor;
+}
+
+/**
+ * The product's view of the error monitor: tags, breadcrumbs and captures
+ * with content-free context. Returns the event id so a ledger entry can
+ * reference the issue.
+ */
+export interface Monitor {
+  setTag(key: string, value: string | null): void;
+  breadcrumb(category: string, data: Record<string, string | number | boolean>): void;
+  captureError(
+    code: string,
+    error: unknown,
+    context: Record<string, string | number | boolean | null>,
+  ): string | null;
 }
 
 export interface MicrophoneAssets {

@@ -1,4 +1,4 @@
-import { Expert, RoomState } from '@pen/contracts';
+import { Expert, RoomState, SessionTelemetry } from '@pen/contracts';
 import { z } from 'zod';
 import type { KeyValueStorage } from '../platform/types.js';
 
@@ -38,6 +38,8 @@ export const SessionRecord = z.object({
   recap: z.array(z.string()),
   views: z.number(),
   thumbnail: z.string().nullable(),
+  /** `${lang}.${slug}` of the resolved topic; absent on records older than the column. */
+  canonicalId: z.string().nullable().optional(),
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
 
@@ -249,6 +251,10 @@ export class ApiClient {
       z.object({ muted: z.array(z.string()) }),
       { method: 'POST', body: JSON.stringify(participantId ? { participantId } : {}) },
     );
+  }
+  /** The host's Insights: stage timings, costs, reuse, interactions and errors of a session. */
+  telemetry(id: string) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/telemetry`, SessionTelemetry);
   }
   billingStatus() {
     return this.request('/api/billing/status', z.object({ enabled: z.boolean() }));

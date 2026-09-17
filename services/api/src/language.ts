@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LanguageModel } from '@pen/llm';
+import type { LanguageModel, Usage } from '@pen/llm';
 import { normalizeTopic } from '@pen/onten';
 import { getLIDModel } from 'fasttext.wasm.js';
 import { z } from 'zod';
@@ -141,6 +141,8 @@ export interface TopicIntakeResult {
   sourceLanguage: string;
   /** Where the answer came from (for telemetry). */
   via: 'english' | 'cache' | 'model' | 'fallback';
+  /** The translation call's usage when the model was asked; the session prices it. */
+  usage: Usage | null;
 }
 
 /**
@@ -175,13 +177,20 @@ export class TopicIntake {
     const detected = await detectLanguage(text);
     const title = cleanTitle(text, detected.language);
     if (detected.language === 'en') {
-      return { ...detected, title, canonicalTitle: title, sourceLanguage: 'en', via: 'english' };
+      return {
+        ...detected,
+        title,
+        canonicalTitle: title,
+        sourceLanguage: 'en',
+        via: 'english',
+        usage: null,
+      };
     }
     const key = `${detected.language}:${normalizeTopic(text)}`;
     const hit = this.cache.get(key);
-    if (hit) return { ...detected, title, ...hit, via: 'cache' };
+    if (hit) return { ...detected, title, ...hit, via: 'cache', usage: null };
     try {
-      const { value } = await this.model.complete({
+      const { value, usage } = await this.model.complete({
         messages: [
           {
             role: 'system',
@@ -205,7 +214,7 @@ export class TopicIntake {
       };
       this.cache.set(key, entry);
       this.persist();
-      return { ...detected, title, ...entry, via: 'model' };
+      return { ...detected, title, ...entry, via: 'model', usage };
     } catch (error) {
       logger.warn(
         { err: error instanceof Error ? error.message : String(error) },
@@ -217,6 +226,7 @@ export class TopicIntake {
         canonicalTitle: title,
         sourceLanguage: detected.language,
         via: 'fallback',
+        usage: null,
       };
     }
   }

@@ -1,5 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { PreparationProgress, SourceDocument, SourceRights } from '@pen/contracts';
+import type {
+  PreparationProgress,
+  SourceDocument,
+  SourceRights,
+  TelemetryPort,
+} from '@pen/contracts';
+import { NULL_TELEMETRY, searchUsd } from '@pen/contracts';
+import type { LanguageModel } from '@pen/llm';
+import { withTelemetry } from '@pen/llm';
 import type {
   CompileProgress,
   Pack,
@@ -131,6 +139,9 @@ class CorpusRun {
   private ready = false;
   private failed = false;
   private readonly startedAt: number;
+  /** The session's telemetry port; the outline/evalset model is wrapped so its calls are priced into the session. */
+  private readonly telemetry: TelemetryPort;
+  private readonly model: LanguageModel;
 
   constructor(
     private readonly opts: CorpusBuilderOptions,
@@ -143,6 +154,8 @@ class CorpusRun {
     this.now = opts.now ?? Date.now;
     this.startedAt = this.now();
     this.signal = args.signal;
+    this.telemetry = args.telemetry ?? NULL_TELEMETRY;
+    this.model = withTelemetry(opts.model, this.telemetry);
     this.fetchSignal = AbortSignal.any([args.signal, this.fetchAbort.signal]);
     const title = args.resolution.title.trim() || args.resolution.canonicalKnowledgeId;
     this.topic = title;
@@ -314,7 +327,7 @@ class CorpusRun {
   private async requestOutlineSafely(seedLabels: string[]): Promise<CorpusOutline> {
     try {
       return await requestOutline(
-        this.opts.model,
+        this.model,
         {
           topic: this.topic,
           domainBoundary: this.args.resolution.domainBoundary,
@@ -345,6 +358,15 @@ class CorpusRun {
         const query = list[cursor];
         cursor += 1;
         if (query === undefined) return;
+        const searchStartedAt = this.now();
+        // Billed per request whether or not it succeeds.
+        this.telemetry.cost({
+          component: 'search',
+          unit: 'requests',
+          units: 1,
+          usd: searchUsd(this.search.name),
+          meta: { provider: this.search.name },
+        });
         try {
           const hits = await this.search.search({
             query,
@@ -352,6 +374,13 @@ class CorpusRun {
             signal: this.signal,
           });
           consecutiveFailures = 0;
+          this.telemetry.sample({
+            stage: 'prepare',
+            ms: this.now() - searchStartedAt,
+            ok: true,
+            startedAt: searchStartedAt,
+            meta: { step: 'search', provider: this.search.name, hits: hits.length },
+          });
           for (const hit of hits) {
             rank += 1;
             this.enqueue({
@@ -374,6 +403,13 @@ class CorpusRun {
         } catch (error) {
           if (this.signal.aborted || isAbortError(error)) return;
           consecutiveFailures += 1;
+          this.telemetry.sample({
+            stage: 'prepare',
+            ms: this.now() - searchStartedAt,
+            ok: false,
+            startedAt: searchStartedAt,
+            meta: { step: 'search', provider: this.search.name },
+          });
           this.observer.error('knowledge.search', error, { provider: this.search.name, query });
         } finally {
           this.searchesDone += 1;
@@ -615,7 +651,7 @@ class CorpusRun {
     const curriculum = this.outline?.curriculum ?? heuristicOutline(this.topic).curriculum;
     try {
       const evaluation = await requestEvaluation(
-        this.opts.model,
+        this.model,
         { topic: this.topic, curriculum, documentTitles: this.documentTitles },
         `knowledge-evalset:${this.args.resolution.canonicalKnowledgeId}`,
         this.signal,

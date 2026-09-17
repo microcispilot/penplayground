@@ -28,7 +28,10 @@
 - [x] Listen test with Fish Audio (s2.1-pro-free)
 - [x] Pace: host-set, synchronized (voice + board + captions), presets, persisted; teacher-rhythm default (ADR-0010; listen test `pnpm --filter @pen/api listen:pace`)
 - [ ] Pace follow-ups: apply a pace change to sentences already banked on the clients (re-take instead of waiting ≤ 2 sentences); a spoken "faster" command; scrubber on the replay screen
-- [ ] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified
+- [x] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified (ADR-0011)
+- [x] Reuse statistics: `reused`/`savedUsd` on stages, `SessionTelemetry.reuse`, `canonicalId`, incremental lesson memo, `/api/stats/reuse`, `telemetry:pull --topic|--all`
+- [ ] Synthesis cache (TTS reuse is always false today)
+- [ ] Replay scrubber (`replay_seeked` is reserved in the interaction contract)
 - [x] Stripe webhook endpoint registered (sandbox we_1UGlYMRiNibGZsZpHljObkgl; `pnpm --filter @pen/api stripe:webhook`)
 - [x] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
 - [x] Fake model: completion for the knowledge outline purpose (Sentry issue) — locked by test

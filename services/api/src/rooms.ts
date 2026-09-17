@@ -5,13 +5,20 @@ import type {
   SelectionBand,
   ServerMessage,
 } from '@pen/contracts';
-import { encodeAudioFrame } from '@pen/contracts';
+import { encodeAudioFrame, freshEstimateUsd, llmCostLines } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
-import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
+import { newSessionId, type RoomTransport, SessionMetrics, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
 import { detectSpokenLanguage } from './language.js';
-import { observer } from './observability.js';
+import { observer, scopedObserver } from './observability.js';
 import type { Services } from './services.js';
+import { computeTelemetry, sessionEndedProperties, stageProperties } from './telemetry.js';
+
+/**
+ * Stage samples streamed to PostHog per session. The ledger keeps every
+ * sample regardless; this only bounds analytics volume for long sessions.
+ */
+export const MAX_STAGE_EVENTS_PER_SESSION = 500;
 
 interface Seat {
   participantId: ParticipantId;
@@ -23,6 +30,10 @@ export interface LiveRoom {
   seats: Map<WebSocket, Seat>;
   record: SessionRecord;
   createdAt: number;
+  plan: PlanCode;
+  metrics: SessionMetrics;
+  /** Stage events already sent to PostHog for this session. */
+  readonly stageEvents: number;
 }
 
 /**
@@ -50,11 +61,56 @@ export class RoomRegistry {
   }): Promise<LiveRoom> {
     const { services } = this;
     const sessionId = newSessionId();
+    const startedAt = Date.now();
+    // Every stage of this session lands in its ledger and, bounded, in PostHog (ADR-0011).
+    const counter = { stageEvents: 0 };
+    const metrics = new SessionMetrics({
+      sessionId,
+      startedAt,
+      ledger: services.ledger,
+      onSample: (sample) => {
+        if (counter.stageEvents >= MAX_STAGE_EVENTS_PER_SESSION) return;
+        counter.stageEvents += 1;
+        services.analytics.capture(args.host.id, 'stage', stageProperties(sessionId, sample));
+      },
+    });
+    const modelId = services.modelFor(args.host.plan).id;
     // Intake (language + clean title) and an English resolution run concurrently: most topics are
     // English hits, and the lookup is free, so the model's ~1.5 s never sits on the critical path for them.
     const registry = services.onten.registry;
+    const intakeTimer = metrics.start('intake');
+    const resolveTimer = metrics.start('resolve');
     const [intake, quick] = await Promise.all([
-      services.intake.intake(args.topic),
+      services.intake.intake(args.topic).then((r) => {
+        const cached = r.via === 'cache';
+        intakeTimer.end(true, {
+          via: r.via,
+          language: r.language,
+          reused: cached,
+          // A cache hit skips one translation call; English needs none, so nothing is "saved" there.
+          savedUsd: cached ? freshEstimateUsd('intake', modelId) : 0,
+        });
+        if (r.usage) {
+          metrics.sample({
+            stage: 'llm',
+            ms: r.usage.totalMs,
+            ok: true,
+            meta: {
+              purpose: 'intake',
+              model: r.usage.model,
+              firstTokenMs: -1,
+              tokensIn: r.usage.inputTokens,
+              tokensCached: r.usage.cachedTokens,
+              tokensOut: r.usage.outputTokens,
+              usd: r.usage.usd,
+              reused: false,
+            },
+          });
+          for (const line of llmCostLines(r.usage, { purpose: 'intake', reused: false }))
+            metrics.cost(line);
+        }
+        return r;
+      }),
       registry.resolveTopic({ text: args.topic, language: 'en', locale: 'en-US', band: args.band }),
     ]);
     const { language, locale } = args.language
@@ -71,9 +127,24 @@ export class RoomRegistry {
             locale: intake.sourceLanguage === 'en' ? 'en-US' : locale,
             band: args.band,
           });
+    // Timing only: the room records the hit and what it saved (the memo decides the rest).
+    resolveTimer.end(true, {
+      canonicalId: resolution.canonicalKnowledgeId,
+      match: resolution.match,
+      score: resolution.score,
+      timing: true,
+    });
     const allowPremium = args.host.plan !== 'free';
+    // Zero redundant generation: when nobody was asked for, the persona who already taught this
+    // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
+    const memoised =
+      !args.expertId && resolution.packId
+        ? await services.onten.memo.find(resolution.canonicalKnowledgeId, args.band)
+        : null;
+    const memoExpert = memoised ? services.experts.get(memoised.expertId) : null;
     const expert =
       (args.expertId ? services.experts.get(args.expertId) : null) ??
+      (memoExpert && (allowPremium || !memoExpert.premium) ? memoExpert : null) ??
       services.experts.pickFor(
         resolution.domainBoundary as never,
         resolution.canonicalKnowledgeId,
@@ -116,9 +187,11 @@ export class RoomRegistry {
       languageOf: (text) => detectSpokenLanguage(text),
       sampleRate: 44100,
       transport,
-      observer,
+      observer: scopedObserver({ sessionId, expertId: expert.id, plan: args.host.plan }),
       acquirer: services.acquirer,
       ledger: services.ledger,
+      metrics,
+      searchProvider: services.searchProvider,
       targetMinutes: 14,
       participantAudio: services.livekit !== null,
       ads:
@@ -149,6 +222,7 @@ export class RoomRegistry {
       recap: [],
       views: 0,
       thumbnail: null,
+      canonicalId: resolution.canonicalKnowledgeId,
     };
     await services.sessions.upsert(record);
     services.analytics.capture(args.host.id, 'session_started', {
@@ -159,7 +233,17 @@ export class RoomRegistry {
       plan: args.host.plan,
       band: args.band,
     });
-    const live: LiveRoom = { room, seats, record, createdAt: Date.now() };
+    const live: LiveRoom = {
+      room,
+      seats,
+      record,
+      createdAt: Date.now(),
+      plan: args.host.plan,
+      metrics,
+      get stageEvents() {
+        return counter.stageEvents;
+      },
+    };
     this.rooms.set(sessionId, live);
     void room.start().then(async () => {
       const state = room.getState();
@@ -238,12 +322,34 @@ export class RoomRegistry {
       ?.closeRoom(sessionId)
       .catch((error) => observer.error('rooms.audio.close', error, { sessionId }));
     const state = live.room.getState();
-    this.services.analytics.capture(live.record.hostId, 'session_ended', {
-      durationMs: state.clockMs,
-      segments: state.plan?.segments.length ?? 0,
-      questions: live.room.backlog().filter((c) => c.event.type === 'note').length,
-      completed: state.mode === 'complete',
-    });
+    // The full summary (latencies, costs, reuse; numbers and codes only) so PostHog can chart
+    // sessions without the ledger.
+    try {
+      const telemetry = computeTelemetry({
+        sessionId,
+        plan: live.plan,
+        expertId: state.expertId,
+        language: state.language,
+        entries: this.services.ledger.read(sessionId),
+      });
+      this.services.analytics.capture(
+        live.record.hostId,
+        'session_ended',
+        sessionEndedProperties(telemetry, {
+          completed: state.mode === 'complete',
+          providers: {
+            llm: this.services.cfg.PEN_LLM_PROVIDER,
+            tts: this.services.synthesizer.id,
+            stt: this.services.recognizer?.id ?? 'browser',
+          },
+        }),
+      );
+      void this.services.analytics
+        .flush()
+        .catch((error) => observer.error('analytics.flush', error, { sessionId }));
+    } catch (error) {
+      observer.error('telemetry.session_ended', error, { sessionId });
+    }
     await this.services.sessions.patch(sessionId, {
       endedAt: Date.now(),
       durationMs: state.clockMs,

@@ -12,6 +12,7 @@ import {
   PreparingView,
   RecapPanel,
 } from '../components/RoomChrome.js';
+import { trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { RoomSession } from '../room/RoomSession.js';
 import { useRoomStore } from '../room/store.js';
@@ -269,7 +270,10 @@ export function Room() {
             void session?.enableMic();
           }
         }}
-        onFullscreen={() => void shellRef.current?.requestFullscreen?.()}
+        onFullscreen={() => {
+          trackInteraction('fullscreen');
+          void shellRef.current?.requestFullscreen?.();
+        }}
         audio={ui.audio}
         selfId={participant?.id ?? ''}
         onMuteParticipant={(id) =>
@@ -290,7 +294,10 @@ export function Room() {
         onUnmuteVoice={() => void session?.unmuteVoice()}
         onLeave={() => {
           if (isHost && state.phase === 'live') session?.control('end');
-          else navigate('/');
+          else {
+            trackInteraction('leave');
+            navigate('/');
+          }
         }}
       />
     </div>

@@ -58,18 +58,5 @@ export interface CostMeter {
 
 export const NOOP_METER: CostMeter = { record: () => undefined };
 
-/** USD per 1M tokens: input, cached input, output (OpenAI pricing page, 2026-09-16). */
-export const PRICING: Record<string, { input: number; cached: number; output: number }> = {
-  'gpt-5.6-luna': { input: 0.2, cached: 0.02, output: 1.2 },
-  'gpt-5.4-nano': { input: 0.2, cached: 0.02, output: 1.25 },
-  'gpt-5.4-mini': { input: 0.75, cached: 0.075, output: 4.5 },
-  'gpt-5-nano': { input: 0.05, cached: 0.005, output: 0.4 },
-  'gpt-5-mini': { input: 0.25, cached: 0.025, output: 2.0 },
-  'gemini-2.5-flash-lite': { input: 0.1, cached: 0.01, output: 0.4 },
-};
-
-export function priceUsd(model: string, input: number, cached: number, output: number): number {
-  const p = PRICING[model] ?? PRICING['gpt-5.6-luna'];
-  if (!p) return 0;
-  return ((input - cached) * p.input + cached * p.cached + output * p.output) / 1_000_000;
-}
+/** Prices live in @pen/contracts (`pricing.ts`) so every cost line shares one table; re-exported for this package's callers. */
+export { LLM_PRICING as PRICING, priceUsd } from '@pen/contracts';

@@ -15,6 +15,13 @@
       "when": 1789674526502,
       "tag": "0001_cuddly_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789676806721,
+      "tag": "0002_canonical_id",
+      "breakpoints": true
     }
   ]
 }
