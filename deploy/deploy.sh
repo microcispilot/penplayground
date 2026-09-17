@@ -135,15 +135,17 @@ log "syncing stack files to $PEN_DEPLOY_ROOT"
 remote "mkdir -p '$PEN_DEPLOY_ROOT/searxng' '$PEN_DEPLOY_ROOT/nginx' '$PEN_DEPLOY_ROOT/data' \
   && chown 1000:1000 '$PEN_DEPLOY_ROOT/data'"
 RSYNC_SSH="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
-rsync -az --chmod=F0644 -e "$RSYNC_SSH" \
+rsync -rltz -e "$RSYNC_SSH" \
   deploy/docker-compose.yml deploy/api.env.example deploy/postgres.env.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/"
-rsync -az --chmod=F0644 -e "$RSYNC_SSH" \
+rsync -rltz -e "$RSYNC_SSH" \
   deploy/searxng/docker-compose.yml deploy/searxng/settings.yml deploy/searxng/README.md \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/searxng/"
-rsync -az --chmod=F0644 -e "$RSYNC_SSH" \
+rsync -rltz -e "$RSYNC_SSH" \
   deploy/nginx/pen-playground.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
+# openrsync (macOS) has no --chmod; normalise modes on the host instead.
+remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '*.example' -o -name '*.md' \\) -exec chmod 0644 {} +"
 # The vhost with DOMAIN filled in, ready to copy into /etc/nginx/sites-available.
 remote "sed 's/DOMAIN/$PEN_DOMAIN/g' '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf.example' > '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf'"
 
