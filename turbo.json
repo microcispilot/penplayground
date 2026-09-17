@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": ["OPENAI_API_KEY*", "PEN_*", "FISH_*", "SENTRY_*", "STRIPE_*", "DATABASE_URL", "VITE_*"],
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", "out/**", ".vite/**"] },
+    "typecheck": { "dependsOn": ["^build"] },
+    "test": { "dependsOn": ["^build"] },
+    "dev": { "cache": false, "persistent": true }
+  }
+}

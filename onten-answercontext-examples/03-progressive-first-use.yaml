@@ -1,0 +1,103 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE 3 — a student asks about asyncio; NO prepared pack covers it
+#
+# THE POINT: the honest options for a tutor are not just "answer" and "I don't know".
+# CTX-PROGRESSIVE-01 defines a third: fetch an approved source, answer with attribution
+# and hedging, mark the evidence as unverified, and compile the durable pack in the
+# BACKGROUND — off the response critical path.
+#
+# The next student to ask gets a properly qualified pack, but only after it passes the
+# ordinary rights, evaluation and promotion gates. Nothing is auto-promoted.
+# ─────────────────────────────────────────────────────────────────────────────
+
+AnswerContext:
+  inputRevision: final
+
+  packRefs: []                  # EMPTY. This is a true prepared-knowledge miss. Not a
+                                # retrieval failure, not a low score — genuinely no
+                                # qualified pack covers the requested scope.
+
+  audienceScope: tenant:riverdale/cohort:cs101-fall/user:student-7741
+
+  # ── THE HONESTY ──
+  status: partial               # NOT `sufficient`. The model is told plainly that this is
+                                # not reviewed material. Claiming `sufficient` here would
+                                # be a false-sufficient defect — the single worst failure
+                                # mode in the system (CTX-SUFFICIENCY-01).
+
+  sufficiency:
+    policy: tutoring-standard@3
+    score: 0.58
+    threshold: 0.85             # below threshold, hence `partial`. The threshold is not
+                                # lowered to make this pass. Ever.
+    calibratedOn: dev-eval-r12
+    qualifiedOn: sealed-eval-r9
+
+  primaryUnit: null             # no qualified answer unit exists to serve
+
+  typedFacts: []
+
+  derivedFacts: []
+
+  evidenceSpans:
+    - sourceId: live:python-docs-asyncio
+      revision: retrieved-2026-09-15T14:07:01Z
+      span: event-loop-overview
+      evidenceTier: unverified_live_source   # ── THE TRUST TIER THAT MATTERS ──
+                                             # reviewed_pack_source    = compiled + reviewed
+                                             # authoritative_live_fact = system of record
+                                             # unverified_live_source  = fetched live, NOT
+                                             #                           yet reviewed
+                                             #
+                                             # This tier may support an attributed, hedged
+                                             # informational answer under host policy. It may
+                                             # NEVER authorize a consequential decision, and
+                                             # it may NEVER silently enter a Knowledge Pack.
+      score: 0.72
+      # No `packRef` — this span came from a live source, not a pack. Attribution to the
+      # student is carried by the constraints below plus the span's sourceId, not by a
+      # separate attribution field.
+
+  constraints:
+    - hedge_and_attribute_unverified_source   # the model must say where this came from
+                                              # and that it is not reviewed course material
+    - not_eligible_for_graded_assessment      # ── THE TEETH ──
+                                              # Provisional evidence can inform a
+                                              # conversation. It cannot grade a student.
+    - offer_to_notify_when_reviewed_material_ready
+
+  contextTokens: 890
+
+  unresolved:
+    - reviewed_pack_coverage    # names exactly what is missing. This is what makes
+                                # `partial` actionable rather than just a shrug — the host
+                                # can decide to wait, to hedge, or to hand off to a teacher.
+
+  expansionAllowed: true        # this host's HostContextPolicy permits progressive
+                                # first-use. With `allowed: false` the runtime would return
+                                # `missing` and the declared out-of-scope behaviour instead.
+                                # Only trusted host configuration can enable this — never
+                                # the model, never retrieved content (HOST-SCOPE-01).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHAT IS *NOT* IN THIS PAYLOAD, AND WHY
+#
+# The dual-track evidence lives in the RUN MANIFEST, not here:
+#
+#   progressive_first_use_mode:              provisional_informational
+#   progressiveInitialUsefulContextMs:       1840
+#   progressive_background_compile_started_at: 2026-09-15T14:07:03Z
+#   progressive_qualified_pack_ready_at:     null
+#   progressiveCompileOverlapRate, progressiveWaitAvoidedMs, sourceAcquisitionMs
+#
+# Those are performance-targets.yaml required_run_manifest_fields. They prove full
+# compilation was NOT on the initial response critical path — which is the whole gate for
+# CTX-PROGRESSIVE-01. Keep measurement in the manifest; the AnswerContext is only what the
+# model reads.
+#
+# WHAT HAPPENS NEXT
+# Background compilation continues for minutes or hours. It publishes ONLY through the
+# normal source-rights, evaluation and review gates. When it does, the next student asking
+# this question gets `status: sufficient` from a real pack — and this turn's live evidence
+# is never retroactively upgraded.
+# ─────────────────────────────────────────────────────────────────────────────

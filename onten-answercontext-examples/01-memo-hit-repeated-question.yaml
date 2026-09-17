@@ -1,0 +1,151 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE 1 — "What is a variable?"  (question #8,432 of the same thing)
+#
+# THE POINT: 10,000 students across many schools ask this. The expensive work —
+# compiling the knowledge, and selecting which units answer this question — happens
+# ONCE. This turn is a Canonical Question Memo hit, so retrieval, the selector and
+# dense encoding are all skipped.
+#
+# CRITICAL: the memo never caches an answer. It caches the SELECTION. The output
+# shape below is byte-for-byte the shape a full-ladder run produces. Only the work
+# done to reach it differs. (CTX-MEMO-01)
+# ─────────────────────────────────────────────────────────────────────────────
+
+AnswerContext:
+  inputRevision: final          # the final accepted transcript revision. Speculative
+                                # assembly on a partial revision only counts as a hit
+                                # if the final revision validates it (CTX-ASSEMBLY-SPEC-01).
+
+  # ── LAYERING ── PACK-LAYERING-01
+  # shared_public_base < tenant_overlay < audience_overlay < user_overlay < session
+  # Each layer can add, override or suppress units from the layer beneath it.
+  packRefs:
+    - packId: cs-fundamentals-base        # SHARED PUBLIC BASE. An Onten-maintained,
+      packRevision: 31                    # rights-cleared catalog asset. Compiled once,
+                                          # reused by every compatible school. This is the
+                                          # "compile once, reuse many" economics.
+
+    - packId: school-riverdale-overlay    # TENANT OVERLAY. This school's curriculum
+      packRevision: 4                     # sequencing and terminology conventions.
+
+    - packId: user-overlay:student-7741   # USER OVERLAY. This student's mastery state and
+      packRevision: 219                   # derived progress. Never enters a shared layer.
+
+  audienceScope: tenant:riverdale/cohort:cs101-fall/user:student-7741
+                                # This context was assembled FOR this principal. ACL
+                                # admission already ran over every candidate reference
+                                # before anything below entered the payload. On a memo
+                                # hit that admission re-runs against the CURRENT
+                                # entitlement snapshot — a stored selection is a
+                                # candidate set, never an admitted set (CTX-MEMO-01).
+
+  # ── THE VERDICT ── the single most important field in the whole payload
+  status: sufficient            # sufficient | partial | conflict | stale | missing
+                                # `sufficient` is Onten asserting the model has what it
+                                # needs to answer confidently. A FALSE `sufficient` turns
+                                # a knowledge gap into a confident wrong answer, which is
+                                # why CTX-SUFFICIENCY-01 treats false-sufficient rate as a
+                                # hard regression measured on sealed data plus required
+                                # negative slices.
+
+  sufficiency:
+    policy: tutoring-standard@3
+    score: 0.94
+    threshold: 0.85             # pinned per pack BEFORE release. Lowering a threshold
+                                # after observing results invalidates qualification.
+    calibratedOn: dev-eval-r12  # development slices may guide tuning
+    qualifiedOn: sealed-eval-r9 # the sealed set may only qualify, never guide
+                                # (EVAL-HOLDOUT-01)
+
+  # ── THE ANSWER UNIT ──
+  primaryUnit:
+    id: concept.variable.intro  # The unit KIND (concept | canonical_answer | procedure |
+    revision: 7                 # rule_context | code_pattern | misconception | exercise |
+                                # fact_cluster) is a property of the KnowledgeUnit in the
+                                # pack, not a field here. The id prefix carries it by
+                                # naming convention. CTX-BUDGET-01 allows at most ONE
+                                # primary answer unit.
+
+  # ── LIVE TYPED FACTS ── each one knows when it expires (FACT-VOLATILITY-01)
+  typedFacts:
+    - factId: curriculum.currentModule
+      name: currentModule
+      value: "module-2-storing-data"
+      sharingScope: tenant_overlay        # shareable inside this school, nowhere else
+      volatility: slow_changing           # never_changing | slow_changing | fast_changing
+      validity:
+        observedAt: 2026-09-01T00:00:00Z
+        rank: preferred
+      freshnessPolicy: max_age            # immutable | max_age | must_revalidate | no_store
+      currentnessRequirement: bounded_age # historical | bounded_age | strict_current
+      provenance: riverdale-lms@sync-2026-09-01
+      # Volatility, freshness policy and requested currentness are THREE INDEPENDENT axes.
+      # Volatility = how the fact behaves. Freshness policy = what we do about it.
+      # Currentness = what this request actually needs.
+
+  # ── DERIVED FACTS ── the quiet innovation
+  derivedFacts:
+    # Onten computes deterministic things so the model doesn't have to. Models are
+    # unreliable at arithmetic and their reasoning cannot be audited. Every derived fact
+    # carries computedBy provenance, so the result is both correct AND traceable.
+    # The master spec is explicit: "The composition model should never recompute a
+    # deterministic fact Onten can compute safely."
+    - name: priorConceptsCovered
+      value: [literals, assignment]
+      computedBy: onten-runtime/curriculum-position@2
+
+    - name: notYetIntroduced
+      value: [scope, mutability, references]
+      computedBy: onten-runtime/curriculum-position@2
+      # THE TEACHING PAYOFF. Onten worked out, from curriculum position, what this
+      # student has not met yet. Without this the model happily explains variables in
+      # terms of memory addresses to a week-two student.
+
+  # ── EVIDENCE ── 3 to 5 spans, per CTX-BUDGET-01
+  evidenceSpans:
+    - packRef: cs-fundamentals-base@31
+      sourceId: open-cs-textbook-ch3
+      revision: 31
+      span: variable-as-named-box
+      evidenceTier: reviewed_pack_source  # compiled, rights-cleared, reviewed
+      score: 0.97
+
+    - packRef: cs-fundamentals-base@31
+      sourceId: open-cs-textbook-ch3
+      revision: 31
+      span: variable-worked-example-python
+      evidenceTier: reviewed_pack_source
+      score: 0.91
+
+    - packRef: school-riverdale-overlay@4
+      sourceId: riverdale-cs101-syllabus
+      revision: 4
+      span: module-2-terminology-convention
+      evidenceTier: reviewed_pack_source
+      score: 0.88
+      # This span is the entire reason the tenant overlay exists — the school's own
+      # terminology, overriding the shared base for this binding only.
+
+  # ── CONSTRAINTS ── instructions to the composing model, derived from policy not vibes
+  constraints:
+    - do_not_introduce_pointers_before_module_5
+    - use_python_syntax_for_this_cohort
+
+  contextTokens: 610           # CTX-BUDGET-01: <=1500 retrieved/context tokens,
+                               # <=2000 Onten-supplied, 3-5 spans, <=10 typed facts,
+                               # <=1 primary unit. Small enough that a cheap fast model
+                               # uses it well — that is the "serve light" half of the thesis.
+
+  unresolved: []               # nothing missing, which is what earns `sufficient`
+
+  expansionAllowed: false      # HostContextPolicy for this tutoring host forbids live
+                               # web expansion on prepared topics. The model cannot
+                               # self-authorize it; only trusted host config can.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHAT THE HOST DOES NEXT
+# Passes this to the model as context. Because everything needed is already here,
+# CTX-ROUNDTRIPS-01 requires ZERO model-initiated knowledge or tool calls before the
+# first generation. The model does not decide to search — the search already happened,
+# correctly, inside 20 ms.
+# ─────────────────────────────────────────────────────────────────────────────

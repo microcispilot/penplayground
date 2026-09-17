@@ -1,0 +1,28 @@
+{
+  "name": "@pen/voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server/index.ts",
+    "./client": "./src/client/index.ts",
+    "./worklet": "./src/client/capture-processor.js",
+    "./resampler-worker": "./src/client/resampler-worker.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pen/contracts": "workspace:*",
+    "ws": "8.21.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.3",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3",
+    "vitest": "5.0.1"
+  }
+}

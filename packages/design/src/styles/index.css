@@ -1,0 +1,88 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/caveat/400.css";
+@import "@fontsource/caveat/600.css";
+@import "./tokens.css";
+@import "tailwindcss/preflight" layer(base);
+@import "tailwindcss/utilities" layer(utilities);
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    font-feature-settings:
+      "cv11",
+      "ss01",
+      "tnum" 0;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+    margin: 0;
+    font-variation-settings:
+      "opsz" 96,
+      "SOFT" 30;
+  }
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    margin: 0;
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+  ::selection {
+    background: var(--color-accent-soft);
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility paper {
+  background-color: var(--color-paper);
+  background-image: radial-gradient(circle, var(--color-paper-grid) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+@utility text-pretty {
+  text-wrap: pretty;
+}
+@utility hairline {
+  box-shadow: 0 0 0 1px var(--color-line);
+}

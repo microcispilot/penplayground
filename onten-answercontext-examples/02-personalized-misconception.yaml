@@ -1,0 +1,106 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE 2 — "What is a variable?" asked by a DIFFERENT student
+#
+# THE POINT: identical question, materially different context — because this
+# student's user overlay carries a mastery signal showing a specific confusion.
+# The primary unit switches from the concept to the misconception that corrects it.
+#
+# This is what layered personalization buys you that a shared cache cannot: the
+# base pack is still shared with 10,000 students, but selection differs per learner.
+# ─────────────────────────────────────────────────────────────────────────────
+
+AnswerContext:
+  inputRevision: final
+
+  packRefs:
+    - packId: cs-fundamentals-base        # SAME shared base as example 1 — not recompiled,
+      packRevision: 31                    # not duplicated, not forked. One artifact.
+    - packId: school-riverdale-overlay
+      packRevision: 4
+    - packId: user-overlay:student-3318   # different student, different overlay
+      packRevision: 87
+
+  audienceScope: tenant:riverdale/cohort:cs101-fall/user:student-3318
+
+  status: sufficient
+
+  sufficiency:
+    policy: tutoring-standard@3
+    score: 0.91
+    threshold: 0.85
+    calibratedOn: dev-eval-r12
+    qualifiedOn: sealed-eval-r9
+
+  # ── DIFFERENT PRIMARY UNIT ──
+  primaryUnit:
+    id: misconception.variable.box-vs-label
+    revision: 3
+    # The `misconception` unit kind exists in knowledge-pack-contract.yaml
+    # (concept | canonical_answer | procedure | rule_context | code_pattern |
+    #  misconception | exercise | fact_cluster) precisely for teaching. Answering the
+    # literal question here would reinforce the error; correcting the error IS the answer.
+
+  typedFacts:
+    - factId: mastery.variable.assignment
+      name: assignmentMastery
+      value: 0.41
+      sharingScope: no_store              # ── THE PRIVACY BOUNDARY ──
+                                          # Personal/account/derived-performance facts are
+                                          # no_store in shared layers, always. This student's
+                                          # score can never reach the public catalog, another
+                                          # tenant, or a shared memo entry. It is joined per
+                                          # request, after the memo hit, never before it.
+      volatility: fast_changing           # mastery moves with every exercise
+      validity:
+        observedAt: 2026-09-15T14:02:11Z
+      freshnessPolicy: no_store
+      currentnessRequirement: strict_current
+      provenance: user-overlay:student-3318@r87
+
+  derivedFacts:
+    - name: likelyMisconception
+      value: "treats reassignment as creating a second variable"
+      computedBy: decision-artifact:misconception-classifier@11
+      # Note computedBy points at a DecisionArtifact, not a model call. The classification
+      # is a reviewed, versioned rule — so the pedagogical judgment is auditable and a
+      # teacher can see exactly why the tutor took this path. A model guess here would be
+      # unauditable and occasionally confidently wrong about a child's understanding.
+
+  evidenceSpans:
+    - packRef: cs-fundamentals-base@31
+      sourceId: open-cs-textbook-ch3
+      revision: 31
+      span: reassignment-overwrites-not-appends
+      evidenceTier: reviewed_pack_source
+      score: 0.95
+
+    - packRef: cs-fundamentals-base@31
+      sourceId: open-cs-textbook-ch3
+      revision: 31
+      span: variable-trace-table-exercise
+      evidenceTier: reviewed_pack_source
+      score: 0.89
+      # An `exercise` unit rather than more prose. The misconception is best broken by
+      # tracing execution, not by re-explaining.
+
+  constraints:
+    - address_misconception_before_advancing
+    - use_python_syntax_for_this_cohort
+
+  contextTokens: 704
+  unresolved: []
+  expansionAllowed: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HOW THE MEMO STILL HELPS HERE
+#
+# The shared memo key includes a `selectionBand` — a bounded, non-sensitive band such as
+# "beginner-python-misconception-assignment". That lets thousands of students who share a
+# band share one memo entry, while students in different bands get different selections.
+#
+# The band is what makes shared memoization safe: no student identifier, no mastery score,
+# no private state ever enters the shared key. Where private state materially changes
+# selection and CANNOT be reduced to a bounded band, the runtime bypasses the shared memo
+# or uses a private per-user memo instead. It never expands the shared key with raw user
+# state. (CTX-MEMO-01, shared_knowledge_registry canonical_question_memo)
+# ─────────────────────────────────────────────────────────────────────────────

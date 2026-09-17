@@ -1,0 +1,141 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { PlanCode } from '@pen/contracts';
+import {
+  type CostMeter,
+  FakeLanguageModel,
+  type LanguageModel,
+  OpenAILanguageModel,
+  type Usage,
+} from '@pen/llm';
+import { createOnten, type Onten } from '@pen/onten';
+import { ExpertCatalog, type KnowledgeAcquirer } from '@pen/session-engine';
+import {
+  FishBridgeSynthesizer,
+  FishCloudSynthesizer,
+  SilentSynthesizer,
+  type SpeechSynthesizer,
+  StaticVoiceResolver,
+  type VoiceResolver,
+} from '@pen/voice';
+import type { Config } from './config.js';
+import { demoScripts } from './demo-scripts.js';
+import { FileLedger } from './ledger.js';
+import { logger } from './logger.js';
+import { observer } from './observability.js';
+import { SessionStore } from './session-store.js';
+
+export interface Services {
+  cfg: Config;
+  onten: Onten;
+  experts: ExpertCatalog;
+  synthesizer: SpeechSynthesizer;
+  voices: VoiceResolver;
+  ledger: FileLedger;
+  sessions: SessionStore;
+  modelFor(plan: PlanCode): LanguageModel;
+  acquirer: KnowledgeAcquirer | null;
+  costs: CostLedger;
+}
+
+/** In-memory cost ledger with daily totals; persisted to the data dir hourly by main. */
+export class CostLedger implements CostMeter {
+  private readonly byPurpose = new Map<
+    string,
+    { calls: number; usd: number; inputTokens: number; cachedTokens: number; outputTokens: number }
+  >();
+  record(usage: Usage & { purpose: string }): void {
+    const e = this.byPurpose.get(usage.purpose) ?? {
+      calls: 0,
+      usd: 0,
+      inputTokens: 0,
+      cachedTokens: 0,
+      outputTokens: 0,
+    };
+    e.calls += 1;
+    e.usd += usage.usd;
+    e.inputTokens += usage.inputTokens;
+    e.cachedTokens += usage.cachedTokens;
+    e.outputTokens += usage.outputTokens;
+    this.byPurpose.set(usage.purpose, e);
+    logger.debug({ evt: 'llm.usage', ...usage });
+  }
+  snapshot() {
+    return Object.fromEntries(this.byPurpose);
+  }
+}
+
+const here = dirname(fileURLToPath(import.meta.url));
+export const DATA_DIR = join(here, '..', 'data');
+
+export function buildServices(
+  cfg: Config,
+  opts: { acquirerFactory?: (s: Omit<Services, 'acquirer'>) => KnowledgeAcquirer | null } = {},
+): Services {
+  const onten = createOnten({ dataDir: join(cfg.PEN_DATA_DIR, 'onten') });
+  const experts = ExpertCatalog.fromJson(
+    JSON.parse(readFileSync(join(DATA_DIR, 'experts', 'catalog.json'), 'utf8')),
+  );
+  const costs = new CostLedger();
+
+  const synthesizer: SpeechSynthesizer = (() => {
+    switch (cfg.PEN_TTS_PROVIDER) {
+      case 'fish-cloud': {
+        if (!cfg.FISH_AUDIO_API_KEY)
+          throw new Error('PEN_TTS_PROVIDER=fish-cloud requires FISH_AUDIO_API_KEY');
+        return new FishCloudSynthesizer({
+          apiKey: cfg.FISH_AUDIO_API_KEY,
+          model: cfg.FISH_AUDIO_MODEL,
+          onFirstChunk: (ms) => observer.event('tts.first_chunk_ms', { ms }),
+        });
+      }
+      case 'fish-bridge':
+        return new FishBridgeSynthesizer({ baseUrl: cfg.PEN_TTS_BRIDGE_URL });
+      case 'silent':
+        logger.warn('PEN_TTS_PROVIDER=silent: the expert will not be audible (development only)');
+        return new SilentSynthesizer({ realtime: true });
+    }
+  })();
+
+  const voices = new StaticVoiceResolver(cfg.voiceMap, cfg.PEN_VOICE_DEFAULT);
+  const models = new Map<PlanCode, LanguageModel>();
+  const modelFor = (plan: PlanCode): LanguageModel => {
+    const cached = models.get(plan);
+    if (cached) return cached;
+    let model: LanguageModel;
+    if (cfg.PEN_LLM_PROVIDER === 'fake') {
+      logger.warn('PEN_LLM_PROVIDER=fake: scripted demo lessons only (development only)');
+      model = new FakeLanguageModel(demoScripts.scripts, demoScripts.completions);
+    } else {
+      const key =
+        plan === 'classroom'
+          ? cfg.OPENAI_API_KEY_CLASSROOM
+          : plan === 'plus'
+            ? cfg.OPENAI_API_KEY_PLUS
+            : cfg.OPENAI_API_KEY_FREE;
+      if (!key)
+        throw new Error(
+          `No language-model key configured for plan "${plan}" (OPENAI_API_KEY_${plan.toUpperCase()})`,
+        );
+      model = new OpenAILanguageModel({
+        apiKey: key,
+        model: cfg.PEN_LLM_MODEL,
+        ...(cfg.PEN_LLM_BASE_URL ? { baseURL: cfg.PEN_LLM_BASE_URL } : {}),
+        ...(cfg.PEN_LLM_SERVICE_TIER ? { serviceTier: cfg.PEN_LLM_SERVICE_TIER } : {}),
+        reasoningEffort: 'none',
+        meter: costs,
+        onInvalidEvent: (raw, error) =>
+          observer.error('llm.invalid_event', error, { rawType: typeof raw }),
+      });
+    }
+    models.set(plan, model);
+    return model;
+  };
+
+  const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
+  const sessions = new SessionStore(join(cfg.PEN_DATA_DIR, 'sessions'));
+  const base = { cfg, onten, experts, synthesizer, voices, ledger, sessions, modelFor, costs };
+  const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;
+  return { ...base, acquirer };
+}
