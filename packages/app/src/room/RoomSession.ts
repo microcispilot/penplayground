@@ -1,6 +1,14 @@
+import {
+  type AudioPort,
+  type BoardExecution,
+  type BoardPort,
+  type CaptionPort,
+  Conductor,
+  estimateSpeechMs,
+  type PresencePort,
+} from '@pen/conductor';
 import type { BoardEvent, CheckEvent, NoteEvent, RoomState } from '@pen/contracts';
 import { AUDIO } from '@pen/contracts';
-import { type AudioPort, type BoardExecution, type BoardPort, type CaptionPort, Conductor, type PresencePort, estimateSpeechMs } from '@pen/conductor';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
 import type { Platform, SpeechRecognizer } from '../platform/types.js';
@@ -111,7 +119,8 @@ export class RoomSession {
     this.player = new PcmPlayer({
       onError: (code, detail) => {
         console.warn('[playback]', code, detail);
-        if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED') set({ notice: { text: 'Tap anywhere to enable sound.', tone: 'neutral' } });
+        if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED')
+          set({ notice: { text: 'Tap anywhere to enable sound.', tone: 'neutral' } });
       },
       onSayStart: (id) => this.conductor.audioEvents.onSayStart(id),
       onSayEnd: (id, ms) => this.conductor.audioEvents.onSayEnd(id, ms),
@@ -123,7 +132,8 @@ export class RoomSession {
     const audio: AudioPort = {
       enqueue: (chunk) => {
         const r = player.enqueue(chunk);
-        if (!r.accepted && r.code !== 'PEN_PLAYBACK_SAY_STALE') console.warn('[playback] rejected', r.code);
+        if (!r.accepted && r.code !== 'PEN_PLAYBACK_SAY_STALE')
+          console.warn('[playback] rejected', r.code);
       },
       pause: () => player.pause(),
       resume: () => player.resume(),
@@ -134,8 +144,29 @@ export class RoomSession {
     };
 
     const captions: CaptionPort = {
-      showExpert: (text, revealMs) => set({ caption: { who: 'expert', speaker: this.expertName(), text, revealMs, live: false, at: Date.now() }, learnerHeard: '' }),
-      showLearner: (name, text, final) => set({ caption: { who: 'learner', speaker: name, text, revealMs: 0, live: !final, at: Date.now() } }),
+      showExpert: (text, revealMs) =>
+        set({
+          caption: {
+            who: 'expert',
+            speaker: this.expertName(),
+            text,
+            revealMs,
+            live: false,
+            at: Date.now(),
+          },
+          learnerHeard: '',
+        }),
+      showLearner: (name, text, final) =>
+        set({
+          caption: {
+            who: 'learner',
+            speaker: name,
+            text,
+            revealMs: 0,
+            live: !final,
+            at: Date.now(),
+          },
+        }),
       hint: (text) => set({ hint: text }),
       clear: () => set({ caption: null }),
     };
@@ -154,7 +185,14 @@ export class RoomSession {
       notice: (text, tone) => set({ notice: text ? { text, tone } : null }),
     };
 
-    this.conductor = new Conductor({ audio, board: this.board, captions, presence, transport: { send: (m) => this.client.send(m) }, participantId: o.participantId });
+    this.conductor = new Conductor({
+      audio,
+      board: this.board,
+      captions,
+      presence,
+      transport: { send: (m) => this.client.send(m) },
+      participantId: o.participantId,
+    });
 
     const token = o.api.authToken;
     if (!token) throw new Error('RoomSession requires an authenticated participant');
@@ -167,7 +205,14 @@ export class RoomSession {
           this.conductor.handleServer(m);
           set({ phase: this.conductor.getPhase() });
           if (m.kind === 'prep') set({ preparation: m.progress });
-          if (m.kind === 'error' && (m.code === 'SESSION_NOT_FOUND' || m.code === 'UNAUTHORIZED' || m.code === 'ROOM_FULL' || m.code === 'ENTITLEMENT_REQUIRED')) set({ errorText: m.message });
+          if (
+            m.kind === 'error' &&
+            (m.code === 'SESSION_NOT_FOUND' ||
+              m.code === 'UNAUTHORIZED' ||
+              m.code === 'ROOM_FULL' ||
+              m.code === 'ENTITLEMENT_REQUIRED')
+          )
+            set({ errorText: m.message });
         },
         onAudio: (header, pcm) => this.conductor.handleAudio(header, pcm),
         onStatus: (connection) => set({ connection }),
@@ -182,7 +227,14 @@ export class RoomSession {
     this.client.connect();
     this.clockTimer = setInterval(() => {
       const st = useRoomStore.getState();
-      if (st.state?.phase === 'live' && (st.state.mode === 'teaching' || st.state.mode === 'answering' || st.state.mode === 'checking' || st.state.mode === 'complete') && this.conductor.getPhase() === 'playing') {
+      if (
+        st.state?.phase === 'live' &&
+        (st.state.mode === 'teaching' ||
+          st.state.mode === 'answering' ||
+          st.state.mode === 'checking' ||
+          st.state.mode === 'complete') &&
+        this.conductor.getPhase() === 'playing'
+      ) {
         useRoomStore.getState().set({ clockMs: this.clockBase + (Date.now() - this.clockAt) });
       }
     }, 250);
@@ -190,7 +242,8 @@ export class RoomSession {
 
   /** Turn the microphone on: harmonic VAD for barge-in, platform recognizer for words. */
   async enableMic(): Promise<void> {
-    const set = (patch: Parameters<ReturnType<typeof useRoomStore.getState>['set']>[0]) => useRoomStore.getState().set(patch);
+    const set = (patch: Parameters<ReturnType<typeof useRoomStore.getState>['set']>[0]) =>
+      useRoomStore.getState().set(patch);
     if (this.mic) return;
     set({ micState: 'starting' });
     const mic = new Microphone({
@@ -204,10 +257,18 @@ export class RoomSession {
       onLevel: (rms) => set({ micLevel: rms }),
       onError: (code, error) => {
         console.warn('[mic]', code, error);
-        if (code === 'PEN_MICROPHONE_DENIED') set({ micState: 'denied', notice: { text: 'Microphone access was denied. You can still watch and read.', tone: 'danger' } });
+        if (code === 'PEN_MICROPHONE_DENIED')
+          set({
+            micState: 'denied',
+            notice: {
+              text: 'Microphone access was denied. You can still watch and read.',
+              tone: 'danger',
+            },
+          });
       },
       onStateChange: (state) => set({ micState: state }),
-      onNoInputSignal: () => set({ notice: { text: "We can't hear anything from your microphone.", tone: 'danger' } }),
+      onNoInputSignal: () =>
+        set({ notice: { text: "We can't hear anything from your microphone.", tone: 'danger' } }),
       onInputSignalRestored: () => set({ notice: null }),
     });
     this.mic = mic;
@@ -221,14 +282,26 @@ export class RoomSession {
         },
         onError: (code, error) => {
           console.warn('[stt]', code, error);
-          if (code === 'not-allowed' || code === 'unavailable') set({ notice: { text: 'Speech recognition is not available in this browser. Type your question instead.', tone: 'danger' } });
+          if (code === 'not-allowed' || code === 'unavailable')
+            set({
+              notice: {
+                text: 'Speech recognition is not available in this browser. Type your question instead.',
+                tone: 'danger',
+              },
+            });
         },
       },
       { language: 'en-US' },
     );
     this.recognizer = recognizer;
     if (recognizer.available) await recognizer.start();
-    else set({ notice: { text: 'Speech recognition is not available here; questions can be typed.', tone: 'neutral' } });
+    else
+      set({
+        notice: {
+          text: 'Speech recognition is not available here; questions can be typed.',
+          tone: 'neutral',
+        },
+      });
   }
 
   disableMic(): void {

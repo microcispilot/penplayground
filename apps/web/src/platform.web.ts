@@ -1,6 +1,11 @@
-import type { Platform, SpeechRecognizer, SpeechRecognizerFactory, SpeechRecognizerHandlers } from '@pen/app';
-import workletSource from '@pen/voice/worklet?raw';
+import type {
+  Platform,
+  SpeechRecognizer,
+  SpeechRecognizerFactory,
+  SpeechRecognizerHandlers,
+} from '@pen/app';
 import ResamplerWorker from '@pen/voice/resampler-worker?worker&inline';
+import workletSource from '@pen/voice/worklet?raw';
 
 /** Web Speech API recognizer: on-device in Chrome when available, otherwise the browser's cloud recognizer. */
 class WebSpeechRecognizer implements SpeechRecognizer {
@@ -34,7 +39,11 @@ class WebSpeechRecognizer implements SpeechRecognizer {
     const withLocal = rec as SpeechRecognition & { processLocally?: boolean };
     if ('processLocally' in withLocal) {
       try {
-        const available = await (Ctor as unknown as { available?: (o: { langs: string[]; processLocally: boolean }) => Promise<string> }).available?.({ langs: [this.language], processLocally: true });
+        const available = await (
+          Ctor as unknown as {
+            available?: (o: { langs: string[]; processLocally: boolean }) => Promise<string>;
+          }
+        ).available?.({ langs: [this.language], processLocally: true });
         if (available === 'available') withLocal.processLocally = true;
       } catch {
         /* fall back to the default recognizer */
@@ -110,11 +119,11 @@ const storage = {
 
 export const webPlatform: Platform = {
   name: 'web',
-  apiUrl: import.meta.env['VITE_API_URL'] ?? window.location.origin,
+  apiUrl: import.meta.env.VITE_API_URL ?? window.location.origin,
   speech,
   mic: { workletSource, createResamplerWorker: () => new ResamplerWorker() },
   storage,
   openExternal: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
-  tldrawLicenseKey: import.meta.env['VITE_TLDRAW_LICENSE_KEY'] ?? '',
-  sentryDsn: import.meta.env['VITE_SENTRY_DSN'] ?? null,
+  tldrawLicenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY ?? '',
+  sentryDsn: import.meta.env.VITE_SENTRY_DSN ?? null,
 };

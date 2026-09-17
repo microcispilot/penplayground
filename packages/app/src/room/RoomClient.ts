@@ -1,4 +1,9 @@
-import { type ClientMessage, type DownstreamAudioHeader, ServerMessage, decodeAudioFrame } from '@pen/contracts';
+import {
+  type ClientMessage,
+  type DownstreamAudioHeader,
+  decodeAudioFrame,
+  ServerMessage,
+} from '@pen/contracts';
 
 export interface RoomClientHandlers {
   onMessage(message: ServerMessage): void;
@@ -57,7 +62,13 @@ export class RoomClient {
     socket.onopen = () => {
       this.attempts = 0;
       socket.send(JSON.stringify({ kind: 'auth', token: this.token } satisfies ClientMessage));
-      socket.send(JSON.stringify({ kind: 'join', sessionId: this.sessionId, ...(this.name ? { name: this.name } : {}) } satisfies ClientMessage));
+      socket.send(
+        JSON.stringify({
+          kind: 'join',
+          sessionId: this.sessionId,
+          ...(this.name ? { name: this.name } : {}),
+        } satisfies ClientMessage),
+      );
       this.setStatus('open');
     };
     socket.onmessage = (evt) => {

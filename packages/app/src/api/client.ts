@@ -5,7 +5,11 @@ import type { KeyValueStorage } from '../platform/types.js';
 const TOKEN_KEY = 'pen.token';
 const NAME_KEY = 'pen.name';
 
-export const Participant = z.object({ id: z.string(), name: z.string(), plan: z.enum(['free', 'plus', 'classroom']) });
+export const Participant = z.object({
+  id: z.string(),
+  name: z.string(),
+  plan: z.enum(['free', 'plus', 'classroom']),
+});
 export type Participant = z.infer<typeof Participant>;
 
 export const SessionRecord = z.object({
@@ -63,7 +67,9 @@ export class ApiClient {
   }
 
   private async request<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
-    const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
+    const headers: Record<string, string> = {
+      ...(init.headers as Record<string, string> | undefined),
+    };
     if (init.body) headers['content-type'] = 'application/json';
     if (this.token) headers.authorization = `Bearer ${this.token}`;
     let res: Response;
@@ -75,7 +81,11 @@ export class ApiClient {
     const body: unknown = await res.json().catch(() => null);
     if (!res.ok) {
       const err = z.object({ error: z.string(), message: z.string().optional() }).safeParse(body);
-      throw new ApiError(res.status, err.success ? err.data.error : 'HTTP', err.success ? (err.data.message ?? err.data.error) : `HTTP ${res.status}`);
+      throw new ApiError(
+        res.status,
+        err.success ? err.data.error : 'HTTP',
+        err.success ? (err.data.message ?? err.data.error) : `HTTP ${res.status}`,
+      );
     }
     return schema.parse(body);
   }
@@ -91,10 +101,14 @@ export class ApiClient {
         this.token = null;
       }
     }
-    const res = await this.request('/api/auth/anonymous', z.object({ token: z.string(), participant: Participant }), {
-      method: 'POST',
-      body: JSON.stringify({ name: name || this.rememberedName || undefined }),
-    });
+    const res = await this.request(
+      '/api/auth/anonymous',
+      z.object({ token: z.string(), participant: Participant }),
+      {
+        method: 'POST',
+        body: JSON.stringify({ name: name || this.rememberedName || undefined }),
+      },
+    );
     this.token = res.token;
     this.storage.set(TOKEN_KEY, res.token);
     this.storage.set(NAME_KEY, res.participant.name);
@@ -102,22 +116,48 @@ export class ApiClient {
   }
 
   listPublicSessions() {
-    return this.request('/api/sessions', z.object({ sessions: z.array(SessionRecord) })).then((r) => r.sessions);
+    return this.request('/api/sessions', z.object({ sessions: z.array(SessionRecord) })).then(
+      (r) => r.sessions,
+    );
   }
   listMySessions() {
-    return this.request('/api/sessions/mine', z.object({ sessions: z.array(SessionRecord) })).then((r) => r.sessions);
+    return this.request('/api/sessions/mine', z.object({ sessions: z.array(SessionRecord) })).then(
+      (r) => r.sessions,
+    );
   }
   listExperts() {
-    return this.request('/api/experts', z.object({ experts: z.array(Expert) })).then((r) => r.experts);
+    return this.request('/api/experts', z.object({ experts: z.array(Expert) })).then(
+      (r) => r.experts,
+    );
   }
-  createSession(input: { topic: string; band?: 'beginner' | 'intermediate' | 'advanced'; expertId?: string; visibility?: 'public' | 'private' }) {
-    return this.request('/api/sessions', z.object({ session: SessionRecord, state: RoomState }), { method: 'POST', body: JSON.stringify(input) });
+  createSession(input: {
+    topic: string;
+    band?: 'beginner' | 'intermediate' | 'advanced';
+    expertId?: string;
+    visibility?: 'public' | 'private';
+  }) {
+    return this.request('/api/sessions', z.object({ session: SessionRecord, state: RoomState }), {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   }
   getSession(id: string) {
-    return this.request(`/api/sessions/${encodeURIComponent(id)}`, z.object({ session: SessionRecord, live: z.boolean(), state: RoomState.nullable(), expert: Expert.nullable() }));
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}`,
+      z.object({
+        session: SessionRecord,
+        live: z.boolean(),
+        state: RoomState.nullable(),
+        expert: Expert.nullable(),
+      }),
+    );
   }
   endSession(id: string) {
-    return this.request(`/api/sessions/${encodeURIComponent(id)}/end`, z.object({ ok: z.boolean(), state: RoomState }), { method: 'POST' });
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}/end`,
+      z.object({ ok: z.boolean(), state: RoomState }),
+      { method: 'POST' },
+    );
   }
   portraitUrl(src: string | null | undefined): string | null {
     return src ? `${this.baseUrl}${src}` : null;

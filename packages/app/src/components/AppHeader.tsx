@@ -1,8 +1,7 @@
-import { Button, IconButton, cn } from '@pen/design';
+import { applyTheme, Button, cn, IconButton, readTheme, type Theme } from '@pen/design';
 import { Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
-import { applyTheme, readTheme, type Theme } from '@pen/design';
 import { useApp } from '../lib/context.js';
 import { NameDialog } from './NameDialog.js';
 
@@ -49,7 +48,10 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
         <IconButton
           label="Dark theme"
           size={30}
-          className={cn('rounded-full', theme === 'dark' ? '' : 'bg-transparent shadow-none text-fg-2')}
+          className={cn(
+            'rounded-full',
+            theme === 'dark' ? '' : 'bg-transparent shadow-none text-fg-2',
+          )}
           onClick={() => setTheme('dark')}
         >
           <Moon size={15} />
@@ -57,7 +59,10 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
         <IconButton
           label="Light theme"
           size={30}
-          className={cn('rounded-full', theme === 'light' ? '' : 'bg-transparent shadow-none text-fg-2')}
+          className={cn(
+            'rounded-full',
+            theme === 'light' ? '' : 'bg-transparent shadow-none text-fg-2',
+          )}
           onClick={() => setTheme('light')}
         >
           <Sun size={15} />

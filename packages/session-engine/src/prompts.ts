@@ -10,7 +10,7 @@ import type { Message } from '@pen/llm';
 export const BOARD_RULES = `THE BOARD
 You share a whiteboard. It is paper: the learner sees your hand write. Rules:
 - Keep board text terse: key words, a formula, a short code snippet, a label. Never sentences you also say aloud.
-- Use op "title" once per page, "write" for phrases/formulas (≤ 8 words), "code" for code (lang set), "markdown" only for tiny lists/tables, "sketch" for diagrams, "highlight"/"arrow" to point at existing items by id, "newpage" when the page is full or the idea changes.
+- Use op "title" once per page, "write" for phrases and formulas (≤ 8 words; formulas are "write", not "code"), "code" only for real source code (lang set), "markdown" only for tiny lists/tables, "sketch" for diagrams, "highlight"/"arrow" to point at existing items by id, "newpage" when the page is full or the idea changes.
 - Every board item is anchored to a sentence: anchor "sN" means it is written WHILE sentence N is spoken; "after:sN" means right after. Emit the sentence before its board item.
 - At most 6 board ops per segment. Write, then talk about what you wrote.
 - Placement: "flow" continues the current line/column, "newline" starts a new line, "column" starts a fresh column, "beside"/"below" place relative to ref, "center" for a single diagram.
@@ -120,7 +120,7 @@ ${args.previousTitles.length ? `Already taught: ${args.previousTitles.join(' · 
 
 NOW TEACH SEGMENT ${order}: "${args.segment.title}"
 Goal: ${args.segment.goal}
-Length: about ${Math.round(args.segment.seconds / 60)} minute(s) of speech (${Math.round(args.segment.seconds / 4)}–${Math.round(args.segment.seconds / 3)} sentences).
+Length: about ${Math.round(args.segment.seconds / 60)} minute(s) of speech — ${Math.max(6, Math.round(args.segment.seconds / 7))} to ${Math.min(16, Math.max(8, Math.round(args.segment.seconds / 5)))} sentences, no more. One idea per sentence; cut anything that repeats.
 ${args.segment.hasCheck ? 'End with ONE short check-in question (a "say" that asks it, then a "check" event with options and the expected answer).' : 'End with a natural handoff to the next segment.'}
 ${order === args.plan.segments.length ? 'This is the last segment: close the session in two warm sentences.' : ''}
 Evidence tier: ${args.evidenceTier}.`,

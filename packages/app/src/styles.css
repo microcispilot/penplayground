@@ -1,4 +1,4 @@
-@import '@pen/design/styles.css';
-@source '../../design/src';
-@source '../../board/src';
-@source './';
+@import "@pen/design/styles.css";
+@source "../../design/src";
+@source "../../board/src";
+@source "./";

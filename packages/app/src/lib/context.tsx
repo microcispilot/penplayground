@@ -1,4 +1,4 @@
-import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { ApiClient, type Participant } from '../api/client.js';
 import type { Platform } from '../platform/types.js';
 
@@ -26,7 +26,8 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         if (!cancelled) setParticipant(p);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setAuthError(error instanceof Error ? error.message : 'Could not reach Pen Academy.');
+        if (!cancelled)
+          setAuthError(error instanceof Error ? error.message : 'Could not reach Pen Academy.');
       });
     return () => {
       cancelled = true;

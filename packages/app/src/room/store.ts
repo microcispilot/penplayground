@@ -1,5 +1,5 @@
-import type { CheckEvent, Expert, PreparationProgress, RoomState } from '@pen/contracts';
 import type { ConductorPhase } from '@pen/conductor';
+import type { CheckEvent, Expert, PreparationProgress, RoomState } from '@pen/contracts';
 import { create } from 'zustand';
 import type { RoomConnectionStatus } from './RoomClient.js';
 
