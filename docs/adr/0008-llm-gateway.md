@@ -33,3 +33,11 @@ element the moment its closing brace lands.
 First cue after ~15 tokens; sentence-level TTS starts before the plan is done;
 model swaps are configuration. `contentInstructions`-shaped context from Onten
 keeps prompts under the CTX-BUDGET-01 budget.
+
+## Addendum (2026-09-17): language handling
+Knowledge is English-canonical: topic intake returns an English title and a
+source language ("en" unless the subject is language-bound). The communication
+language is per turn: it is sent with every request (never in the cached
+system prefix), the model declares each question's language on the `note`
+event, and the room switches voice/recognition on it. Statistical detection is
+used only for script changes before the model has read the question.

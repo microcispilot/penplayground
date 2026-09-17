@@ -38,10 +38,16 @@ Round 2 lists what is still needed from you.
    behind `POSTHOG_PROJECT_TOKEN` / `VITE_POSTHOG_TOKEN`.
 10. **Public sessions.** All sessions are public and the creator is never shown
     (host id and name are stripped from public records and ledgers).
-11. **Languages.** Any language. A cheap model call reads the request's language
-    and a clean title (statistical detection misreads short topics), the expert
-    teaches and writes in that language, the persona's voice for that language is
-    used, recognition uses it, and the registry keys packs by it.
+11. **Languages.** Any language, with knowledge kept in English. A cheap model
+    call reads each request and returns the learner's language, a title in it, an
+    **English canonical title** (the key packs are stored under, so "من میخواهم
+    سویفت را از پایه بیاموزم" and "I want to learn Swift" share one prepared pack)
+    and a **source language** that is only non-English for language-bound subjects
+    (Rumi's poems → Persian sources). Communication follows the learner turn by
+    turn: the model declares the language of each question, the expert answers,
+    writes the board and continues the lesson in it with the persona's voice for
+    that language, and recognition switches with it — as many switches as the
+    learner makes.
 12. **Onten.** The host keeps the general-purpose surface (`ContextClient`) and
     shapes lessons through `contentInstructions`; nothing education-specific is
     assumed of Onten.
