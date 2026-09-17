@@ -14,12 +14,17 @@ for a voice-first recorder.
 
 ## Decision
 - pnpm workspaces + Turborepo. Node ≥ 22.
-- `apps/web`: Vite + React 19 single-page app (React Router declarative mode).
-  Public share pages get OG metadata from the API (`/s/:id`) so no SSR framework
-  is needed; the same build is packaged by Electron.
-- `apps/api`: Hono on Node with `ws` for WebSockets; Drizzle ORM; Postgres 18 in
-  production, PGlite (embedded Postgres with pgvector) for dev and tests.
-- `apps/desktop`: Electron Forge, configuration shape copied from Simurgh.
+- `packages/app`: the entire product UI (screens, room client, conductor
+  wiring, state) as a React 19 library. Anything a client can only do
+  natively enters through one `Platform` interface (mic, speech recognition,
+  file export, window, updates).
+- `apps/web`: thin Vite host: entry file, router shell, the web `Platform`
+  adapter. Public share pages get OG metadata from the API (`/s/:id`) so no
+  SSR framework is needed.
+- `apps/desktop`: thin Electron Forge host (configuration shape copied from
+  Simurgh) with the desktop `Platform` adapter. Same UI, same behaviour.
+- `services/api`: Hono on Node with `ws` for WebSockets; Drizzle ORM; Postgres
+  18 in production, PGlite (embedded Postgres with pgvector) for dev and tests.
 - Tailwind 4 with CSS-first tokens from `packages/design`; Biome for lint/format;
   Vitest for unit/integration; Playwright for e2e.
 

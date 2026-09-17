@@ -2,10 +2,17 @@ import { createReadStream, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { createNodeWebSocket } from '@hono/node-ws';
-import { ClientMessage, decodeAudioFrame } from '@pen/contracts';
+import {
+  ClientMessage,
+  decodeAudioFrame,
+  type ServerErrorCode,
+  type ServerMessage,
+} from '@pen/contracts';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
+import type { WSContext } from 'hono/ws';
+import type { WebSocket } from 'ws';
 import { z } from 'zod';
 import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
@@ -210,6 +217,90 @@ export function buildApp(services: Services): App {
       let claims: Claims | null = null;
       let sessionId: string | null = null;
       let authTimer: NodeJS.Timeout | null = null;
+      // Messages are processed strictly in order per socket (auth before join, join before control).
+      let chain: Promise<void> = Promise.resolve();
+
+      const fail = (ws: { send(data: string): void }, code: ServerErrorCode, message: string) =>
+        ws.send(
+          JSON.stringify({ kind: 'error', code, message, spoken: false } satisfies ServerMessage),
+        );
+
+      async function handle(evt: MessageEvent, ws: WSContext<WebSocket>): Promise<void> {
+        const raw = ws.raw;
+        if (!raw) return;
+        try {
+          if (typeof evt.data !== 'string') {
+            // Upstream audio: routed to server-side STT when configured. Browser STT sends text instead.
+            if (!claims || !sessionId) return;
+            const bytes =
+              evt.data instanceof ArrayBuffer
+                ? new Uint8Array(evt.data)
+                : evt.data instanceof Blob
+                  ? new Uint8Array(await evt.data.arrayBuffer())
+                  : null;
+            if (!bytes) return;
+            const { header } = decodeAudioFrame(bytes);
+            if (header.dir !== 'up') return;
+            if (services.cfg.PEN_STT_PROVIDER === 'browser')
+              fail(
+                ws,
+                'STT_UNAVAILABLE',
+                'Server-side transcription is not enabled; use on-device speech recognition.',
+              );
+            return;
+          }
+          const parsed = ClientMessage.safeParse(JSON.parse(evt.data));
+          if (!parsed.success) {
+            fail(ws, 'INTERNAL', 'Malformed message.');
+            return;
+          }
+          const msg = parsed.data;
+          if (msg.kind === 'auth') {
+            claims = await identity.verify(msg.token);
+            if (!claims) {
+              fail(ws, 'UNAUTHORIZED', 'Sign in again.');
+              ws.close(4001, 'unauthorized');
+            } else if (authTimer) clearTimeout(authTimer);
+            return;
+          }
+          if (!claims) {
+            fail(ws, 'UNAUTHORIZED', 'Authenticate first.');
+            return;
+          }
+          if (msg.kind === 'join') {
+            const attached = rooms.attach(msg.sessionId, raw, {
+              id: claims.sub,
+              name: msg.name ? safeName(msg.name) : claims.name,
+            });
+            if (!attached.ok) {
+              ws.send(JSON.stringify(attached.message));
+              return;
+            }
+            sessionId = msg.sessionId;
+            const ready: ServerMessage = {
+              kind: 'ready',
+              participantId: claims.sub,
+              state: attached.live.room.getState(),
+              backlog: attached.live.room.backlog(),
+            };
+            ws.send(JSON.stringify(ready));
+            return;
+          }
+          if (!sessionId) return;
+          const live = rooms.get(sessionId);
+          if (!live) return;
+          if (msg.kind === 'control' && msg.action === 'end') {
+            live.room.handle(claims.sub, msg);
+            await rooms.end(sessionId);
+            return;
+          }
+          live.room.handle(claims.sub, msg);
+        } catch (error) {
+          observer.error('ws.message', error);
+          fail(ws, 'INTERNAL', 'Something went wrong on our side.');
+        }
+      }
+
       return {
         onOpen(_evt, ws) {
           // The bearer must arrive in the first frame within 10 s (never in the URL).
@@ -217,114 +308,10 @@ export function buildApp(services: Services): App {
             if (!claims) ws.close(4001, 'auth timeout');
           }, 10_000);
         },
-        async onMessage(evt, ws) {
-          const raw = ws.raw;
-          if (!raw) return;
-          try {
-            if (typeof evt.data !== 'string') {
-              // Upstream audio: routed to server-side STT when configured. Browser STT sends text instead.
-              if (!claims || !sessionId) return;
-              const bytes =
-                evt.data instanceof ArrayBuffer
-                  ? new Uint8Array(evt.data)
-                  : evt.data instanceof Blob
-                    ? new Uint8Array(await evt.data.arrayBuffer())
-                    : null;
-              if (!bytes) return;
-              const { header } = decodeAudioFrame(bytes);
-              if (header.dir !== 'up') return;
-              if (services.cfg.PEN_STT_PROVIDER === 'browser') {
-                ws.send(
-                  JSON.stringify({
-                    kind: 'error',
-                    code: 'STT_UNAVAILABLE',
-                    message:
-                      'Server-side transcription is not enabled; use on-device speech recognition.',
-                    spoken: false,
-                  }),
-                );
-              }
-              return;
-            }
-            const parsed = ClientMessage.safeParse(JSON.parse(evt.data));
-            if (!parsed.success) {
-              ws.send(
-                JSON.stringify({
-                  kind: 'error',
-                  code: 'INTERNAL',
-                  message: 'Malformed message.',
-                  spoken: false,
-                }),
-              );
-              return;
-            }
-            const msg = parsed.data;
-            if (msg.kind === 'auth') {
-              claims = await identity.verify(msg.token);
-              if (!claims) {
-                ws.send(
-                  JSON.stringify({
-                    kind: 'error',
-                    code: 'UNAUTHORIZED',
-                    message: 'Sign in again.',
-                    spoken: false,
-                  }),
-                );
-                ws.close(4001, 'unauthorized');
-              } else if (authTimer) clearTimeout(authTimer);
-              return;
-            }
-            if (!claims) {
-              ws.send(
-                JSON.stringify({
-                  kind: 'error',
-                  code: 'UNAUTHORIZED',
-                  message: 'Authenticate first.',
-                  spoken: false,
-                }),
-              );
-              return;
-            }
-            if (msg.kind === 'join') {
-              const attached = rooms.attach(msg.sessionId, raw, {
-                id: claims.sub,
-                name: msg.name ? safeName(msg.name) : claims.name,
-              });
-              if (!attached.ok) {
-                ws.send(JSON.stringify(attached.message));
-                return;
-              }
-              sessionId = msg.sessionId;
-              ws.send(
-                JSON.stringify({
-                  kind: 'ready',
-                  participantId: claims.sub,
-                  state: attached.live.room.getState(),
-                  backlog: attached.live.room.backlog(),
-                }),
-              );
-              return;
-            }
-            if (!sessionId) return;
-            const live = rooms.get(sessionId);
-            if (!live) return;
-            if (msg.kind === 'control' && msg.action === 'end') {
-              live.room.handle(claims.sub, msg);
-              await rooms.end(sessionId);
-              return;
-            }
-            live.room.handle(claims.sub, msg);
-          } catch (error) {
-            observer.error('ws.message', error);
-            ws.send(
-              JSON.stringify({
-                kind: 'error',
-                code: 'INTERNAL',
-                message: 'Something went wrong on our side.',
-                spoken: false,
-              }),
-            );
-          }
+        onMessage(evt, ws) {
+          chain = chain
+            .then(() => handle(evt, ws))
+            .catch((error) => observer.error('ws.chain', error));
         },
         onClose(_evt, ws) {
           if (authTimer) clearTimeout(authTimer);

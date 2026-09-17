@@ -22,7 +22,14 @@ export class SilentSynthesizer implements SpeechSynthesizer {
       const durationMs = Math.min(frameMs, totalMs - clock);
       const bytes = Math.floor((request.sampleRate * durationMs) / 1000) * 2;
       if (this.opts.realtime) await new Promise((r) => setTimeout(r, durationMs));
-      yield { audioChunkId: i++, audioClockMs: clock, sampleRate: request.sampleRate, durationMs, pcm: new Uint8Array(Math.min(bytes, frameBytes)), textSpan: null };
+      yield {
+        audioChunkId: i++,
+        audioClockMs: clock,
+        sampleRate: request.sampleRate,
+        durationMs,
+        pcm: new Uint8Array(Math.min(bytes, frameBytes)),
+        textSpan: null,
+      };
       clock += durationMs;
     }
   }

@@ -36,7 +36,9 @@ export class FishBridgeSynthesizer implements SpeechSynthesizer {
     });
     if (!response.ok || !response.body) throw new Error(`TTS_BRIDGE_${response.status}`);
     const stop = () => {
-      void this.fetchImpl(`${this.opts.baseUrl}/synthesize/stop/${sessionId}`, { method: 'POST' }).catch(() => undefined);
+      void this.fetchImpl(`${this.opts.baseUrl}/synthesize/stop/${sessionId}`, {
+        method: 'POST',
+      }).catch(() => undefined);
     };
     request.signal?.addEventListener('abort', stop, { once: true });
     const reader = response.body.getReader();
@@ -53,7 +55,13 @@ export class FishBridgeSynthesizer implements SpeechSynthesizer {
           const line = buf.slice(0, nl).trim();
           buf = buf.slice(nl + 1);
           if (line) {
-            const j = JSON.parse(line) as { audio_clock_ms: number; pcm_s16le_bytes: string; sample_rate: number; duration_ms: number; text_span?: string };
+            const j = JSON.parse(line) as {
+              audio_clock_ms: number;
+              pcm_s16le_bytes: string;
+              sample_rate: number;
+              duration_ms: number;
+              text_span?: string;
+            };
             yield {
               audioChunkId: index++,
               audioClockMs: j.audio_clock_ms,

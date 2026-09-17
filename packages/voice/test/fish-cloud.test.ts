@@ -16,7 +16,11 @@ describe('frameStream', () => {
     const frameBytes = Math.floor((sampleRate * 120) / 1000) * 2;
     const total = frameBytes * 3 + 1000;
     const bytes = new Uint8Array(total);
-    const parts = [bytes.slice(0, 100), bytes.slice(100, frameBytes + 7), bytes.slice(frameBytes + 7)];
+    const parts = [
+      bytes.slice(0, 100),
+      bytes.slice(100, frameBytes + 7),
+      bytes.slice(frameBytes + 7),
+    ];
     const chunks = [];
     for await (const c of frameStream(streamOf(parts), sampleRate, 120)) chunks.push(c);
     expect(chunks).toHaveLength(4);
@@ -35,12 +39,22 @@ describe('FishCloudSynthesizer', () => {
     };
     const tts = new FishCloudSynthesizer({ apiKey: 'k', fetchImpl });
     const chunks = [];
-    for await (const c of tts.synthesize({ text: 'Hello [pause] there.', voice: 'ref-1', sampleRate: 44100 })) chunks.push(c);
+    for await (const c of tts.synthesize({
+      text: 'Hello [pause] there.',
+      voice: 'ref-1',
+      sampleRate: 44100,
+    }))
+      chunks.push(c);
     expect(chunks.length).toBeGreaterThan(1);
     const c = captured as unknown as { url: string; init: RequestInit };
     expect(c.url).toBe('https://api.fish.audio/v1/tts');
     const body = JSON.parse(String(c.init.body));
-    expect(body).toMatchObject({ text: 'Hello there.', reference_id: 'ref-1', format: 'pcm', sample_rate: 44100 });
+    expect(body).toMatchObject({
+      text: 'Hello there.',
+      reference_id: 'ref-1',
+      format: 'pcm',
+      sample_rate: 44100,
+    });
     expect((c.init.headers as Record<string, string>)['model']).toBe('s2.1-pro');
   });
   it('strips delivery tags', () => {

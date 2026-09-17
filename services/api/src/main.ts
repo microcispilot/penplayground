@@ -1,14 +1,17 @@
+import { join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createAcquirer } from './knowledge.js';
 import { logger } from './logger.js';
 import { initSentry, observer } from './observability.js';
-import { buildServices } from './services.js';
+import { seedPacks } from './seed-packs.js';
+import { buildServices, DATA_DIR } from './services.js';
 
 const cfg = loadConfig();
 const sentry = initSentry(cfg);
 const services = buildServices(cfg, { acquirerFactory: (s) => createAcquirer(s) });
+await seedPacks(services.onten, join(DATA_DIR, 'packs'));
 const { app, rooms, injectWebSocket } = buildApp(services);
 
 const server = serve({ fetch: app.fetch, port: cfg.PEN_PORT }, (info) => {

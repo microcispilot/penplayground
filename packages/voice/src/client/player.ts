@@ -99,7 +99,9 @@ const FINISHED_SAY_MEMORY = 64;
 
 export function queueCanPull(bufferedSeconds: number): boolean {
   return (
-    Number.isFinite(bufferedSeconds) && bufferedSeconds >= 0 && bufferedSeconds <= PLAYBACK_BANK_SECONDS
+    Number.isFinite(bufferedSeconds) &&
+    bufferedSeconds >= 0 &&
+    bufferedSeconds <= PLAYBACK_BANK_SECONDS
   );
 }
 
@@ -193,7 +195,10 @@ export class AdaptiveJitterBuffer {
     const underrun = this.#playbackActive && scheduledAheadMs <= 1;
     if (underrun) {
       this.#playbackActive = false;
-      this.#targetMs = Math.min(maxTargetMs, Math.max(this.#targetMs + underrunBumpMs, minTargetMs));
+      this.#targetMs = Math.min(
+        maxTargetMs,
+        Math.max(this.#targetMs + underrunBumpMs, minTargetMs),
+      );
     }
     if (!this.#playbackActive && pendingAfterArrivalMs >= this.#targetMs) {
       this.#playbackActive = true;
@@ -271,7 +276,10 @@ export function validateChunkShape(value: unknown): ShapeVerdict {
     return reject('PEN_PLAYBACK_CHUNK_REJECTED', 'audioClockMs must be a non-negative integer');
   }
   if (chunk.sampleRate !== 24000 && chunk.sampleRate !== 44100 && chunk.sampleRate !== 48000) {
-    return reject('PEN_PLAYBACK_SAMPLE_RATE_REJECTED', `unsupported sampleRate ${chunk.sampleRate}`);
+    return reject(
+      'PEN_PLAYBACK_SAMPLE_RATE_REJECTED',
+      `unsupported sampleRate ${chunk.sampleRate}`,
+    );
   }
   if (!Number.isInteger(chunk.durationMs) || (chunk.durationMs as number) <= 0) {
     return reject('PEN_PLAYBACK_CHUNK_REJECTED', 'durationMs must be a positive integer');
@@ -284,10 +292,16 @@ export function validateChunkShape(value: unknown): ShapeVerdict {
     return reject('PEN_PLAYBACK_PCM_REJECTED', 'pcm must be a Uint8Array');
   }
   if (pcm.byteLength === 0 || pcm.byteLength % 2 !== 0) {
-    return reject('PEN_PLAYBACK_PCM_REJECTED', `pcm length ${pcm.byteLength} is not a non-empty even byte count`);
+    return reject(
+      'PEN_PLAYBACK_PCM_REJECTED',
+      `pcm length ${pcm.byteLength} is not a non-empty even byte count`,
+    );
   }
   if (pcm.byteLength > MAX_CHUNK_PCM_BYTES) {
-    return reject('PEN_PLAYBACK_PCM_REJECTED', `pcm length ${pcm.byteLength} exceeds ${MAX_CHUNK_PCM_BYTES}`);
+    return reject(
+      'PEN_PLAYBACK_PCM_REJECTED',
+      `pcm length ${pcm.byteLength} exceeds ${MAX_CHUNK_PCM_BYTES}`,
+    );
   }
   const derivedMs = (pcm.byteLength / 2 / chunk.sampleRate) * 1_000;
   if (Math.abs(derivedMs - (chunk.durationMs as number)) > DURATION_TOLERANCE_MS) {
@@ -339,7 +353,10 @@ export class ChunkValidator {
       this.#says.set(chunk.sayId, state);
     }
     if (state.finalSeen) {
-      return reject('PEN_PLAYBACK_SAY_STALE', `chunk ${chunk.audioChunkId} after final of ${chunk.sayId}`);
+      return reject(
+        'PEN_PLAYBACK_SAY_STALE',
+        `chunk ${chunk.audioChunkId} after final of ${chunk.sayId}`,
+      );
     }
     if (state.lastChunkId !== undefined && chunk.audioChunkId <= state.lastChunkId) {
       return reject(
@@ -372,10 +389,11 @@ export class ChunkValidator {
     while (this.#finished.length > FINISHED_SAY_MEMORY) this.#finished.shift();
   }
 
-  /** Forget in-flight says (cancel). The pinned sample rate and the finished
-   * memory survive: a stale chunk stays stale after a barge-in. */
+  /** Cancel: every in-flight say becomes finished, so chunks still on the
+   * wire for a barged-in say can never resume its tail. The pinned sample
+   * rate and the finished memory survive. */
   reset(): void {
-    this.#says.clear();
+    for (const sayId of [...this.#says.keys()]) this.#remember(sayId);
   }
 }
 
@@ -399,8 +417,8 @@ interface SaySegment {
 }
 
 export interface TimelineEvents {
-  readonly onSayStart?: (sayId: string) => void;
-  readonly onSayEnd?: (sayId: string, durationMs: number) => void;
+  readonly onSayStart: ((sayId: string) => void) | undefined;
+  readonly onSayEnd: ((sayId: string, durationMs: number) => void) | undefined;
 }
 
 /**
@@ -444,7 +462,11 @@ export class SayTimeline {
   addRun(startTime: number, sampleCount: number): void {
     const last = this.#runs[this.#runs.length - 1];
     const continuity = this.continuityTime();
-    if (last !== undefined && continuity !== undefined && Math.abs(startTime - continuity) <= 1e-6) {
+    if (
+      last !== undefined &&
+      continuity !== undefined &&
+      Math.abs(startTime - continuity) <= 1e-6
+    ) {
       last.sampleCount += sampleCount;
     } else {
       this.#runs.push({ startTime, startSample: this.#totalScheduled, sampleCount });
@@ -454,7 +476,12 @@ export class SayTimeline {
 
   /** Mark that `sampleCount` samples of `sayId` occupy the timeline starting
    * at the current scheduled end (call BEFORE `addRun` for the same samples). */
-  addSaySamples(sayId: string, sampleCount: number, final: boolean, alreadyScheduled: number): void {
+  addSaySamples(
+    sayId: string,
+    sampleCount: number,
+    final: boolean,
+    alreadyScheduled: number,
+  ): void {
     const start = this.#totalScheduled + alreadyScheduled;
     let say = this.#says[this.#says.length - 1];
     if (say === undefined || say.sayId !== sayId || say.endSample !== undefined) {
@@ -475,14 +502,26 @@ export class SayTimeline {
     return played;
   }
 
+  /** True once the first scheduled sample has reached its start time: before
+   * that the timeline holds audio that is booked but not yet audible, and
+   * neither the clock nor the events may claim a say is playing. */
+  #live(currentTime: number): boolean {
+    const first = this.#runs[0];
+    return first !== undefined && currentTime >= first.startTime;
+  }
+
   clockAt(currentTime: number): PlaybackClock {
+    if (!this.#live(currentTime)) return { sayId: null, offsetMs: 0 };
     const played = this.playedSamples(currentTime);
     for (const say of this.#says) {
       if (played < say.startSample) break;
       if (say.endSample === undefined || played < say.endSample) {
         return {
           sayId: say.sayId,
-          offsetMs: Math.max(0, Math.floor(((played - say.startSample) / this.#sampleRate) * 1_000)),
+          offsetMs: Math.max(
+            0,
+            Math.floor(((played - say.startSample) / this.#sampleRate) * 1_000),
+          ),
         };
       }
     }
@@ -491,6 +530,7 @@ export class SayTimeline {
 
   /** Fire start/end events crossed by the clock; drop finished says and runs. */
   dispatch(currentTime: number, events: TimelineEvents): void {
+    if (!this.#live(currentTime)) return;
     const played = this.playedSamples(currentTime);
     while (this.#says.length > 0) {
       const say = this.#says[0];
@@ -728,7 +768,8 @@ export class PcmPlayer {
     }
     const chunk = untrustedChunk as PlaybackChunk;
     const context = this.#ensureContext(chunk.sampleRate);
-    if (context === undefined) return { accepted: false, code: 'PEN_PLAYBACK_AUDIO_CONTEXT_FAILED' };
+    if (context === undefined)
+      return { accepted: false, code: 'PEN_PLAYBACK_AUDIO_CONTEXT_FAILED' };
     if (context.sampleRate !== chunk.sampleRate) {
       const detail = `context at ${context.sampleRate} Hz cannot play ${chunk.sampleRate} Hz`;
       this.#options.onError('PEN_PLAYBACK_SAMPLE_RATE_REJECTED', detail);
@@ -780,13 +821,16 @@ export class PcmPlayer {
     if (context === undefined || gain === undefined) return;
     this.#ramp(gain, 0, PAUSE_FADE_SECONDS, context);
     const timeout = this.#options.setTimeout ?? ((cb, ms) => globalThis.setTimeout(cb, ms));
-    this.#pauseTimer = timeout(() => {
-      this.#pauseTimer = undefined;
-      if (!this.#paused || this.#context !== context) return;
-      context.suspend().catch((error: unknown) => {
-        this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_FAILED', 'suspend() rejected', error);
-      });
-    }, PAUSE_FADE_SECONDS * 1_000 + 2);
+    this.#pauseTimer = timeout(
+      () => {
+        this.#pauseTimer = undefined;
+        if (!this.#paused || this.#context !== context) return;
+        context.suspend().catch((error: unknown) => {
+          this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_FAILED', 'suspend() rejected', error);
+        });
+      },
+      PAUSE_FADE_SECONDS * 1_000 + 2,
+    );
   }
 
   /** Continue from the exact sample where `pause()` froze the clock. */
@@ -903,7 +947,11 @@ export class PcmPlayer {
         this.#options.createAudioContext?.(sampleRate) ??
         new AudioContext({ latencyHint: 'interactive', sampleRate });
     } catch (error: unknown) {
-      this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_FAILED', 'AudioContext creation failed', error);
+      this.#options.onError(
+        'PEN_PLAYBACK_AUDIO_CONTEXT_FAILED',
+        'AudioContext creation failed',
+        error,
+      );
       return undefined;
     }
     this.#context = context;

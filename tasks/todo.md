@@ -1,0 +1,26 @@
+# Todo
+
+- [x] Contracts (cues, wire, audio frames, Onten, billing, ledger) + tests
+- [x] Design tokens + primitives + orb + captions
+- [x] Onten mock: runtime, registry, progressive compiler, lesson memo + tests
+- [x] LLM gateway: OpenAI Responses strict streaming, fake model, parser + tests
+- [x] Session engine: room state machine, planner, turn loop, TTS pipeline + tests
+- [x] API: config, identity, rooms, WS protocol, routes, ledger, seeds; smoke-tested
+- [x] Voice: Fish cloud/bridge/silent; mic, VAD, segmenter, player + tests
+- [x] Conductor + tests
+- [ ] Board package (in progress: background agent)
+  - Acceptance: `<Board>` implements BoardPort; ink-text writes at 11 cps; tests green
+  - Verify: `pnpm --filter @pen/board test`
+- [ ] Knowledge package (in progress: background agent)
+  - Acceptance: CorpusBuilder implements KnowledgeAcquirer; interactive resolves < 20 s on seeds
+  - Verify: `pnpm --filter @pen/knowledge test`; wire `services/api/src/knowledge.ts`
+- [ ] App + web: typecheck green once board lands; run in browser; fix UX issues
+  - Verify: `pnpm --filter @pen/web dev` + manual pass of the storyboard
+- [ ] Playwright e2e (fake providers): Home → Start → captions → typed question → end → session page
+- [ ] Real-key run: OpenAI luna lesson generation; review prompt quality; tune BOARD_RULES
+- [ ] Desktop host (Electron Forge) with desktop Platform adapter
+- [ ] Persistence (Drizzle/PGlite) behind SessionStore + ledger index; Google sign-in
+- [ ] Billing (Stripe) + entitlements + ads policy
+- [ ] Replay + export + YouTube
+- [ ] LiveKit rooms audio
+- [ ] Sentry projects + source maps

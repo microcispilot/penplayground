@@ -58,5 +58,3 @@ scope.onmessage = (event: MessageEvent<unknown>) => {
     samples.fill(0);
   }
 };
-
-export {};

@@ -1,0 +1,84 @@
+import type { BoardEvent, CheckEvent, ClientMessage, NoteEvent, RoomState } from '@pen/contracts';
+
+/**
+ * Ports the conductor drives. Each is a deep module with a small interface so
+ * the conductor is testable with fakes and the board engine is swappable.
+ */
+
+/** Audio playback: the master clock. Implemented by @pen/voice/client PcmPlayer. */
+export interface AudioPort {
+  /**
+   * Chunk shape is the PcmPlayer's (`DownstreamAudioHeader` fields plus pcm).
+   * The conductor passes `sayId` as `<sayId>@<take>` so a re-spoken sentence
+   * is a fresh say for the player; it maps the id back in the callbacks.
+   */
+  enqueue(chunk: {
+    sayId: string;
+    audioChunkId: number;
+    audioClockMs: number;
+    sampleRate: 24000 | 44100 | 48000;
+    durationMs: number;
+    pcm: Uint8Array;
+    final: boolean;
+  }): void;
+  /** Suspend without discarding; resumes from the exact sample. */
+  pause(): void;
+  resume(): void;
+  /** Barge-in: fade out in ≤ 20 ms and discard everything buffered; returns where it was. */
+  cancel(): { sayId: string | null; offsetMs: number };
+  readonly clock: { sayId: string | null; offsetMs: number };
+}
+
+export interface AudioEvents {
+  onSayStart(sayId: string): void;
+  onSayEnd(sayId: string, durationMs: number): void;
+  onProgress(sayId: string, offsetMs: number): void;
+}
+
+export interface BoardExecution {
+  /** Resolves when the op has fully rendered (or was cancelled). */
+  done: Promise<void>;
+  pause(): void;
+  resume(): void;
+  /** Finish instantly (used when the pacing sentence ended early). */
+  finish(): void;
+  cancel(): void;
+}
+
+/** The whiteboard. Implemented by @pen/board on top of tldraw. */
+export interface BoardPort {
+  /**
+   * Render one board op like a human hand. `paceMs` is the time the op should
+   * take (the anchored sentence's duration) or null for the natural writing
+   * speed. Never faster than the human writing constant.
+   */
+  execute(op: BoardEvent, opts: { paceMs: number | null }): BoardExecution;
+  /** Pin a "You asked" note near the current writing position. */
+  pinNote(note: NoteEvent, id: string): void;
+  /** Dim/undim the page while a learner has the floor. */
+  setDimmed(dimmed: boolean): void;
+  clear(): void;
+}
+
+export interface CaptionPort {
+  /** Show the expert's sentence; `revealMs` paces the typewriter to the audio. */
+  showExpert(text: string, revealMs: number): void;
+  /** Live learner transcript (partial or final). */
+  showLearner(name: string, text: string, final: boolean): void;
+  hint(text: string | null): void;
+  clear(): void;
+}
+
+export interface PresencePort {
+  /** Drives the orb and the bottom bar. */
+  setState(state: RoomState): void;
+  setSpeaking(speaking: boolean): void;
+  showCheck(check: CheckEvent | null): void;
+  showAd(ad: { adId: string; durationMs: number; skippableAfterMs: number } | null): void;
+  /** Honest status when something failed or dead air is detected. */
+  notice(text: string | null, tone: 'neutral' | 'danger'): void;
+}
+
+export interface TransportPort {
+  send(message: ClientMessage): void;
+}

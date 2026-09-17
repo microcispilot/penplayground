@@ -261,8 +261,7 @@ export class UtteranceSegmenter {
         Math.round(this.#minSpeechSamples * 1.5)
       : this.#minSpeechSamples;
     return (
-      this.#voicedSamples >= energyRequired &&
-      this.#harmonicSamples >= this.#minVoicedSpeechSamples
+      this.#voicedSamples >= energyRequired && this.#harmonicSamples >= this.#minVoicedSpeechSamples
     );
   }
 

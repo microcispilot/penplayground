@@ -340,7 +340,9 @@ export class Microphone {
         });
       }
       if (aborted) {
-        if (this.#state === 'starting') this.#setState('idle');
+        // `this.state` (not the field): the field's type was narrowed by the
+        // early-return guard above and stop() has since mutated it.
+        if (this.state === 'starting') this.#setState('idle');
         return;
       }
       this.#setState('error');
@@ -507,10 +509,9 @@ export class Microphone {
         this.#resampleRequestId += 1;
         this.#resampleEpoch = epoch;
         try {
-          resampler.postMessage(
-            { id: this.#resampleRequestId, sourceSampleRate: rate, samples },
-            [samples.buffer],
-          );
+          resampler.postMessage({ id: this.#resampleRequestId, sourceSampleRate: rate, samples }, [
+            samples.buffer,
+          ]);
         } catch (error: unknown) {
           samples.fill(0);
           this.#fail(generation, 'PEN_RESAMPLER_FAILED', error);

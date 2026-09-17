@@ -754,8 +754,12 @@ export class SessionRoom {
 
   private transcript(p: Participant, utteranceId: string, text: string, final: boolean): void {
     if (this.state.floor !== p.id) {
-      if (final && this.state.mode === 'teaching') {
-        // Speech arrived without a prior interrupt (e.g. browser STT with no local VAD). Treat as an interrupt now.
+      const openFloor =
+        this.state.mode === 'teaching' ||
+        this.state.mode === 'checking' ||
+        this.state.mode === 'complete';
+      if (final && openFloor) {
+        // Speech arrived without a prior interrupt (e.g. browser STT with no local VAD). Treat it as one now.
         this.interrupt(p, { atSeq: Math.max(0, this.hostProgressSeq), sayId: null, offsetMs: 0 });
       } else return;
     }

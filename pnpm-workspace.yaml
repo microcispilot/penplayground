@@ -1,11 +1,11 @@
 packages:
   - apps/*
+  - services/*
   - packages/*
 allowBuilds:
-  esbuild: set this to true or false
-onlyBuiltDependencies:
-  - esbuild
-  - '@biomejs/biome'
-  - '@electric-sql/pglite'
-  - electron
-  - '@sentry/cli'
+  esbuild: true
+  '@biomejs/biome': true
+  '@electric-sql/pglite': true
+  electron: true
+  '@sentry/cli': true
+  '@tailwindcss/oxide': true

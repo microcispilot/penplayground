@@ -7,28 +7,9 @@
  * resampler worker is `@pen/voice/resampler-worker` for `?worker` bundling.
  */
 export * from './constants.js';
-export { Microphone, CAPTURE_PROCESSOR_NAME } from './microphone.js';
 export type { MicrophoneOptions, MicrophoneState } from './microphone.js';
+export { CAPTURE_PROCESSOR_NAME, Microphone } from './microphone.js';
 export { resampleMonoToPcmS16le } from './pcm-resampler.js';
-export { SpeechPresenceDetector } from './speech-presence.js';
-export type { SpeechPresenceOptions } from './speech-presence.js';
-export { UtteranceSegmenter, UNCONFIRMED_SOUND_RELEASE_MS } from './utterance-segmenter.js';
-export type { UtteranceSegmenterOptions } from './utterance-segmenter.js';
-export {
-  AdaptiveJitterBuffer,
-  ChunkValidator,
-  DURATION_TOLERANCE_MS,
-  MAX_BUFFERED_SECONDS,
-  MAX_CHUNK_PCM_BYTES,
-  MAX_CHUNK_SECONDS,
-  PLAYBACK_BANK_SECONDS,
-  PcmPlayer,
-  SayTimeline,
-  decodePcmS16le,
-  queueCanAccept,
-  queueCanPull,
-  validateChunkShape,
-} from './player.js';
 export type {
   ChunkAccepted,
   ChunkRejection,
@@ -50,3 +31,22 @@ export type {
   ShapeVerdict,
   TimelineEvents,
 } from './player.js';
+export {
+  AdaptiveJitterBuffer,
+  ChunkValidator,
+  DURATION_TOLERANCE_MS,
+  decodePcmS16le,
+  MAX_BUFFERED_SECONDS,
+  MAX_CHUNK_PCM_BYTES,
+  MAX_CHUNK_SECONDS,
+  PcmPlayer,
+  PLAYBACK_BANK_SECONDS,
+  queueCanAccept,
+  queueCanPull,
+  SayTimeline,
+  validateChunkShape,
+} from './player.js';
+export type { SpeechPresenceOptions } from './speech-presence.js';
+export { SpeechPresenceDetector } from './speech-presence.js';
+export type { UtteranceSegmenterOptions } from './utterance-segmenter.js';
+export { UNCONFIRMED_SOUND_RELEASE_MS, UtteranceSegmenter } from './utterance-segmenter.js';

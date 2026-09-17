@@ -15,12 +15,13 @@ module's spec (`docs/spec/SPEC-<module>.md` where written).
 | `session-engine` | Server-side classroom brain: session state machine (preparing/live/paused/listening/answering/checking/ended), lesson planner, turn loop (perceive → decide → act → verify), cue sequencer, host/guest authority, transcript, recording ledger. | contracts, onten, llm, voice(server side of TTS), knowledge | `packages/session-engine` |
 | `conductor` | Client-side sync engine: consumes the cue stream, drives audio playback as master clock, schedules board ops and captions against it, handles pause/resume/barge-in locally with zero server round-trip. | contracts, voice, board | `packages/conductor` |
 | `db` | Drizzle schema + migrations (Postgres 18 / PGlite in dev), repositories. | contracts | `packages/db` |
-| `identity` | Accounts, Google OAuth + email/password, JWT sessions, guest identities. | db | `apps/api` |
-| `billing` | Plans (Free/Plus/Classroom), Stripe checkout/portal/webhooks, entitlements, usage ledger, ads policy. | identity, db | `apps/api` |
-| `api` | Hono HTTP + WebSocket server: rooms, cue broadcast, STT relay, TTS relay, Onten/LLM orchestration, Sentry. | session-engine, identity, billing, db | `apps/api` |
-| `web` | Vite + React app: Home, My sessions, Preparing, Live room, Recap, Pricing, Share pages. | design, conductor, board, voice, contracts | `apps/web` |
+| `identity` | Accounts, Google OAuth + email/password, JWT sessions, guest identities. | db | `services/api` |
+| `billing` | Plans (Free/Plus/Classroom), Stripe checkout/portal/webhooks, entitlements, usage ledger, ads policy. | identity, db | `services/api` |
+| `api` | Hono HTTP + WebSocket server: rooms, cue broadcast, STT relay, TTS relay, Onten/LLM orchestration, Sentry. | session-engine, identity, billing, db | `services/api` |
+| `app` | The product UI, shared by every client: screens (Home, My sessions, Preparing, Live room, Recap, Pricing, Share), room client, conductor wiring, state. Platform-specific behaviour enters through a `Platform` seam. | design, conductor, board, voice, contracts | `packages/app` |
+| `web` | Thin browser host: Vite entry, web `Platform` adapter (Web Speech API STT, browser mic), routing shell. | app | `apps/web` |
 | `replay-export` | Deterministic replay from the recording ledger; MP4 export via WebCodecs (mediabunny); YouTube upload. | conductor, board, voice | `packages/replay` + `apps/web` |
-| `desktop` | Electron shell for macOS/Windows/Linux packaging the web app with native mic permissions and auto-update. | web | `apps/desktop` |
+| `desktop` | Thin Electron host for macOS/Windows/Linux: desktop `Platform` adapter (native mic permission, window, auto-update, file export), packaging. | app | `apps/desktop` |
 | `rooms-audio` | Human-to-human voice for Classroom rooms via LiveKit SFU (phase 2). | api, identity | later |
 
 ## Build order (tracer bullets)

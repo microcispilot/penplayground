@@ -4,11 +4,15 @@ const FISH_TTS_URL = 'https://api.fish.audio/v1/tts';
 const FRAME_MS = 120;
 const MAX_TEXT_BYTES = 16 * 1024;
 
-const DELIVERY_TAGS = /\[(?:soft tone|warm tone|chuckle|chuckling|sigh|sighing|emphasis|pause|long pause|excited|whisper|whispering|break|long-break)\]/gi;
+const DELIVERY_TAGS =
+  /\[(?:soft tone|warm tone|chuckle|chuckling|sigh|sighing|emphasis|pause|long pause|excited|whisper|whispering|break|long-break)\]/gi;
 
 /** Fish S2.1 reads bracket tags as emotion; strip anything the model may have added that we don't want spoken. */
 export function stripDeliveryTags(text: string): string {
-  return text.replace(DELIVERY_TAGS, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+  return text
+    .replace(DELIVERY_TAGS, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 }
 
 export interface FishCloudOptions {
@@ -34,7 +38,8 @@ export class FishCloudSynthesizer implements SpeechSynthesizer {
 
   async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
     const text = stripDeliveryTags(request.text);
-    if (new TextEncoder().encode(text).length > MAX_TEXT_BYTES) throw new Error('TTS_TEXT_TOO_LONG');
+    if (new TextEncoder().encode(text).length > MAX_TEXT_BYTES)
+      throw new Error('TTS_TEXT_TOO_LONG');
     const body: Record<string, unknown> = {
       text,
       reference_id: request.voice,
@@ -43,11 +48,16 @@ export class FishCloudSynthesizer implements SpeechSynthesizer {
       latency: this.opts.latency ?? 'balanced',
       chunk_length: 200,
     };
-    if (request.speed && Math.abs(request.speed - 1) > 1e-3) body['prosody'] = { speed: Math.min(2, Math.max(0.5, request.speed)), volume: 0 };
+    if (request.speed && Math.abs(request.speed - 1) > 1e-3)
+      body['prosody'] = { speed: Math.min(2, Math.max(0.5, request.speed)), volume: 0 };
     const started = performance.now();
     const response = await this.fetchImpl(FISH_TTS_URL, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.opts.apiKey}`, model: this.opts.model ?? 's2.1-pro', 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${this.opts.apiKey}`,
+        model: this.opts.model ?? 's2.1-pro',
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(body),
       signal: request.signal ?? null,
     });
@@ -74,7 +84,14 @@ export async function* frameStream(
   let clockMs = 0;
   const emit = (payload: Uint8Array): SpeechChunk => {
     const durationMs = Math.max(1, Math.round(((payload.length / 2) * 1000) / sampleRate));
-    const chunk: SpeechChunk = { audioChunkId: index, audioClockMs: clockMs, sampleRate, durationMs, pcm: payload, textSpan: null };
+    const chunk: SpeechChunk = {
+      audioChunkId: index,
+      audioClockMs: clockMs,
+      sampleRate,
+      durationMs,
+      pcm: payload,
+      textSpan: null,
+    };
     onChunk?.(index);
     index += 1;
     clockMs += durationMs;
