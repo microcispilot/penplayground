@@ -1,4 +1,10 @@
-import type { CodeBlockProps, InkStrokeProps, InkTextProps, MdBlockProps, NoteCardProps } from './props.js';
+import type {
+  CodeBlockProps,
+  InkStrokeProps,
+  InkTextProps,
+  MdBlockProps,
+  NoteCardProps,
+} from './props.js';
 
 /**
  * tldraw 5 types `TLShape` as an indexed map keyed by shape type; custom

@@ -1,6 +1,20 @@
-export { Board, type BoardController, type BoardControllerHandle, type BoardProps, useBoardController } from './Board.js';
+/// <reference path="./types/assets.d.ts" />
+/// <reference path="./types/opentype.d.ts" />
+export {
+  Board,
+  type BoardController,
+  type BoardControllerHandle,
+  type BoardProps,
+  useBoardController,
+} from './Board.js';
 export { CameraDirector, type CameraOptions, DEFAULT_CAMERA } from './camera.js';
-export { AnimationClock, type ClockState, ManualTicker, type Ticker, createRafTicker } from './clock.js';
+export {
+  AnimationClock,
+  type ClockState,
+  createRafTicker,
+  ManualTicker,
+  type Ticker,
+} from './clock.js';
 export {
   type CameraMove,
   type EditorLike,
@@ -17,8 +31,8 @@ export {
 export {
   FallbackFont,
   type GlyphSource,
-  HandFont,
   getHandFont,
+  HandFont,
   loadHandFont,
   parseHandFont,
   setHandFont,
@@ -33,7 +47,12 @@ export {
   measureHandText,
   wrapHandText,
 } from './glyphs.js';
-export { type CodeHighlighter, createShikiHighlighter, plainLines, resolveLang } from './highlight.js';
+export {
+  type CodeHighlighter,
+  createShikiHighlighter,
+  plainLines,
+  resolveLang,
+} from './highlight.js';
 export {
   DEFAULT_LAYOUT,
   Layout,
@@ -42,13 +61,13 @@ export {
   PAGE_H,
   PAGE_STRIDE,
   PAGE_W,
-  type PlaceRequest,
   type Placed,
+  type PlaceRequest,
 } from './layout.js';
 export {
+  escapeHtml,
   type MdBlock,
   type MdInline,
-  escapeHtml,
   markdownCharCount,
   parseMarkdown,
   renderMarkdownHtml,
@@ -56,14 +75,14 @@ export {
 export {
   FADE_MS,
   HAND_CPS,
+  handwritingMs,
   MAX_STRETCH,
   MIN_OP_MS,
   PEN_UNITS_PER_SECOND,
-  type ResolvedPace,
-  TYPEWRITER_CPS,
-  handwritingMs,
   penTravelMs,
+  type ResolvedPace,
   resolvePace,
+  TYPEWRITER_CPS,
   typewriterMs,
 } from './pacing.js';
 export * from './primitives.js';
@@ -71,13 +90,13 @@ export * from './shapes/index.js';
 export {
   type LaidOutEdge,
   type LaidOutNode,
+  layoutSketch,
   type ParsedSketch,
+  parseSketch,
   type SketchEdge,
   type SketchLayout,
   type SketchNode,
-  layoutSketch,
-  parseSketch,
 } from './sketch.js';
 export { type ExportPngOptions, exportPng } from './snapshot.js';
-export { Timeline, type Track, fadeTrack, progressTrack } from './timeline.js';
+export { fadeTrack, progressTrack, Timeline, type Track } from './timeline.js';
 export { adaptEditor } from './tldraw-adapter.js';

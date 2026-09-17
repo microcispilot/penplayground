@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
 import { getStroke } from 'perfect-freehand';
+import { useMemo } from 'react';
 import { SVGContainer, T, type TLBaseShape } from 'tldraw';
-import { type Stroke, outlineToPath, revealStrokes } from '../primitives.js';
-import { EMPHASIS_VALUES, PaperShapeUtil, inkVar, resolveInk } from './paper-shape.js';
+import { outlineToPath, revealStrokes, type Stroke } from '../primitives.js';
+import { EMPHASIS_VALUES, inkVar, PaperShapeUtil, resolveInk } from './paper-shape.js';
 import { type InkStrokeProps, SHAPE_TYPE, STROKE_STYLE } from './props.js';
 
 /**
@@ -27,7 +27,15 @@ export class InkStrokeShapeUtil extends PaperShapeUtil<InkStrokeShape> {
   };
 
   getDefaultProps(): InkStrokeProps {
-    return { strokes: [], w: 1, h: 1, progress: 1, emphasis: 'ink', size: STROKE_STYLE.size, role: 'sketch' };
+    return {
+      strokes: [],
+      w: 1,
+      h: 1,
+      progress: 1,
+      emphasis: 'ink',
+      size: STROKE_STYLE.size,
+      role: 'sketch',
+    };
   }
 
   component(shape: InkStrokeShape) {
@@ -57,7 +65,11 @@ function StrokePaths({ props, color }: { props: InkStrokeProps; color: string })
   }, [strokes, props.progress, props.size]);
   const marker = props.role === 'highlight' || props.role === 'underline';
   return (
-    <g fill={color} style={marker ? { mixBlendMode: 'multiply' } : undefined} opacity={marker ? 0.92 : 1}>
+    <g
+      fill={color}
+      style={marker ? { mixBlendMode: 'multiply' } : undefined}
+      opacity={marker ? 0.92 : 1}
+    >
       {paths.map((d, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: strokes are positional and never reorder
         <path key={i} d={d} />

@@ -13,8 +13,11 @@
       "!**/.vite",
       "!**/node_modules",
       "!**/*.gen.ts",
-      "!**/vendor/**",
-      "!Pen Academy.html"
+      "!**/vendor",
+      "!Pen Academy.html",
+      "!**/.pen-data*",
+      "!**/.pglite",
+      "!**/drizzle/meta"
     ]
   },
   "formatter": {
@@ -39,10 +42,7 @@
         "noConsole": {
           "level": "warn",
           "options": {
-            "allow": [
-              "warn",
-              "error"
-            ]
+            "allow": ["warn", "error"]
           }
         }
       },
@@ -63,9 +63,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "**/*.css"
-      ],
+      "includes": ["**/*.css"],
       "linter": {
         "rules": {
           "complexity": {

@@ -97,7 +97,10 @@ export class AnimationClock {
 
   get elapsedMs(): number {
     if (this.state === 'running' && this.segmentStart !== null) {
-      return Math.min(this.duration, this.accumulated + (this.opts.ticker.now() - this.segmentStart));
+      return Math.min(
+        this.duration,
+        this.accumulated + (this.opts.ticker.now() - this.segmentStart),
+      );
     }
     return Math.min(this.duration, this.accumulated);
   }

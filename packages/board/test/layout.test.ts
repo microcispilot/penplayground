@@ -55,9 +55,17 @@ describe('Layout', () => {
     const l = new Layout();
     l.register('b1', { x: 200, y: 300, w: 120, h: 50 });
     const beside = l.place({ w: 80, h: 30, place: 'beside', ref: 'b1' });
-    expect(beside).toMatchObject({ x: 200 + 120 + DEFAULT_LAYOUT.relativeGap, y: 300, used: 'beside' });
+    expect(beside).toMatchObject({
+      x: 200 + 120 + DEFAULT_LAYOUT.relativeGap,
+      y: 300,
+      used: 'beside',
+    });
     const below = l.place({ w: 80, h: 30, place: 'below', ref: 'b1' });
-    expect(below).toMatchObject({ x: 200, y: 300 + 50 + DEFAULT_LAYOUT.relativeGap, used: 'below' });
+    expect(below).toMatchObject({
+      x: 200,
+      y: 300 + 50 + DEFAULT_LAYOUT.relativeGap,
+      used: 'below',
+    });
     const unknown = l.place({ w: 80, h: 30, place: 'below', ref: 'nope' });
     expect(unknown.used).toBe('flow');
   });

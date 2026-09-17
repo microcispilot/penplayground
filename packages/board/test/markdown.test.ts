@@ -10,7 +10,9 @@ import {
 
 describe('markdown', () => {
   it('escapes HTML everywhere and never passes raw tags through', () => {
-    const html = renderMarkdownHtml(parseMarkdown('<script>alert(1)</script> **bold & <b>** `a<b>`'));
+    const html = renderMarkdownHtml(
+      parseMarkdown('<script>alert(1)</script> **bold & <b>** `a<b>`'),
+    );
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('<strong>bold &amp; &lt;b&gt;</strong>');
@@ -34,12 +36,18 @@ describe('markdown', () => {
   });
 
   it('handles fenced code, rules and paragraphs', () => {
-    const html = renderMarkdownHtml(parseMarkdown('para one\ncontinues\n\n---\n\n```swift\nlet x = 1 < 2\n```'));
-    expect(html).toBe('<p>para one continues</p><hr><pre><code data-lang="swift">let x = 1 &lt; 2</code></pre>');
+    const html = renderMarkdownHtml(
+      parseMarkdown('para one\ncontinues\n\n---\n\n```swift\nlet x = 1 < 2\n```'),
+    );
+    expect(html).toBe(
+      '<p>para one continues</p><hr><pre><code data-lang="swift">let x = 1 &lt; 2</code></pre>',
+    );
   });
 
   it('renders links as their text only (no hrefs on paper)', () => {
-    expect(renderMarkdownHtml(parseMarkdown('see [docs](javascript:alert(1))'))).toBe('<p>see docs</p>');
+    expect(renderMarkdownHtml(parseMarkdown('see [docs](javascript:alert(1))'))).toBe(
+      '<p>see docs</p>',
+    );
   });
 
   it('leaves unbalanced markers as literal text', () => {

@@ -14,7 +14,12 @@ describe('glyph layout (Caveat via opentype.js)', () => {
   });
 
   it('produces one outline path per visible glyph with kerning applied', () => {
-    const l = layoutHandText(font, 'AV', { fontSize: 40, maxWidth: 1000, seed: 's', jitter: false });
+    const l = layoutHandText(font, 'AV', {
+      fontSize: 40,
+      maxWidth: 1000,
+      seed: 's',
+      jitter: false,
+    });
     const glyphs = l.lines[0]?.glyphs ?? [];
     expect(glyphs).toHaveLength(2);
     expect(glyphs[0]?.d.startsWith('M')).toBe(true);
@@ -29,7 +34,8 @@ describe('glyph layout (Caveat via opentype.js)', () => {
   it('wraps at the max width by words and breaks very long words', () => {
     const lines = wrapHandText(font, 'the cat sat on the mat', 36, 200);
     expect(lines.length).toBeGreaterThan(1);
-    for (const line of lines) expect(measureHandText(font, line, 36)).toBeLessThanOrEqual(200 + 1e-6);
+    for (const line of lines)
+      expect(measureHandText(font, line, 36)).toBeLessThanOrEqual(200 + 1e-6);
     expect(lines.join(' ')).toBe('the cat sat on the mat');
     const broken = wrapHandText(font, 'supercalifragilistic', 36, 120);
     expect(broken.length).toBeGreaterThan(1);
@@ -48,7 +54,9 @@ describe('glyph layout (Caveat via opentype.js)', () => {
     const b = layoutHandText(font, 'hello', { fontSize: 36, maxWidth: 1000, seed: 'b1' });
     const c = layoutHandText(font, 'hello', { fontSize: 36, maxWidth: 1000, seed: 'b2' });
     expect(a).toEqual(b);
-    expect(a.lines[0]?.glyphs.map((g) => g.rotation)).not.toEqual(c.lines[0]?.glyphs.map((g) => g.rotation));
+    expect(a.lines[0]?.glyphs.map((g) => g.rotation)).not.toEqual(
+      c.lines[0]?.glyphs.map((g) => g.rotation),
+    );
     const baseline = a.lines[0]?.baseline ?? 0;
     for (const g of a.lines[0]?.glyphs ?? []) {
       expect(Math.abs(g.rotation)).toBeLessThanOrEqual(1.5);
@@ -68,8 +76,14 @@ describe('glyph layout (Caveat via opentype.js)', () => {
   });
 
   it('the fallback font lays text out without outlines', () => {
-    const l = layoutHandText(new FallbackFont(), 'hello world', { fontSize: 36, maxWidth: 1000, seed: 's' });
+    const l = layoutHandText(new FallbackFont(), 'hello world', {
+      fontSize: 36,
+      maxWidth: 1000,
+      seed: 's',
+    });
     expect(l.width).toBeGreaterThan(0);
-    expect((l.lines[0]?.glyphs ?? []).every((g) => g.kind === 'fallback' || g.char === ' ')).toBe(true);
+    expect((l.lines[0]?.glyphs ?? []).every((g) => g.kind === 'fallback' || g.char === ' ')).toBe(
+      true,
+    );
   });
 });

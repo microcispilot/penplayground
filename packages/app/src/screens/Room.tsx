@@ -63,8 +63,10 @@ export function Room() {
       displayName: participant.name,
     });
     setSession(s);
+    // The mic preference is remembered per device; first visit defaults to on.
+    const autoMic = platform.storage.get('pen.mic') !== 'off';
     s.start()
-      .then(() => void s.enableMic())
+      .then(() => (autoMic ? s.enableMic() : undefined))
       .catch(() => setNeedsGesture(true));
     return () => {
       s.dispose();
@@ -91,11 +93,10 @@ export function Room() {
     () => (ui.caption?.who === 'expert' ? ui.caption.text : ''),
     [ui.caption],
   );
-  const dimmed =
-    ui.state?.mode === 'listening' ||
-    ui.state?.mode === 'thinking' ||
-    ui.state?.mode === 'answering';
-  const questions = useMemo(() => [] as Array<{ q: string; a: string }>, []);
+  const questions = useMemo(
+    () => ui.notes.map((n) => ({ q: n.question, a: `${n.headline} — ${n.detail}` })),
+    [ui.notes],
+  );
 
   if (ui.errorText) {
     return (
@@ -141,9 +142,6 @@ export function Room() {
             >
               <MonitorUp size={10} /> You're viewing {firstName}'s screen
             </div>
-            {dimmed ? (
-              <div className="absolute inset-0 z-[2] bg-navy-900/55 backdrop-blur-[1.5px]" />
-            ) : null}
             <div className="absolute right-3 bottom-3 z-[6]">
               <ExpertOrb
                 name={expert?.displayName ?? 'Expert'}
@@ -211,7 +209,7 @@ export function Room() {
               />
             ) : null}
           </div>
-          {ui.micState !== 'listening' && state.phase === 'live' ? (
+          {state.phase === 'live' ? (
             <form
               className="mt-2 flex items-center gap-2"
               onSubmit={(e) => {
@@ -251,9 +249,15 @@ export function Room() {
         captionsOn={ui.captionsOn}
         onTogglePlay={() => session?.control(state.mode === 'paused' ? 'resume' : 'pause')}
         onToggleCaptions={() => session?.toggleCaptions()}
-        onToggleMic={() =>
-          ui.micState === 'listening' ? session?.disableMic() : void session?.enableMic()
-        }
+        onToggleMic={() => {
+          if (ui.micState === 'listening') {
+            session?.disableMic();
+            platform.storage.set('pen.mic', 'off');
+          } else {
+            platform.storage.set('pen.mic', 'on');
+            void session?.enableMic();
+          }
+        }}
         onFullscreen={() => void shellRef.current?.requestFullscreen?.()}
         onLeave={() => {
           if (isHost && state.phase === 'live') session?.control('end');

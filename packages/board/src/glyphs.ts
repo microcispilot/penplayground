@@ -1,5 +1,6 @@
 import type { GlyphSource } from './font.js';
 import { createRng, jitter } from './rng.js';
+import { sanitisePathData } from './svg-path.js';
 
 /**
  * Handwritten text layout: glyph outlines from the hand font, kerned, wrapped
@@ -47,6 +48,11 @@ export interface HandTextLayout {
   lineHeight: number;
   /** Characters the pen has to write (pacing unit). */
   charCount: number;
+  /**
+   * Characters whose path carried a non-finite coordinate and was sanitised.
+   * Empty in practice; surfaced so the executor can report a broken font.
+   */
+  invalidGlyphs: string[];
 }
 
 export interface HandTextOptions {
@@ -133,7 +139,11 @@ export function wrapHandText(
   return out;
 }
 
-export function layoutHandText(font: GlyphSource, text: string, opts: HandTextOptions): HandTextLayout {
+export function layoutHandText(
+  font: GlyphSource,
+  text: string,
+  opts: HandTextOptions,
+): HandTextLayout {
   const fontSize = opts.fontSize;
   const lineHeight = fontSize * (opts.lineHeight ?? DEFAULT_LINE_HEIGHT);
   const useJitter = opts.jitter ?? true;
@@ -146,6 +156,7 @@ export function layoutHandText(font: GlyphSource, text: string, opts: HandTextOp
   const ascent = fontSize * font.ascent;
 
   const outLines: TextLine[] = [];
+  const invalidGlyphs: string[] = [];
   let index = 0;
   lines.forEach((line, li) => {
     const baseline = li * lineHeight + ascent;
@@ -159,14 +170,17 @@ export function layoutHandText(font: GlyphSource, text: string, opts: HandTextOp
       const rot = useJitter ? jitter(rng, ROTATION_JITTER_DEG) : 0;
       const dy = useJitter ? jitter(rng, BASELINE_JITTER_PX) : 0;
       const y = baseline + dy;
-      const advance = glyphAdvance(font, ch, fontSize);
+      const rawAdvance = glyphAdvance(font, ch, fontSize);
+      // A font reporting a non-finite advance must not poison every glyph after it.
+      const advance = Number.isFinite(rawAdvance) ? rawAdvance : fontSize * 0.5;
+      if (!Number.isFinite(x)) x = 0;
       if (missing) {
         const synth = ch === ' ' ? null : synthGlyph(ch, x, y, fontSize);
         glyphs.push({
           char: ch,
           index,
           kind: synth ? 'stroke' : 'fallback',
-          d: synth?.d ?? '',
+          d: safePath(synth?.d ?? '', ch, invalidGlyphs),
           x,
           y,
           advance,
@@ -178,7 +192,7 @@ export function layoutHandText(font: GlyphSource, text: string, opts: HandTextOp
           char: ch,
           index,
           kind: 'outline',
-          d: ch === ' ' ? '' : font.path(ch, x, y, fontSize),
+          d: ch === ' ' ? '' : safePath(font.path(ch, x, y, fontSize), ch, invalidGlyphs),
           x,
           y,
           advance,
@@ -200,9 +214,16 @@ export function layoutHandText(font: GlyphSource, text: string, opts: HandTextOp
     fontSize,
     lineHeight,
     charCount: text.length,
+    invalidGlyphs,
   };
 }
 
+/** Guard every path string that leaves the layout; records the character when something was dropped. */
+function safePath(d: string, ch: string, invalid: string[]): string {
+  const s = sanitisePathData(d);
+  if (s.dropped > 0) invalid.push(ch);
+  return s.d;
+}
 
 // ── synthesised symbols ───────────────────────────────────────────────────
 // Caveat has no √, →, ≤ … which lessons use constantly. Rather than dropping
@@ -219,29 +240,55 @@ const SYNTH: Record<string, Synth> = {
   '√': { advance: 1.05, d: 'M0.05 0.55 L0.24 0.98 L0.5 0.02 L1 0.02' },
   '→': { advance: 1.1, d: 'M0.05 0.55 L1 0.55 M0.74 0.3 L1 0.55 L0.74 0.8' },
   '←': { advance: 1.1, d: 'M1 0.55 L0.05 0.55 M0.31 0.3 L0.05 0.55 L0.31 0.8' },
-  '↔': { advance: 1.2, d: 'M0.05 0.55 L1.1 0.55 M0.3 0.3 L0.05 0.55 L0.3 0.8 M0.85 0.3 L1.1 0.55 L0.85 0.8' },
-  '⇒': { advance: 1.1, d: 'M0.05 0.45 L0.85 0.45 M0.05 0.65 L0.85 0.65 M0.72 0.25 L1 0.55 L0.72 0.85' },
+  '↔': {
+    advance: 1.2,
+    d: 'M0.05 0.55 L1.1 0.55 M0.3 0.3 L0.05 0.55 L0.3 0.8 M0.85 0.3 L1.1 0.55 L0.85 0.8',
+  },
+  '⇒': {
+    advance: 1.1,
+    d: 'M0.05 0.45 L0.85 0.45 M0.05 0.65 L0.85 0.65 M0.72 0.25 L1 0.55 L0.72 0.85',
+  },
   '≤': { advance: 0.95, d: 'M0.8 0.1 L0.15 0.45 L0.8 0.75 M0.15 0.95 L0.8 0.95' },
   '≥': { advance: 0.95, d: 'M0.15 0.1 L0.8 0.45 L0.15 0.75 M0.15 0.95 L0.8 0.95' },
   '≠': { advance: 0.95, d: 'M0.12 0.42 L0.85 0.42 M0.12 0.68 L0.85 0.68 M0.65 0.1 L0.32 1' },
-  '≈': { advance: 0.95, d: 'M0.1 0.45 C0.3 0.25 0.5 0.6 0.85 0.4 M0.1 0.75 C0.3 0.55 0.5 0.9 0.85 0.7' },
+  '≈': {
+    advance: 0.95,
+    d: 'M0.1 0.45 C0.3 0.25 0.5 0.6 0.85 0.4 M0.1 0.75 C0.3 0.55 0.5 0.9 0.85 0.7',
+  },
   '∑': { advance: 0.95, d: 'M0.85 0.12 L0.15 0.1 L0.55 0.52 L0.15 0.95 L0.85 0.95' },
-  '∞': { advance: 1.15, d: 'M0.55 0.55 C0.42 0.3 0.05 0.35 0.08 0.55 C0.05 0.78 0.42 0.8 0.55 0.55 C0.68 0.3 1.05 0.35 1.02 0.55 C1.05 0.78 0.68 0.8 0.55 0.55' },
-  π: { advance: 0.95, d: 'M0.05 0.32 C0.3 0.25 0.6 0.28 0.9 0.3 M0.3 0.32 L0.26 0.98 M0.68 0.32 C0.7 0.6 0.66 0.85 0.82 0.98' },
+  '∞': {
+    advance: 1.15,
+    d: 'M0.55 0.55 C0.42 0.3 0.05 0.35 0.08 0.55 C0.05 0.78 0.42 0.8 0.55 0.55 C0.68 0.3 1.05 0.35 1.02 0.55 C1.05 0.78 0.68 0.8 0.55 0.55',
+  },
+  π: {
+    advance: 0.95,
+    d: 'M0.05 0.32 C0.3 0.25 0.6 0.28 0.9 0.3 M0.3 0.32 L0.26 0.98 M0.68 0.32 C0.7 0.6 0.66 0.85 0.82 0.98',
+  },
   λ: { advance: 0.8, d: 'M0.12 0.05 C0.3 0.12 0.4 0.4 0.72 0.98 M0.5 0.5 L0.1 0.98' },
-  μ: { advance: 0.85, d: 'M0.12 0.35 L0.1 1.1 M0.12 0.35 L0.15 0.85 C0.2 0.98 0.55 0.98 0.62 0.8 L0.66 0.35 M0.62 0.8 C0.66 0.98 0.78 0.98 0.85 0.9' },
+  μ: {
+    advance: 0.85,
+    d: 'M0.12 0.35 L0.1 1.1 M0.12 0.35 L0.15 0.85 C0.2 0.98 0.55 0.98 0.62 0.8 L0.66 0.35 M0.62 0.8 C0.66 0.98 0.78 0.98 0.85 0.9',
+  },
   '∈': { advance: 0.9, d: 'M0.8 0.18 C0.2 0.05 0.15 0.95 0.8 0.92 M0.25 0.55 L0.78 0.55' },
   '·': { advance: 0.35, d: 'M0.15 0.6 L0.18 0.62' },
   '≡': { advance: 0.95, d: 'M0.12 0.3 L0.85 0.3 M0.12 0.55 L0.85 0.55 M0.12 0.8 L0.85 0.8' },
   '±': { advance: 0.9, d: 'M0.45 0.15 L0.45 0.7 M0.12 0.42 L0.8 0.42 M0.12 0.95 L0.8 0.95' },
-  '∂': { advance: 0.8, d: 'M0.2 0.15 C0.5 0.05 0.75 0.2 0.7 0.55 C0.68 0.85 0.5 1 0.3 0.95 C0.05 0.85 0.12 0.5 0.45 0.5 C0.6 0.5 0.68 0.6 0.7 0.55' },
+  '∂': {
+    advance: 0.8,
+    d: 'M0.2 0.15 C0.5 0.05 0.75 0.2 0.7 0.55 C0.68 0.85 0.5 1 0.3 0.95 C0.05 0.85 0.12 0.5 0.45 0.5 C0.6 0.5 0.68 0.6 0.7 0.55',
+  },
   '∇': { advance: 0.9, d: 'M0.1 0.1 L0.8 0.1 L0.45 0.95 Z' },
 };
 
 const SYNTH_BAND = 0.72;
 
 /** Pen strokes for a symbol the font lacks, positioned at (x, baseline). */
-export function synthGlyph(ch: string, x: number, baseline: number, fontSize: number): Synth | null {
+export function synthGlyph(
+  ch: string,
+  x: number,
+  baseline: number,
+  fontSize: number,
+): Synth | null {
   const s = SYNTH[ch];
   if (!s) return null;
   const d = s.d.replace(/(-?\d*\.?\d+)\s+(-?\d*\.?\d+)/g, (_m, ux: string, uy: string) => {

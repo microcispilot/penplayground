@@ -5,13 +5,15 @@ import { defineConfig, devices } from '@playwright/test';
  * silent synthesizer, so the whole loop (home → room → cues → question → end)
  * is exercised deterministically without keys.
  */
+const apiPort = process.env.PEN_API_PORT ?? '4010';
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',
     permissions: ['microphone'],
     launchOptions: {
@@ -22,13 +24,15 @@ export default defineConfig({
       ],
     },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // The full Chromium build: the headless shell crashes on AudioWorklet + fake audio devices.
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chromium' } }],
   webServer: [
     {
       command: 'pnpm --filter @pen/api start',
-      url: 'http://127.0.0.1:4000/api/health',
+      url: `http://127.0.0.1:${apiPort}/api/health`,
       reuseExistingServer: !process.env.CI,
       env: {
+        PEN_PORT: apiPort,
         PEN_LLM_PROVIDER: 'fake',
         PEN_TTS_PROVIDER: 'silent',
         PEN_DATA_DIR: '.pen-data-e2e',
@@ -38,7 +42,8 @@ export default defineConfig({
     },
     {
       command: 'pnpm --filter @pen/web dev',
-      url: 'http://127.0.0.1:5173',
+      url: 'http://localhost:5173',
+      env: { PEN_API_PORT: apiPort },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

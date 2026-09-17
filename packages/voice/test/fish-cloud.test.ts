@@ -55,7 +55,7 @@ describe('FishCloudSynthesizer', () => {
       format: 'pcm',
       sample_rate: 44100,
     });
-    expect((c.init.headers as Record<string, string>)['model']).toBe('s2.1-pro');
+    expect((c.init.headers as Record<string, string>).model).toBe('s2.1-pro');
   });
   it('strips delivery tags', () => {
     expect(stripDeliveryTags('Good [warm tone] one.  Really.')).toBe('Good one. Really.');

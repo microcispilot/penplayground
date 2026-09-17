@@ -28,7 +28,9 @@ describe('parseSketch', () => {
   });
 
   it('tolerates smart quotes, extra whitespace, unquoted labels and ->', () => {
-    const p = parseSketch('box   a   “Hello there”\n\tcircle b ‘Ring’\nnote n plain text here\narrow a -> b "weights"');
+    const p = parseSketch(
+      'box   a   “Hello there”\n\tcircle b ‘Ring’\nnote n plain text here\narrow a -> b "weights"',
+    );
     expect(p.nodes.map((n) => n.label)).toEqual(['Hello there', 'Ring', 'plain text here']);
     expect(p.nodes[1]?.kind).toBe('circle');
     expect(p.nodes[2]?.kind).toBe('note');
@@ -78,10 +80,16 @@ describe('layoutSketch', () => {
   });
 
   it('arrows connect nearest sides', () => {
-    const { start, end } = connectNearestSides({ x: 0, y: 0, w: 100, h: 50 }, { x: 0, y: 200, w: 100, h: 50 });
+    const { start, end } = connectNearestSides(
+      { x: 0, y: 0, w: 100, h: 50 },
+      { x: 0, y: 200, w: 100, h: 50 },
+    );
     expect(start).toEqual({ x: 50, y: 50 });
     expect(end).toEqual({ x: 50, y: 200 });
-    const side = connectNearestSides({ x: 0, y: 0, w: 100, h: 50 }, { x: 300, y: 10, w: 100, h: 50 });
+    const side = connectNearestSides(
+      { x: 0, y: 0, w: 100, h: 50 },
+      { x: 300, y: 10, w: 100, h: 50 },
+    );
     expect(side.start).toEqual({ x: 100, y: 25 });
     expect(side.end).toEqual({ x: 300, y: 35 });
   });

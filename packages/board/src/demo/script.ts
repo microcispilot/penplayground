@@ -28,7 +28,10 @@ function op(
 export const DEMO_SCRIPT: ReadonlyArray<readonly [BoardEvent, number | null]> = [
   [op('b1', { op: 'title', text: 'Attention, in one page', place: 'newline' }), 3200],
   [op('b2', { op: 'write', text: 'the cat sat on the mat', place: 'newline' }), 2800],
-  [op('b3', { op: 'write', text: 'each token → a vector', place: 'newline', emphasis: 'accent' }), 2400],
+  [
+    op('b3', { op: 'write', text: 'each token → a vector', place: 'newline', emphasis: 'accent' }),
+    2400,
+  ],
   [
     op('b4', {
       op: 'sketch',
@@ -52,9 +55,11 @@ export const DEMO_SCRIPT: ReadonlyArray<readonly [BoardEvent, number | null]> = 
       op: 'code',
       lang: 'swift',
       place: 'newline',
-      text: ['let scores = q.dot(k) / sqrt(Double(d))', 'let weights = softmax(scores)', 'let out = weights * v'].join(
-        '\n',
-      ),
+      text: [
+        'let scores = q.dot(k) / sqrt(Double(d))',
+        'let weights = softmax(scores)',
+        'let out = weights * v',
+      ].join('\n'),
     }),
     6500,
   ],
@@ -62,13 +67,20 @@ export const DEMO_SCRIPT: ReadonlyArray<readonly [BoardEvent, number | null]> = 
     op('b8', {
       op: 'markdown',
       place: 'column',
-      text: ['**Why ÷ √d?**', '', '- keeps dot products small', '- softmax stays soft', '- gradients keep flowing'].join(
-        '\n',
-      ),
+      text: [
+        '**Why ÷ √d?**',
+        '',
+        '- keeps dot products small',
+        '- softmax stays soft',
+        '- gradients keep flowing',
+      ].join('\n'),
     }),
     5000,
   ],
-  [op('b9', { op: 'write', text: 'stack it 32×', place: 'below', ref: 'b8', emphasis: 'muted' }), null],
+  [
+    op('b9', { op: 'write', text: 'stack it 32×', place: 'below', ref: 'b8', emphasis: 'muted' }),
+    null,
+  ],
   [op('b10', { op: 'erase', ref: 'b5' }), null],
   [op('b11', { op: 'newpage' }), null],
   [op('b12', { op: 'title', text: 'Next: multi-head' }), null],

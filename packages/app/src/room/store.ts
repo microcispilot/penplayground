@@ -1,5 +1,5 @@
 import type { ConductorPhase } from '@pen/conductor';
-import type { CheckEvent, Expert, PreparationProgress, RoomState } from '@pen/contracts';
+import type { CheckEvent, Expert, NoteEvent, PreparationProgress, RoomState } from '@pen/contracts';
 import { create } from 'zustand';
 import type { RoomConnectionStatus } from './RoomClient.js';
 
@@ -29,6 +29,8 @@ export interface RoomUiState {
   micLevel: number;
   captionsOn: boolean;
   learnerHeard: string;
+  /** Pinned "You asked" notes, in order. */
+  notes: NoteEvent[];
   /** Wall-clock derived lesson clock for the bottom bar. */
   clockMs: number;
   errorText: string | null;
@@ -55,6 +57,7 @@ const initial: RoomUiState = {
   micLevel: 0,
   captionsOn: true,
   learnerHeard: '',
+  notes: [],
   clockMs: 0,
   errorText: null,
 };

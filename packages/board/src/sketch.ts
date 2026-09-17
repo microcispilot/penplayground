@@ -1,4 +1,4 @@
-import { type Bounds, type Point, bottom, center, clamp, right } from './geometry.js';
+import { type Bounds, bottom, center, clamp, type Point, right } from './geometry.js';
 
 /**
  * The SKETCH DSL the model emits (session-engine BOARD_RULES):
@@ -152,7 +152,10 @@ export interface SketchLayout {
   height: number;
 }
 
-export function nodeWidth(label: string, opts: SketchLayoutOptions = DEFAULT_SKETCH_LAYOUT): number {
+export function nodeWidth(
+  label: string,
+  opts: SketchLayoutOptions = DEFAULT_SKETCH_LAYOUT,
+): number {
   return clamp(label.length * opts.charWidth + opts.padding, opts.minWidth, opts.maxWidth);
 }
 

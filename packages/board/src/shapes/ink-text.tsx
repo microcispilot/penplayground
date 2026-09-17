@@ -1,11 +1,18 @@
+import { getStroke } from 'perfect-freehand';
 import { type ReactElement, useEffect, useMemo, useState } from 'react';
 import { SVGContainer, T, type TLBaseShape } from 'tldraw';
 import { FallbackFont, type GlyphSource, getHandFont, whenHandFont } from '../font.js';
 import { type HandTextLayout, layoutHandText } from '../glyphs.js';
-import { getStroke } from 'perfect-freehand';
 import { handUnderline, outlineToPath, revealStrokes } from '../primitives.js';
-import { EMPHASIS_VALUES, PaperShapeUtil, inkVar, resolveInk } from './paper-shape.js';
-import { type InkTextProps, STROKE_STYLE, SHAPE_TYPE, UNDERLINE_UNITS, inkTextUnits } from './props.js';
+import { hasNonFinite, sanitisePathData } from '../svg-path.js';
+import { EMPHASIS_VALUES, inkVar, PaperShapeUtil, resolveInk } from './paper-shape.js';
+import {
+  type InkTextProps,
+  inkTextUnits,
+  SHAPE_TYPE,
+  STROKE_STYLE,
+  UNDERLINE_UNITS,
+} from './props.js';
 
 /**
  * `ink-text`: handwriting. Glyph outlines come from the Caveat font via
@@ -73,29 +80,52 @@ export class InkTextShapeUtil extends PaperShapeUtil<InkTextShape> {
 
   override toSvg(shape: InkTextShape) {
     const font = getHandFont() ?? fallbackFont;
-    const layout = layoutFor(font, shape.props);
+    const p = shape.props;
+    const layout = layoutFor(font, p.text, p.fontSize, p.maxWidth, p.seed, p.align);
     const color = resolveInk(this.editor.getContainer(), shape.props.emphasis);
-    return <InkTextGlyphs layout={layout} props={{ ...shape.props, progress: 1 }} color={color} clipId={null} />;
+    return (
+      <InkTextGlyphs
+        layout={layout}
+        props={{ ...shape.props, progress: 1 }}
+        color={color}
+        clipId={null}
+      />
+    );
   }
 }
 
-function layoutFor(font: GlyphSource, p: InkTextProps): HandTextLayout {
-  return layoutHandText(font, p.text, {
-    fontSize: p.fontSize,
-    maxWidth: Math.max(p.fontSize, p.maxWidth),
-    seed: p.seed,
-    align: p.align,
+function layoutFor(
+  font: GlyphSource,
+  text: string,
+  fontSize: number,
+  maxWidth: number,
+  seed: string,
+  align: 'left' | 'center',
+): HandTextLayout {
+  return layoutHandText(font, text, {
+    fontSize,
+    maxWidth: Math.max(fontSize, maxWidth),
+    seed,
+    align,
   });
 }
 
 function InkTextView({ shape }: { shape: InkTextShape }) {
   const font = useGlyphSource();
   const { text, fontSize, maxWidth, seed, align } = shape.props;
-  const layout = useMemo(() => layoutFor(font, { ...shape.props }), [font, text, fontSize, maxWidth, seed, align]);
+  const layout = useMemo(
+    () => layoutFor(font, text, fontSize, maxWidth, seed, align),
+    [font, text, fontSize, maxWidth, seed, align],
+  );
   const color = inkVar(shape.props.emphasis);
   return (
     <SVGContainer style={{ overflow: 'visible' }}>
-      <InkTextGlyphs layout={layout} props={shape.props} color={color} clipId={`${shape.id}-clip`} />
+      <InkTextGlyphs
+        layout={layout}
+        props={shape.props}
+        color={color}
+        clipId={`${shape.id}-clip`}
+      />
     </SVGContainer>
   );
 }
@@ -124,16 +154,30 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
       if (revealed <= start) continue;
       const frac = Math.min(1, revealed - start);
       const partial = frac < 1 && clipId !== null;
-      const transform = g.rotation ? `rotate(${g.rotation.toFixed(2)} ${g.x.toFixed(2)} ${g.y.toFixed(2)})` : undefined;
+      const transform = g.rotation
+        ? `rotate(${g.rotation.toFixed(2)} ${g.x.toFixed(2)} ${g.y.toFixed(2)})`
+        : undefined;
       const key = `${line.baseline}-${g.index}`;
+      // Last line of defence: nothing non-finite reaches the DOM.
+      const d = hasNonFinite(g.d) ? sanitisePathData(g.d).d : g.d;
       let el: ReactElement;
       if (g.kind === 'outline') {
-        el = <path key={key} d={g.d} transform={transform} fill={color} stroke={color} strokeWidth={strokeW * 0.5} strokeLinejoin="round" />;
+        el = (
+          <path
+            key={key}
+            d={d}
+            transform={transform}
+            fill={color}
+            stroke={color}
+            strokeWidth={strokeW * 0.5}
+            strokeLinejoin="round"
+          />
+        );
       } else if (g.kind === 'stroke') {
         el = (
           <path
             key={key}
-            d={g.d}
+            d={d}
             transform={transform}
             fill="none"
             stroke={color}
@@ -167,7 +211,12 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
         nodes.push(
           <g key={`${key}-clip`} clipPath={`url(#${id})`}>
             <clipPath id={id}>
-              <rect x={g.x - pad} y={0} width={Math.max(0, (g.advance + pad * 2) * frac)} height={props.h + props.fontSize} />
+              <rect
+                x={g.x - pad}
+                y={0}
+                width={Math.max(0, (g.advance + pad * 2) * frac)}
+                height={props.h + props.fontSize}
+              />
             </clipPath>
             {el}
           </g>,
@@ -188,7 +237,11 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
     const strokes = handUnderline(layout.width, `${props.seed}:underline`);
     const parts = revealStrokes(strokes, frac);
     underline = (
-      <g transform={`translate(0 ${y.toFixed(2)})`} fill="var(--color-ink-accent)" style={{ mixBlendMode: 'multiply' }}>
+      <g
+        transform={`translate(0 ${y.toFixed(2)})`}
+        fill="var(--color-ink-accent)"
+        style={{ mixBlendMode: 'multiply' }}
+      >
         {parts.map((p, i) => (
           <path
             // biome-ignore lint/suspicious/noArrayIndexKey: strokes are positional and never reorder
@@ -208,7 +261,15 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
     <g>
       {nodes}
       {underline}
-      {nib && clipId ? <circle cx={nib.x} cy={nib.y} r={Math.max(1.4, props.fontSize * 0.045)} fill={color} opacity={0.9} /> : null}
+      {nib && clipId ? (
+        <circle
+          cx={nib.x}
+          cy={nib.y}
+          r={Math.max(1.4, props.fontSize * 0.045)}
+          fill={color}
+          opacity={0.9}
+        />
+      ) : null}
     </g>
   );
 }

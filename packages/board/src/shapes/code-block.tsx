@@ -50,7 +50,6 @@ export class CodeBlockShapeUtil extends PaperShapeUtil<CodeBlockShape> {
         left -= text.length;
         spans.push(
           <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: token order is fixed for a shape
             key={ti}
             style={{
               color: tok.c ?? undefined,
@@ -64,9 +63,8 @@ export class CodeBlockShapeUtil extends PaperShapeUtil<CodeBlockShape> {
       }
       const isTip = typing && left <= 0;
       rows.push(
-        // biome-ignore lint/suspicious/noArrayIndexKey: lines never reorder
         <div key={li} className="pen-code__line">
-          {spans.length ? spans : '​'}
+          {spans.length ? spans : '\u200b'}
           {isTip ? <span className="pen-code__caret" aria-hidden="true" /> : null}
         </div>,
       );

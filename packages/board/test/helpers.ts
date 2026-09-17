@@ -1,8 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import type { BoardEvent } from '@pen/contracts';
-import type { CameraMove, EditorLike, ShapeRecordInit, ShapeRecordUpdate } from '../src/editor-like.js';
-import { HandFont, parseHandFont } from '../src/font.js';
+import type {
+  CameraMove,
+  EditorLike,
+  ShapeRecordInit,
+  ShapeRecordUpdate,
+} from '../src/editor-like.js';
+import { type HandFont, parseHandFont } from '../src/font.js';
 import type { Bounds } from '../src/geometry.js';
 
 const require = createRequire(import.meta.url);
@@ -16,7 +21,10 @@ export function loadTestFont(): HandFont {
   return cached;
 }
 
-export function boardOp(id: string, partial: Partial<Omit<BoardEvent, 'type' | 'id'>> & Pick<BoardEvent, 'op'>): BoardEvent {
+export function boardOp(
+  id: string,
+  partial: Partial<Omit<BoardEvent, 'type' | 'id'>> & Pick<BoardEvent, 'op'>,
+): BoardEvent {
   return {
     type: 'board',
     id,
@@ -52,7 +60,14 @@ export class FakeEditor implements EditorLike {
   createShapes(shapes: ShapeRecordInit[]): void {
     for (const s of shapes) {
       if (this.shapes.has(s.id)) throw new Error(`duplicate shape id ${s.id}`);
-      this.shapes.set(s.id, { id: s.id, type: s.type, x: s.x, y: s.y, opacity: s.opacity ?? 1, props: { ...s.props } });
+      this.shapes.set(s.id, {
+        id: s.id,
+        type: s.type,
+        x: s.x,
+        y: s.y,
+        opacity: s.opacity ?? 1,
+        props: { ...s.props },
+      });
       this.log.push(`create ${s.type} ${s.id}`);
     }
   }
@@ -90,7 +105,12 @@ export class FakeEditor implements EditorLike {
     this.zoom = z;
     const w = 1600 / z;
     const h = 1000 / z;
-    this.viewport = { x: bounds.x + bounds.w / 2 - w / 2, y: bounds.y + bounds.h / 2 - h / 2, w, h };
+    this.viewport = {
+      x: bounds.x + bounds.w / 2 - w / 2,
+      y: bounds.y + bounds.h / 2 - h / 2,
+      w,
+      h,
+    };
   }
   run(fn: () => void): void {
     fn();

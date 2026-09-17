@@ -15,7 +15,7 @@ import { useRoomStore } from '../room/store.js';
  */
 export function Replay() {
   const { id = '' } = useParams();
-  const { api } = useApp();
+  const { api, platform } = useApp();
   const navigate = useNavigate();
   const [session, setSession] = useState<ReplaySession | null>(null);
   const [state, setState] = useState<RoomState | null>(null);
@@ -116,7 +116,7 @@ export function Replay() {
     <div className="flex h-screen flex-col overflow-hidden bg-bg">
       <div className="flex min-h-0 flex-1 p-4">
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-[6px] shadow-board">
-          <BoardSurface session={session} licenseKey={useApp().platform.tldrawLicenseKey} />
+          <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
           <div className="absolute right-3 bottom-3 z-[6]">
             <ExpertOrb
               name={expert?.displayName ?? 'Expert'}

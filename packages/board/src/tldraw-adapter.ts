@@ -9,13 +9,18 @@ import type { Bounds } from './geometry.js';
  * record fails loudly in development rather than rendering garbage.
  */
 export function adaptEditor(editor: Editor): EditorLike {
-  const toBounds = (b: Box | undefined): Bounds | undefined => (b ? { x: b.x, y: b.y, w: b.w, h: b.h } : undefined);
+  const toBounds = (b: Box | undefined): Bounds | undefined =>
+    b ? { x: b.x, y: b.y, w: b.w, h: b.h } : undefined;
   return {
     createShapes(shapes: ShapeRecordInit[]) {
-      editor.createShapes(shapes.map((s) => ({ ...s, id: s.id as TLShapeId }) as unknown as TLShapePartial));
+      editor.createShapes(
+        shapes.map((s) => ({ ...s, id: s.id as TLShapeId }) as unknown as TLShapePartial),
+      );
     },
     updateShapes(shapes: ShapeRecordUpdate[]) {
-      editor.updateShapes(shapes.map((s) => ({ ...s, id: s.id as TLShapeId }) as unknown as TLShapePartial));
+      editor.updateShapes(
+        shapes.map((s) => ({ ...s, id: s.id as TLShapeId }) as unknown as TLShapePartial),
+      );
     },
     deleteShapes(ids: string[]) {
       editor.deleteShapes(ids as TLShapeId[]);

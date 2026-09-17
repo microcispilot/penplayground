@@ -7,7 +7,7 @@
     "dev": "node --env-file=../../.env --watch --import tsx src/main.ts",
     "start": "node --env-file=../../.env --import tsx src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

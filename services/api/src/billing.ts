@@ -108,8 +108,8 @@ export class Billing {
     switch (event.type) {
       case 'checkout.session.completed': {
         const s = event.data.object;
-        const participantId = s.client_reference_id ?? s.metadata?.['participantId'];
-        const plan = planFrom(s.metadata?.['plan']);
+        const participantId = s.client_reference_id ?? s.metadata?.participantId;
+        const plan = planFrom(s.metadata?.plan);
         const customer = typeof s.customer === 'string' ? s.customer : s.customer?.id;
         if (participantId && plan) await this.participants.setPlan(participantId, plan, customer);
         observer.event('billing.checkout_completed', {
@@ -121,14 +121,14 @@ export class Billing {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const sub = event.data.object;
-        const participantId = sub.metadata?.['participantId'];
+        const participantId = sub.metadata?.participantId;
         if (!participantId) return { handled: false, type: event.type };
         const active =
           sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
         const plan =
           event.type === 'customer.subscription.deleted' || !active
             ? 'free'
-            : (planFrom(sub.metadata?.['plan']) ?? 'free');
+            : (planFrom(sub.metadata?.plan) ?? 'free');
         await this.participants.setPlan(
           participantId,
           plan,

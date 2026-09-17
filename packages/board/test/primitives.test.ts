@@ -77,7 +77,15 @@ describe('hand primitives', () => {
   });
 
   it('normalises strokes to a padded origin', () => {
-    const n = normaliseStrokes([[[-3, -2, 0.5], [10, 20, 0.5]]], 4);
+    const n = normaliseStrokes(
+      [
+        [
+          [-3, -2, 0.5],
+          [10, 20, 0.5],
+        ],
+      ],
+      4,
+    );
     expect(n.offset).toEqual({ x: 7, y: 6 });
     expect(n.bounds).toEqual({ x: 0, y: 0, w: 21, h: 30 });
     expect(n.strokes[0]?.[0]).toEqual([4, 4, 0.5]);

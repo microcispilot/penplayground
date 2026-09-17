@@ -49,7 +49,8 @@ interface Budget {
 
 function countInline(inlines: readonly MdInline[]): number {
   let n = 0;
-  for (const x of inlines) n += x.type === 'text' || x.type === 'code' ? x.text.length : countInline(x.children);
+  for (const x of inlines)
+    n += x.type === 'text' || x.type === 'code' ? x.text.length : countInline(x.children);
   return n;
 }
 

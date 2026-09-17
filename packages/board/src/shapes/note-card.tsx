@@ -26,10 +26,16 @@ export class NoteCardShapeUtil extends PaperShapeUtil<NoteCardShape> {
     const { label, question, detail, w, h } = shape.props;
     return (
       <HTMLContainer style={{ width: w, height: h, pointerEvents: 'none' }}>
-        <article className="pen-note" style={{ padding: NOTE_PADDING, minHeight: h }} aria-label="You asked">
+        <article
+          className="pen-note"
+          style={{ padding: NOTE_PADDING, minHeight: h }}
+          aria-label="You asked"
+        >
           <div className="pen-note__label">
             <span className="pen-note__kicker">You asked</span>
-            {label && label.toLowerCase() !== 'you asked' ? <span className="pen-note__headline">{label}</span> : null}
+            {label && label.toLowerCase() !== 'you asked' ? (
+              <span className="pen-note__headline">{label}</span>
+            ) : null}
           </div>
           <p className="pen-note__question">{question}</p>
           {detail ? <p className="pen-note__detail">{detail}</p> : null}

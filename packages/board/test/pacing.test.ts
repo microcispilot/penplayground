@@ -1,6 +1,13 @@
 import { TIMING } from '@pen/contracts';
 import { describe, expect, it } from 'vitest';
-import { MAX_STRETCH, MIN_OP_MS, handwritingMs, penTravelMs, resolvePace, typewriterMs } from '../src/pacing.js';
+import {
+  handwritingMs,
+  MAX_STRETCH,
+  MIN_OP_MS,
+  penTravelMs,
+  resolvePace,
+  typewriterMs,
+} from '../src/pacing.js';
 
 describe('pacing', () => {
   it('natural durations follow the product constants', () => {

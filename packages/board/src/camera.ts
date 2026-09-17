@@ -1,5 +1,5 @@
-import { type Bounds, clamp, contains, union } from './geometry.js';
 import type { EditorLike } from './editor-like.js';
+import { type Bounds, clamp, contains, union } from './geometry.js';
 import { CAMERA_MS } from './pacing.js';
 
 /**

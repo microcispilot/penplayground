@@ -1,5 +1,5 @@
-import { type Bounds, type Point, distance } from './geometry.js';
-import { type Rng, createRng, jitter } from './rng.js';
+import { type Bounds, distance, type Point } from './geometry.js';
+import { createRng, jitter, type Rng } from './rng.js';
 
 /**
  * Hand-drawn stroke primitives. Each returns one or more strokes: arrays of
@@ -36,7 +36,9 @@ function makeWobble(rng: Rng, amp: number): Wobble {
 
 function wobbleAt(w: Wobble, t: number, rng: Rng): number {
   return (
-    w.amp * (0.65 * Math.sin(Math.PI * 2 * w.f1 * t + w.p1) + 0.35 * Math.sin(Math.PI * 2 * w.f2 * t + w.p2)) +
+    w.amp *
+      (0.65 * Math.sin(Math.PI * 2 * w.f1 * t + w.p1) +
+        0.35 * Math.sin(Math.PI * 2 * w.f2 * t + w.p2)) +
     jitter(rng, w.amp * 0.15)
   );
 }
@@ -74,7 +76,9 @@ export function handRect(w: number, h: number, seed: string, amp = 1.2): Stroke[
   push(segment({ x: w + jitter(rng, 0.8), y: -over() * 0.4 }, { x: w, y: h + over() }, rng, amp));
   push(segment({ x: w + over() * 0.5, y: h + jitter(rng, 0.8) }, { x: -over(), y: h }, rng, amp));
   push(segment({ x: jitter(rng, 0.8), y: h + over() * 0.4 }, { x: 0, y: -over() * 0.5 }, rng, amp));
-  push(segment({ x: -over() * 0.3, y: jitter(rng, 0.8) }, { x: startX + 10, y: 0 }, rng, amp * 0.6));
+  push(
+    segment({ x: -over() * 0.3, y: jitter(rng, 0.8) }, { x: startX + 10, y: 0 }, rng, amp * 0.6),
+  );
   return [pts];
 }
 
@@ -119,7 +123,12 @@ function pointOnRoundedRect(
   d -= straightH;
   if (d < arc) {
     const a = (d / arc) * (Math.PI / 2);
-    return { x: w - r + Math.cos(a) * r, y: h - r + Math.sin(a) * r, nx: Math.cos(a), ny: Math.sin(a) };
+    return {
+      x: w - r + Math.cos(a) * r,
+      y: h - r + Math.sin(a) * r,
+      nx: Math.cos(a),
+      ny: Math.sin(a),
+    };
   }
   d -= arc;
   if (d < straightW) return { x: w - r - d, y: h, nx: 0, ny: 1 };
@@ -187,7 +196,10 @@ export function handArrow(a: Point, b: Point, seed: string, amp = 1.2): Stroke[]
     x: b.x - Math.cos(angle + spread) * headLen,
     y: b.y - Math.sin(angle + spread) * headLen,
   };
-  const head = [...segment(left, b, rng, amp * 0.5), ...segment(b, rightP, rng, amp * 0.5).slice(1)];
+  const head = [
+    ...segment(left, b, rng, amp * 0.5),
+    ...segment(b, rightP, rng, amp * 0.5).slice(1),
+  ];
   return [shaft, head];
 }
 
@@ -281,15 +293,25 @@ export function strokesBounds(strokes: readonly Stroke[], pad = 0): Bounds {
 }
 
 /** Shift strokes so their bounds start at (pad, pad); returns the offset applied. */
-export function normaliseStrokes(strokes: readonly Stroke[], pad: number): { strokes: Stroke[]; offset: Point; bounds: Bounds } {
+export function normaliseStrokes(
+  strokes: readonly Stroke[],
+  pad: number,
+): { strokes: Stroke[]; offset: Point; bounds: Bounds } {
   const b = strokesBounds(strokes, pad);
   const offset = { x: -b.x, y: -b.y };
-  const moved = strokes.map((s) => s.map((p): StrokePoint => [p[0] + offset.x, p[1] + offset.y, p[2]]));
+  const moved = strokes.map((s) =>
+    s.map((p): StrokePoint => [p[0] + offset.x, p[1] + offset.y, p[2]]),
+  );
   return { strokes: moved, offset, bounds: { x: 0, y: 0, w: b.w, h: b.h } };
 }
 
-/** perfect-freehand outline → SVG path (quadratic midpoint smoothing). */
-export function outlineToPath(outline: readonly number[][]): string {
+/**
+ * perfect-freehand outline → SVG path (quadratic midpoint smoothing). Points
+ * with a non-finite coordinate are skipped so a degenerate input can never
+ * produce a broken `d` attribute.
+ */
+export function outlineToPath(raw: readonly number[][]): string {
+  const outline = raw.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
   if (outline.length < 2) return '';
   const first = outline[0];
   if (!first) return '';

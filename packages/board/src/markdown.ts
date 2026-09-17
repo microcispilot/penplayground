@@ -60,7 +60,12 @@ export function parseInline(src: string): MdInline[] {
         continue;
       }
     }
-    if ((ch === '*' || ch === '_') && i + 1 < src.length && !/\s/.test(src[i + 1] ?? '') && src[i + 1] !== ch) {
+    if (
+      (ch === '*' || ch === '_') &&
+      i + 1 < src.length &&
+      !/\s/.test(src[i + 1] ?? '') &&
+      src[i + 1] !== ch
+    ) {
       const close = findClose(src, ch, i + 1);
       if (close > i + 1 && !/\s/.test(src[close - 1] ?? '')) {
         flush();
@@ -166,7 +171,11 @@ export function parseMarkdown(source: string): MdBlock[] {
       continue;
     }
 
-    if (line.includes('|') && i + 1 < lines.length && TABLE_SEP_RE.test((lines[i + 1] ?? '').trim())) {
+    if (
+      line.includes('|') &&
+      i + 1 < lines.length &&
+      TABLE_SEP_RE.test((lines[i + 1] ?? '').trim())
+    ) {
       flushParagraph();
       const header = splitRow(line).map(parseInline);
       const rows: MdInline[][][] = [];
@@ -275,31 +284,31 @@ export function renderInlineHtml(inlines: readonly MdInline[]): string {
 
 /** Full render (no progressive reveal); used for exports and tests. */
 export function renderMarkdownHtml(blocks: readonly MdBlock[]): string {
-  return blocks
-    .map((b) => {
-      switch (b.type) {
-        case 'heading':
-          return `<h${b.level}>${renderInlineHtml(b.children)}</h${b.level}>`;
-        case 'paragraph':
-          return `<p>${renderInlineHtml(b.children)}</p>`;
-        case 'list': {
-          const tag = b.ordered ? 'ol' : 'ul';
-          return `<${tag}>${b.items.map((i) => `<li>${renderInlineHtml(i)}</li>`).join('')}</${tag}>`;
-        }
-        case 'table': {
-          const head = `<thead><tr>${b.header.map((c) => `<th>${renderInlineHtml(c)}</th>`).join('')}</tr></thead>`;
-          const body = `<tbody>${b.rows
-            .map((r) => `<tr>${r.map((c) => `<td>${renderInlineHtml(c)}</td>`).join('')}</tr>`)
-            .join('')}</tbody>`;
-          return `<table>${head}${body}</table>`;
-        }
-        case 'code':
-          return `<pre><code${b.lang ? ` data-lang="${escapeHtml(b.lang)}"` : ''}>${escapeHtml(b.text)}</code></pre>`;
-        case 'rule':
-          return '<hr>';
-      }
-    })
-    .join('');
+  return blocks.map(renderBlockHtml).join('');
+}
+
+function renderBlockHtml(b: MdBlock): string {
+  switch (b.type) {
+    case 'heading':
+      return `<h${b.level}>${renderInlineHtml(b.children)}</h${b.level}>`;
+    case 'paragraph':
+      return `<p>${renderInlineHtml(b.children)}</p>`;
+    case 'list': {
+      const tag = b.ordered ? 'ol' : 'ul';
+      return `<${tag}>${b.items.map((i) => `<li>${renderInlineHtml(i)}</li>`).join('')}</${tag}>`;
+    }
+    case 'table': {
+      const head = `<thead><tr>${b.header.map((c) => `<th>${renderInlineHtml(c)}</th>`).join('')}</tr></thead>`;
+      const body = `<tbody>${b.rows
+        .map((r) => `<tr>${r.map((c) => `<td>${renderInlineHtml(c)}</td>`).join('')}</tr>`)
+        .join('')}</tbody>`;
+      return `<table>${head}${body}</table>`;
+    }
+    case 'code':
+      return `<pre><code${b.lang ? ` data-lang="${escapeHtml(b.lang)}"` : ''}>${escapeHtml(b.text)}</code></pre>`;
+    case 'rule':
+      return '<hr>';
+  }
 }
 
 /** Rough line count for sizing an md-block before it is rendered. */
@@ -315,7 +324,8 @@ export function estimateMarkdownLines(blocks: readonly MdBlock[], charsPerLine: 
         lines += Math.max(1, Math.ceil(inlineText(b.children).length / cpl)) + 0.4;
         break;
       case 'list':
-        for (const item of b.items) lines += Math.max(1, Math.ceil(inlineText(item).length / (cpl - 3)));
+        for (const item of b.items)
+          lines += Math.max(1, Math.ceil(inlineText(item).length / (cpl - 3)));
         lines += 0.4;
         break;
       case 'table':

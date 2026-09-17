@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AnimationClock, ManualTicker } from '../src/clock.js';
-import { Timeline, fadeTrack, progressTrack } from '../src/timeline.js';
+import { fadeTrack, progressTrack, Timeline } from '../src/timeline.js';
 
 describe('AnimationClock', () => {
   function make(durationMs: number) {
@@ -78,7 +78,7 @@ describe('AnimationClock', () => {
 
 describe('Timeline', () => {
   it('sequences tracks and only emits changed updates', () => {
-    const tl = new Timeline().then(progressTrack('a', 100)).then(progressTrack('b', 100), 50);
+    const tl = new Timeline().append(progressTrack('a', 100)).append(progressTrack('b', 100), 50);
     expect(tl.totalMs).toBe(250);
     expect(tl.sample(0)).toEqual([
       { id: 'a', props: { progress: 0 } },
@@ -95,7 +95,10 @@ describe('Timeline', () => {
   });
 
   it('stretch scales starts and durations uniformly', () => {
-    const tl = new Timeline().then(progressTrack('a', 100)).then(progressTrack('b', 100)).stretch(2);
+    const tl = new Timeline()
+      .append(progressTrack('a', 100))
+      .append(progressTrack('b', 100))
+      .stretch(2);
     expect(tl.totalMs).toBe(400);
     expect(tl.tracks[1]?.startMs).toBe(200);
   });

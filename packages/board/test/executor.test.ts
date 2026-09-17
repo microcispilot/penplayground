@@ -3,9 +3,9 @@ import { ManualTicker } from '../src/clock.js';
 import { BoardExecutor, type BoardWarning } from '../src/executor.js';
 import { plainLines } from '../src/highlight.js';
 import { Layout, MARGIN, PAGE_STRIDE } from '../src/layout.js';
-import { FADE_MS, HAND_CPS, MAX_STRETCH, handwritingMs } from '../src/pacing.js';
+import { FADE_MS, HAND_CPS, handwritingMs, MAX_STRETCH } from '../src/pacing.js';
 import { SHAPE_TYPE, UNDERLINE_UNITS } from '../src/shapes/props.js';
-import { FakeEditor, boardOp, flush, loadTestFont } from './helpers.js';
+import { boardOp, FakeEditor, flush, loadTestFont } from './helpers.js';
 
 function setup(opts: { camera?: boolean } = {}) {
   const editor = new FakeEditor();
@@ -54,21 +54,27 @@ describe('BoardExecutor', () => {
     const { editor, ticker, executor } = ctx;
     const text = 'the cat sat on the mat'; // 22 chars → 2000 ms natural
     // short sentence → natural speed
-    const a = executor.execute(boardOp('b1', { op: 'write', text, place: 'newline' }), { paceMs: 300 });
+    const a = executor.execute(boardOp('b1', { op: 'write', text, place: 'newline' }), {
+      paceMs: 300,
+    });
     await flush();
     ticker.advance(1000);
     expect(editor.progress('shape:b1')).toBeCloseTo(0.5, 1);
     ticker.advance(1100);
     await a.done;
     // long sentence → stretched
-    const b = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), { paceMs: 4000 });
+    const b = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), {
+      paceMs: 4000,
+    });
     await flush();
     ticker.advance(2000);
     expect(editor.progress('shape:b2')).toBeCloseTo(0.5, 1);
     ticker.advance(2100);
     await b.done;
     // absurd sentence → capped at MAX_STRETCH × natural
-    const c = executor.execute(boardOp('b3', { op: 'write', text, place: 'newline' }), { paceMs: 60_000 });
+    const c = executor.execute(boardOp('b3', { op: 'write', text, place: 'newline' }), {
+      paceMs: 60_000,
+    });
     await flush();
     const capped = (text.length / HAND_CPS) * 1000 * MAX_STRETCH;
     ticker.advance(capped + 50);
@@ -86,7 +92,10 @@ describe('BoardExecutor', () => {
     expect(b?.y).toBe(a?.y);
     expect(b?.x).toBeGreaterThan((a?.x ?? 0) + Number(a?.props.w));
     executor
-      .execute(boardOp('b3', { op: 'write', text: 'a much longer phrase that will not fit on this line' }), { paceMs: null })
+      .execute(
+        boardOp('b3', { op: 'write', text: 'a much longer phrase that will not fit on this line' }),
+        { paceMs: null },
+      )
       .finish();
     await flush();
     const c = editor.shapes.get('shape:b3');
@@ -111,7 +120,9 @@ describe('BoardExecutor', () => {
     await exec.done;
     expect(editor.progress('shape:b1')).toBe(1);
 
-    const exec2 = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), { paceMs: null });
+    const exec2 = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), {
+      paceMs: null,
+    });
     await flush();
     ticker.advance(400);
     exec2.cancel();
@@ -149,7 +160,9 @@ describe('BoardExecutor', () => {
   it('code: frame stroke first, then typewriter, both stretched to the sentence', async () => {
     const { editor, ticker, executor } = ctx;
     const code = 'let x = 1\nprint(x)';
-    const exec = executor.execute(boardOp('b1', { op: 'code', text: code, lang: 'swift' }), { paceMs: 4000 });
+    const exec = executor.execute(boardOp('b1', { op: 'code', text: code, lang: 'swift' }), {
+      paceMs: 4000,
+    });
     await flush();
     const frame = editor.shapes.get('shape:b1.frame');
     const block = editor.shapes.get('shape:b1');
@@ -171,7 +184,9 @@ describe('BoardExecutor', () => {
 
   it('markdown: one md-block sized from the estimate', async () => {
     const { editor, executor } = ctx;
-    executor.execute(boardOp('b1', { op: 'markdown', text: '# Hi\n- one\n- two' }), { paceMs: null }).finish();
+    executor
+      .execute(boardOp('b1', { op: 'markdown', text: '# Hi\n- one\n- two' }), { paceMs: null })
+      .finish();
     await flush();
     const s = editor.shapes.get('shape:b1');
     expect(s?.type).toBe(SHAPE_TYPE.mdBlock);
@@ -182,7 +197,9 @@ describe('BoardExecutor', () => {
   it('sketch: boxes, labels and arrows in order; nodes become refs', async () => {
     const { editor, ticker, executor } = ctx;
     const src = 'box q "Query"\nbox k "Key"\nrow\nbox s "Score"\narrow q s\narrow k s "w"';
-    const exec = executor.execute(boardOp('b1', { op: 'sketch', text: src, place: 'center' }), { paceMs: null });
+    const exec = executor.execute(boardOp('b1', { op: 'sketch', text: src, place: 'center' }), {
+      paceMs: null,
+    });
     await flush();
     expect(editor.ofType(SHAPE_TYPE.inkStroke)).toHaveLength(3 + 2);
     expect(editor.ofType(SHAPE_TYPE.inkText)).toHaveLength(3 + 1);
@@ -205,7 +222,9 @@ describe('BoardExecutor', () => {
 
   it('sketch with no parsable nodes falls back to handwriting and warns', async () => {
     const { editor, executor, warnings } = ctx;
-    executor.execute(boardOp('b1', { op: 'sketch', text: 'just some prose' }), { paceMs: null }).finish();
+    executor
+      .execute(boardOp('b1', { op: 'sketch', text: 'just some prose' }), { paceMs: null })
+      .finish();
     await flush();
     expect(editor.shapes.get('shape:b1')?.type).toBe(SHAPE_TYPE.inkText);
     expect(warnings.some((w) => w.code === 'sketch-parse')).toBe(true);
@@ -224,7 +243,14 @@ describe('BoardExecutor', () => {
     expect(ring.y).toBeLessThan(target.y);
 
     executor
-      .execute(boardOp('b3', { op: 'write', text: 'a very wide phrase to underline here', place: 'newline' }), { paceMs: null })
+      .execute(
+        boardOp('b3', {
+          op: 'write',
+          text: 'a very wide phrase to underline here',
+          place: 'newline',
+        }),
+        { paceMs: null },
+      )
       .finish();
     executor.execute(boardOp('b4', { op: 'highlight', ref: 'b3' }), { paceMs: null }).finish();
     await flush();
@@ -243,8 +269,14 @@ describe('BoardExecutor', () => {
   it('arrow: connects two refs with an optional label', async () => {
     const { editor, executor } = ctx;
     executor.execute(boardOp('b1', { op: 'write', text: 'A' }), { paceMs: null }).finish();
-    executor.execute(boardOp('b2', { op: 'write', text: 'B', place: 'column' }), { paceMs: null }).finish();
-    executor.execute(boardOp('b3', { op: 'arrow', ref: 'b1', ref2: 'b2', text: 'maps to' }), { paceMs: null }).finish();
+    executor
+      .execute(boardOp('b2', { op: 'write', text: 'B', place: 'column' }), { paceMs: null })
+      .finish();
+    executor
+      .execute(boardOp('b3', { op: 'arrow', ref: 'b1', ref2: 'b2', text: 'maps to' }), {
+        paceMs: null,
+      })
+      .finish();
     await flush();
     const arrow = editor.shapes.get('shape:b3');
     const label = editor.shapes.get('shape:b3.t');
@@ -280,7 +312,9 @@ describe('BoardExecutor', () => {
     await e2.done;
     expect(editor.shapes.has('shape:b2')).toBe(false);
 
-    executor.execute(boardOp('b5', { op: 'write', text: 'three', place: 'newline' }), { paceMs: null }).finish();
+    executor
+      .execute(boardOp('b5', { op: 'write', text: 'three', place: 'newline' }), { paceMs: null })
+      .finish();
     executor.execute(boardOp('b6', { op: 'erase', ref: 'all' }), { paceMs: null }).finish();
     await flush();
     expect(editor.shapes.size).toBe(0);
@@ -312,7 +346,9 @@ describe('BoardExecutor', () => {
     executor.execute(boardOp('b1', { op: 'write', text: 'in view' }), { paceMs: null }).finish();
     await flush();
     expect(editor.cameraMoves).toHaveLength(0);
-    executor.execute(boardOp('b2', { op: 'write', text: 'far away', place: 'column' }), { paceMs: null }).finish();
+    executor
+      .execute(boardOp('b2', { op: 'write', text: 'far away', place: 'column' }), { paceMs: null })
+      .finish();
     await flush();
     expect(editor.cameraMoves).toHaveLength(1);
     const move = editor.cameraMoves[0];
@@ -324,7 +360,10 @@ describe('BoardExecutor', () => {
 
   it('pinNote places a card in the right column and stacks a second one', async () => {
     const { editor, executor } = ctx;
-    executor.pinNote({ type: 'note', question: 'why √d?', headline: 'Scale', detail: 'keeps softmax soft' }, 'n1');
+    executor.pinNote(
+      { type: 'note', question: 'why √d?', headline: 'Scale', detail: 'keeps softmax soft' },
+      'n1',
+    );
     executor.pinNote({ type: 'note', question: 'second', headline: '', detail: '' }, 'n2');
     const a = editor.shapes.get('shape:note.n1');
     const b = editor.shapes.get('shape:note.n2');
@@ -343,9 +382,12 @@ describe('BoardExecutor', () => {
     executor.execute(boardOp('b1', { op: 'write', text: 'x' }), { paceMs: null }).finish();
     executor.pinNote({ type: 'note', question: 'q', headline: '', detail: '' }, 'n1');
     await flush();
-    const running = executor.execute(boardOp('b2', { op: 'write', text: 'slow words here', place: 'newline' }), {
-      paceMs: null,
-    });
+    const running = executor.execute(
+      boardOp('b2', { op: 'write', text: 'slow words here', place: 'newline' }),
+      {
+        paceMs: null,
+      },
+    );
     await flush();
     executor.clear();
     await running.done;
@@ -395,6 +437,37 @@ describe('BoardExecutor', () => {
     await e.done;
     expect(editor.shapes.get('shape:b1')?.props.text).toBe('hello');
     expect(warnings.some((w) => w.code === 'font-unavailable')).toBe(true);
+  });
+
+  it('a glyph source with broken path data is sanitised and reported as glyph-path', async () => {
+    const editor = new FakeEditor();
+    const ticker = new ManualTicker();
+    const warnings: BoardWarning[] = [];
+    const real = loadTestFont();
+    const executor = new BoardExecutor({
+      editor,
+      ticker,
+      camera: null,
+      font: {
+        ascent: real.ascent,
+        descent: real.descent,
+        has: (ch) => real.has(ch),
+        advance: (ch, size) => real.advance(ch, size),
+        kerning: (a, b, size) => real.kerning(a, b, size),
+        path: (ch, x, y, size) =>
+          ch === 'e' ? `M${x} ${y}QNaN 1 2 3L${x + 4} ${y}` : real.path(ch, x, y, size),
+      },
+      highlighter: { highlight: async (code) => plainLines(code) },
+      onWarning: (w) => warnings.push(w),
+    });
+    const e = executor.execute(boardOp('b1', { op: 'write', text: 'sees' }), { paceMs: null });
+    e.finish();
+    await flush();
+    await e.done;
+    expect(editor.shapes.get('shape:b1')?.props.text).toBe('sees');
+    const w = warnings.find((x) => x.code === 'glyph-path');
+    expect(w?.opId).toBe('b1');
+    expect(w?.message).toContain('"e"');
   });
 
   it('after dispose, execute resolves immediately and draws nothing', async () => {

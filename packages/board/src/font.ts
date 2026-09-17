@@ -1,4 +1,6 @@
+/// <reference path="./types/opentype.d.ts" />
 import { type Font, type Glyph, parse } from 'opentype.js';
+import { commandsToPathData } from './svg-path.js';
 
 /**
  * The handwriting font (Caveat, OFL) loaded once with opentype.js so we can
@@ -55,20 +57,27 @@ export class HandFont implements GlyphSource {
   }
 
   advance(ch: string, fontSize: number): number {
-    return ((this.glyph(ch).advanceWidth ?? 0) * fontSize) / this.font.unitsPerEm;
+    const adv = this.glyph(ch).advanceWidth;
+    if (typeof adv !== 'number' || !Number.isFinite(adv)) return 0;
+    return (adv * fontSize) / this.font.unitsPerEm;
   }
 
   kerning(prev: string, ch: string, fontSize: number): number {
     const a = this.glyph(prev);
     const b = this.glyph(ch);
     if (a.index === 0 || b.index === 0) return 0;
-    return (this.font.getKerningValue(a, b) * fontSize) / this.font.unitsPerEm;
+    const k = this.font.getKerningValue(a, b);
+    return Number.isFinite(k) ? (k * fontSize) / this.font.unitsPerEm : 0;
   }
 
+  /**
+   * Serialised from `path.commands`, never via opentype's `toPathData()`,
+   * whose number formatter emits "NaN" for some finite values (see svg-path.ts).
+   */
   path(ch: string, x: number, baselineY: number, fontSize: number): string {
     const g = this.glyph(ch);
     if (g.index === 0) return '';
-    return g.getPath(x, baselineY, fontSize).toPathData(2);
+    return commandsToPathData(g.getPath(x, baselineY, fontSize).commands).d;
   }
 }
 

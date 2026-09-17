@@ -32,7 +32,7 @@ export class Timeline {
   }
 
   /** Append a track after everything added so far (with an optional gap). */
-  then(track: TrackInit, gapMs = 0): this {
+  append(track: TrackInit, gapMs = 0): this {
     const startMs = this.cursorMs + gapMs;
     this.tracks.push({ ...track, startMs });
     this.cursorMs = startMs + track.durationMs;

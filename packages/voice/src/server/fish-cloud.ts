@@ -49,7 +49,7 @@ export class FishCloudSynthesizer implements SpeechSynthesizer {
       chunk_length: 200,
     };
     if (request.speed && Math.abs(request.speed - 1) > 1e-3)
-      body['prosody'] = { speed: Math.min(2, Math.max(0.5, request.speed)), volume: 0 };
+      body.prosody = { speed: Math.min(2, Math.max(0.5, request.speed)), volume: 0 };
     const started = performance.now();
     const response = await this.fetchImpl(FISH_TTS_URL, {
       method: 'POST',

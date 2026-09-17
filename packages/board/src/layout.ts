@@ -337,13 +337,17 @@ export class Layout {
   private newline(): void {
     this.cursor = {
       x: this.columnX,
-      y: this.cursor.y + this.cursor.lineHeight + (this.cursor.lineHeight > 0 ? this.opts.lineGap : 0),
+      y:
+        this.cursor.y +
+        this.cursor.lineHeight +
+        (this.cursor.lineHeight > 0 ? this.opts.lineGap : 0),
       lineHeight: 0,
     };
   }
 
   private ensureVerticalRoom(h: number): { newColumn: boolean; newPage: boolean } {
-    if (this.cursor.y + h <= bottom(this.content) + 0.5) return { newColumn: false, newPage: false };
+    if (this.cursor.y + h <= bottom(this.content) + 0.5)
+      return { newColumn: false, newPage: false };
     const nextX = this.columnX + this.opts.columnWidth + this.opts.columnGap;
     if (nextX + this.opts.columnWidth * 0.5 <= right(this.content)) {
       this.columnX = nextX;

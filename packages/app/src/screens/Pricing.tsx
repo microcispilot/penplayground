@@ -152,23 +152,35 @@ export function Pricing() {
                       </li>
                     ))}
                   </ul>
-                  <Button
-                    variant={'highlight' in p && p.highlight ? 'primary' : 'secondary'}
-                    size="lg"
-                    className="mt-auto"
-                    disabled={current || p.code === 'free'}
-                    onClick={() => undefined}
-                  >
-                    {current ? 'Current plan' : p.code === 'free' ? 'Included' : 'Coming soon'}
-                  </Button>
+                  {current && p.code !== 'free' ? (
+                    <Button variant="secondary" size="lg" className="mt-auto" onClick={manage}>
+                      Manage subscription
+                    </Button>
+                  ) : (
+                    <Button
+                      variant={'highlight' in p && p.highlight ? 'primary' : 'secondary'}
+                      size="lg"
+                      className="mt-auto"
+                      disabled={current || p.code === 'free' || enabled === false}
+                      loading={busy === p.code}
+                      onClick={() =>
+                        p.code === 'plus' || p.code === 'classroom' ? void buy(p.code) : undefined
+                      }
+                    >
+                      {current
+                        ? 'Current plan'
+                        : p.code === 'free'
+                          ? 'Included'
+                          : enabled === false
+                            ? 'Coming soon'
+                            : `Get ${p.name}`}
+                    </Button>
+                  )}
                 </div>
               );
             })}
           </div>
-          <p className="mt-8 text-center text-xs text-fg-3">
-            Prices are proposals pending a business decision; checkout opens once billing is
-            connected.
-          </p>
+          <p className="mt-8 text-center text-xs text-fg-3">Cancel any time. Prices in USD.</p>
         </div>
       </main>
     </div>

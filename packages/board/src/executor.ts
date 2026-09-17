@@ -1,7 +1,7 @@
-import type { BoardEvent, Emphasis, NoteEvent, Placement } from '@pen/contracts';
 import type { BoardExecution, BoardPort } from '@pen/conductor';
+import type { BoardEvent, Emphasis, NoteEvent, Placement } from '@pen/contracts';
 import { CameraDirector } from './camera.js';
-import { AnimationClock, type Ticker, createRafTicker } from './clock.js';
+import { AnimationClock, createRafTicker, type Ticker } from './clock.js';
 import {
   type EditorLike,
   type ShapeRecordInit,
@@ -9,7 +9,7 @@ import {
   toShapeId,
 } from './editor-like.js';
 import { FallbackFont, type GlyphSource, whenHandFont } from './font.js';
-import { type Bounds, type Point, bottom, union } from './geometry.js';
+import { type Bounds, bottom, type Point, union } from './geometry.js';
 import { type HandTextLayout, layoutHandText, measureHandText } from './glyphs.js';
 import { type CodeHighlighter, createShikiHighlighter } from './highlight.js';
 import { Layout } from './layout.js';
@@ -23,13 +23,13 @@ import {
   typewriterMs,
 } from './pacing.js';
 import {
-  type Stroke,
   handArrow,
   handEllipse,
   handRect,
   handRoundedRect,
   handUnderline,
   normaliseStrokes,
+  type Stroke,
   strokesLength,
 } from './primitives.js';
 import {
@@ -39,6 +39,7 @@ import {
   type InkStrokeProps,
   type InkTextProps,
   type InkTextStyle,
+  inkTextUnits,
   MD_PADDING,
   type MdBlockProps,
   NOTE_PADDING,
@@ -48,10 +49,9 @@ import {
   STROKE_STYLE,
   type StrokeRole,
   TYPE,
-  inkTextUnits,
 } from './shapes/props.js';
-import { type SketchLayout, connectNearestSides, layoutSketch, parseSketch } from './sketch.js';
-import { Timeline, fadeTrack, progressTrack } from './timeline.js';
+import { connectNearestSides, layoutSketch, parseSketch, type SketchLayout } from './sketch.js';
+import { fadeTrack, progressTrack, Timeline } from './timeline.js';
 
 /**
  * BoardExecutor: the `BoardPort` implementation. Each `execute()` maps one
@@ -71,6 +71,7 @@ export type BoardWarningCode =
   | 'unknown-ref'
   | 'sketch-parse'
   | 'font-unavailable'
+  | 'glyph-path'
   | 'op-failed';
 
 export interface BoardWarning {
@@ -202,7 +203,11 @@ export class BoardExecutor implements BoardPort {
     this.fontTimeoutMs = opts.fontTimeoutMs ?? 8000;
     const font = opts.font;
     this.fontSource =
-      font === undefined ? () => whenHandFont() : typeof font === 'function' ? font : () => Promise.resolve(font);
+      font === undefined
+        ? () => whenHandFont()
+        : typeof font === 'function'
+          ? font
+          : () => Promise.resolve(font);
     this.measureMarkdown = opts.measureMarkdown;
     this.onWarning = opts.onWarning ?? ((w) => console.warn(`[board] ${w.code}: ${w.message}`));
     this.onDimmed = opts.onDimmed ?? (() => {});
@@ -239,10 +244,19 @@ export class BoardExecutor implements BoardPort {
     this.removeRef(ref);
     const w = NOTE_WIDTH;
     const inner = w - NOTE_PADDING * 2;
-    const questionLines = Math.max(1, Math.ceil((note.question.length * TYPE.labelFont * 0.42) / inner));
-    const detailLines = note.detail ? Math.max(1, Math.ceil((note.detail.length * 14 * 0.5) / inner)) : 0;
+    const questionLines = Math.max(
+      1,
+      Math.ceil((note.question.length * TYPE.labelFont * 0.42) / inner),
+    );
+    const detailLines = note.detail
+      ? Math.max(1, Math.ceil((note.detail.length * 14 * 0.5) / inner))
+      : 0;
     const h = Math.round(
-      NOTE_PADDING * 2 + 16 + 10 + questionLines * TYPE.labelFont * 1.15 + (detailLines ? 8 + detailLines * 20 : 0),
+      NOTE_PADDING * 2 +
+        16 +
+        10 +
+        questionLines * TYPE.labelFont * 1.15 +
+        (detailLines ? 8 + detailLines * 20 : 0),
     );
     const slot = this.layout.noteSlot(w, h);
     const sid = toShapeId(`note.${id}`);
@@ -253,7 +267,9 @@ export class BoardExecutor implements BoardPort {
       w,
       h,
     };
-    this.createAll([{ id: sid, type: SHAPE_TYPE.noteCard, x: slot.x, y: slot.y, props: { ...props } }]);
+    this.createAll([
+      { id: sid, type: SHAPE_TYPE.noteCard, x: slot.x, y: slot.y, props: { ...props } },
+    ]);
     this.registry.set(ref, { ids: [sid], bounds: slot });
     this.camera?.follow(slot, this.recent);
   }
@@ -290,7 +306,9 @@ export class BoardExecutor implements BoardPort {
   boundsOf(ref: string): Bounds | undefined {
     const entry = this.registry.get(ref);
     if (!entry) return undefined;
-    const live = entry.ids.map((id) => this.editor.getShapePageBounds(id)).filter((b): b is Bounds => Boolean(b));
+    const live = entry.ids
+      .map((id) => this.editor.getShapePageBounds(id))
+      .filter((b): b is Bounds => Boolean(b));
     return union(live) ?? entry.bounds;
   }
 
@@ -363,7 +381,8 @@ export class BoardExecutor implements BoardPort {
       if (u.opacity !== undefined) rec.opacity = u.opacity;
       records.push(rec);
     }
-    if (records.length) this.editor.run(() => this.editor.updateShapes(records), { history: 'ignore' });
+    if (records.length)
+      this.editor.run(() => this.editor.updateShapes(records), { history: 'ignore' });
   }
 
   private createAll(shapes: ShapeRecordInit[]): void {
@@ -386,7 +405,17 @@ export class BoardExecutor implements BoardPort {
   private remember(b: Bounds): void {
     const page = this.layout.pageArea;
     // Context only makes sense on the same page area.
-    this.recent = [...this.recent.filter((r) => r.y >= page.y && bottom(r) <= bottom(page)), b].slice(-3);
+    this.recent = [
+      ...this.recent.filter((r) => r.y >= page.y && bottom(r) <= bottom(page)),
+      b,
+    ].slice(-3);
+  }
+
+  /** A glyph path carried a non-finite coordinate: it was sanitised, but the font deserves a look. */
+  private reportInvalidGlyphs(tl: HandTextLayout, opId: string): void {
+    if (tl.invalidGlyphs.length === 0) return;
+    const chars = [...new Set(tl.invalidGlyphs)].map((c) => JSON.stringify(c)).join(' ');
+    this.warn('glyph-path', `non-finite glyph path coordinates sanitised for ${chars}`, opId);
   }
 
   private warn(code: BoardWarningCode, message: string, opId?: string): void {
@@ -398,7 +427,11 @@ export class BoardExecutor implements BoardPort {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const timeout = new Promise<GlyphSource>((resolve) => {
       timer = setTimeout(() => {
-        this.warn('font-unavailable', 'hand font not loaded in time; using CSS fallback metrics', opId);
+        this.warn(
+          'font-unavailable',
+          'hand font not loaded in time; using CSS fallback metrics',
+          opId,
+        );
         resolve(new FallbackFont());
       }, this.fontTimeoutMs);
     });
@@ -437,7 +470,11 @@ export class BoardExecutor implements BoardPort {
     }
   }
 
-  private async prepareText(op: BoardEvent, paceMs: number | null, style: InkTextStyle): Promise<Prepared> {
+  private async prepareText(
+    op: BoardEvent,
+    paceMs: number | null,
+    style: InkTextStyle,
+  ): Promise<Prepared> {
     const text = op.text.trim();
     if (!text) {
       this.warn('empty-text', `${op.op} with empty text`, op.id);
@@ -455,6 +492,7 @@ export class BoardExecutor implements BoardPort {
       seed: op.id,
       align: place === 'center' ? 'center' : 'left',
     });
+    this.reportInvalidGlyphs(tl, op.id);
     const w = Math.ceil(tl.width + 6);
     const h = Math.ceil(tl.height + (underline ? 14 : 0));
     const placed = this.layout.place({ w, h, place, ...(op.ref ? { ref: op.ref } : {}) });
@@ -473,10 +511,12 @@ export class BoardExecutor implements BoardPort {
       underline,
     };
     const pace = resolvePace(handwritingMs(inkTextUnits(text, underline)), paceMs);
-    const timeline = new Timeline().then(progressTrack(sid, pace.durationMs));
+    const timeline = new Timeline().append(progressTrack(sid, pace.durationMs));
     const b: Bounds = { x: placed.x, y: placed.y, w, h };
     return {
-      shapes: [{ id: sid, type: SHAPE_TYPE.inkText, x: placed.x, y: placed.y, props: { ...props } }],
+      shapes: [
+        { id: sid, type: SHAPE_TYPE.inkText, x: placed.x, y: placed.y, props: { ...props } },
+      ],
       timeline,
       bounds: b,
       register: [{ ref: op.id, ids: [sid], bounds: b }],
@@ -511,11 +551,19 @@ export class BoardExecutor implements BoardPort {
     const rows = Math.max(1, lines.length);
     const charW = TYPE.codeFont * TYPE.monoAdvance;
     const lineH = TYPE.codeFont * TYPE.codeLineHeight;
-    const innerW = Math.min(this.layout.content.w - FRAME_INSET * 2, Math.ceil(cols * charW + CODE_PADDING * 2));
+    const innerW = Math.min(
+      this.layout.content.w - FRAME_INSET * 2,
+      Math.ceil(cols * charW + CODE_PADDING * 2),
+    );
     const innerH = Math.ceil(rows * lineH + CODE_PADDING * 2);
     const frameW = innerW + FRAME_INSET * 2;
     const frameH = innerH + FRAME_INSET * 2;
-    const placed = this.layout.place({ w: frameW, h: frameH, place: op.place, ...(op.ref ? { ref: op.ref } : {}) });
+    const placed = this.layout.place({
+      w: frameW,
+      h: frameH,
+      place: op.place,
+      ...(op.ref ? { ref: op.ref } : {}),
+    });
 
     const frameId = toShapeId(`${op.id}.frame`);
     const codeId = toShapeId(op.id);
@@ -547,8 +595,8 @@ export class BoardExecutor implements BoardPort {
     const typeMs = typewriterMs(code.length);
     const pace = resolvePace(frameMs + typeMs, paceMs);
     const timeline = new Timeline()
-      .then(progressTrack(frameId, frameMs))
-      .then(progressTrack(codeId, typeMs), 80)
+      .append(progressTrack(frameId, frameMs))
+      .append(progressTrack(codeId, typeMs), 80)
       .stretch(pace.stretch);
     const b: Bounds = { x: placed.x, y: placed.y, w: frameW, h: frameH };
     return {
@@ -573,15 +621,20 @@ export class BoardExecutor implements BoardPort {
     const h =
       measured !== null && measured > 0
         ? Math.ceil(measured)
-        : Math.ceil(estimateMarkdownLines(blocks, charsPerLine) * fontSize * TYPE.mdLineHeight + MD_PADDING * 2);
+        : Math.ceil(
+            estimateMarkdownLines(blocks, charsPerLine) * fontSize * TYPE.mdLineHeight +
+              MD_PADDING * 2,
+          );
     const placed = this.layout.place({ w, h, place: op.place, ...(op.ref ? { ref: op.ref } : {}) });
     const sid = toShapeId(op.id);
     const props: MdBlockProps = { source, w, h, progress: 0, fontSize };
     const pace = resolvePace(typewriterMs(markdownCharCount(blocks)), paceMs);
-    const timeline = new Timeline().then(progressTrack(sid, pace.durationMs));
+    const timeline = new Timeline().append(progressTrack(sid, pace.durationMs));
     const b: Bounds = { x: placed.x, y: placed.y, w, h };
     return {
-      shapes: [{ id: sid, type: SHAPE_TYPE.mdBlock, x: placed.x, y: placed.y, props: { ...props } }],
+      shapes: [
+        { id: sid, type: SHAPE_TYPE.mdBlock, x: placed.x, y: placed.y, props: { ...props } },
+      ],
       timeline,
       bounds: b,
       register: [{ ref: op.id, ids: [sid], bounds: b }],
@@ -619,25 +672,39 @@ export class BoardExecutor implements BoardPort {
       const ids: string[] = [];
       if (node.kind !== 'note') {
         const sid = toShapeId(`${op.id}.${node.id}.s`);
-        const strokes = node.kind === 'circle' ? handEllipse(node.w, node.h, sid) : handRect(node.w, node.h, sid);
-        const s = this.strokeShape(sid, strokes, { x: nx, y: ny }, op.emphasis, 'sketch', STROKE_STYLE.size);
+        const strokes =
+          node.kind === 'circle' ? handEllipse(node.w, node.h, sid) : handRect(node.w, node.h, sid);
+        const s = this.strokeShape(
+          sid,
+          strokes,
+          { x: nx, y: ny },
+          op.emphasis,
+          'sketch',
+          STROKE_STYLE.size,
+        );
         shapes.push(s.shape);
         ids.push(sid);
-        timeline.then(progressTrack(sid, penTravelMs(s.length)), 60);
+        timeline.append(progressTrack(sid, penTravelMs(s.length)), 60);
       }
       const label = node.label.trim();
       if (label) {
         const tid = toShapeId(`${op.id}.${node.id}.t`);
         const fontSize = node.kind === 'note' ? TYPE.labelFont * 0.85 : TYPE.labelFont;
         const emphasis: Emphasis = node.kind === 'note' ? 'muted' : op.emphasis;
-        const tl = layoutHandText(font, label, { fontSize, maxWidth: node.w - 16, seed: tid, align: 'center' });
+        const tl = layoutHandText(font, label, {
+          fontSize,
+          maxWidth: node.w - 16,
+          seed: tid,
+          align: 'center',
+        });
+        this.reportInvalidGlyphs(tl, op.id);
         const textShape = this.textShape(tid, label, tl, 'label', emphasis, {
           x: nx + (node.w - tl.width) / 2,
           y: ny + (node.h - tl.height) / 2,
         });
         shapes.push(textShape);
         ids.push(tid);
-        timeline.then(progressTrack(tid, handwritingMs(label.length)), 40);
+        timeline.append(progressTrack(tid, handwritingMs(label.length)), 40);
       }
       const nb: Bounds = { x: nx, y: ny, w: node.w, h: node.h };
       register.push({ ref: `${op.id}.${node.id}`, ids, bounds: nb });
@@ -659,11 +726,16 @@ export class BoardExecutor implements BoardPort {
       );
       shapes.push(s.shape);
       allIds.push(eid);
-      timeline.then(progressTrack(eid, penTravelMs(s.length)), 80);
+      timeline.append(progressTrack(eid, penTravelMs(s.length)), 80);
       const label = edge.label.trim();
       if (label) {
         const tid = toShapeId(`${op.id}.e${i}.t`);
-        const tl = layoutHandText(font, label, { fontSize: TYPE.labelFont * 0.85, maxWidth: 220, seed: tid });
+        const tl = layoutHandText(font, label, {
+          fontSize: TYPE.labelFont * 0.85,
+          maxWidth: 220,
+          seed: tid,
+        });
+        this.reportInvalidGlyphs(tl, op.id);
         shapes.push(
           this.textShape(tid, label, tl, 'label', 'muted', {
             x: origin.x + edge.labelAt.x - tl.width / 2,
@@ -671,7 +743,7 @@ export class BoardExecutor implements BoardPort {
           }),
         );
         allIds.push(tid);
-        timeline.then(progressTrack(tid, handwritingMs(label.length)), 40);
+        timeline.append(progressTrack(tid, handwritingMs(label.length)), 40);
       }
     });
 
@@ -703,7 +775,7 @@ export class BoardExecutor implements BoardPort {
     }
     const s = this.strokeShape(sid, strokes, origin, emphasis, 'highlight', 3.6);
     const pace = resolvePace(penTravelMs(s.length), paceMs);
-    const timeline = new Timeline().then(progressTrack(sid, pace.durationMs));
+    const timeline = new Timeline().append(progressTrack(sid, pace.durationMs));
     return {
       shapes: [s.shape],
       timeline,
@@ -731,22 +803,33 @@ export class BoardExecutor implements BoardPort {
     );
     const shapes: ShapeRecordInit[] = [s.shape];
     const ids = [sid];
-    const timeline = new Timeline().then(progressTrack(sid, penTravelMs(s.length)));
+    const timeline = new Timeline().append(progressTrack(sid, penTravelMs(s.length)));
     let bounds: Bounds = s.bounds;
     const label = op.text.trim();
     if (label) {
       const font = await this.font(op.id);
       const tid = toShapeId(`${op.id}.t`);
-      const tl = layoutHandText(font, label, { fontSize: TYPE.labelFont, maxWidth: 260, seed: tid });
+      const tl = layoutHandText(font, label, {
+        fontSize: TYPE.labelFont,
+        maxWidth: 260,
+        seed: tid,
+      });
       const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
       const len = Math.hypot(end.x - start.x, end.y - start.y) || 1;
       const nx = (end.y - start.y) / len;
       const ny = -(end.x - start.x) / len;
       const at = { x: mid.x + nx * 18 - tl.width / 2, y: mid.y + ny * 18 - tl.height / 2 };
-      const t = this.textShape(tid, label, tl, 'label', op.emphasis === 'ink' ? 'muted' : op.emphasis, at);
+      const t = this.textShape(
+        tid,
+        label,
+        tl,
+        'label',
+        op.emphasis === 'ink' ? 'muted' : op.emphasis,
+        at,
+      );
       shapes.push(t);
       ids.push(tid);
-      timeline.then(progressTrack(tid, handwritingMs(label.length)), 60);
+      timeline.append(progressTrack(tid, handwritingMs(label.length)), 60);
       bounds = union([bounds, { x: at.x, y: at.y, w: tl.width, h: tl.height }]) ?? bounds;
     }
     const pace = resolvePace(timeline.totalMs, paceMs);
@@ -777,7 +860,8 @@ export class BoardExecutor implements BoardPort {
       // Whether the fade finished or was cancelled, half-erased ink is wrong:
       // the shapes go, and the refs with them.
       onSettled: () => {
-        if (idList.length) this.editor.run(() => this.editor.deleteShapes(idList), { history: 'ignore' });
+        if (idList.length)
+          this.editor.run(() => this.editor.deleteShapes(idList), { history: 'ignore' });
         for (const id of idList) this.typeById.delete(id);
         for (const [key, e] of this.registry) {
           if (e.ids.some((id) => ids.has(id))) this.registry.delete(key);
@@ -860,4 +944,3 @@ function inset(p: Point, towards: Point, d: number): Point {
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
-

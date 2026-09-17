@@ -1,8 +1,8 @@
 import 'tldraw/tldraw.css';
 import './styles/board.css';
 import caveatUrl from '@fontsource/caveat/files/caveat-latin-400-normal.woff?url';
-import type { BoardEvent, NoteEvent } from '@pen/contracts';
 import type { BoardExecution, BoardPort } from '@pen/conductor';
+import type { BoardEvent, NoteEvent } from '@pen/contracts';
 import {
   type ReactNode,
   type Ref,
@@ -120,38 +120,43 @@ export function Board({
   onReadyRef.current = onReady;
   onWarningRef.current = onWarning;
 
-  useImperativeHandle<BoardController | null, BoardController | null>(ref, () => controller, [controller]);
+  useImperativeHandle<BoardController | null, BoardController | null>(ref, () => controller, [
+    controller,
+  ]);
 
   // Load the hand font as early as possible; ink-text upgrades from CSS text once it lands.
   useEffect(() => {
     const url = fontUrl ?? caveatUrl;
-    loadHandFont(() => fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))).catch(
-      (err: unknown) => {
-        onWarningRef.current?.({
-          code: 'font-unavailable',
-          message: `hand font failed to load: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      },
-    );
+    loadHandFont(() =>
+      fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`)))),
+    ).catch((err: unknown) => {
+      onWarningRef.current?.({
+        code: 'font-unavailable',
+        message: `hand font failed to load: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    });
   }, [fontUrl]);
 
-  const measureMarkdown = useCallback((source: string, width: number, fontSize: number): number | null => {
-    const host = measureRef.current;
-    if (!host) return null;
-    // Render the same markup the shape uses, off-screen, and read its height.
-    const el = document.createElement('div');
-    el.className = 'pen-md';
-    el.style.width = `${width}px`;
-    el.style.fontSize = `${fontSize}px`;
-    el.style.padding = '16px';
-    el.style.boxSizing = 'border-box';
-    // Our renderer escapes everything it emits, so this is inert markup.
-    el.innerHTML = renderMarkdownHtml(parseMarkdown(source));
-    host.appendChild(el);
-    const h = el.getBoundingClientRect().height;
-    host.removeChild(el);
-    return h > 0 ? h * 1.08 : null;
-  }, []);
+  const measureMarkdown = useCallback(
+    (source: string, width: number, fontSize: number): number | null => {
+      const host = measureRef.current;
+      if (!host) return null;
+      // Render the same markup the shape uses, off-screen, and read its height.
+      const el = document.createElement('div');
+      el.className = 'pen-md';
+      el.style.width = `${width}px`;
+      el.style.fontSize = `${fontSize}px`;
+      el.style.padding = '16px';
+      el.style.boxSizing = 'border-box';
+      // Our renderer escapes everything it emits, so this is inert markup.
+      el.innerHTML = renderMarkdownHtml(parseMarkdown(source));
+      host.appendChild(el);
+      const h = el.getBoundingClientRect().height;
+      host.removeChild(el);
+      return h > 0 ? h * 1.08 : null;
+    },
+    [],
+  );
 
   const handleMount = useCallback(
     (editor: Editor) => {
@@ -203,7 +208,11 @@ export function Board({
     [interactive, measureMarkdown],
   );
 
-  const classes = ['pen-board', interactive ? 'pen-board--interactive' : 'pen-board--static', className]
+  const classes = [
+    'pen-board',
+    interactive ? 'pen-board--interactive' : 'pen-board--static',
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -231,7 +240,10 @@ export function Board({
 function CameraLock({ interactive }: { interactive: boolean }) {
   const editor = useEditor();
   useEffect(() => {
-    editor.setCameraOptions({ isLocked: !interactive, wheelBehavior: interactive ? 'pan' : 'none' });
+    editor.setCameraOptions({
+      isLocked: !interactive,
+      wheelBehavior: interactive ? 'pan' : 'none',
+    });
   }, [editor, interactive]);
   return null;
 }

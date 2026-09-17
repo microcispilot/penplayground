@@ -14,10 +14,16 @@ export const boardShapeUtils: readonly TLAnyShapeUtilConstructor[] = [
   NoteCardShapeUtil,
 ];
 
-export { CodeBlockShapeUtil, InkStrokeShapeUtil, InkTextShapeUtil, MdBlockShapeUtil, NoteCardShapeUtil };
 export type { CodeBlockShape } from './code-block.js';
 export type { InkStrokeShape } from './ink-stroke.js';
 export type { InkTextShape } from './ink-text.js';
 export type { MdBlockShape } from './md-block.js';
 export type { NoteCardShape } from './note-card.js';
 export * from './props.js';
+export {
+  CodeBlockShapeUtil,
+  InkStrokeShapeUtil,
+  InkTextShapeUtil,
+  MdBlockShapeUtil,
+  NoteCardShapeUtil,
+};

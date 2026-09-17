@@ -37,6 +37,7 @@ export class RoomSession {
   private utteranceCounter = 0;
   private currentUtterance: string | null = null;
   private disposed = false;
+  private gestureArmed = false;
   private clockTimer: ReturnType<typeof setInterval> | null = null;
   private clockBase = 0;
   private clockAt = 0;
@@ -49,8 +50,10 @@ export class RoomSession {
     this.player = new PcmPlayer({
       onError: (code, detail) => {
         console.warn('[playback]', code, detail);
-        if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED')
+        if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED') {
           set({ notice: { text: 'Tap anywhere to enable sound.', tone: 'neutral' } });
+          this.armSoundGesture();
+        }
       },
       onSayStart: (id) => this.conductor.audioEvents.onSayStart(id),
       onSayEnd: (id, ms) => this.conductor.audioEvents.onSayEnd(id, ms),
@@ -135,6 +138,8 @@ export class RoomSession {
           this.conductor.handleServer(m);
           set({ phase: this.conductor.getPhase() });
           if (m.kind === 'prep') set({ preparation: m.progress });
+          if (m.kind === 'cue' && m.cue.event.type === 'note')
+            set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
           if (
             m.kind === 'error' &&
             (m.code === 'SESSION_NOT_FOUND' ||
@@ -151,9 +156,24 @@ export class RoomSession {
     );
   }
 
+  /** Browsers may suspend audio until a gesture on this page: the next tap primes the context and clears the notice. */
+  private armSoundGesture(): void {
+    if (typeof document === 'undefined' || this.gestureArmed) return;
+    this.gestureArmed = true;
+    const onTap = () => {
+      this.gestureArmed = false;
+      void this.player
+        .prime(AUDIO.ttsSampleRate)
+        .then(() => useRoomStore.getState().set({ notice: null }));
+    };
+    document.addEventListener('pointerdown', onTap, { once: true, capture: true });
+  }
+
   /** Call from a user gesture (Start / Join click) so the AudioContext is unlocked. */
   async start(): Promise<void> {
     await this.player.prime(AUDIO.ttsSampleRate);
+    // React StrictMode mounts twice: the first instance is disposed before prime() resolves.
+    if (this.disposed) return;
     this.client.connect();
     this.clockTimer = setInterval(() => {
       const st = useRoomStore.getState();
