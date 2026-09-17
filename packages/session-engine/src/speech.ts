@@ -107,7 +107,7 @@ export class SayPipeline {
     let first = true;
     try {
       const stream = this.opts.synthesizer.synthesize({
-        text: say.text,
+        text: spokenText(say.text),
         voice: this.opts.voice,
         sampleRate: this.opts.sampleRate,
         tone: say.tone,
