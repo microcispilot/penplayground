@@ -18,7 +18,8 @@
       "!**/.pen-data*",
       "!**/.pglite",
       "!**/drizzle/meta",
-      "!services/api/data"
+      "!services/api/data",
+      "!.claude"
     ]
   },
   "formatter": {
