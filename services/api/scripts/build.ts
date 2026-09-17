@@ -17,6 +17,8 @@ import { build, type Plugin } from 'esbuild';
  *   pino / pino-pretty     worker-thread transports resolved from pino's own location
  *   @sentry/node           module require hooks and lazy instrumentation requires
  *   undici                 large CJS with optional `node:sqlite`/dispatcher requires
+ *   playwright(-core)      locates browsers and its driver relative to its own package
+ *   fasttext.wasm.js       loads its .wasm and the lid.176 model relative to its own package
  *
  * Output: dist/main.js (+ .map, meta.json) and dist/drizzle (migrations copied beside the bundle).
  */
@@ -34,6 +36,9 @@ const EXTERNAL = [
   'pino-pretty',
   '@sentry/node',
   'undici',
+  'playwright',
+  'playwright-core',
+  'fasttext.wasm.js',
 ];
 
 const externalPackages: Plugin = {
