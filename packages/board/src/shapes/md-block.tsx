@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { HTMLContainer, T, type TLBaseShape } from 'tldraw';
 import { type MdBlock, type MdInline, parseMarkdown } from '../markdown.js';
 import { PaperShapeUtil } from './paper-shape.js';
@@ -67,8 +67,8 @@ function countChars(blocks: readonly MdBlock[]): number {
   return n;
 }
 
-function renderInlines(inlines: readonly MdInline[], budget: Budget): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
+function renderInlines(inlines: readonly MdInline[], budget: Budget): ReactNode[] {
+  const out: ReactNode[] = [];
   inlines.forEach((n, i) => {
     if (budget.left <= 0) return;
     switch (n.type) {
@@ -98,7 +98,7 @@ function renderInlines(inlines: readonly MdInline[], budget: Budget): React.Reac
   return out;
 }
 
-function renderBlock(b: MdBlock, key: number, budget: Budget): React.ReactNode {
+function renderBlock(b: MdBlock, key: number, budget: Budget): ReactNode {
   switch (b.type) {
     case 'heading': {
       const Tag = `h${b.level}` as 'h1' | 'h2' | 'h3';

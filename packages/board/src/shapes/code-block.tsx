@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { HTMLContainer, T, type TLBaseShape } from 'tldraw';
 import { PaperShapeUtil } from './paper-shape.js';
 import { CODE_PADDING, type CodeBlockProps, SHAPE_TYPE } from './props.js';
@@ -37,11 +38,11 @@ export class CodeBlockShapeUtil extends PaperShapeUtil<CodeBlockShape> {
     const budget = Math.floor(Math.max(0, Math.min(1, progress)) * code.length);
     const typing = progress > 0 && progress < 1;
     let left = budget;
-    const rows: JSX.Element[] = [];
+    const rows: ReactElement[] = [];
     for (let li = 0; li < lines.length; li++) {
       if (left <= 0 && li > 0) break;
       const line = lines[li] ?? [];
-      const spans: JSX.Element[] = [];
+      const spans: ReactElement[] = [];
       for (let ti = 0; ti < line.length; ti++) {
         const tok = line[ti];
         if (!tok || left <= 0) break;

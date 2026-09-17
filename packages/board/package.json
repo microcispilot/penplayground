@@ -17,6 +17,7 @@
     "@pen/conductor": "workspace:*",
     "@pen/contracts": "workspace:*",
     "@pen/design": "workspace:*",
+    "@tldraw/tlschema": "5.4.2",
     "opentype.js": "2.0.0",
     "perfect-freehand": "1.2.3",
     "shiki": "4.4.3",

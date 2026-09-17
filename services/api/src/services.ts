@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PlanCode } from '@pen/contracts';
+import { type Connection, connect, ParticipantRepository, SessionRepository } from '@pen/db';
 import {
   type CostMeter,
   FakeLanguageModel,
@@ -24,7 +25,6 @@ import { demoScripts } from './demo-scripts.js';
 import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
-import { SessionStore } from './session-store.js';
 
 export interface Services {
   cfg: Config;
@@ -33,7 +33,9 @@ export interface Services {
   synthesizer: SpeechSynthesizer;
   voices: VoiceResolver;
   ledger: FileLedger;
-  sessions: SessionStore;
+  db: Connection;
+  sessions: SessionRepository;
+  participants: ParticipantRepository;
   modelFor(plan: PlanCode): LanguageModel;
   acquirer: KnowledgeAcquirer | null;
   costs: CostLedger;
@@ -69,10 +71,10 @@ export class CostLedger implements CostMeter {
 const here = dirname(fileURLToPath(import.meta.url));
 export const DATA_DIR = join(here, '..', 'data');
 
-export function buildServices(
+export async function buildServices(
   cfg: Config,
   opts: { acquirerFactory?: (s: Omit<Services, 'acquirer'>) => KnowledgeAcquirer | null } = {},
-): Services {
+): Promise<Services> {
   const onten = createOnten({ dataDir: join(cfg.PEN_DATA_DIR, 'onten') });
   const experts = ExpertCatalog.fromJson(
     JSON.parse(readFileSync(join(DATA_DIR, 'experts', 'catalog.json'), 'utf8')),
@@ -134,8 +136,22 @@ export function buildServices(
   };
 
   const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
-  const sessions = new SessionStore(join(cfg.PEN_DATA_DIR, 'sessions'));
-  const base = { cfg, onten, experts, synthesizer, voices, ledger, sessions, modelFor, costs };
+  const db = await connect(cfg.DATABASE_URL);
+  const sessions = new SessionRepository(db.db);
+  const participants = new ParticipantRepository(db.db);
+  const base = {
+    cfg,
+    onten,
+    experts,
+    synthesizer,
+    voices,
+    ledger,
+    db,
+    sessions,
+    participants,
+    modelFor,
+    costs,
+  };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;
   return { ...base, acquirer };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactElement, useEffect, useMemo, useState } from 'react';
 import { SVGContainer, T, type TLBaseShape } from 'tldraw';
 import { FallbackFont, type GlyphSource, getHandFont, whenHandFont } from '../font.js';
 import { type HandTextLayout, layoutHandText } from '../glyphs.js';
@@ -114,7 +114,7 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
   const textUnits = props.text.length;
   const revealed = Math.min(textUnits, revealedUnits);
   const strokeW = Math.max(0.6, props.fontSize * 0.05);
-  const nodes: JSX.Element[] = [];
+  const nodes: ReactElement[] = [];
   let nib: { x: number; y: number } | null = null;
 
   for (const line of layout.lines) {
@@ -126,7 +126,7 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
       const partial = frac < 1 && clipId !== null;
       const transform = g.rotation ? `rotate(${g.rotation.toFixed(2)} ${g.x.toFixed(2)} ${g.y.toFixed(2)})` : undefined;
       const key = `${line.baseline}-${g.index}`;
-      let el: JSX.Element;
+      let el: ReactElement;
       if (g.kind === 'outline') {
         el = <path key={key} d={g.d} transform={transform} fill={color} stroke={color} strokeWidth={strokeW * 0.5} strokeLinejoin="round" />;
       } else if (g.kind === 'stroke') {
@@ -181,7 +181,7 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
   }
 
   // Title underline: the last UNDERLINE_UNITS of progress, drawn as a marker stroke.
-  let underline: JSX.Element | null = null;
+  let underline: ReactElement | null = null;
   if (props.underline && revealedUnits > textUnits) {
     const frac = Math.min(1, (revealedUnits - textUnits) / UNDERLINE_UNITS);
     const y = layout.height + 2;

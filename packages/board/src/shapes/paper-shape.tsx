@@ -1,4 +1,5 @@
-import { Rectangle2d, ShapeUtil, type TLBaseShape } from 'tldraw';
+import { Rectangle2d, ShapeUtil, type TLShape } from 'tldraw';
+import './augment.js';
 import type { Emphasis } from '@pen/contracts';
 
 /**
@@ -6,7 +7,7 @@ import type { Emphasis } from '@pen/contracts';
  * viewer edits, resizes, rotates, binds arrows to, or snaps against. Each
  * shape's geometry is its `w × h` box.
  */
-export abstract class PaperShapeUtil<S extends TLBaseShape<string, { w: number; h: number }>> extends ShapeUtil<S> {
+export abstract class PaperShapeUtil<S extends TLShape & { props: { w: number; h: number } }> extends ShapeUtil<S> {
   override canEdit(): boolean {
     return false;
   }
@@ -31,11 +32,12 @@ export abstract class PaperShapeUtil<S extends TLBaseShape<string, { w: number; 
   override isAspectRatioLocked(): boolean {
     return true;
   }
-  getGeometry(shape: S): Rectangle2d {
+  override getGeometry(shape: S): Rectangle2d {
     return new Rectangle2d({ width: Math.max(1, shape.props.w), height: Math.max(1, shape.props.h), isFilled: true });
   }
-  indicator(shape: S) {
-    return <rect width={Math.max(1, shape.props.w)} height={Math.max(1, shape.props.h)} rx={4} />;
+  /** No selection indicator: the expert's ink is never selected by viewers. */
+  getIndicatorPath(): undefined {
+    return undefined;
   }
 }
 

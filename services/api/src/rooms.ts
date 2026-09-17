@@ -6,11 +6,11 @@ import type {
   ServerMessage,
 } from '@pen/contracts';
 import { encodeAudioFrame } from '@pen/contracts';
+import type { SessionRecord } from '@pen/db';
 import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
 import { observer } from './observability.js';
 import type { Services } from './services.js';
-import type { SessionRecord } from './session-store.js';
 
 interface Seat {
   participantId: ParticipantId;
@@ -128,13 +128,13 @@ export class RoomRegistry {
       views: 0,
       thumbnail: null,
     };
-    services.sessions.upsert(record);
+    await services.sessions.upsert(record);
     const live: LiveRoom = { room, seats, record, createdAt: Date.now() };
     this.rooms.set(sessionId, live);
-    void room.start().then(() => {
+    void room.start().then(async () => {
       const state = room.getState();
       if (state.plan)
-        services.sessions.patch(sessionId, {
+        await services.sessions.patch(sessionId, {
           title: state.plan.title,
           promise: state.plan.promise,
           segments: state.plan.segments.length,
@@ -203,7 +203,7 @@ export class RoomRegistry {
     if (!live) return;
     await live.room.end();
     const state = live.room.getState();
-    this.services.sessions.patch(sessionId, {
+    await this.services.sessions.patch(sessionId, {
       endedAt: Date.now(),
       durationMs: state.clockMs,
       segments: state.plan?.segments.length ?? 0,

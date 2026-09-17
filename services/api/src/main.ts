@@ -10,7 +10,7 @@ import { buildServices, DATA_DIR } from './services.js';
 
 const cfg = loadConfig();
 const sentry = initSentry(cfg);
-const services = buildServices(cfg, { acquirerFactory: (s) => createAcquirer(s) });
+const services = await buildServices(cfg, { acquirerFactory: (s) => createAcquirer(s) });
 await seedPacks(services.onten, join(DATA_DIR, 'packs'));
 const { app, rooms, injectWebSocket } = buildApp(services);
 
@@ -35,7 +35,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
     logger.info({ signal }, 'shutting down');
-    server.close(() => process.exit(0));
+    server.close(() => void services.db.close().finally(() => process.exit(0)));
     setTimeout(() => process.exit(0), 3000).unref();
   });
 }

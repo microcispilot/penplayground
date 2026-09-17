@@ -88,6 +88,7 @@ export function buildApp(services: Services): App {
     const name = safeName(body.success ? body.data.name : undefined);
     const plan = services.cfg.PEN_DEV_PLAN ?? 'free';
     const issued = await identity.issue({ name, plan, anonymous: true });
+    await services.participants.ensure({ id: issued.claims.sub, name, plan, anonymous: true });
     return c.json({
       token: issued.token,
       participant: { id: issued.claims.sub, name: issued.claims.name, plan: issued.claims.plan },
@@ -115,11 +116,11 @@ export function buildApp(services: Services): App {
     return c.body(Readable.toWeb(createReadStream(p)) as ReadableStream);
   });
 
-  app.get('/api/sessions', (c) => c.json({ sessions: services.sessions.listPublic() }));
+  app.get('/api/sessions', async (c) => c.json({ sessions: await services.sessions.listPublic() }));
   app.get('/api/sessions/mine', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    return c.json({ sessions: services.sessions.listForHost(claims.sub) });
+    return c.json({ sessions: await services.sessions.listForHost(claims.sub) });
   });
   app.post('/api/sessions', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
@@ -127,9 +128,7 @@ export function buildApp(services: Services): App {
     if (!allowSession(claims.sub)) return c.json({ error: 'RATE_LIMITED' }, 429);
     const body = CreateSession.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
-    const today = services.sessions
-      .listForHost(claims.sub)
-      .filter((s) => Date.now() - s.startedAt < 86_400_000).length;
+    const today = await services.sessions.countToday(claims.sub);
     if (claims.plan === 'free' && today >= 3)
       return c.json(
         {
@@ -147,9 +146,9 @@ export function buildApp(services: Services): App {
     });
     return c.json({ session: live.record, state: live.room.getState() }, 201);
   });
-  app.get('/api/sessions/:id', (c) => {
+  app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
-    const record = services.sessions.get(id);
+    const record = await services.sessions.get(id);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
     const live = rooms.get(id);
     return c.json({
@@ -159,11 +158,11 @@ export function buildApp(services: Services): App {
       expert: services.experts.get(record.expertId),
     });
   });
-  app.get('/api/sessions/:id/ledger', (c) => {
+  app.get('/api/sessions/:id/ledger', async (c) => {
     const id = c.req.param('id');
-    const record = services.sessions.get(id);
+    const record = await services.sessions.get(id);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
-    services.sessions.patch(id, { views: record.views + 1 });
+    await services.sessions.recordView(id);
     return c.json({
       session: record,
       entries: services.ledger.read(id),
@@ -188,8 +187,8 @@ export function buildApp(services: Services): App {
   });
 
   /** Share page metadata: crawlers get OG tags, humans get redirected to the app. */
-  app.get('/s/:id', (c) => {
-    const record = services.sessions.get(c.req.param('id'));
+  app.get('/s/:id', async (c) => {
+    const record = await services.sessions.get(c.req.param('id'));
     if (!record) return c.notFound();
     const expert = services.experts.get(record.expertId);
     const target = `${services.cfg.PEN_PUBLIC_URL}/sessions/${record.id}`;

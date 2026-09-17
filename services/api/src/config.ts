@@ -12,6 +12,8 @@ const Env = z.object({
   PEN_API_URL: z.string().url().default('http://localhost:4000'),
   PEN_JWT_SECRET: z.string().min(32, 'PEN_JWT_SECRET must be at least 32 characters'),
   PEN_DATA_DIR: z.string().default('.pen-data'),
+  /** pglite://<dir> | pglite://memory | postgres://… */
+  DATABASE_URL: z.string().default('pglite://.pen-data/db'),
 
   PEN_LLM_PROVIDER: z.enum(['openai', 'openai-compatible', 'fake']).default('openai'),
   PEN_LLM_MODEL: z.string().default('gpt-5.6-luna'),

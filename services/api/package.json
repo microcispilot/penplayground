@@ -25,7 +25,8 @@
     "tsx": "4.23.13",
     "ws": "8.21.3",
     "zod": "4.6.5",
-    "@pen/knowledge": "workspace:*"
+    "@pen/knowledge": "workspace:*",
+    "@pen/db": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.3",
