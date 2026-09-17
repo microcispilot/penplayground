@@ -1,7 +1,9 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
-import { ApiClient, type Participant } from '../api/client.js';
+import { ApiClient, type GoogleSignInOutcome, type Participant } from '../api/client.js';
 import type { Platform } from '../platform/types.js';
-import { identify, initAnalytics } from './analytics.js';
+import { identify, initAnalytics, resetAnalytics, track } from './analytics.js';
+import { bootMode } from './boot.js';
+import { forgetGoogleSelection } from './google.js';
 
 interface AppContextValue {
   platform: Platform;
@@ -9,7 +11,12 @@ interface AppContextValue {
   participant: Participant | null;
   /** Null while the anonymous participant is being issued; a string when it failed. */
   authError: string | null;
+  /** Rename in place; the participant keeps its id and its sessions. */
   setName(name: string): Promise<void>;
+  /** Attach a Google account (the ID token comes from Google's button). */
+  signInWithGoogle(idToken: string): Promise<GoogleSignInOutcome>;
+  /** Back to a fresh anonymous participant. */
+  signOut(): Promise<void>;
 }
 
 const Ctx = createContext<AppContextValue | null>(null);
@@ -18,10 +25,18 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
   const api = useMemo(() => new ApiClient(platform.apiUrl, platform.storage), [platform]);
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-
-  useEffect(() => initAnalytics(platform), [platform]);
+  // A headless export render is a pure player: no identity, no analytics (see lib/boot.ts).
+  const headless = useMemo(
+    () => typeof window !== 'undefined' && bootMode(window.location) === 'headless-render',
+    [],
+  );
 
   useEffect(() => {
+    if (!headless) initAnalytics(platform);
+  }, [platform, headless]);
+
+  useEffect(() => {
+    if (headless) return;
     let cancelled = false;
     api
       .ensureParticipant()
@@ -38,7 +53,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, headless]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -47,9 +62,23 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       participant,
       authError,
       setName: async (name: string) => {
-        platform.storage.remove('pen.token');
-        const p = await new ApiClient(platform.apiUrl, platform.storage).ensureParticipant(name);
+        setParticipant(await api.rename(name));
+      },
+      signInWithGoogle: async (idToken: string) => {
+        const { participant: p, outcome } = await api.signInWithGoogle(idToken);
         setParticipant(p);
+        identify(p.id);
+        track('sign_in', { provider: 'google', outcome });
+        return outcome;
+      },
+      signOut: async () => {
+        api.signOut();
+        forgetGoogleSelection();
+        resetAnalytics();
+        track('sign_out');
+        const p = await api.ensureParticipant();
+        setParticipant(p);
+        identify(p.id);
       },
     }),
     [platform, api, participant, authError],

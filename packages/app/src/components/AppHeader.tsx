@@ -82,11 +82,19 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
           type="button"
           className="ml-1 flex h-9 items-center gap-2 rounded-full py-1 pr-3 pl-1 text-[14px] font-medium text-fg transition-colors hover:bg-fg/[0.06]"
           onClick={() => setNaming(true)}
+          aria-label={
+            participant
+              ? participant.anonymous
+                ? `Account: ${participant.name} (not signed in)`
+                : `Account: ${participant.name}`
+              : 'Account'
+          }
+          data-testid="account-chip"
         >
           <Avatar
             name={participant?.name ?? '?'}
             hue={participant ? hueOf(participant.id) : 218}
-            src={api.portraitUrl(null)}
+            src={participant?.avatarUrl ?? api.portraitUrl(null)}
             size={28}
           />
           <span className="max-w-[140px] truncate">

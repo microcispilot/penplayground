@@ -13,7 +13,10 @@
 # Optional: PEN_WITH_RENDER=0 to skip the Playwright+ffmpeg runtime (no MP4 export),
 # PEN_DEPLOY_ROOT (default /srv/pen-playground), PEN_DEPLOY_EXPECTED_HOSTNAME (default
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
-# VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST (web build args).
+# VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /
+# VITE_GOOGLE_CLIENT_ID (web build args),
+# SENTRY_AUTH_TOKEN (source maps for both images are uploaded under release = git sha when set;
+# passed to docker as a BuildKit secret, never as a build arg).
 #
 # Rollback: PEN_IMAGE_TAG=<previous tag> deploy/deploy.sh --skip-build --skip-ship
 # (the host keeps every shipped tag; `docker image ls pen-playground-api` on the host lists them).
@@ -86,20 +89,31 @@ echo "host: $PEN_DEPLOY_HOST ($remote_hostname)   root: $PEN_DEPLOY_ROOT   tag: 
 
 # ── 1. build (linux/amd64) ───────────────────────────────────────────────────
 if [ "$SKIP_BUILD" = 0 ]; then
+  # Source maps: the token rides as a BuildKit secret (not in the image, not in its history).
+  sentry_args=()
+  if [ -n "${SENTRY_AUTH_TOKEN:-}" ]; then
+    sentry_args=(--secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN)
+    [ -n "${SENTRY_ORG:-}" ] && sentry_args+=(--build-arg "SENTRY_ORG=$SENTRY_ORG")
+    echo "  sentry: source maps will be uploaded as release $GIT_SHA"
+  else
+    echo "  sentry: SENTRY_AUTH_TOKEN unset, source maps stay local"
+  fi
+
   log "building $API_IMAGE (linux/amd64)"
   docker buildx build --platform linux/amd64 --load \
     -f services/api/Dockerfile \
     --build-arg "GIT_SHA=$GIT_SHA" \
     --build-arg "WITH_RENDER=${PEN_WITH_RENDER:-1}" \
+    "${sentry_args[@]}" \
     -t "$API_IMAGE" -t pen-playground-api:latest .
 
   log "building $WEB_IMAGE (linux/amd64)"
   web_args=(--build-arg "GIT_SHA=$GIT_SHA")
-  for v in VITE_TLDRAW_LICENSE_KEY VITE_SENTRY_DSN VITE_POSTHOG_TOKEN VITE_POSTHOG_HOST; do
+  for v in VITE_TLDRAW_LICENSE_KEY VITE_SENTRY_DSN VITE_POSTHOG_TOKEN VITE_POSTHOG_HOST VITE_GOOGLE_CLIENT_ID; do
     if [ -n "${!v:-}" ]; then web_args+=(--build-arg "$v=${!v}"); fi
   done
   docker buildx build --platform linux/amd64 --load \
-    -f apps/web/Dockerfile "${web_args[@]}" \
+    -f apps/web/Dockerfile "${web_args[@]}" "${sentry_args[@]}" \
     -t "$WEB_IMAGE" -t pen-playground-web:latest .
 else
   log "skipping build (--skip-build)"

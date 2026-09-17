@@ -17,19 +17,21 @@
 - [x] Persistence (Drizzle, PGlite in dev, Postgres-ready) behind the session index and participants
 - [x] Billing: Stripe checkout/portal/webhook, plan from the participant row (needs price ids)
 - [x] Replay from the ledger through the conductor
-- [ ] Google sign-in (accounts on the same participant row)
+- [x] Google sign-in (accounts on the same participant row; behind GOOGLE_CLIENT_ID / VITE_GOOGLE_CLIENT_ID; desktop hidden)
 - [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
 - [ ] LiveKit rooms audio (human-to-human voice)
-- [ ] Desktop: package and sign (needs Apple ID / Windows cert)
+- [x] Desktop: unsigned package proven (`pnpm --filter @pen/desktop package` → out/Pen Playground-darwin-arm64, 329 MB)
+- [ ] Desktop: sign + notarise (needs Apple ID / Windows cert); Google sign-in on desktop (loopback flow)
 - [x] Sentry projects (pen-academy-api/web/desktop)
-- [ ] Sentry source maps upload (web + api)
+- [x] Sentry source maps upload (web + api; release = git sha; BuildKit secret in deploy.sh)
 - [x] Server-side STT relay (ws-relay to the 5090 box, Deepgram, AssemblyAI); warm-up at boot
 - [x] Listen test with Fish Audio (s2.1-pro-free)
 - [x] Pace: host-set, synchronized (voice + board + captions), presets, persisted; teacher-rhythm default (ADR-0010; listen test `pnpm --filter @pen/api listen:pace`)
 - [ ] Pace follow-ups: apply a pace change to sentences already banked on the clients (re-take instead of waiting ≤ 2 sentences); a spoken "faster" command; scrubber on the replay screen
 - [ ] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified
-- [ ] Stripe webhook endpoint registered
-- [ ] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
-- [ ] Fake model: completion for the knowledge outline purpose (Sentry issue)
+- [x] Stripe webhook endpoint registered (sandbox we_1UGlYMRiNibGZsZpHljObkgl; `pnpm --filter @pen/api stripe:webhook`)
+- [x] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
+- [x] Fake model: completion for the knowledge outline purpose (Sentry issue) — locked by test
+- [x] Dev DB: migration timestamp guard (journal `when` vs applied `created_at`, by hash)
 - [ ] Session thumbnails: one background structured call → sketch spec → SVG/PNG; cards + OG use it
 - [ ] Video ads (Google IMA, Ad Manager tag), skippable, measured, ads.txt + runbook

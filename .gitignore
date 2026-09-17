@@ -16,3 +16,6 @@ apps/desktop/out
 .tmp
 .env-use
 .pen-data*
+
+# Claude Code worktrees and session files
+.claude/

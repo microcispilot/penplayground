@@ -6,7 +6,8 @@ import { defineConfig, devices } from '@playwright/test';
  * is exercised deterministically without keys.
  */
 const apiPort = process.env.PEN_API_PORT ?? '4010';
-// Both ports are overridable so two checkouts (worktrees) can run the suite at once.
+// Both ports are overridable so the suite can run next to a dev server (or another checkout's)
+// without reusing it: PEN_API_PORT=4410 PEN_WEB_PORT=5183 pnpm --filter @pen/web e2e
 const webPort = process.env.PEN_WEB_PORT ?? '5173';
 
 export default defineConfig({

@@ -132,4 +132,5 @@ export const webPlatform: Platform = {
         host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com',
       }
     : null,
+  googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || null,
 };

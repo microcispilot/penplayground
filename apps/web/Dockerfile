@@ -8,6 +8,11 @@
 #
 # VITE_API_URL is deliberately left unset so the app talks to its own origin (the WebSocket URL is
 # derived from it; an empty string would break that). Empty build args are unset before the build.
+#
+# Sentry source maps: mount the auth token as a BuildKit secret and the build uploads the maps
+# under release = GIT_SHA, then deletes them from dist (they are never served):
+#   --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN --build-arg GIT_SHA=$(git rev-parse HEAD)
+# Without the secret the build is identical minus the upload.
 # Base tags verified on Docker Hub (library/node, library/nginx) on 2026-09-16.
 
 ARG NODE_IMAGE=node:22-alpine
@@ -41,11 +46,18 @@ ARG VITE_TLDRAW_LICENSE_KEY=""
 ARG VITE_SENTRY_DSN=""
 ARG VITE_POSTHOG_TOKEN=""
 ARG VITE_POSTHOG_HOST=""
+ARG VITE_GOOGLE_CLIENT_ID=""
+ARG GIT_SHA=unknown
+ARG SENTRY_ORG=microcis-0s
 COPY . .
-RUN sh -eu -c ' \
-      for v in VITE_API_URL VITE_TLDRAW_LICENSE_KEY VITE_SENTRY_DSN VITE_POSTHOG_TOKEN VITE_POSTHOG_HOST; do \
+RUN --mount=type=secret,id=sentry_auth_token \
+    sh -eu -c ' \
+      for v in VITE_API_URL VITE_TLDRAW_LICENSE_KEY VITE_SENTRY_DSN VITE_POSTHOG_TOKEN VITE_POSTHOG_HOST VITE_GOOGLE_CLIENT_ID; do \
         eval "val=\${$v:-}"; [ -n "$val" ] || unset "$v"; \
       done; \
+      if [ -s /run/secrets/sentry_auth_token ]; then \
+        export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" SENTRY_RELEASE="$GIT_SHA"; \
+      fi; \
       pnpm --filter @pen/web build'
 
 # ── runtime ───────────────────────────────────────────────────────────────────

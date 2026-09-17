@@ -86,7 +86,8 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
    ```
 
    `SEARXNG_URL=http://searxng:8080` is already in the template. `.env` (image tag + SearXNG
-   secret) is maintained by the script.
+   secret) is maintained by the script. `GOOGLE_CLIENT_ID` and `STRIPE_WEBHOOK_SECRET` are
+   described under [Google sign-in](#google-sign-in) and [Stripe webhook](#stripe-webhook).
 
 2. **Deploy**: from the repo root, `deploy/deploy.sh`. It builds both images for linux/amd64
    (tag = git short sha), `docker save | ssh docker load`s only what the host lacks, rsyncs the
@@ -121,6 +122,80 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
    must start speaking (Fish Audio) and the board must draw. `docker compose logs -f api` on the
    host shows the room events; Sentry (`SENTRY_DSN`) receives failures.
 
+## Google sign-in
+
+Accounts live on the same `participants` row as anonymous learners: signing in upgrades the row
+in place (same id, so every session and the current bearer stay valid), a Google account that
+already has a row gets that row back on any device (and adopts the anonymous caller's sessions),
+and a fresh Google identity gets a new row. The ID token is minted by Google Identity Services in
+the browser (button only, One Tap off) and verified server-side by `google-auth-library` against
+`GOOGLE_CLIENT_ID` (`services/api/src/google.ts`; `POST /api/identity/google`).
+
+1. Google Cloud Console → APIs & Services → Credentials → **OAuth client ID**, type *Web
+   application*. Authorised JavaScript origins: `https://DOMAIN`, `https://www.DOMAIN`
+   (and `http://localhost:5173` for dev). No redirect URI is needed (GIS popup mode).
+2. Put the client id in **both** places — it is one value with two consumers:
+   - `api.env`: `GOOGLE_CLIENT_ID=…` (the verifier's audience). Unset = feature off;
+     `/api/health` reports `google:false` and the endpoint answers 503.
+   - web build arg `VITE_GOOGLE_CLIENT_ID=…` (`deploy.sh` passes it when exported; the button is
+     hidden when the build has no value).
+3. `cd /srv/pen-playground && docker compose up -d api`, redeploy the web image, then check
+   `curl -s http://127.0.0.1:4200/api/health` shows `"google":true` and the account chip offers
+   **Continue with Google**.
+
+Desktop: GIS needs a real browser origin and Google refuses OAuth inside embedded web views, so the
+Electron host passes `googleClientId: null` and hides the button; a loopback-redirect flow through
+the system browser is the planned path and is not built yet.
+
+## Stripe webhook
+
+`services/api/src/billing.ts` handles `checkout.session.completed`,
+`customer.subscription.updated` and `customer.subscription.deleted`
+(`BILLING_WEBHOOK_EVENTS`). The endpoint is registered from the workstation, idempotently:
+
+```sh
+pnpm --filter @pen/api stripe:webhook                 # https://penplayground.com/api/billing/webhook
+pnpm --filter @pen/api stripe:webhook -- --rotate     # delete + recreate → new signing secret
+PEN_WEBHOOK_URL=https://staging.example/api/billing/webhook pnpm --filter @pen/api stripe:webhook
+```
+
+It lists the account's endpoints, reuses the one with our URL (extending its events if any are
+missing) or creates it (`api_version` pinned to the one `Billing` uses), writes the signing
+secret into the repo `.env` as `STRIPE_WEBHOOK_SECRET` — Stripe only reveals it at creation, hence
+`--rotate` — and prints the endpoint id after re-reading it through the API. Copy the secret into
+`api.env` on the host. Sandbox endpoint (2026-09-17): `we_1UGlYMRiNibGZsZpHljObkgl`; the live one
+is created the same way with the live key.
+
+## Sentry source maps
+
+Both images upload their source maps when `SENTRY_AUTH_TOKEN` is exported before `deploy.sh`
+(it is passed to `docker buildx` as a BuildKit **secret**, never a build arg, so it is in neither
+image nor history). The release is the full git sha of the commit being deployed
+(`GIT_SHA` → `SENTRY_RELEASE`), and both bundles carry the matching debug ids and release, so
+events resolve to TypeScript without any runtime setting:
+
+- web: `@sentry/vite-plugin` in `apps/web/vite.config.ts`, project `pen-academy-web`, active
+  only for `mode === 'production'` with a token; the `.map` files are deleted from `dist` after
+  the upload and are never served.
+- api: `@sentry/esbuild-plugin` in `services/api/scripts/build.ts`, project `pen-academy-api`;
+  `dist/main.js.map` stays beside the bundle for `NODE_OPTIONS=--enable-source-maps`.
+
+Without the token every build is identical minus the upload (`pnpm build` needs nothing).
+Check a release: `https://microcis-0s.sentry.io/releases/<sha>/` or
+`GET /api/0/organizations/microcis-0s/releases/<sha>/` with the token.
+
+## Desktop package
+
+`pnpm --filter @pen/desktop package` (Electron Forge, current platform) writes
+`apps/desktop/out/Pen Playground-<platform>-<arch>/` (git-ignored). Two things the monorepo needs
+for that to work are already in place: `hoistPattern` is declared in `pnpm-workspace.yaml`
+(Forge refuses to package a pnpm workspace without an explicit hoist setting; the value is pnpm's
+default, so the install layout is unchanged) and `apps/desktop/vite.renderer.config.ts` sets
+`resolve.preserveSymlinks: false` (Forge's renderer default is `true`, which cannot follow pnpm's
+symlinks). Signing/notarisation is wired in `forge.config.ts` behind `APPLE_ID` /
+`APPLE_APP_PASSWORD` / `APPLE_TEAM_ID` and stays open until the Apple ID and certificate exist;
+unsigned builds run locally (Gatekeeper warns on other machines).
+
 ## MP4 export (render)
 
 Paid plans can download a session as an MP4 (`POST /api/sessions/:id/export`). The API renders
@@ -147,7 +222,11 @@ Prerequisites, all inside the **api** container:
 Check it on the host: `curl -s http://127.0.0.1:4200/api/health` must show `"render":true`, and
 `docker compose logs api | grep export.` shows `export.queued` → `export.rendered` (with
 `syncDriftMs`, the measured video/audio drift over the render) → `export.ready`. Failures go to
-Sentry under the `export.render` area with the ffmpeg/page reason.
+Sentry under the `export.render` area with the ffmpeg/page reason. Jobs that were still queued
+when the API restarted are queued again at boot (`export.resumed`); a job that was mid-render is
+reported as interrupted and the learner asks again. The audio is pre-mixed into one PCM track
+(`export/mix.ts`) before ffmpeg runs, and the replay page in export mode creates no participant
+and starts no analytics.
 
 Locally: `brew install ffmpeg` (or set `PEN_FFMPEG_PATH`) and `pnpm exec playwright install
 chromium`; `pnpm --filter @pen/api test` includes `test/export.integration.test.ts`, which
@@ -166,6 +245,12 @@ API boots — deploys with schema changes are one step.
 
 Config-only changes (`api.env`): edit on the host, then `cd /srv/pen-playground && docker compose
 up -d api`.
+
+Schema changes ship as Drizzle migrations (`pnpm --filter @pen/db generate` after editing
+`packages/db/src/schema.ts`; commit the new `drizzle/*.sql` + `meta/*` files, never edit an
+applied one). Before migrating, the API reconciles the journal against what the database has
+applied by content hash, so a regenerated journal timestamp can no longer make a boot replay an
+applied migration (`db.migration_timestamp_reconciled` in the logs when it happens).
 
 ## Rollback
 

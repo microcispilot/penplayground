@@ -19,6 +19,7 @@ export {
   type Renderer,
   type RenderResult,
 } from './jobs.js';
+export { bytesFromPcm, type MixTake, mixTakes, pcmFromBytes } from './mix.js';
 export {
   alignToTape,
   type ExportPlan,

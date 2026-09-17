@@ -7,6 +7,13 @@ import { observer } from './observability.js';
 
 export type Interval = 'month' | 'year';
 
+/** The Stripe events `Billing.webhook` acts on; the endpoint registration script subscribes to exactly these. */
+export const BILLING_WEBHOOK_EVENTS = [
+  'checkout.session.completed',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+] as const;
+
 export interface BillingPlanPrices {
   standard: Record<Interval, string>;
   professional: Record<Interval, string>;

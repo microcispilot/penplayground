@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LedgerEntry } from '@pen/contracts';
 import { z } from 'zod';
@@ -85,6 +85,12 @@ export interface ExportJobsOptions {
   maxSpokenMs?: number;
   /** A persisted rendering job whose heartbeat is older than this belongs to a dead process. */
   staleHeartbeatMs?: number;
+  /**
+   * Whether persisted `queued` jobs left behind by a dead process are picked up
+   * again here (default true). False when this process cannot render at all,
+   * so they are reported as interrupted instead of failing one by one.
+   */
+  resumeQueued?: boolean;
   now?: () => number;
   pid?: number;
   onEvent?: (name: string, data: Record<string, number | boolean | string>) => void;
@@ -103,7 +109,9 @@ const DEFAULT_STALE_HEARTBEAT_MS = 10 * 60_000;
 
 /**
  * One render at a time per process; jobs persisted next to the session's
- * ledger so a restart never loses a finished file and a dead process's
+ * ledger so a restart never loses a finished file, a job that was still
+ * `queued` when the process died is simply queued again (`resume()` at boot,
+ * or lazily the first time anyone asks about it), a dead process's
  * "rendering" record is recognised for what it is (stale heartbeat), while a
  * live sibling process's job is left alone. Idempotent: an `export.mp4` made
  * from the ledger's current cues + audio is `ready` without rendering; a
@@ -148,34 +156,47 @@ export class ExportJobs {
         'QUEUE_FULL',
         'Too many videos are rendering right now. Try again in a few minutes.',
       );
-    const job: ExportJobRecord = {
-      sessionId,
-      status: 'queued',
-      progress: 0,
-      error: null,
-      createdAt: this.now(),
-      startedAt: null,
-      finishedAt: null,
-      output: null,
-      bytes: null,
-      durationMs: null,
-      syncDriftMs: null,
-      ledgerFingerprint: ledger.value,
-      pid: this.pid,
-      heartbeatAt: this.now(),
-    };
-    this.save(job);
-    this.queue.push(sessionId);
-    this.o.onEvent?.('export.queued', { sessionId, depth: this.queue.length });
+    return this.enqueue(
+      {
+        sessionId,
+        status: 'queued',
+        progress: 0,
+        error: null,
+        createdAt: this.now(),
+        startedAt: null,
+        finishedAt: null,
+        output: null,
+        bytes: null,
+        durationMs: null,
+        syncDriftMs: null,
+        ledgerFingerprint: ledger.value,
+        pid: this.pid,
+        heartbeatAt: this.now(),
+      },
+      false,
+    );
+  }
+
+  /** Persist as ours, queue, and start the pump. */
+  private enqueue(job: ExportJobRecord, resumed: boolean): ExportJobRecord {
+    const saved = this.save({ ...job, status: 'queued', pid: this.pid, heartbeatAt: this.now() });
+    this.queue.push(job.sessionId);
+    this.o.onEvent?.('export.queued', {
+      sessionId: job.sessionId,
+      depth: this.queue.length,
+      resumed,
+    });
     this.pump();
-    return job;
+    return saved;
   }
 
   /**
    * Current state, consulting (in order) memory, the persisted record, and the
-   * files on disk. A persisted `rendering`/`queued` whose heartbeat went cold
-   * belongs to a process that died: reported as failed so the client can ask
-   * again; a warm one is another process's live job and is returned as is.
+   * files on disk. A persisted `queued`/`rendering` with a warm heartbeat is
+   * another process's live job and is returned as is. A cold one belongs to a
+   * process that died: a `queued` job never started, so it is queued here
+   * again (nothing was lost); a `rendering` one is reported as failed so the
+   * client can ask again.
    */
   status(sessionId: string): ExportJobRecord | null {
     const mem = this.jobs.get(sessionId);
@@ -192,6 +213,8 @@ export class ExportJobs {
         this.now() - persisted.heartbeatAt <
           (this.o.staleHeartbeatMs ?? DEFAULT_STALE_HEARTBEAT_MS);
       if (warm) return persisted;
+      if (persisted.status === 'queued' && (this.o.resumeQueued ?? true) && !this.closed)
+        return this.enqueue({ ...persisted, progress: 0, error: null, startedAt: null }, true);
       return this.save({
         ...persisted,
         status: 'failed',
@@ -200,6 +223,30 @@ export class ExportJobs {
       });
     }
     return this.validate(this.save(persisted));
+  }
+
+  /**
+   * Pick up every persisted `queued` job on disk (oldest first) — what a
+   * restart would otherwise leave "interrupted". Returns their session ids.
+   */
+  resume(): string[] {
+    if (this.closed || !(this.o.resumeQueued ?? true) || !existsSync(this.o.sessionsDir)) return [];
+    const candidates: Array<{ sessionId: string; createdAt: number }> = [];
+    for (const entry of readdirSync(this.o.sessionsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || this.jobs.has(entry.name)) continue;
+      const persisted = this.load(entry.name);
+      if (persisted?.status === 'queued' && persisted.sessionId === entry.name)
+        candidates.push({ sessionId: entry.name, createdAt: persisted.createdAt });
+    }
+    candidates.sort((a, b) => a.createdAt - b.createdAt);
+    const resumed: string[] = [];
+    for (const { sessionId } of candidates) {
+      // `status()` applies the warm/cold rule and re-enqueues cold ones.
+      if (this.status(sessionId)?.status === 'queued' && this.jobs.has(sessionId))
+        resumed.push(sessionId);
+    }
+    if (resumed.length > 0) this.o.onEvent?.('export.resumed', { count: resumed.length });
+    return resumed;
   }
 
   get isBusy(): boolean {

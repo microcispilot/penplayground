@@ -26,3 +26,8 @@ export function track(
 export function identify(id: string): void {
   if (posthog.__loaded) posthog.identify(id);
 }
+
+/** Sign-out: the next participant must not inherit this person's PostHog identity. */
+export function resetAnalytics(): void {
+  if (posthog.__loaded) posthog.reset();
+}

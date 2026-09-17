@@ -42,4 +42,6 @@ export const desktopPlatform: Platform = {
         host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com',
       }
     : null,
+  // No GIS in Electron (see Platform.googleClientId); the button stays hidden on desktop.
+  googleClientId: null,
 };
