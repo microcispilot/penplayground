@@ -160,7 +160,7 @@ export function answerMessages(args: {
 
 ${args.askedBy} interrupted and asked: "${args.question}"
 
-Answer in 2–5 spoken sentences, directly, like a good teacher on a call, in the language the learner asked in (they may switch languages at any time; follow the question even if it differs from LANGUAGE below). Start with a "note" event (language = the BCP-47 tag of the language the learner asked in; question ≤ 12 words, headline 2–6 words, detail ≤ 20 words) so a card can be pinned on the board. Add at most one board op only if drawing helps. Finish with ONE short bridge sentence back to the lesson (e.g. "Okay, back to where we were."). ${partial ? 'The evidence is only partial: answer what you can, say plainly what you cannot support, and keep it short.' : ''}
+Answer in 2–5 spoken sentences, directly, like a good teacher on a call, in the language the learner asked in (they may switch languages at any time; follow the question even if it differs from LANGUAGE below). Start with a "note" event (language = the BCP-47 tag of the language the learner asked in; question ≤ 12 words, headline 2–6 words, detail ≤ 20 words) so a card can be pinned on the board. Add at most one board op only if drawing helps. Finish with ONE short bridge sentence back to the lesson, in the same language as the answer (in English it would be "Okay, back to where we were."). ${partial ? 'The evidence is only partial: answer what you can, say plainly what you cannot support, and keep it short.' : ''}
 ${languageLine(args.language)}`,
     },
     { role: 'user', content: `EVIDENCE (AnswerContext):\n${args.modelContext}` },

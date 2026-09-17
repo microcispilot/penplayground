@@ -1,0 +1,25 @@
+# Applies to builds using apps/web/Dockerfile (BuildKit reads <Dockerfile>.dockerignore).
+# Paths are relative to the build context (repository root).
+**/node_modules
+**/dist
+**/out
+**/.vite
+**/.turbo
+**/coverage
+**/test-results
+**/playwright-report
+**/.pen-data*
+**/.pglite
+**/*.log
+.git
+.env
+.env.*
+.env-use
+.DS_Store
+Pen Academy.html
+onten-answercontext-examples
+docs
+tasks
+services/api/data
+deploy/*
+!deploy/web

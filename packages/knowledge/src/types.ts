@@ -35,7 +35,7 @@ export interface SearchRequest {
   signal: AbortSignal;
 }
 
-/** One web search backend. Adapters: TavilySearch, ExaSearch, NoSearch. */
+/** One web search backend. Adapters: SearxngSearch, TavilySearch, ExaSearch, NoSearch. */
 export interface SearchProvider {
   readonly name: string;
   search(request: SearchRequest): Promise<SearchHit[]>;
@@ -121,7 +121,7 @@ export interface CorpusBuilderOptions {
   compiler: OntenCompiler;
   model: LanguageModel;
   policy: HostContextPolicy;
-  /** Defaults to the provider chosen from the environment (Tavily → Exa → none). */
+  /** Defaults to the provider chosen from the environment (SearXNG → Tavily → Exa → none). */
   search?: SearchProvider;
   /** Injected in tests; defaults to global fetch. */
   fetchImpl?: typeof fetch;

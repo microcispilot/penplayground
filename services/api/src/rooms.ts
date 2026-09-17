@@ -105,6 +105,7 @@ export class RoomRegistry {
       band: args.band,
       language: locale,
       locale,
+      resolution,
       onten: services.onten,
       runtime: services.onten.newRuntime(),
       memo: services.onten.memo,

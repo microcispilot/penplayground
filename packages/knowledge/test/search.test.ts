@@ -4,6 +4,7 @@ import {
   ExaSearch,
   NoSearch,
   SearchError,
+  SearxngSearch,
   TavilySearch,
 } from '../src/search.js';
 
@@ -89,8 +90,137 @@ describe('ExaSearch', () => {
   });
 });
 
+describe('SearxngSearch', () => {
+  const signal = () => new AbortController().signal;
+
+  it('GETs /search?format=json with language, safesearch and categories, and maps rows', async () => {
+    const { fetchImpl, calls } = capture({
+      query: 'swift optionals',
+      number_of_results: 0,
+      results: [
+        {
+          url: 'https://docs.swift.org/x',
+          title: 'Optionals',
+          content: 'snippet',
+          score: 4,
+          engine: 'google',
+          category: 'general',
+        },
+        { url: 'https://b.example', title: 'B', content: null, score: 2 },
+      ],
+      suggestions: [],
+    });
+    const provider = new SearxngSearch({ baseUrl: 'http://127.0.0.1:8080/', fetchImpl });
+    const hits = await provider.search({
+      query: 'swift optionals',
+      maxResults: 5,
+      signal: signal(),
+    });
+    expect(hits).toEqual([
+      { url: 'https://docs.swift.org/x', title: 'Optionals', snippet: 'snippet', score: 1 },
+      { url: 'https://b.example', title: 'B', snippet: '', score: 0.5 },
+    ]);
+    const call = calls[0];
+    const url = new URL(String(call?.url));
+    expect(url.origin + url.pathname).toBe('http://127.0.0.1:8080/search');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      q: 'swift optionals',
+      format: 'json',
+      language: 'en',
+      safesearch: '1',
+      categories: 'general',
+    });
+    expect(call?.init?.method).toBe('GET');
+    expect((call?.init?.headers as Record<string, string> | undefined)?.accept).toBe(
+      'application/json',
+    );
+  });
+
+  it('caps at maxResults, drops duplicates and excluded hosts, honours the language option', async () => {
+    const row = (url: string) => ({ url, title: url, content: '', score: 1 });
+    const { fetchImpl, calls } = capture({
+      results: [
+        row('https://a.example/1'),
+        row('https://www.youtube.com/watch?v=1'),
+        row('https://a.example/1'),
+        row('https://a.example/2'),
+        row('https://a.example/3'),
+      ],
+    });
+    const provider = new SearxngSearch({
+      baseUrl: 'http://searxng:8080',
+      fetchImpl,
+      language: 'de',
+    });
+    const hits = await provider.search({ query: 'q', maxResults: 2, signal: signal() });
+    expect(hits.map((h) => h.url)).toEqual(['https://a.example/1', 'https://a.example/2']);
+    expect(new URL(String(calls[0]?.url)).searchParams.get('language')).toBe('de');
+  });
+
+  it('reports a disabled json format (403) as a SearchError', async () => {
+    const { fetchImpl } = capture({}, 403);
+    const provider = new SearxngSearch({ baseUrl: 'http://searxng:8080', fetchImpl });
+    await expect(
+      provider.search({ query: 'q', maxResults: 1, signal: signal() }),
+    ).rejects.toMatchObject({ name: 'SearchError', provider: 'searxng', status: 403 });
+  });
+
+  it('wraps network failures and malformed bodies in SearchError', async () => {
+    const down: typeof fetch = async () => {
+      throw new TypeError('fetch failed');
+    };
+    await expect(
+      new SearxngSearch({ baseUrl: 'http://searxng:8080', fetchImpl: down }).search({
+        query: 'q',
+        maxResults: 1,
+        signal: signal(),
+      }),
+    ).rejects.toMatchObject({ name: 'SearchError', status: 0 });
+
+    const html: typeof fetch = async () => new Response('<html>', { status: 200 });
+    await expect(
+      new SearxngSearch({ baseUrl: 'http://searxng:8080', fetchImpl: html }).search({
+        query: 'q',
+        maxResults: 1,
+        signal: signal(),
+      }),
+    ).rejects.toMatchObject({ name: 'SearchError', status: 200 });
+  });
+
+  it('gives up after the timeout', async () => {
+    const never: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    const provider = new SearxngSearch({
+      baseUrl: 'http://searxng:8080',
+      fetchImpl: never,
+      timeoutMs: 20,
+    });
+    await expect(
+      provider.search({ query: 'q', maxResults: 1, signal: signal() }),
+    ).rejects.toMatchObject({ name: 'SearchError', status: 0 });
+  });
+
+  it("lets the caller's own cancellation through untouched", async () => {
+    const ac = new AbortController();
+    const never: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    const provider = new SearxngSearch({ baseUrl: 'http://searxng:8080', fetchImpl: never });
+    const pending = provider.search({ query: 'q', maxResults: 1, signal: ac.signal });
+    ac.abort();
+    await expect(pending).rejects.not.toBeInstanceOf(SearchError);
+  });
+});
+
 describe('chooseSearchProvider', () => {
-  it('picks Tavily, then Exa, then none', () => {
+  it('picks SearXNG, then Tavily, then Exa, then none', () => {
+    expect(
+      chooseSearchProvider({ SEARXNG_URL: 'http://searxng:8080', TAVILY_API_KEY: 'a' }).name,
+    ).toBe('searxng');
+    expect(chooseSearchProvider({ SEARXNG_URL: '  ', TAVILY_API_KEY: 'a' }).name).toBe('tavily');
     expect(chooseSearchProvider({ TAVILY_API_KEY: 'a', EXA_API_KEY: 'b' }).name).toBe('tavily');
     expect(chooseSearchProvider({ EXA_API_KEY: 'b' }).name).toBe('exa');
     expect(chooseSearchProvider({ TAVILY_API_KEY: '  ' })).toBeInstanceOf(NoSearch);

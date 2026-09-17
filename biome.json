@@ -18,7 +18,7 @@
       "!**/.pen-data*",
       "!**/.pglite",
       "!**/drizzle/meta",
-      "!services/api/data/**"
+      "!services/api/data"
     ]
   },
   "formatter": {
@@ -43,10 +43,7 @@
         "noConsole": {
           "level": "warn",
           "options": {
-            "allow": [
-              "warn",
-              "error"
-            ]
+            "allow": ["warn", "error"]
           }
         }
       },
@@ -67,9 +64,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "**/*.css"
-      ],
+      "includes": ["**/*.css"],
       "linter": {
         "rules": {
           "complexity": {
@@ -79,9 +74,7 @@
       }
     },
     {
-      "includes": [
-        "**/scripts/**"
-      ],
+      "includes": ["**/scripts/**"],
       "linter": {
         "rules": {
           "suspicious": {

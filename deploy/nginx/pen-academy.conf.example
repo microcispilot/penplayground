@@ -1,0 +1,78 @@
+# Pen Academy edge vhost for prod-app-01 — copy to /etc/nginx/sites-available/pen-academy.conf,
+# replace DOMAIN (all occurrences), symlink into sites-enabled, `nginx -t && systemctl reload nginx`.
+#
+# First pass (before the certificate exists): keep ONLY the port-80 server block enabled, run
+#   certbot certonly --webroot -w /var/www/letsencrypt -d DOMAIN -d www.DOMAIN
+# then enable the two TLS blocks. Style follows /etc/nginx/sites-enabled/simurghlabs.conf.
+#
+# Everything is forwarded to the web container (127.0.0.1:4201), which serves the SPA and proxies
+# /api, /experts, /s and the /ws WebSocket to the API container itself.
+#
+# WebSocket upgrade map. prod-app-01 already defines `$connection_upgrade` globally in
+# /etc/nginx/conf.d/ws_upgrade.conf; this one uses its own name so the two never conflict.
+map $http_upgrade $pen_connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name DOMAIN www.DOMAIN;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://DOMAIN$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.DOMAIN;
+
+    ssl_certificate /etc/letsencrypt/live/DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/DOMAIN/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 308 https://DOMAIN$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name DOMAIN;
+
+    ssl_certificate /etc/letsencrypt/live/DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/DOMAIN/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:4201;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $pen_connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Request-ID $request_id;
+        # Lessons stream over one WebSocket for up to an hour; never buffer streamed responses.
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}

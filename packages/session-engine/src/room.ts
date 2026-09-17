@@ -72,6 +72,8 @@ export interface SessionRoomDeps {
   band: SelectionBand;
   language: string;
   locale: string;
+  /** Already-resolved topic (the API resolves before creating the room); resolved here when absent. */
+  resolution?: TopicResolution;
   onten: Onten;
   runtime: MockContextRuntime;
   memo: LessonMemo;
@@ -352,12 +354,15 @@ export class SessionRoom {
   // ── preparation & planning ─────────────────────────────────────────────────
 
   private async resolveAndPrepare(): Promise<void> {
-    const resolution = await this.d.onten.registry.resolveTopic({
-      text: this.d.topic,
-      language: this.d.language,
-      locale: this.d.locale,
-      band: this.d.band,
-    });
+    const resolution =
+      this.d.resolution ??
+      (await this.d.onten.registry.resolveTopic({
+        text: this.d.topic,
+        // Packs are keyed by language, never by region.
+        language: this.d.language.split('-')[0] ?? this.d.language,
+        locale: this.d.locale,
+        band: this.d.band,
+      }));
     this.resolution = resolution;
     this.observer.event('room.resolve', {
       match: resolution.match,

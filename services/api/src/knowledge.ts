@@ -6,7 +6,7 @@ import type { Services } from './services.js';
 /**
  * Topic-miss acquisition: the corpus builder streams licensed sources into
  * Onten's progressive compiler. The outline/evalset model is the free-plan
- * key's model (cheap, cached); search is Tavily → Exa → curated seeds only.
+ * key's model (cheap, cached); search is SearXNG → Tavily → Exa → curated seeds only.
  */
 export function createAcquirer(services: Omit<Services, 'acquirer'>): KnowledgeAcquirer | null {
   let model: ReturnType<Services['modelFor']>;
@@ -17,6 +17,7 @@ export function createAcquirer(services: Omit<Services, 'acquirer'>): KnowledgeA
     return null;
   }
   const env = {
+    SEARXNG_URL: services.cfg.SEARXNG_URL,
     TAVILY_API_KEY: services.cfg.TAVILY_API_KEY,
     EXA_API_KEY: services.cfg.EXA_API_KEY,
   };

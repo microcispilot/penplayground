@@ -37,6 +37,9 @@ export const desktopPlatform: Platform = {
   tldrawLicenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY ?? '',
   sentryDsn: import.meta.env.VITE_SENTRY_DSN_DESKTOP ?? null,
   analytics: import.meta.env.VITE_POSTHOG_TOKEN
-    ? { token: import.meta.env.VITE_POSTHOG_TOKEN, host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com' }
+    ? {
+        token: import.meta.env.VITE_POSTHOG_TOKEN,
+        host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com',
+      }
     : null,
 };

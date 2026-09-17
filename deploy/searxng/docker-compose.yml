@@ -1,0 +1,45 @@
+# SearXNG for Pen Academy's topic-miss discovery (packages/knowledge SearxngSearch).
+#
+# Standalone:   cp .env.example .env && edit SEARXNG_SECRET, then `docker compose up -d` here.
+# In the stack: ../docker-compose.yml includes this file, so the `searxng` service joins the
+#               pen-academy project and the API reaches it as http://searxng:8080.
+#
+# The port is published on 127.0.0.1 only: this instance must never be reachable from the
+# internet (no limiter, JSON API enabled).
+#
+# Image tag verified on Docker Hub (searxng/searxng) on 2026-09-16.
+services:
+  searxng:
+    image: docker.io/searxng/searxng:2026.9.16-461f174b0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?set SEARXNG_SECRET in .env (openssl rand -hex 32)}
+      SEARXNG_BASE_URL: http://127.0.0.1:8080/
+      SEARXNG_LIMITER: "false"
+      SEARXNG_PUBLIC_INSTANCE: "false"
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  searxng-cache:

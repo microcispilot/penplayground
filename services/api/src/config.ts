@@ -34,6 +34,8 @@ const Env = z.object({
   DEEPGRAM_API_KEY: z.string().optional(),
   ASSEMBLYAI_API_KEY: z.string().optional(),
 
+  /** Self-hosted SearXNG origin (e.g. http://127.0.0.1:8080). Free; takes precedence over Tavily/Exa. */
+  SEARXNG_URL: z.string().url().optional(),
   TAVILY_API_KEY: z.string().optional(),
   EXA_API_KEY: z.string().optional(),
 

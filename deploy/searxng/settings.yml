@@ -1,0 +1,74 @@
+# SearXNG for Pen Academy — server-side meta-search used by the knowledge builder when a topic is
+# not in the curated seeds (packages/knowledge SearxngSearch). Reached by the API at
+# http://127.0.0.1:8080 (same host) or http://searxng:8080 (same compose stack). Never public.
+#
+# Reference: https://docs.searxng.org/admin/settings/settings.html
+# Everything not listed here keeps SearXNG's built-in default (use_default_settings).
+# secret_key is NOT set here: the container reads it from the SEARXNG_SECRET environment
+# variable (docker-compose.yml), so no secret ever lives in this file.
+
+use_default_settings:
+  engines:
+    keep_only:
+      - google
+      - bing
+      - duckduckgo
+      - wikipedia
+      - github
+      - stackoverflow
+
+general:
+  debug: false
+  instance_name: "Pen Academy search"
+  donation_url: false
+  contact_url: false
+  enable_metrics: false
+
+search:
+  # The API always asks for `safesearch=1`; this is the default for anything that omits it.
+  safe_search: 1
+  autocomplete: ""
+  default_lang: "en"
+  # The JSON format is what the API consumes (`/search?format=json`); html stays for humans debugging.
+  formats:
+    - html
+    - json
+
+server:
+  port: 8080
+  # Inside the container; the host only publishes 127.0.0.1:8080 (see docker-compose.yml).
+  bind_address: "0.0.0.0"
+  # Server-to-server use from one trusted client: no bot limiter, so no Valkey/Redis is needed.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  method: "GET"
+
+ui:
+  static_use_hash: true
+
+outgoing:
+  # Per-engine timeouts stay well inside the API's own 8 s budget for a search call.
+  request_timeout: 4.0
+  max_request_timeout: 8.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
+
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  # Code/Q&A engines live in the "it" category by default; the API searches `categories=general`,
+  # so they are added to it as well.
+  - name: github
+    disabled: false
+    categories: [general, it]
+  - name: stackoverflow
+    disabled: false
+    categories: [general, it]
