@@ -8,19 +8,19 @@
 - [x] API: config, identity, rooms, WS protocol, routes, ledger, seeds; smoke-tested
 - [x] Voice: Fish cloud/bridge/silent; mic, VAD, segmenter, player + tests
 - [x] Conductor + tests
-- [ ] Board package (in progress: background agent)
-  - Acceptance: `<Board>` implements BoardPort; ink-text writes at 11 cps; tests green
-  - Verify: `pnpm --filter @pen/board test`
-- [ ] Knowledge package (in progress: background agent)
-  - Acceptance: CorpusBuilder implements KnowledgeAcquirer; interactive resolves < 20 s on seeds
-  - Verify: `pnpm --filter @pen/knowledge test`; wire `services/api/src/knowledge.ts`
-- [ ] App + web: typecheck green once board lands; run in browser; fix UX issues
-  - Verify: `pnpm --filter @pen/web dev` + manual pass of the storyboard
-- [ ] Playwright e2e (fake providers): Home → Start → captions → typed question → end → session page
-- [ ] Real-key run: OpenAI luna lesson generation; review prompt quality; tune BOARD_RULES
-- [ ] Desktop host (Electron Forge) with desktop Platform adapter
-- [ ] Persistence (Drizzle/PGlite) behind SessionStore + ledger index; Google sign-in
-- [ ] Billing (Stripe) + entitlements + ads policy
-- [ ] Replay + export + YouTube
-- [ ] LiveKit rooms audio
-- [ ] Sentry projects + source maps
+- [x] Board package: tldraw, ink-text (Caveat outlines), strokes, code, sketch DSL, executor (122 tests)
+- [x] Knowledge package: corpus builder, seeds, rights, robots, HTML→markdown (57 tests); wired into the API
+- [x] App + web: screens, room session, replay; verified in Chromium with screenshots
+- [x] Playwright e2e (fake providers) passes
+- [x] Real-key runs: luna lesson generation, interrupt/answer path, topic-miss preparation (Swift)
+- [x] Desktop host (Electron Forge) with desktop Platform adapter (typechecks; not yet packaged)
+- [x] Persistence (Drizzle, PGlite in dev, Postgres-ready) behind the session index and participants
+- [x] Billing: Stripe checkout/portal/webhook, plan from the participant row (needs price ids)
+- [x] Replay from the ledger through the conductor
+- [ ] Google sign-in (accounts on the same participant row)
+- [ ] MP4 export (mediabunny) + YouTube upload (OAuth verification lead time)
+- [ ] LiveKit rooms audio (human-to-human voice)
+- [ ] Desktop: package and sign (needs Apple ID / Windows cert)
+- [ ] Sentry projects + source maps (needs go-ahead, docs/QUESTIONS.md #9)
+- [ ] Server-side STT relay (ws-relay/Deepgram/AssemblyAI) for the desktop host
+- [ ] Listen test with Fish Audio once a key exists (docs/QUESTIONS.md #2)
