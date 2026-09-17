@@ -59,9 +59,13 @@ export const sessions = pgTable(
     questions: integer('questions').notNull().default(0),
     recap: jsonb('recap').$type<string[]>().notNull().default([]),
     views: integer('views').notNull().default(0),
+    /** Relative URL of the rendered sketch (`/api/sessions/<id>/thumb.svg`); null until the background job lands (ADR-0013). */
     thumbnail: text('thumbnail'),
     /** `${lang}.${slug}` from the Onten registry: groups same-intent sessions for reuse statistics. */
     canonicalId: text('canonical_id'),
+    /** Card / Open Graph copy from the same call; empty until then. */
+    description: text('description').notNull().default(''),
+    keywords: jsonb('keywords').$type<string[]>().notNull().default([]),
   },
   (t) => [
     index('sessions_host_idx').on(t.hostId, t.startedAt),

@@ -22,6 +22,8 @@ import { build, type Plugin } from 'esbuild';
  *   playwright(-core)      locates browsers and its driver relative to its own package
  *   fasttext.wasm.js       loads its .wasm and the lid.176 model relative to its own package
  *   google-auth-library    gaxios/gcp-metadata reach for optional peers at runtime
+ *   @resvg/resvg-js        native (napi) rasteriser for thumbnail PNGs
+ *   @fontsource/caveat     the pen's WOFF files, resolved at runtime with require.resolve
  *
  * Output: dist/main.js (+ .map, meta.json) and dist/drizzle (migrations copied beside the bundle).
  *
@@ -49,6 +51,8 @@ const EXTERNAL = [
   'playwright-core',
   'fasttext.wasm.js',
   'google-auth-library',
+  '@resvg/resvg-js',
+  '@fontsource/caveat',
 ];
 
 const externalPackages: Plugin = {

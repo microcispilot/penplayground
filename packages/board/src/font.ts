@@ -1,6 +1,19 @@
 /// <reference path="./types/opentype.d.ts" />
-import { type Font, type Glyph, parse } from 'opentype.js';
+
+import type { Font, Glyph } from 'opentype.js';
+import * as opentype from 'opentype.js';
 import { commandsToPathData } from './svg-path.js';
+
+/**
+ * opentype.js 2.0 ships an ESM build for bundlers and a UMD `main` for Node.
+ * Node's named-export detection cannot see `parse` through the UMD wrapper
+ * (the API renders thumbnails with this module under plain Node), so it is
+ * reached through the namespace's `default` there.
+ */
+type ParseFont = (buffer: ArrayBuffer) => Font;
+const parseFont: ParseFont | undefined =
+  (opentype as { parse?: ParseFont }).parse ??
+  (opentype as { default?: { parse?: ParseFont } }).default?.parse;
 
 /**
  * The handwriting font (Caveat, OFL) loaded once with opentype.js so we can
@@ -113,7 +126,8 @@ export function parseHandFont(bytes: ArrayBuffer | Uint8Array): HandFont {
     bytes instanceof Uint8Array
       ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
       : bytes;
-  return new HandFont(parse(buffer as ArrayBuffer));
+  if (!parseFont) throw new Error('opentype.js: parse() is not available in this runtime');
+  return new HandFont(parseFont(buffer as ArrayBuffer));
 }
 
 let current: HandFont | null = null;

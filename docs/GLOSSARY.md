@@ -25,6 +25,9 @@ Use these words exactly, in code, docs and UI copy.
 - **Replay** — deterministic re-execution of a recording ledger through the conductor, with scrubbing.
 - **Export** — an MP4 rendered from a replay (board frames + mixed audio) for YouTube or download.
 - **Plan** — a billing tier: `free`, `plus`, `classroom`. **Entitlement** — a capability a plan grants (`rooms`, `export`, `no_ads`, `premium_voices`).
+- **Session meta** — the card copy (description, keywords, category) and the **sketch** for one session, produced by one background structured-output call after the plan exists (ADR-0013). Never on the critical path.
+- **Sketch (SketchSpec)** — the bounded whiteboard-sketch language a session thumbnail is written in: a 12 × 7 grid, ≤ 12 elements (label, box, circle, arrow, line, bars, underline, highlight), two inks. Rendered deterministically to the **thumbnail** (SVG + PNG rasters).
+- **Thumbnail** — a session's rendered sketch on paper: `thumb.svg` for cards, `thumb.png` / `og.png` rasters for bitmaps and Open Graph. `thumbnail` on the record is null until it is ready; the deterministic placeholder shows until then.
 - **Ad card** — a skippable, visible card shown between segments on the free plan. Never spoken by the expert.
 - **Stage sample** — one timed step of a session on the session clock (`intake`, `resolve`, `context`, `prepare`, `llm`, `tts`, `stt`, `board`, `turn`, `ad`, `join`, `leave`): start, duration, ok, and content-free `meta` (ids, counts, first-token / first-chunk times, `reused`, `savedUsd`). A ledger entry (`metric`).
 - **Cost line** — one priced unit of provider work (`llm` tokens in / cached / out, `tts` bytes, `stt` seconds, `search` requests, `onten` requests) with its USD from the single price table. A ledger entry (`cost`).

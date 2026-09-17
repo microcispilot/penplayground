@@ -1,6 +1,14 @@
 export { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
 export { ExpertCatalog } from './experts.js';
 export {
+  META_MAX_OUTPUT_TOKENS,
+  META_PURPOSE,
+  type SessionMetaInput,
+  SessionMetaJobs,
+  type SessionMetaJobsOptions,
+  type SessionMetaResult,
+} from './meta.js';
+export {
   type Metrics,
   NullMetrics,
   SessionMetrics,
@@ -13,6 +21,7 @@ export {
   EVIDENCE_RULES,
   FORMAT_RULES,
   lessonSystemPrompt,
+  metaMessages,
   SPEECH_RULES,
 } from './prompts.js';
 export {
@@ -21,6 +30,7 @@ export {
   type LedgerSink,
   newSessionId,
   qualifyIds,
+  roomCacheKey,
   SessionRoom,
   type SessionRoomDeps,
 } from './room.js';

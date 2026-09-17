@@ -265,6 +265,40 @@ export const demoScripts: {
     },
     { purpose: 'intent', value: { intent: 'question', command: 'none' } },
     {
+      // The card copy and whiteboard sketch (ADR-0013): what a teacher would draw for attention.
+      purpose: 'session_meta',
+      value: {
+        description:
+          'See how a sentence becomes vectors and how attention weighs each earlier token to predict the next one.',
+        keywords: ['transformers', 'attention', 'tokens', 'softmax', 'LLM'],
+        category: 'computing-data',
+        thumbnail: {
+          elements: [
+            { kind: 'label', text: 'Attention', x: 0, y: 0, w: 6, size: 'lg', ink: 'accent' },
+            { kind: 'underline', x: 0, y: 1, w: 3.5, ink: 'accent' },
+            { kind: 'box', x: 0, y: 2, w: 2, h: 1.25, text: 'the', ink: 'ink' },
+            { kind: 'box', x: 2.5, y: 2, w: 2, h: 1.25, text: 'cat', ink: 'ink' },
+            { kind: 'box', x: 5, y: 2, w: 2, h: 1.25, text: 'sat', ink: 'accent' },
+            { kind: 'highlight', x: 4.75, y: 1.75, w: 2.5, h: 1.75 },
+            { kind: 'arrow', x1: 6, y1: 3.5, x2: 1, y2: 5.25, text: 'query', ink: 'ink' },
+            { kind: 'arrow', x1: 6, y1: 3.5, x2: 3.5, y2: 5.25, text: 'key', ink: 'ink' },
+            { kind: 'circle', x: 0, y: 5.25, w: 2, h: 1.5, text: 'q·k / √d', ink: 'ink' },
+            { kind: 'circle', x: 2.5, y: 5.25, w: 2, h: 1.5, text: 'softmax', ink: 'ink' },
+            {
+              kind: 'bars',
+              x: 8,
+              y: 1.5,
+              w: 4,
+              h: 4,
+              values: [0.15, 0.9, 0.35, 0.2],
+              ink: 'accent',
+            },
+            { kind: 'label', text: 'weights Σ = 1', x: 8, y: 5.75, w: 4, size: 'sm', ink: 'ink' },
+          ],
+        },
+      },
+    },
+    {
       purpose: 'intake',
       value: {
         language: 'en-US',

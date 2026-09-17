@@ -36,5 +36,6 @@
 - [x] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
 - [x] Fake model: completion for the knowledge outline purpose (Sentry issue) — locked by test
 - [x] Dev DB: migration timestamp guard (journal `when` vs applied `created_at`, by hash)
-- [ ] Session thumbnails: one background structured call → sketch spec → SVG/PNG; cards + OG use it
+- [x] Session thumbnails: one background `session_meta` call → SketchSpec → SVG/PNG next to the ledger; cards, session page and share OG use it (ADR-0013)
+- [ ] Thumbnails: cache the sketch per lesson memo (memo-hit sessions repeat the call today); backfill sessions created before ADR-0013
 - [ ] Video ads (Google IMA, Ad Manager tag), skippable, measured, ads.txt + runbook

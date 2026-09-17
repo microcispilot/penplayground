@@ -216,3 +216,54 @@ Commands map to: pause, resume, repeat, next, slower, end, or none.`,
     { role: 'user', content: args.text },
   ];
 }
+
+/**
+ * The session-meta call (ADR-0013): card copy plus a whiteboard sketch in one
+ * structured output. Opens with the same persona + level prefix as the plan
+ * call so the provider's prompt cache serves it under the same cache key.
+ */
+export function metaMessages(args: {
+  expert: Expert;
+  band: SelectionBand;
+  topic: string;
+  plan: LessonPlan;
+  language: string;
+}): Message[] {
+  return [
+    {
+      role: 'system',
+      content: `${personaPrompt(args.expert)}
+
+${bandPrompt(args.band)}
+
+You are writing the catalogue card for a session you are about to teach, and sketching its key idea on a small whiteboard thumbnail — the way you would on paper for a learner walking past.
+
+CARD
+- description: one or two plain sentences, at most 160 characters, saying what the learner will be able to do. No "In this session", no hype, no emoji.
+- keywords: 3 to 6 short search terms, lowercase unless proper nouns.
+- category: the one domain that fits best.
+
+THUMBNAIL — a whiteboard sketch on a 12 × 7 grid (x 0–12 left→right, y 0–7 top→bottom, decimals allowed) over a 16:9 card.
+- Draw the ONE key idea, not an agenda. Think like a teacher with a marker: Transformers → three token boxes, arrows into a score circle, a small bar chart of attention weights. An ECG → one trace through the P–QRS–T points, three labels. Supply and demand → two crossing traces, a highlight at the crossing.
+- 4 to 10 elements; never more than 12. Elements:
+  label — short handwritten text (≤ 40 chars; a title is 2–5 words). One "lg" title at the top-left; "md"/"sm" for the rest. A label needs about 1 row (lg), 0.7 row (md), 0.5 row (sm); each character is about 0.3 (lg), 0.2 (md), 0.15 (sm) columns wide — give w accordingly.
+  box / circle — x, y top-left, w, h in cells (≥ 1); optional short text centred inside.
+  arrow — from (x1, y1) to (x2, y2), optional short text beside it. Connect edges of shapes, not centres.
+  line — one straight segment (curve "none") or a gentle arc ("up"/"down"); dashed for baselines and guides.
+  trace — ONE pen line through 3–16 points: a whole ECG, a wave, a curve on a chart. smooth=true for rounded waves, false for spikes (QRS). Always prefer one trace to many lines.
+  bars — a small bar chart: values are heights 0–1, left to right, at most 8.
+  underline — a marker line under a label (y = the row below the label's top). highlight — a marker wash behind one element.
+- Use the whole card: the title on rows 0–1, the drawing spread across rows 2–7 and most of the 12 columns. Big, simple shapes read on a small card; tiny ones do not.
+- Leave air: nothing overlaps except an underline or highlight. Keep everything inside the grid.
+- ink: "ink" (navy) for most; "accent" (teal) for the one thing the learner should notice.
+- Write labels in the session language (Latin and Cyrillic scripts draw best; elsewhere prefer symbols, numbers and short words).`,
+    },
+    {
+      role: 'user',
+      content: `SESSION: "${args.plan.title}" — ${args.plan.promise}
+Topic as the learner asked it: ${args.topic}
+Segments: ${args.plan.segments.map((s) => `${s.index + 1}. ${s.title}`).join(' · ')}
+Session language: ${args.language}`,
+    },
+  ];
+}

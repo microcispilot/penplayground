@@ -34,6 +34,8 @@ const record = (id: string, extra: Partial<Parameters<SessionRepository['upsert'
   views: 0,
   thumbnail: null,
   canonicalId: null,
+  description: '',
+  keywords: [],
   ...extra,
 });
 

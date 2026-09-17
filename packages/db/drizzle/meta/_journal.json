@@ -22,6 +22,13 @@
       "when": 1789676806721,
       "tag": "0002_canonical_id",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789686146209,
+      "tag": "0003_session_meta",
+      "breakpoints": true
     }
   ]
 }

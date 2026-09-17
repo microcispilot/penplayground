@@ -53,6 +53,10 @@ import { type RoomObserver, type RoomTransport, SILENT_OBSERVER } from './transp
 
 /** Client reports accepted per participant per session (a 20-minute session produces a few hundred). */
 export const MAX_REPORTS_PER_PARTICIPANT = 5000;
+/** Prompt-cache key shared by every call of a session (and the background meta call): persona + level prefix. */
+export function roomCacheKey(expertId: string, band: SelectionBand): string {
+  return `pen:${expertId}:${band}`;
+}
 
 /** Topic-miss acquisition seam: the knowledge package implements it; tests use a stub. */
 export interface KnowledgeAcquirer {
@@ -1579,7 +1583,7 @@ export class SessionRoom {
   }
 
   private cacheKey(): string {
-    return `pen:${this.d.expert.id}:${this.d.band}`;
+    return roomCacheKey(this.d.expert.id, this.d.band);
   }
 
   private queryInputFor(text: string, revision: string): QueryInput {

@@ -37,9 +37,13 @@ export const SessionRecord = z.object({
   questions: z.number(),
   recap: z.array(z.string()),
   views: z.number(),
+  /** API-relative path of the sketch (`/api/sessions/<id>/thumb.svg`); null until the background job lands. */
   thumbnail: z.string().nullable(),
   /** `${lang}.${slug}` of the resolved topic; absent on records older than the column. */
   canonicalId: z.string().nullable().optional(),
+  /** Card copy; empty until the same job lands. */
+  description: z.string().default(''),
+  keywords: z.array(z.string()).default([]),
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
 
@@ -273,5 +277,9 @@ export class ApiClient {
   }
   portraitUrl(src: string | null | undefined): string | null {
     return src ? `${this.baseUrl}${src}` : null;
+  }
+  /** Absolute URL of a session's sketch (`thumbnail` is API-relative); null until it is ready. */
+  thumbnailUrl(session: Pick<SessionRecord, 'thumbnail'>): string | null {
+    return session.thumbnail ? `${this.baseUrl}${session.thumbnail}` : null;
   }
 }

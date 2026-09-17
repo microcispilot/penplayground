@@ -28,6 +28,7 @@ import { RecognizerRouter } from './recognizer-router.js';
 import { type LiveRoom, RoomRegistry } from './rooms.js';
 import { DATA_DIR, type Services } from './services.js';
 import { aggregateReuse, computeTelemetry } from './telemetry.js';
+import { THUMB_CONTENT_TYPE, THUMB_SIZES, type ThumbnailKind } from './thumbnails.js';
 
 export interface App {
   app: Hono;
@@ -384,6 +385,50 @@ export function buildApp(services: Services): App {
       return c.json({ ok: true, ref });
     });
 
+  // ── thumbnails (ADR-0013) ────────────────────────────────────────────────
+  /**
+   * The sketch and its rasters. Public sessions are public assets with a long
+   * cache; a private session's thumbnail is only for its host, uncached by
+   * proxies. A missing thumbnail is a 404 the client treats as "not ready".
+   */
+  const thumbnail = async (
+    c: {
+      req: { header(name: string): string | undefined; param(name: string): string };
+      header(name: string, value: string): void;
+      body(data: null | ReadableStream, status?: 200 | 304): Response;
+      json(body: { error: string }, status: 401 | 403 | 404): Response;
+    },
+    kind: ThumbnailKind,
+  ): Promise<Response> => {
+    const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success) return c.json({ error: 'NOT_FOUND' }, 404);
+    const record = await services.sessions.get(id);
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (record.visibility === 'private') {
+      const claims = await bearer(c.req.header('authorization'));
+      if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+      if (claims.sub !== record.hostId) return c.json({ error: 'NOT_HOST' }, 403);
+    }
+    const path = record.thumbnail ? services.thumbnails.file(id, kind) : null;
+    if (!path) return c.json({ error: 'NOT_READY' }, 404);
+    const { size, etag } = services.thumbnails.stat(path);
+    c.header('ETag', etag);
+    c.header('Vary', 'Authorization');
+    c.header(
+      'Cache-Control',
+      record.visibility === 'public'
+        ? 'public, max-age=86400, stale-while-revalidate=604800'
+        : 'private, max-age=3600',
+    );
+    if (c.req.header('if-none-match') === etag) return c.body(null, 304);
+    c.header('Content-Type', THUMB_CONTENT_TYPE[kind]);
+    c.header('Content-Length', String(size));
+    return c.body(Readable.toWeb(createReadStream(path)) as ReadableStream);
+  };
+  app.get('/api/sessions/:id/thumb.svg', (c) => thumbnail(c, 'svg'));
+  app.get('/api/sessions/:id/thumb.png', (c) => thumbnail(c, 'card'));
+  app.get('/api/sessions/:id/og.png', (c) => thumbnail(c, 'og'));
+
   app.post('/api/sessions/:id/end', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -559,9 +604,22 @@ export function buildApp(services: Services): App {
         /[&<>"]/g,
         (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] ?? ch,
       );
+    const description =
+      record.description ||
+      record.promise ||
+      `A session with ${expert?.displayName ?? 'an AI expert'} on Pen Playground`;
+    // Scrapers rarely rasterise SVG, so Open Graph gets the 1200 × 630 PNG; only public sessions
+    // can be fetched without a bearer, so only they advertise an image.
+    const image =
+      record.thumbnail && record.visibility === 'public'
+        ? `${services.cfg.PEN_API_URL}/api/sessions/${encodeURIComponent(record.id)}/og.png`
+        : null;
+    const imageTags = image
+      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}">`
+      : '<meta name="twitter:card" content="summary">';
     return c.html(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(record.title)} · Pen Playground</title>
-<meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(record.promise || `A session with ${expert?.displayName ?? 'an AI expert'} on Pen Playground`)}">
-<meta property="og:type" content="video.other"><meta property="og:url" content="${esc(target)}">${record.thumbnail ? `<meta property="og:image" content="${esc(record.thumbnail)}">` : ''}
+<meta name="description" content="${esc(description)}"><meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(description)}">
+<meta property="og:type" content="video.other"><meta property="og:site_name" content="Pen Playground"><meta property="og:url" content="${esc(target)}">${imageTags}
 <meta http-equiv="refresh" content="0;url=${esc(target)}"></head><body><a href="${esc(target)}">Open the session</a></body></html>`);
   });
 
