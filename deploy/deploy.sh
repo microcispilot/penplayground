@@ -132,7 +132,7 @@ fi
 # ── 3. sync stack files ──────────────────────────────────────────────────────
 log "syncing stack files to $PEN_DEPLOY_ROOT"
 # data/ is the API's /data volume; the container runs as uid 1000 (node), so it must own it.
-remote "mkdir -p '$PEN_DEPLOY_ROOT/searxng' '$PEN_DEPLOY_ROOT/nginx' '$PEN_DEPLOY_ROOT/data' \
+remote "mkdir -p '$PEN_DEPLOY_ROOT/searxng' '$PEN_DEPLOY_ROOT/nginx' '$PEN_DEPLOY_ROOT/livekit' '$PEN_DEPLOY_ROOT/data' \
   && chown 1000:1000 '$PEN_DEPLOY_ROOT/data'"
 RSYNC_SSH="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
 rsync -rltz -e "$RSYNC_SSH" \
@@ -144,6 +144,9 @@ rsync -rltz -e "$RSYNC_SSH" \
 rsync -rltz -e "$RSYNC_SSH" \
   deploy/nginx/pen-playground.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
+rsync -rltz -e "$RSYNC_SSH" \
+  deploy/livekit/livekit.yaml \
+  "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/livekit/"
 # openrsync (macOS) has no --chmod; normalise modes on the host instead.
 remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '*.example' -o -name '*.md' \\) -exec chmod 0644 {} +"
 # The vhost with DOMAIN filled in, ready to copy into /etc/nginx/sites-available.
@@ -155,15 +158,23 @@ missing="$(remote "cd '$PEN_DEPLOY_ROOT' && for f in api.env postgres.env; do [ 
 if [ -n "$missing" ]; then
   die "missing on host: $(echo "$missing" | tr '\n' ' ')— create from the .example files in $PEN_DEPLOY_ROOT (chmod 600), then re-run"
 fi
-# .env (compose interpolation): keep SEARXNG_SECRET stable, set PEN_IMAGE_TAG to this deploy.
+# .env (compose interpolation): keep SEARXNG_SECRET and the LiveKit key pair stable, point
+# LIVEKIT_URL at this domain, set PEN_IMAGE_TAG to this deploy.
 remote "set -e; cd '$PEN_DEPLOY_ROOT'
   touch .env
   chmod 600 .env api.env postgres.env
   if ! grep -q '^SEARXNG_SECRET=..*' .env; then
     printf 'SEARXNG_SECRET=%s\n' \"\$(openssl rand -hex 32)\" >> .env
   fi
-  grep -v '^PEN_IMAGE_TAG=' .env > .env.next || true
+  if ! grep -q '^LIVEKIT_API_KEY=..*' .env; then
+    printf 'LIVEKIT_API_KEY=API%s\n' \"\$(openssl rand -hex 8)\" >> .env
+  fi
+  if ! grep -q '^LIVEKIT_API_SECRET=..*' .env; then
+    printf 'LIVEKIT_API_SECRET=%s\n' \"\$(openssl rand -base64 48 | tr -d '/+=\n')\" >> .env
+  fi
+  grep -v -e '^PEN_IMAGE_TAG=' -e '^LIVEKIT_URL=' .env > .env.next || true
   printf 'PEN_IMAGE_TAG=%s\n' '$PEN_IMAGE_TAG' >> .env.next
+  printf 'LIVEKIT_URL=wss://%s/livekit\n' '$PEN_DOMAIN' >> .env.next
   chmod 600 .env.next
   mv .env.next .env"
 

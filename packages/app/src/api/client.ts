@@ -47,6 +47,15 @@ export const ExportStatus = z.object({
 });
 export type ExportStatus = z.infer<typeof ExportStatus>;
 
+/** A LiveKit join grant for the current participant; `url` is what the browser connects to. */
+export const RoomAudioGrant = z.object({
+  url: z.string(),
+  token: z.string(),
+  canPublish: z.boolean(),
+  roomAdmin: z.boolean(),
+});
+export type RoomAudioGrant = z.infer<typeof RoomAudioGrant>;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -181,6 +190,21 @@ export class ApiClient {
   }
   exportStatus(id: string) {
     return this.request(`/api/sessions/${encodeURIComponent(id)}/export`, ExportStatus);
+  }
+  /** Human-to-human audio: mint a media-server token for a session this participant has joined. */
+  roomAudioToken(sessionId: string) {
+    return this.request(`/api/rooms/${encodeURIComponent(sessionId)}/token`, RoomAudioGrant, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+  /** Host only: mute one guest's voice to the room, or everyone's when `participantId` is absent. */
+  muteRoomAudio(sessionId: string, participantId?: string) {
+    return this.request(
+      `/api/rooms/${encodeURIComponent(sessionId)}/mute`,
+      z.object({ muted: z.array(z.string()) }),
+      { method: 'POST', body: JSON.stringify(participantId ? { participantId } : {}) },
+    );
   }
   billingStatus() {
     return this.request('/api/billing/status', z.object({ enabled: z.boolean() }));

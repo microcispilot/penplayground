@@ -6,7 +6,9 @@
 # then enable the two TLS blocks. Style follows /etc/nginx/sites-enabled/simurghlabs.conf.
 #
 # Everything is forwarded to the web container (127.0.0.1:4201), which serves the SPA and proxies
-# /api, /experts, /s and the /ws WebSocket to the API container itself.
+# /api, /experts, /s and the /ws WebSocket to the API container itself. /livekit/ goes straight to
+# the LiveKit signalling port (127.0.0.1:7880); media itself flows over 7881/tcp + 7882/udp, not
+# through nginx.
 #
 # WebSocket upgrade map. prod-app-01 already defines `$connection_upgrade` globally in
 # /etc/nginx/conf.d/ws_upgrade.conf; this one uses its own name so the two never conflict.
@@ -56,6 +58,23 @@ server {
     add_header Strict-Transport-Security "max-age=31536000" always;
 
     client_max_body_size 10m;
+
+    # LiveKit signalling (wss://DOMAIN/livekit → ws://127.0.0.1:7880/rtc) and its HTTP API. The
+    # trailing slashes strip the /livekit prefix; a room lives for up to three hours.
+    location /livekit/ {
+        proxy_pass http://127.0.0.1:7880/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $pen_connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:4201;

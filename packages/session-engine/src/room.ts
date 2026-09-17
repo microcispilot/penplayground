@@ -92,6 +92,8 @@ export interface SessionRoomDeps {
   ledger?: LedgerSink;
   targetMinutes?: number;
   ads?: { everySegments: number; durationMs: number; skippableAfterMs: number } | null;
+  /** The API has a media server for human-to-human audio; the host's plan still decides. */
+  participantAudio?: boolean;
   now?: () => number;
 }
 
@@ -172,6 +174,7 @@ export class SessionRoom {
       floor: null,
       hostId: host.id,
       participants: [host],
+      participantAudio: Boolean(deps.participantAudio) && hasEntitlement(deps.host.plan, 'rooms'),
       plan: null,
       segment: 0,
       clockMs: 0,

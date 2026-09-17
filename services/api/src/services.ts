@@ -26,6 +26,7 @@ import { demoScripts } from './demo-scripts.js';
 import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
 import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
+import { LiveKitRooms } from './livekit.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
 import { createRecognizer } from './stt.js';
@@ -54,6 +55,8 @@ export interface Services {
   downloadTokens: DownloadTokens;
   /** Null when ffmpeg + Chromium were found at boot; otherwise why exports are refused. */
   renderUnavailable: string | null;
+  /** Human-to-human audio in rooms; null until LIVEKIT_URL/KEY/SECRET are configured. */
+  livekit: LiveKitRooms | null;
 }
 
 /** In-memory cost ledger with daily totals; persisted to the data dir hourly by main. */
@@ -178,6 +181,17 @@ export async function buildServices(
     onError: (area, error, data) => observer.error(area, error, data),
   });
   const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
+  const livekit =
+    cfg.LIVEKIT_URL && cfg.LIVEKIT_API_KEY && cfg.LIVEKIT_API_SECRET
+      ? new LiveKitRooms({
+          url: cfg.LIVEKIT_URL,
+          apiUrl: cfg.LIVEKIT_API_URL,
+          apiKey: cfg.LIVEKIT_API_KEY,
+          apiSecret: cfg.LIVEKIT_API_SECRET,
+        })
+      : null;
+  if (!livekit)
+    logger.warn('rooms audio disabled: set LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
   const base = {
     cfg,
     onten,
@@ -197,6 +211,7 @@ export async function buildServices(
     exports,
     downloadTokens,
     renderUnavailable,
+    livekit,
   };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;
   return { ...base, acquirer };

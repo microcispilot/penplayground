@@ -19,7 +19,8 @@
 - [x] Replay from the ledger through the conductor
 - [ ] Google sign-in (accounts on the same participant row)
 - [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
-- [ ] LiveKit rooms audio (human-to-human voice)
+- [x] LiveKit rooms audio (human-to-human voice): self-hosted server in the stack, token + mute routes, shared-mic client, participants popover, two-browser e2e (ADR-0012)
+- [ ] Rooms audio follow-ups: TURN/TLS on 443 for UDP+7881-blocked networks; expert joins the media room as an agent (mixed track for export); guest voice in the ledger
 - [ ] Desktop: package and sign (needs Apple ID / Windows cert)
 - [x] Sentry projects (pen-academy-api/web/desktop)
 - [ ] Sentry source maps upload (web + api)
