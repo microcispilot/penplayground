@@ -375,6 +375,18 @@ export class SessionRoom {
       });
     } else {
       if (!this.d.acquirer) throw new Error('KNOWLEDGE_ACQUIRER_MISSING');
+      // A topic miss means the learner waits while sources are gathered: on the free plan that wait
+      // carries one ad card, and it is taken out of the session's ad budget (never an extra ad).
+      if (this.d.ads && !hasEntitlement(this.d.host.plan, 'no_ads')) {
+        this.adsShown += 1;
+        this.d.transport.broadcast({
+          kind: 'ad',
+          adId: `ad-${this.sessionId}-prep`,
+          afterSeq: -1,
+          skippableAfterMs: this.d.ads.skippableAfterMs,
+          durationMs: this.d.ads.durationMs,
+        });
+      }
       const prepared = await this.d.acquirer.prepare({
         resolution,
         onProgress: (p) => this.setPreparation(p),
@@ -522,12 +534,16 @@ export class SessionRoom {
     }
     this.segmentEvents.set(index, events);
     this.lastSeqOfSegment[index] = this.seq - 1;
+    // Ad budget: one card every N segments. A card shown during preparation consumes the first slot.
+    const every = this.d.ads?.everySegments ?? 0;
+    const adSlot =
+      every > 0 && index > 0 && index % every === 0 && index < plan.segments.length - 1;
+    const slotIndex = every > 0 ? index / every : 0;
     if (
       this.d.ads &&
       !hasEntitlement(this.d.host.plan, 'no_ads') &&
-      index > 0 &&
-      index % this.d.ads.everySegments === 0 &&
-      index < plan.segments.length - 1
+      adSlot &&
+      this.adsShown < slotIndex
     ) {
       this.adsShown += 1;
       this.d.transport.broadcast({

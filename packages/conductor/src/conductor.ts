@@ -142,6 +142,8 @@ export class Conductor {
           durationMs: message.durationMs,
           skippableAfterMs: message.skippableAfterMs,
         };
+        // A preparation-time card runs now and ends as soon as the room goes live (or on skip).
+        if (message.afterSeq < 0) this.startAd();
         return;
       case 'prep':
         return;
@@ -250,6 +252,7 @@ export class Conductor {
     const previous = this.state;
     this.state = state;
     this.o.presence.setState(state);
+    if (state.phase === 'live' && this.phase === 'ad' && this.prepAd) this.endAd();
     if (state.phase === 'ended') {
       this.phase = 'ended';
       this.o.audio.cancel();
@@ -406,10 +409,13 @@ export class Conductor {
     this.o.transport.send({ kind: 'resumed' });
   }
 
+  private prepAd = false;
+
   private startAd(): void {
     const ad = this.pendingAd;
     if (!ad) return;
     this.pendingAd = null;
+    this.prepAd = ad.afterSeq < 0;
     this.o.audio.pause();
     for (const { exec } of this.executions.values()) exec.pause();
     this.phase = 'ad';
@@ -425,6 +431,13 @@ export class Conductor {
     if (this.adTimer) this.clearTimeout(this.adTimer);
     this.adTimer = null;
     this.o.presence.showAd(null);
+    const wasPrep = this.prepAd;
+    this.prepAd = false;
+    if (wasPrep && this.state?.phase !== 'live') {
+      // Still preparing: nothing to resume yet.
+      this.phase = 'idle';
+      return;
+    }
     this.phase = 'playing';
     this.o.audio.resume();
     for (const { exec } of this.executions.values()) exec.resume();

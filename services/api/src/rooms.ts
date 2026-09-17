@@ -98,7 +98,7 @@ export class RoomRegistry {
       memo: services.onten.memo,
       model: services.modelFor(args.host.plan),
       synthesizer: services.synthesizer,
-      voice: services.voices.resolve(expert, locale).id,
+      voice: services.voices.voiceFor(expert, locale),
       sampleRate: 44100,
       transport,
       observer,

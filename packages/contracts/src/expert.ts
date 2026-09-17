@@ -20,8 +20,14 @@ export const Expert = z.object({
   aiDisclosure: z.string(),
   provenance: z.enum(['fictional-synthetic', 'historical-recreation']),
   portrait: Portrait.nullable(),
-  /** Catalog voice id (e.g. af_heart); resolved to a Fish reference id per deployment. */
+  /** Legacy catalog voice profile id (e.g. af_heart), kept for the Simurgh bridge engine. */
   voiceId: z.string(),
+  /**
+   * The expert's assigned Fish reference voices, keyed by language (en, es, ja …).
+   * Assigned once by `scripts/assign-voices.ts` and stored
+   * with the persona; a persona always sounds the same until re-assigned.
+   */
+  voices: z.record(z.string(), z.string()).default({}),
   domain: z.enum([
     'math-science-engineering',
     'computing-data',

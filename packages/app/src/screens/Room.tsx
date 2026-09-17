@@ -113,20 +113,30 @@ export function Room() {
 
   if (!ui.state || ui.state.phase === 'preparing') {
     return (
-      <PreparingView
-        expertName={expert?.displayName ?? '…'}
-        expertRole={expert?.role ?? ''}
-        portraitUrl={portrait}
-        topic={ui.state?.topic ?? ''}
-        plan={ui.state?.plan ?? null}
-        progress={
-          ui.preparation
-            ? { fraction: ui.preparation.fraction, status: ui.preparation.status }
-            : ui.connection === 'open'
-              ? { fraction: 0.05, status: 'Finding the right material…' }
-              : { fraction: 0.02, status: 'Connecting…' }
-        }
-      />
+      <div className="relative">
+        {ui.ad && session ? (
+          <AdCard
+            durationMs={ui.ad.durationMs}
+            skippableAfterMs={ui.ad.skippableAfterMs}
+            startedAt={ui.ad.startedAt}
+            onSkip={() => session.skipAd()}
+          />
+        ) : null}
+        <PreparingView
+          expertName={expert?.displayName ?? '…'}
+          expertRole={expert?.role ?? ''}
+          portraitUrl={portrait}
+          topic={ui.state?.topic ?? ''}
+          plan={ui.state?.plan ?? null}
+          progress={
+            ui.preparation
+              ? { fraction: ui.preparation.fraction, status: ui.preparation.status }
+              : ui.connection === 'open'
+                ? { fraction: 0.05, status: 'Finding the right material…' }
+                : { fraction: 0.02, status: 'Connecting…' }
+          }
+        />
+      </div>
     );
   }
 

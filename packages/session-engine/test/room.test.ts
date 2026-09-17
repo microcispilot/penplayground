@@ -27,6 +27,7 @@ const expert: Expert = {
   domain: 'computing-data',
   premium: false,
   gender: 'woman',
+  voices: { en: 'voice-en' },
 };
 
 const rights = {

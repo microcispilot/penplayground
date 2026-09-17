@@ -108,8 +108,8 @@ export const ServerAd = z.object({
   kind: z.literal('ad'),
   /** Free plan only: a skippable card between segments. */
   adId: z.string(),
-  /** Inserted after this cue seq. */
-  afterSeq: z.number().int().nonnegative(),
+  /** Inserted after this cue seq; -1 = now, while the session is being prepared (topic miss). */
+  afterSeq: z.number().int().min(-1),
   skippableAfterMs: z.number().int().nonnegative(),
   durationMs: z.number().int().positive(),
 });

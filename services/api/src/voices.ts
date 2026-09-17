@@ -58,6 +58,16 @@ export class ExpertVoices {
   all(): readonly Voice[] {
     return this.voices;
   }
+
+  /**
+   * The voice a persona was assigned for a language (en, es, ja …), falling
+   * back to its English voice. A deterministic pick is used only when the
+   * catalog was never assigned for that persona (the script fixes that).
+   */
+  voiceFor(expert: Pick<Expert, 'id' | 'gender' | 'voices'>, locale: string): string {
+    const lang = locale.toLowerCase().split('-')[0] ?? 'en';
+    return expert.voices[lang] ?? expert.voices.en ?? this.resolve(expert, locale).id;
+  }
 }
 
 function hash(s: string): number {
