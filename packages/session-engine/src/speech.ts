@@ -1,4 +1,5 @@
-import type { DownstreamAudioHeader, SayEvent } from '@pen/contracts';
+import type { DownstreamAudioHeader, GapKind, SayEvent } from '@pen/contracts';
+import { gapMsFor, ttsSpeedFor } from '@pen/contracts';
 import type { SpeechSynthesizer } from '@pen/voice';
 import type { RoomObserver, RoomTransport } from './transport.js';
 
@@ -11,8 +12,37 @@ export interface SayPipelineOptions {
   observer: RoomObserver;
   /** How many sentences may be synthesised ahead of the last one the room finished hearing. */
   lookahead?: number;
+  /**
+   * The room's teaching pace, read when a sentence starts synthesis (ADR-0010).
+   * A change applies from the next sentence; the one in flight keeps its speed.
+   */
+  pace?: () => number;
+  /**
+   * Which beat follows a sentence: a plain sentence gap, the longer wait after a
+   * check-in question or a board title, or null for no pause. Asked once the
+   * sentence's speech has streamed; may resolve asynchronously (the room waits
+   * briefly for the cue that follows the sentence, since a title or a check is
+   * emitted after the sentence it belongs to).
+   */
+  gapAfter?: (say: SayEvent, thread: string) => GapKind | null | Promise<GapKind | null>;
   onComplete?: (sayId: string, durationMs: number) => void;
   onFailure?: (sayId: string, error: unknown) => void;
+}
+
+/** Silence is framed like speech so the player's contiguous-clock validation holds. */
+const SILENCE_FRAME_MS = 120;
+/** The last speech samples ramp to zero before the beat so the seam can never click. */
+const TAIL_FADE_MS = 3;
+
+/** In-place linear fade-out over the last `ms` of an s16le mono buffer. */
+export function fadeTail(pcm: Uint8Array, sampleRate: number, ms = TAIL_FADE_MS): void {
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength - (pcm.byteLength % 2));
+  const total = view.byteLength / 2;
+  const count = Math.min(total, Math.round((sampleRate * ms) / 1000));
+  for (let i = 0; i < count; i += 1) {
+    const index = total - 1 - i;
+    view.setInt16(index * 2, Math.round(view.getInt16(index * 2, true) * (i / count)), true);
+  }
 }
 
 /**
@@ -94,7 +124,7 @@ export class SayPipeline {
         this.enqueued += 1;
         this.inFlight += 1;
         const signal = this.controller.signal;
-        await this.speak(item.say, item.take, item.voice, signal);
+        await this.speak(item.say, item.thread, item.take, item.voice, signal);
         this.inFlight = Math.max(0, this.inFlight - 1);
       }
     } finally {
@@ -104,11 +134,15 @@ export class SayPipeline {
 
   private async speak(
     say: SayEvent,
+    thread: string,
     take: number,
     voice: string,
     signal: AbortSignal,
   ): Promise<void> {
     const started = performance.now();
+    // The pace is read once per sentence: the voice, the beat after it and the
+    // board all follow this one number, and a change waits for the next sentence.
+    const pace = this.opts.pace?.() ?? 1;
     let durationMs = 0;
     let chunkIndex = 0;
     let first = true;
@@ -117,6 +151,7 @@ export class SayPipeline {
         text: spokenText(say.text),
         voice,
         sampleRate: this.opts.sampleRate,
+        speed: ttsSpeedFor(pace),
         tone: say.tone,
         signal,
       });
@@ -128,6 +163,7 @@ export class SayPipeline {
             sayId: say.id,
             ms: Math.round(performance.now() - started),
             engine: this.opts.synthesizer.id,
+            pace,
           });
           first = false;
         }
@@ -147,8 +183,42 @@ export class SayPipeline {
         durationMs = chunk.audioClockMs + chunk.durationMs;
       }
       if (signal.aborted) return;
-      if (previous) {
+      // The beat after the sentence is audio too: it rides the same clock, the
+      // same ledger and the same replay as the words (ADR-0002, ADR-0010).
+      // The speech itself is already on its way to the speakers; only the tail
+      // waits for the decision, so the wait is never audible.
+      const gapKind = this.opts.gapAfter ? await this.opts.gapAfter(say, thread) : 'sentence';
+      if (signal.aborted) return;
+      const gapMs = gapKind ? gapMsFor(gapKind, pace) : 0;
+      if (previous && gapMs === 0) {
         this.opts.transport.broadcastAudio({ ...previous.header, final: true }, previous.pcm);
+      } else if (gapMs > 0) {
+        if (previous) {
+          fadeTail(previous.pcm, previous.header.sampleRate);
+          this.opts.transport.broadcastAudio(previous.header, previous.pcm);
+        }
+        const sampleRate = previous?.header.sampleRate ?? this.opts.sampleRate;
+        for (let sent = 0; sent < gapMs; ) {
+          const ms = Math.min(SILENCE_FRAME_MS, gapMs - sent);
+          const samples = Math.max(1, Math.floor((sampleRate * ms) / 1000));
+          const frameMs = Math.max(1, Math.round((samples * 1000) / sampleRate));
+          sent += ms;
+          this.opts.transport.broadcastAudio(
+            {
+              dir: 'down',
+              sayId: say.id,
+              audioChunkId: chunkIndex++,
+              audioClockMs: durationMs,
+              sampleRate,
+              durationMs: frameMs,
+              textSpan: null,
+              final: sent >= gapMs,
+              take,
+            },
+            new Uint8Array(samples * 2),
+          );
+          durationMs += frameMs;
+        }
       } else {
         // Zero-length synthesis (empty text): still close the sentence so the clock advances.
         this.opts.transport.broadcastAudio(

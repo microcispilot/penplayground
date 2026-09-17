@@ -7,6 +7,13 @@
  * resampler worker is `@pen/voice/resampler-worker` for `?worker` bundling.
  */
 export * from './constants.js';
+export type {
+  MediaElementLike,
+  MediaEventName,
+  MediaPlayerErrorCode,
+  MediaSayPlayerOptions,
+} from './media-player.js';
+export { MEDIA_RATE_MAX, MEDIA_RATE_MIN, MediaSayPlayer, pcmToWav } from './media-player.js';
 export type { MicrophoneOptions, MicrophoneState } from './microphone.js';
 export { CAPTURE_PROCESSOR_NAME, Microphone } from './microphone.js';
 export { resampleMonoToPcmS16le } from './pcm-resampler.js';

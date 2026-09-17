@@ -6,5 +6,6 @@ export * from './expert.js';
 export * from './ids.js';
 export * from './ledger.js';
 export * from './onten.js';
+export * from './pace.js';
 export * from './session.js';
 export * from './wire.js';

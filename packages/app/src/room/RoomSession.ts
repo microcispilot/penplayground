@@ -6,9 +6,10 @@ import {
   type PresencePort,
 } from '@pen/conductor';
 import type { CheckEvent, RoomState } from '@pen/contracts';
-import { AUDIO, encodeAudioFrame } from '@pen/contracts';
+import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
+import { readPacePreference, writePacePreference } from '../lib/pace-preference.js';
 import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../platform/types.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
@@ -144,6 +145,8 @@ export class RoomSession {
         onMessage: (m) => {
           this.conductor.handleServer(m);
           set({ phase: this.conductor.getPhase() });
+          if (m.kind === 'ready') this.applyRememberedPace(m.state);
+          if (m.kind === 'state') this.rememberHostPace(m.state);
           if (m.kind === 'prep') set({ preparation: m.progress });
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
@@ -331,6 +334,35 @@ export class RoomSession {
   toggleCaptions(): void {
     const st = useRoomStore.getState();
     st.set({ captionsOn: !st.captionsOn });
+  }
+
+  /**
+   * Host only (the server refuses guests): set the room's teaching pace. The
+   * new pace comes back to everyone in `state`; the choice is remembered for
+   * the sessions this learner hosts next.
+   */
+  setPace(pace: number): void {
+    const clean = clampPace(pace);
+    writePacePreference(this.o.platform.storage, clean);
+    this.client.send({ kind: 'set_pace', pace: clean });
+  }
+
+  private rememberedPace: number | null = null;
+
+  /** The host's room pace is their preference, however it was set (menu or a spoken "slower"). */
+  private rememberHostPace(state: RoomState): void {
+    if (state.hostId !== this.o.participantId || state.pace === this.rememberedPace) return;
+    this.rememberedPace = state.pace;
+    writePacePreference(this.o.platform.storage, state.pace);
+  }
+
+  /** Right after join: a host's remembered pace becomes the room's pace before the first sentence. */
+  private applyRememberedPace(state: RoomState): void {
+    if (state.hostId !== this.o.participantId) return;
+    const remembered = readPacePreference(this.o.platform.storage);
+    this.rememberedPace = remembered ?? state.pace;
+    if (remembered === null || Math.abs(remembered - state.pace) < 1e-6) return;
+    this.client.send({ kind: 'set_pace', pace: remembered });
   }
 
   dispose(): void {

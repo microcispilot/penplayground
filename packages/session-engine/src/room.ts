@@ -3,6 +3,7 @@ import type {
   ClientMessage,
   Cue,
   Expert,
+  GapKind,
   LedgerEntry,
   LessonEvent,
   LessonPlan,
@@ -18,7 +19,13 @@ import type {
   SelectionBand,
   ServerErrorCode,
 } from '@pen/contracts';
-import { hasEntitlement, MAX_PARTICIPANTS } from '@pen/contracts';
+import {
+  clampPace,
+  hasEntitlement,
+  MAX_PARTICIPANTS,
+  PACE_DEFAULT,
+  slowerPreset,
+} from '@pen/contracts';
 import type { LanguageModel } from '@pen/llm';
 import type { LessonMemo, MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
@@ -92,8 +99,13 @@ export interface SessionRoomDeps {
   ledger?: LedgerSink;
   targetMinutes?: number;
   ads?: { everySegments: number; durationMs: number; skippableAfterMs: number } | null;
+  /** Initial teaching pace (the host's remembered preference arrives as `set_pace` right after join). */
+  pace?: number;
   now?: () => number;
 }
+
+/** Longest the closing beat of a sentence waits for the cue after it before defaulting to a plain sentence gap. */
+const GAP_DECISION_WAIT_MS = 300;
 
 interface Turn {
   id: string;
@@ -128,6 +140,12 @@ export class SessionRoom {
   private readonly questions: string[] = [];
   private readonly takes = new Map<string, number>();
   private readonly checks = new Map<string, { check: CheckEvent; question: string; seq: number }>();
+  /** Says that ask a check-in / carry a board title: they get the longer beat after them. */
+  private readonly checkAskers = new Set<string>();
+  private readonly titleSays = new Set<string>();
+  private readonly seqOfSay = new Map<string, number>();
+  /** Sentences whose closing beat waits for the cue after them (see `gapAfter`). */
+  private cueWaiters: Array<() => void> = [];
   private pendingCheck: { check: CheckEvent; question: string } | null = null;
   private hostProgressSeq = -1;
   private firstSeqOfSegment: number[] = [];
@@ -175,6 +193,7 @@ export class SessionRoom {
       plan: null,
       segment: 0,
       clockMs: 0,
+      pace: clampPace(deps.pace ?? PACE_DEFAULT),
       preparation: {
         stage: 'resolving',
         fraction: 0.02,
@@ -209,6 +228,8 @@ export class SessionRoom {
         },
       },
       observer: this.observer,
+      pace: () => this.state.pace,
+      gapAfter: (say) => this.gapAfter(say),
       onComplete: (sayId) => this.onSayComplete(sayId),
       onFailure: (sayId, error) => this.onSayFailure(sayId, error),
     });
@@ -301,6 +322,9 @@ export class SessionRoom {
         break;
       case 'resumed':
         this.resumed(p);
+        break;
+      case 'set_pace':
+        this.setPace(p, message.pace);
         break;
       case 'utterance_start':
         p.micOn = true;
@@ -597,9 +621,63 @@ export class SessionRoom {
       event: qualifyIds(raw, prefix),
     };
     this.cues.push(cue);
+    const ev = cue.event;
+    if (ev.type === 'say') this.seqOfSay.set(ev.id, cue.seq);
+    if (ev.type === 'check') this.checkAskers.add(ev.askedBy);
+    if (ev.type === 'board' && ev.op === 'title' && ev.anchor !== 'now')
+      this.titleSays.add(ev.anchor.startsWith('after:') ? ev.anchor.slice(6) : ev.anchor);
     this.d.transport.broadcast({ kind: 'cue', cue });
     this.ledger({ kind: 'cue', t: cue.at, cue });
+    for (const wake of this.cueWaiters.splice(0)) wake();
     return cue;
+  }
+
+  /**
+   * The beat after a sentence: longer when it asked a question or introduced a
+   * title (ADR-0010). The check/title cue is emitted after the sentence it
+   * belongs to, so when nothing has followed the sentence yet the decision
+   * waits for the next cue (bounded); the speech is already streaming, only
+   * the silence at the tail is held.
+   */
+  private async gapAfter(say: SayEvent): Promise<GapKind> {
+    const seq = this.seqOfSay.get(say.id);
+    if (seq !== undefined && seq >= this.seq - 1 && !this.abort.signal.aborted) {
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(done, GAP_DECISION_WAIT_MS);
+        this.cueWaiters.push(done);
+      });
+    }
+    if (this.checkAskers.has(say.id)) return 'check';
+    if (this.titleSays.has(say.id)) return 'title';
+    return 'sentence';
+  }
+
+  /**
+   * Host-only. The new pace reaches every participant through `state`, goes to
+   * the ledger so replay knows it, and applies from the next sentence the
+   * pipeline synthesises: the sentence in flight (and up to `lookahead`
+   * sentences already banked on the clients) finish at their own speed.
+   */
+  private setPace(p: Participant, requested: number): void {
+    if (p.role !== 'host') {
+      this.d.transport.send(p.id, {
+        kind: 'error',
+        code: 'NOT_HOST',
+        message: 'Only the host sets the pace.',
+        spoken: false,
+      });
+      return;
+    }
+    const pace = clampPace(requested);
+    if (Math.abs(pace - this.state.pace) < 1e-6) return;
+    this.state = { ...this.state, pace };
+    this.ledger({ kind: 'pace', t: this.now(), pace, participantId: p.id });
+    this.observer.event('room.pace', { sessionId: this.sessionId, pace });
+    this.broadcastState();
   }
 
   private async contextFor(
@@ -657,10 +735,16 @@ export class SessionRoom {
   private progress(p: Participant, seq: number, clockMs: number): void {
     if (p.role !== 'host') return;
     if (seq > this.hostProgressSeq) {
+      const previous = this.hostProgressSeq;
       this.hostProgressSeq = seq;
       this.clockMs = clockMs;
       const cue = this.cues[seq];
-      if (cue?.thread === 'lesson' && cue.event.type === 'say') this.pipeline.markHeard();
+      // Every lesson sentence up to this cue has been heard, even when a report was skipped
+      // (progress is monotonic on the client); the lookahead must never lag behind the room.
+      for (let s = previous + 1; s <= seq; s += 1) {
+        const heard = this.cues[s];
+        if (heard?.thread === 'lesson' && heard.event.type === 'say') this.pipeline.markHeard();
+      }
       const segment = this.lastSeqOfSegment.findIndex((last) => last >= seq);
       const seg = segment === -1 ? this.state.segment : segment;
       if (seg !== this.state.segment) {
@@ -893,8 +977,11 @@ export class SessionRoom {
         this.releaseFloor();
         return;
       }
-      case 'next':
       case 'slower':
+        // "Slow down" is a pace request: one preset down, host only (guests hear the host's pace).
+        if (isHost) this.setPace(p, slowerPreset(this.state.pace));
+        break;
+      case 'next':
       case 'none':
         break;
     }

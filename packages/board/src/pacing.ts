@@ -50,8 +50,14 @@ export interface ResolvedPace {
   mode: 'natural' | 'stretched' | 'capped';
 }
 
-export function resolvePace(naturalMs: number, paceMs: number | null): ResolvedPace {
-  const natural = Math.max(MIN_OP_MS, naturalMs);
+/**
+ * `rate` multiplies the human writing speed (the room's pace × the replay
+ * rate, ADR-0010): at 1.3 the hand moves 30 % faster and the natural time
+ * shrinks accordingly; the floor and the stretch cap apply to the scaled time.
+ */
+export function resolvePace(naturalMs: number, paceMs: number | null, rate = 1): ResolvedPace {
+  const r = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  const natural = Math.max(MIN_OP_MS, naturalMs / r);
   if (paceMs === null || !Number.isFinite(paceMs) || paceMs <= natural) {
     return { durationMs: natural, naturalMs: natural, stretch: 1, mode: 'natural' };
   }

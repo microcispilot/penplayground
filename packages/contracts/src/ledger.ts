@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DownstreamAudioHeader } from './audio-frame.js';
 import { Cue } from './cues.js';
 import { ParticipantId } from './ids.js';
+import { Pace } from './pace.js';
 
 /**
  * Recording ledger: everything needed to replay a session deterministically.
@@ -42,5 +43,12 @@ export const LedgerEntry = z.discriminatedUnion('kind', [
     name: z.string(),
   }),
   z.object({ kind: z.literal('leave'), t: z.number().int(), participantId: ParticipantId }),
+  /** The host changed the teaching pace; replay knows the pace at every moment from these. */
+  z.object({
+    kind: z.literal('pace'),
+    t: z.number().int(),
+    pace: Pace,
+    participantId: ParticipantId,
+  }),
 ]);
 export type LedgerEntry = z.infer<typeof LedgerEntry>;

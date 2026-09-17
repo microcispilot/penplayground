@@ -52,15 +52,16 @@ describe('BoardExecutor', () => {
 
   it('write: never faster than the human constant, stretched to a long sentence, capped', async () => {
     const { editor, ticker, executor } = ctx;
-    const text = 'the cat sat on the mat'; // 22 chars → 2000 ms natural
+    const text = 'the cat sat on the mat'; // 22 chars → 2200 ms natural at 10 cps
+    const natural = handwritingMs(text.length);
     // short sentence → natural speed
     const a = executor.execute(boardOp('b1', { op: 'write', text, place: 'newline' }), {
       paceMs: 300,
     });
     await flush();
-    ticker.advance(1000);
+    ticker.advance(natural / 2);
     expect(editor.progress('shape:b1')).toBeCloseTo(0.5, 1);
-    ticker.advance(1100);
+    ticker.advance(natural / 2 + 100);
     await a.done;
     // long sentence → stretched
     const b = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), {
@@ -80,6 +81,32 @@ describe('BoardExecutor', () => {
     ticker.advance(capped + 50);
     await c.done;
     expect(editor.progress('shape:b3')).toBe(1);
+  });
+
+  it('write at a rate: the hand moves at pace × the human constant', async () => {
+    const { editor, ticker, executor } = ctx;
+    const text = 'the cat sat on the mat';
+    const natural = handwritingMs(text.length);
+    const fast = executor.execute(boardOp('b1', { op: 'write', text, place: 'newline' }), {
+      paceMs: null,
+      rate: 1.3,
+    });
+    await flush();
+    ticker.advance(natural / 1.3 / 2);
+    expect(editor.progress('shape:b1')).toBeCloseTo(0.5, 1);
+    ticker.advance(natural / 1.3 / 2 + 50);
+    await fast.done;
+    expect(editor.progress('shape:b1')).toBe(1);
+    const slow = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), {
+      paceMs: null,
+      rate: 0.75,
+    });
+    await flush();
+    ticker.advance(natural / 2);
+    expect(editor.progress('shape:b2')).toBeCloseTo(0.375, 1);
+    ticker.advance(natural / 0.75 - natural / 2 + 50);
+    await slow.done;
+    expect(editor.progress('shape:b2')).toBe(1);
   });
 
   it('flow keeps a short phrase on the same line and wraps a long one', async () => {

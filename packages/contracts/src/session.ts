@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ExpertId, ParticipantId, SayId, SessionId } from './ids.js';
+import { Pace } from './pace.js';
 
 export const SessionPhase = z.enum(['preparing', 'live', 'ended']);
 export type SessionPhase = z.infer<typeof SessionPhase>;
@@ -97,6 +98,12 @@ export const RoomState = z.object({
   segment: z.number().int().nonnegative(),
   /** Lesson clock in ms (audio-clock derived, excludes pauses). */
   clockMs: z.number().int().nonnegative(),
+  /**
+   * Teaching pace set by the host (1 = a patient teacher; see pace.ts). Scales
+   * the voice, the pauses and the board together; takes effect from the next
+   * sentence synthesised.
+   */
+  pace: Pace,
   preparation: PreparationProgress.nullable(),
   /** Knowledge trust for the current material. */
   evidenceTier: z.enum([

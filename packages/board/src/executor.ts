@@ -1,4 +1,4 @@
-import type { BoardExecution, BoardPort } from '@pen/conductor';
+import type { BoardExecuteOptions, BoardExecution, BoardPort } from '@pen/conductor';
 import type { BoardEvent, Emphasis, NoteEvent, Placement } from '@pen/contracts';
 import { CameraDirector } from './camera.js';
 import { AnimationClock, createRafTicker, type Ticker } from './clock.js';
@@ -215,7 +215,7 @@ export class BoardExecutor implements BoardPort {
 
   // ── BoardPort ─────────────────────────────────────────────────────────
 
-  execute(op: BoardEvent, opts: { paceMs: number | null }): BoardExecution {
+  execute(op: BoardEvent, opts: BoardExecuteOptions): BoardExecution {
     const exec = new Execution(op.id);
     if (this.disposed) {
       exec.settle();
@@ -223,12 +223,14 @@ export class BoardExecutor implements BoardPort {
     }
     this.active.add(exec);
     const paceMs = opts.paceMs !== null && Number.isFinite(opts.paceMs) ? opts.paceMs : null;
+    const rate =
+      opts.rate !== undefined && Number.isFinite(opts.rate) && opts.rate > 0 ? opts.rate : 1;
     this.queue = this.queue
       .then(async () => {
         if (exec.cancelled || this.disposed) return EMPTY;
         // A replaced take (same id) must not leave two copies on the paper.
         this.removeRef(op.id);
-        return this.prepare(op, paceMs);
+        return this.prepare(op, paceMs, rate);
       })
       .catch((err: unknown) => {
         this.warn('op-failed', `${op.op} failed: ${errorMessage(err)}`, op.id);
@@ -447,22 +449,22 @@ export class BoardExecutor implements BoardPort {
 
   // ── preparation per op ────────────────────────────────────────────────
 
-  private async prepare(op: BoardEvent, paceMs: number | null): Promise<Prepared> {
+  private async prepare(op: BoardEvent, paceMs: number | null, rate: number): Promise<Prepared> {
     switch (op.op) {
       case 'title':
-        return this.prepareText(op, paceMs, 'title');
+        return this.prepareText(op, paceMs, rate, 'title');
       case 'write':
-        return this.prepareText(op, paceMs, 'write');
+        return this.prepareText(op, paceMs, rate, 'write');
       case 'code':
-        return this.prepareCode(op, paceMs);
+        return this.prepareCode(op, paceMs, rate);
       case 'markdown':
-        return this.prepareMarkdown(op, paceMs);
+        return this.prepareMarkdown(op, paceMs, rate);
       case 'sketch':
-        return this.prepareSketch(op, paceMs);
+        return this.prepareSketch(op, paceMs, rate);
       case 'highlight':
-        return this.prepareHighlight(op, paceMs);
+        return this.prepareHighlight(op, paceMs, rate);
       case 'arrow':
-        return this.prepareArrow(op, paceMs);
+        return this.prepareArrow(op, paceMs, rate);
       case 'erase':
         return this.prepareErase(op);
       case 'newpage':
@@ -473,6 +475,7 @@ export class BoardExecutor implements BoardPort {
   private async prepareText(
     op: BoardEvent,
     paceMs: number | null,
+    rate: number,
     style: InkTextStyle,
   ): Promise<Prepared> {
     const text = op.text.trim();
@@ -510,7 +513,7 @@ export class BoardExecutor implements BoardPort {
       seed: op.id,
       underline,
     };
-    const pace = resolvePace(handwritingMs(inkTextUnits(text, underline)), paceMs);
+    const pace = resolvePace(handwritingMs(inkTextUnits(text, underline)), paceMs, rate);
     const timeline = new Timeline().append(progressTrack(sid, pace.durationMs));
     const b: Bounds = { x: placed.x, y: placed.y, w, h };
     return {
@@ -540,7 +543,11 @@ export class BoardExecutor implements BoardPort {
     return { place: 'newline', maxWidth: colW };
   }
 
-  private async prepareCode(op: BoardEvent, paceMs: number | null): Promise<Prepared> {
+  private async prepareCode(
+    op: BoardEvent,
+    paceMs: number | null,
+    rate: number,
+  ): Promise<Prepared> {
     const code = op.text.replace(/\r\n?/g, '\n').replace(/\s+$/, '');
     if (!code.trim()) {
       this.warn('empty-text', 'code with empty text', op.id);
@@ -593,7 +600,7 @@ export class BoardExecutor implements BoardPort {
     };
     const frameMs = penTravelMs(frame.length);
     const typeMs = typewriterMs(code.length);
-    const pace = resolvePace(frameMs + typeMs, paceMs);
+    const pace = resolvePace(frameMs + typeMs, paceMs, rate);
     const timeline = new Timeline()
       .append(progressTrack(frameId, frameMs))
       .append(progressTrack(codeId, typeMs), 80)
@@ -607,7 +614,11 @@ export class BoardExecutor implements BoardPort {
     };
   }
 
-  private async prepareMarkdown(op: BoardEvent, paceMs: number | null): Promise<Prepared> {
+  private async prepareMarkdown(
+    op: BoardEvent,
+    paceMs: number | null,
+    rate: number,
+  ): Promise<Prepared> {
     const source = op.text.trim();
     const blocks = parseMarkdown(source);
     if (!source || blocks.length === 0) {
@@ -628,7 +639,7 @@ export class BoardExecutor implements BoardPort {
     const placed = this.layout.place({ w, h, place: op.place, ...(op.ref ? { ref: op.ref } : {}) });
     const sid = toShapeId(op.id);
     const props: MdBlockProps = { source, w, h, progress: 0, fontSize };
-    const pace = resolvePace(typewriterMs(markdownCharCount(blocks)), paceMs);
+    const pace = resolvePace(typewriterMs(markdownCharCount(blocks)), paceMs, rate);
     const timeline = new Timeline().append(progressTrack(sid, pace.durationMs));
     const b: Bounds = { x: placed.x, y: placed.y, w, h };
     return {
@@ -641,14 +652,18 @@ export class BoardExecutor implements BoardPort {
     };
   }
 
-  private async prepareSketch(op: BoardEvent, paceMs: number | null): Promise<Prepared> {
+  private async prepareSketch(
+    op: BoardEvent,
+    paceMs: number | null,
+    rate: number,
+  ): Promise<Prepared> {
     const parsed = parseSketch(op.text);
     for (const w of parsed.warnings) this.warn('sketch-parse', w, op.id);
     if (parsed.nodes.length === 0) {
       if (op.text.trim()) {
         // The model wrote prose in a sketch op: still put it on the paper.
         this.warn('sketch-parse', 'no nodes parsed; rendering the text as handwriting', op.id);
-        return this.prepareText({ ...op, op: 'write' }, paceMs, 'write');
+        return this.prepareText({ ...op, op: 'write' }, paceMs, rate, 'write');
       }
       this.warn('empty-text', 'sketch with empty text', op.id);
       return EMPTY;
@@ -747,14 +762,18 @@ export class BoardExecutor implements BoardPort {
       }
     });
 
-    const pace = resolvePace(timeline.totalMs, paceMs);
+    const pace = resolvePace(timeline.totalMs, paceMs, rate);
     timeline.stretch(pace.stretch);
     const b: Bounds = { x: placed.x, y: placed.y, w, h };
     register.push({ ref: op.id, ids: allIds, bounds: b });
     return { shapes, timeline, bounds: b, register };
   }
 
-  private async prepareHighlight(op: BoardEvent, paceMs: number | null): Promise<Prepared> {
+  private async prepareHighlight(
+    op: BoardEvent,
+    paceMs: number | null,
+    rate: number,
+  ): Promise<Prepared> {
     const target = this.boundsOf(op.ref);
     if (!target) {
       this.warn('unknown-ref', `highlight: unknown ref "${op.ref}"`, op.id);
@@ -774,7 +793,7 @@ export class BoardExecutor implements BoardPort {
       origin = { x: target.x - px, y: target.y - py };
     }
     const s = this.strokeShape(sid, strokes, origin, emphasis, 'highlight', 3.6);
-    const pace = resolvePace(penTravelMs(s.length), paceMs);
+    const pace = resolvePace(penTravelMs(s.length), paceMs, rate);
     const timeline = new Timeline().append(progressTrack(sid, pace.durationMs));
     return {
       shapes: [s.shape],
@@ -784,7 +803,11 @@ export class BoardExecutor implements BoardPort {
     };
   }
 
-  private async prepareArrow(op: BoardEvent, paceMs: number | null): Promise<Prepared> {
+  private async prepareArrow(
+    op: BoardEvent,
+    paceMs: number | null,
+    rate: number,
+  ): Promise<Prepared> {
     const a = this.boundsOf(op.ref);
     const b = this.boundsOf(op.ref2);
     if (!a || !b) {
@@ -832,7 +855,7 @@ export class BoardExecutor implements BoardPort {
       timeline.append(progressTrack(tid, handwritingMs(label.length)), 60);
       bounds = union([bounds, { x: at.x, y: at.y, w: tl.width, h: tl.height }]) ?? bounds;
     }
-    const pace = resolvePace(timeline.totalMs, paceMs);
+    const pace = resolvePace(timeline.totalMs, paceMs, rate);
     timeline.stretch(pace.stretch);
     return { shapes, timeline, bounds, register: [{ ref: op.id, ids, bounds }] };
   }

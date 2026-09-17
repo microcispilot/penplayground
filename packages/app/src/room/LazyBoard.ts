@@ -1,4 +1,4 @@
-import type { BoardExecution, BoardPort } from '@pen/conductor';
+import type { BoardExecuteOptions, BoardExecution, BoardPort } from '@pen/conductor';
 import type { BoardEvent, NoteEvent } from '@pen/contracts';
 
 /**
@@ -16,7 +16,7 @@ export class LazyBoard implements BoardPort {
     for (const fn of this.queue.splice(0)) fn();
   }
 
-  execute(op: BoardEvent, opts: { paceMs: number | null }): BoardExecution {
+  execute(op: BoardEvent, opts: BoardExecuteOptions): BoardExecution {
     if (this.real) return this.real.execute(op, opts);
     let inner: BoardExecution | null = null;
     let paused = false;

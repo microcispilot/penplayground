@@ -45,14 +45,24 @@ export interface BoardExecution {
   cancel(): void;
 }
 
+/** How long an op may take and how fast the hand moves (ADR-0002, ADR-0010). */
+export interface BoardExecuteOptions {
+  /**
+   * Wall-clock time the op should take (the anchored sentence's duration, as
+   * it will be heard) or null for the natural writing speed.
+   */
+  paceMs: number | null;
+  /**
+   * Multiplier on the natural writing speed: the room's pace (× the replay
+   * rate). 1 is the human constant; the op is never faster than constant × rate.
+   */
+  rate?: number;
+}
+
 /** The whiteboard. Implemented by @pen/board on top of tldraw. */
 export interface BoardPort {
-  /**
-   * Render one board op like a human hand. `paceMs` is the time the op should
-   * take (the anchored sentence's duration) or null for the natural writing
-   * speed. Never faster than the human writing constant.
-   */
-  execute(op: BoardEvent, opts: { paceMs: number | null }): BoardExecution;
+  /** Render one board op like a human hand at the given pace. */
+  execute(op: BoardEvent, opts: BoardExecuteOptions): BoardExecution;
   /** Pin a "You asked" note near the current writing position. */
   pinNote(note: NoteEvent, id: string): void;
   /** Dim/undim the page while a learner has the floor. */

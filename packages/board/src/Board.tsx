@@ -1,7 +1,7 @@
 import 'tldraw/tldraw.css';
 import './styles/board.css';
 import caveatUrl from '@fontsource/caveat/files/caveat-latin-400-normal.woff?url';
-import type { BoardExecution, BoardPort } from '@pen/conductor';
+import type { BoardExecuteOptions, BoardExecution, BoardPort } from '@pen/conductor';
 import type { BoardEvent, NoteEvent } from '@pen/contracts';
 import {
   type ReactNode,
@@ -279,7 +279,7 @@ export function useBoardController(onWarning?: (w: BoardWarning) => void): Board
     const missing = (what: string) =>
       warnRef.current?.({ code: 'op-failed', message: `${what} before the board mounted` });
     return {
-      execute(op: BoardEvent, opts: { paceMs: number | null }): BoardExecution {
+      execute(op: BoardEvent, opts: BoardExecuteOptions): BoardExecution {
         const c = ref.current;
         if (c) return c.execute(op, opts);
         missing(`execute(${op.op})`);

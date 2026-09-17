@@ -92,7 +92,9 @@ export class SayPipeline {
 - Prepared topic: first expert audio < 1.5 s after Start (p50).
 - Interrupt: audio fade ≤ 20 ms; answer's first audible word ≤ 1.2 s after
   the learner's last word (p95) with Fish cloud.
-- Board text appears progressively at ≈ 11 chars/s; never all at once.
+- Board text appears progressively at ≈ 10 chars/s × pace; never all at once.
+- Pace (0.75–1.3×) moves the voice, the beats between sentences and the board
+  together; a guest sees the host's pace; replay has a pitch-preserving speed menu.
 - A session with an interrupt, a check-in and an end produces a ledger from
   which the transcript and recap page render.
 - `pnpm verify` green; e2e green.

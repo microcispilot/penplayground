@@ -38,7 +38,7 @@ staying in sync (like a video speed control).
 
 Workstreams (parallel, isolated worktrees, merged in this order):
 
-1. **pace** — `pace` on RoomState (host-set, broadcast, in the ledger), presets
+1. **pace** ✅ (ADR-0010) — `pace` on RoomState (host-set, broadcast, in the ledger), presets
    0.75× / 0.9× / 1× / 1.15× / 1.3×; default 1× is re-tuned to a teacher's rhythm
    (Fish speed 0.95, 400 ms between sentences, 700 ms after a check, board
    ≈ 10 chars/s). Pace scales TTS speed (Fish `prosody.speed`), the gaps, and

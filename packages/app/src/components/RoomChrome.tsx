@@ -4,6 +4,7 @@ import { Captions, Maximize2, Mic, MicOff, Pause, Play, Send } from 'lucide-reac
 import { useEffect, useState } from 'react';
 import { formatClock } from '../lib/context.js';
 import type { CaptionLine } from '../room/store.js';
+import { PaceMenu } from './PaceMenu.js';
 
 // ── bottom bar ────────────────────────────────────────────────────────────────
 export interface BottomBarProps {
@@ -15,6 +16,8 @@ export interface BottomBarProps {
   micLevel: number;
   captionsOn: boolean;
   onTogglePlay: () => void;
+  /** Host only; guests see the pill disabled. */
+  onSetPace: (pace: number) => void;
   onToggleCaptions: () => void;
   onToggleMic: () => void;
   onFullscreen: () => void;
@@ -78,6 +81,12 @@ export function BottomBar(p: BottomBarProps) {
           {playing ? <Pause size={14} /> : <Play size={14} />}
         </IconButton>
       ) : null}
+      <PaceMenu
+        value={p.state.pace}
+        onChange={p.onSetPace}
+        disabled={!p.isHost}
+        disabledReason="Only the host sets the pace"
+      />
       <IconButton
         label="Captions"
         state={p.captionsOn ? 'on' : 'default'}

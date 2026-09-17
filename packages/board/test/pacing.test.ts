@@ -13,7 +13,7 @@ describe('pacing', () => {
   it('natural durations follow the product constants', () => {
     expect(handwritingMs(TIMING.handwritingCps)).toBeCloseTo(1000, 6);
     expect(typewriterMs(TIMING.typewriterCps)).toBeCloseTo(1000, 6);
-    expect(handwritingMs(22)).toBeCloseTo(2000, 6);
+    expect(handwritingMs(22)).toBeCloseTo(2200, 6); // 10 cps: a patient teacher's hand
     expect(penTravelMs(850)).toBeCloseTo(1000, 6);
   });
 
@@ -47,5 +47,18 @@ describe('pacing', () => {
   it('ignores non-finite pace values', () => {
     expect(resolvePace(1000, Number.NaN).durationMs).toBe(1000);
     expect(resolvePace(1000, Number.POSITIVE_INFINITY).durationMs).toBe(1000);
+  });
+
+  it('the writing rate scales the natural time: 1.3× writes 30 % faster, 0.75× slower', () => {
+    expect(resolvePace(2000, null, 1.3).durationMs).toBeCloseTo(2000 / 1.3, 6);
+    expect(resolvePace(2000, null, 0.75).durationMs).toBeCloseTo(2000 / 0.75, 6);
+    // The floor and the stretch cap apply to the scaled time.
+    expect(resolvePace(200, null, 2).durationMs).toBe(MIN_OP_MS);
+    expect(resolvePace(1000, 60_000, 2).durationMs).toBe(500 * MAX_STRETCH);
+    // A sentence longer than the scaled natural time still paces the op.
+    expect(resolvePace(2000, 1800, 1.3)).toMatchObject({ durationMs: 1800, mode: 'stretched' });
+    // Garbage rates fall back to 1.
+    expect(resolvePace(1000, null, 0).durationMs).toBe(1000);
+    expect(resolvePace(1000, null, Number.NaN).durationMs).toBe(1000);
   });
 });

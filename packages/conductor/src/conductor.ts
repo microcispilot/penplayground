@@ -7,7 +7,7 @@ import type {
   RoomState,
   ServerMessage,
 } from '@pen/contracts';
-import { TIMING } from '@pen/contracts';
+import { clampPace, gapMsFor, PACE_DEFAULT, TIMING } from '@pen/contracts';
 import type {
   AudioEvents,
   AudioPort,
@@ -72,8 +72,17 @@ export class Conductor {
     skippableAfterMs: number;
   } | null = null;
   private adTimer: unknown = null;
+  /** Reveals a check-in when its question's words end, before the beat of silence that follows them. */
+  private checkTimer: unknown = null;
+  private readonly revealedChecks = new Set<string>();
   private isHost = false;
   private lastProgressSeq = -1;
+  /** The room's teaching pace (from `state`); scales the board's natural writing speed. */
+  private pace = PACE_DEFAULT;
+  /** Pace captured when the current sentence started: its board ops keep it even if the room changes pace mid-sentence. */
+  private sayPace = PACE_DEFAULT;
+  /** Replay speed on top of the recorded pace (1 live); audio durations are content time, this converts to wall time. */
+  private playbackRate = 1;
 
   constructor(options: ConductorOptions) {
     this.o = options;
@@ -98,6 +107,20 @@ export class Conductor {
 
   getState(): RoomState | null {
     return this.state;
+  }
+
+  /** The pace board ops are written at right now (pace × playback rate). */
+  get boardRate(): number {
+    return this.sayPace * this.playbackRate;
+  }
+
+  /**
+   * Replay only: play the recording at `rate` (the audio port stretches the
+   * audio, pitch preserved). Board ops and captions are re-timed so they
+   * still finish with the sentence; a change applies from the next op.
+   */
+  setPlaybackRate(rate: number): void {
+    this.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
   }
 
   // ── server → conductor ─────────────────────────────────────────────────────
@@ -187,6 +210,7 @@ export class Conductor {
     const sayId = clock.sayId ? stripTake(clock.sayId) : this.currentSay;
     const cue = sayId ? this.says.get(sayId)?.cue : undefined;
     for (const { exec } of this.executions.values()) exec.pause();
+    this.clearCheckTimer();
     this.phase = 'listening';
     this.o.board.setDimmed(true);
     this.o.presence.setSpeaking(false);
@@ -242,6 +266,7 @@ export class Conductor {
   dispose(): void {
     this.phase = 'ended';
     if (this.adTimer) this.clearTimeout(this.adTimer);
+    this.clearCheckTimer();
     for (const { exec } of this.executions.values()) exec.cancel();
     this.executions.clear();
   }
@@ -251,6 +276,8 @@ export class Conductor {
   private applyState(state: RoomState): void {
     const previous = this.state;
     this.state = state;
+    this.pace = clampPace(state.pace);
+    if (this.currentSay === null) this.sayPace = this.pace;
     this.o.presence.setState(state);
     if (state.phase === 'live' && this.phase === 'ad' && this.prepAd) this.endAd();
     if (state.phase === 'ended') {
@@ -266,6 +293,7 @@ export class Conductor {
         // Someone else has the floor (or the room confirmed ours).
         this.o.audio.cancel();
         for (const { exec } of this.executions.values()) exec.pause();
+        this.clearCheckTimer();
         this.phase = 'listening';
       }
       this.o.board.setDimmed(true);
@@ -336,7 +364,10 @@ export class Conductor {
   }
 
   private execute(op: BoardEvent, paceMs: number | null, sayId: string | null): void {
-    const exec = this.o.board.execute(op, { paceMs });
+    // Durations are content time; the board writes in wall time.
+    const wallMs = paceMs === null ? null : paceMs / this.playbackRate;
+    const rate = (sayId === null ? this.pace : this.sayPace) * this.playbackRate;
+    const exec = this.o.board.execute(op, { paceMs: wallMs, rate });
     this.executions.set(op.id, { exec, sayId });
     void exec.done.finally(() => this.executions.delete(op.id));
     if (this.phase === 'paused' || this.phase === 'listening') exec.pause();
@@ -345,10 +376,23 @@ export class Conductor {
   private onSayStart(sayId: string): void {
     const say = this.says.get(sayId);
     this.currentSay = sayId;
+    // A pace change mid-sentence applies from the next sentence, like the voice.
+    this.sayPace = this.pace;
     this.o.presence.setSpeaking(true);
     if (!say) return;
     const durationMs = this.knownDuration.get(sayId) ?? estimateSpeechMs(say.text);
-    this.o.captions.showExpert(say.text, durationMs);
+    this.o.captions.showExpert(say.text, durationMs / this.playbackRate);
+    // A check-in question is followed by the longer beat (ADR-0010); the card
+    // and the room's `checking` mode belong to the end of the words, not of the
+    // beat, so an eager learner's answer is graded rather than taken as a question.
+    if (this.checksByAsker.has(sayId) && this.knownDuration.has(sayId)) {
+      const wordsEndMs = Math.max(0, durationMs - gapMsFor('check', this.sayPace));
+      this.clearCheckTimer();
+      this.checkTimer = this.setTimeout(
+        () => this.revealCheck(sayId),
+        wordsEndMs / this.playbackRate,
+      );
+    }
     // Board ops written while this sentence is spoken; a resumed sentence resumes its frozen op instead.
     for (const [, entry] of this.executions) if (entry.sayId === sayId) entry.exec.resume();
     const ops = this.withOps.get(sayId) ?? [];
@@ -368,16 +412,32 @@ export class Conductor {
     this.afterOps.delete(sayId);
     for (const op of ops) this.execute(op, null, sayId);
     this.reportProgress(say.cue.seq);
-    const check = this.checksByAsker.get(sayId);
-    if (check) {
-      const checkCue = [...this.cues.values()].find(
-        (c) => c.event.type === 'check' && c.event.id === check.id,
-      );
-      this.o.presence.showCheck(check);
-      if (checkCue) this.reportProgress(checkCue.seq);
-    }
+    this.clearCheckTimer();
+    this.revealCheck(sayId);
     if (this.pendingAd && say.cue.seq >= this.pendingAd.afterSeq) this.startAd();
     if (say.thread !== 'lesson') this.maybeSendResumed(say.thread);
+  }
+
+  /** Show the check asked by `sayId` and report its cue once, whichever of the timer or the say's end comes first. */
+  private revealCheck(sayId: string): void {
+    const check = this.checksByAsker.get(sayId);
+    if (!check || this.revealedChecks.has(check.id)) return;
+    if (this.phase === 'listening' || this.phase === 'ended') return;
+    this.revealedChecks.add(check.id);
+    const checkCue = [...this.cues.values()].find(
+      (c) => c.event.type === 'check' && c.event.id === check.id,
+    );
+    this.o.presence.showCheck(check);
+    // Progress is monotonic: the question's say counts as heard now (only its
+    // beat of silence remains), then the check itself.
+    const asking = this.says.get(sayId);
+    if (asking) this.reportProgress(asking.cue.seq);
+    if (checkCue) this.reportProgress(checkCue.seq);
+  }
+
+  private clearCheckTimer(): void {
+    if (this.checkTimer !== null) this.clearTimeout(this.checkTimer);
+    this.checkTimer = null;
   }
 
   private onProgress(_sayId: string, _offsetMs: number): void {
@@ -464,17 +524,18 @@ export function estimateSpeechMs(text: string): number {
   return Math.max(400, Math.round((words / 150) * 60_000) + 250);
 }
 
-/** Natural writing time for a board op; the executor never goes faster than this. */
-export function naturalWriteMs(op: BoardEvent): number {
+/** Natural writing time for a board op at `rate` × the human speed; the executor never goes faster than this. */
+export function naturalWriteMs(op: BoardEvent, rate = 1): number {
   const chars = op.text.length;
+  const r = Number.isFinite(rate) && rate > 0 ? rate : 1;
   switch (op.op) {
     case 'code':
     case 'markdown':
-      return Math.round((chars / TIMING.typewriterCps) * 1000);
+      return Math.round((chars / (TIMING.typewriterCps * r)) * 1000);
     case 'title':
     case 'write':
     case 'sketch':
-      return Math.round((chars / TIMING.handwritingCps) * 1000);
+      return Math.round((chars / (TIMING.handwritingCps * r)) * 1000);
     default:
       return 600;
   }

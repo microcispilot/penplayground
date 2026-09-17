@@ -258,6 +258,7 @@ export function Room() {
         micLevel={ui.micLevel}
         captionsOn={ui.captionsOn}
         onTogglePlay={() => session?.control(state.mode === 'paused' ? 'resume' : 'pause')}
+        onSetPace={(pace) => session?.setPace(pace)}
         onToggleCaptions={() => session?.toggleCaptions()}
         onToggleMic={() => {
           if (ui.micState === 'listening') {

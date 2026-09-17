@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Cue } from './cues.js';
 import { CheckId, ParticipantId, SayId, SessionId } from './ids.js';
+import { Pace } from './pace.js';
 import { PreparationProgress, RoomState } from './session.js';
 
 /**
@@ -60,6 +61,8 @@ export const ClientProgress = z.object({
 });
 /** The host's conductor finished the current turn/ad and resumed the lesson. */
 export const ClientResumed = z.object({ kind: z.literal('resumed') });
+/** Host only: set the room's teaching pace (broadcast to everyone via `state`; refused with NOT_HOST otherwise). */
+export const ClientSetPace = z.object({ kind: z.literal('set_pace'), pace: Pace });
 export const ClientMessage = z.discriminatedUnion('kind', [
   ClientAuth,
   ClientJoin,
@@ -71,6 +74,7 @@ export const ClientMessage = z.discriminatedUnion('kind', [
   ClientCheckAnswer,
   ClientProgress,
   ClientResumed,
+  ClientSetPace,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
