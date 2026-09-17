@@ -68,3 +68,7 @@ Workstreams (parallel, isolated worktrees, merged in this order):
    whiteboard sketch spec; our renderer turns the spec into a hand-drawn SVG
    (plus PNG for OG/cards). Nothing blocks the learner; fallback stays the
    deterministic BoardThumb.
+6. **video ads** — free plan shows YouTube-style video ads only (skippable
+   after 5 s), served through the Google IMA SDK from an Ad Manager/AdSense
+   for Video tag (`PEN_AD_TAG_URL`); measurement per quartile/skip/error;
+   estimated revenue line per completed ad; ads.txt; runbook for the account.
