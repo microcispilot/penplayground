@@ -6,7 +6,7 @@ import {
   estimateSpeechMs,
   type PresencePort,
 } from '@pen/conductor';
-import type { CheckEvent, RoomState } from '@pen/contracts';
+import type { AdEndReason, AdEventName, AdSlot, CheckEvent, RoomState } from '@pen/contracts';
 import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
@@ -74,6 +74,13 @@ export class RoomSession {
   private lastPhase: string | null = null;
   private adShownAt: { adId: string; at: number } | null = null;
   private currentThread: string | null = null;
+  /** How the last ad ended (the player's reason), reported with `ad_ended` when the overlay closes. */
+  private adEndReason: AdEndReason | null = null;
+  /**
+   * The conductor's `showAd` port carries only the timing; the tag and slot
+   * come from the `ad` message itself, kept here by id until the ad starts.
+   */
+  private readonly adsById = new Map<string, { tagUrl: string; slot: AdSlot }>();
 
   constructor(private readonly o: RoomSessionOptions) {
     const store = useRoomStore.getState();
@@ -196,19 +203,37 @@ export class RoomSession {
           trackInteraction('check_shown', { checkId: check.id, options: check.options.length });
       },
       showAd: (ad) => {
-        set({ ad: ad ? { ...ad, startedAt: Date.now() } : null });
-        if (ad) {
-          this.adShownAt = { adId: ad.adId, at: Date.now() };
-          trackInteraction('ad_shown', { adId: ad.adId, durationMs: ad.durationMs });
-        } else if (this.adShownAt) {
-          const { adId, at } = this.adShownAt;
-          this.adShownAt = null;
-          trackInteraction(this.adSkipped ? 'ad_skipped' : 'ad_ended', {
-            adId,
-            ms: Date.now() - at,
-          });
-          this.adSkipped = false;
+        if (!ad) {
+          set({ ad: null });
+          if (this.adShownAt) {
+            const { adId, at } = this.adShownAt;
+            this.adShownAt = null;
+            // The player reports the skip itself (`ad_skipped` over `ad_event`); this is the
+            // overlay's own close with how it ended, so the two never double-count.
+            trackInteraction('ad_ended', {
+              adId,
+              ms: Date.now() - at,
+              reason: this.adEndReason ?? 'timeout',
+            });
+          }
+          this.adEndReason = null;
+          return;
         }
+        const details = this.adsById.get(ad.adId);
+        if (!details) {
+          // Cannot happen with a well-formed stream; never hold the lesson on a blank overlay.
+          console.warn('[ads] no tag for', ad.adId);
+          queueMicrotask(() => this.conductor.skipAd());
+          return;
+        }
+        this.adEndReason = null;
+        set({ ad: { ...ad, ...details, startedAt: Date.now() } });
+        this.adShownAt = { adId: ad.adId, at: Date.now() };
+        trackInteraction('ad_shown', {
+          adId: ad.adId,
+          slot: details.slot,
+          durationMs: ad.durationMs,
+        });
       },
       notice: (text, tone) => set({ notice: text ? { text, tone } : null }),
     };
@@ -255,6 +280,8 @@ export class RoomSession {
       o.sessionId,
       {
         onMessage: (m) => {
+          // Before the conductor: a preparation ad starts synchronously inside handleServer.
+          if (m.kind === 'ad') this.adsById.set(m.adId, { tagUrl: m.tagUrl, slot: m.slot });
           if (m.kind === 'ready') {
             const role = m.state.hostId === o.participantId ? 'host' : 'guest';
             setAnalyticsContext({ sessionId: o.sessionId, role });
@@ -528,11 +555,27 @@ export class RoomSession {
     this.conductor.control(action);
   }
 
-  private adSkipped = false;
-
-  skipAd(): void {
-    this.adSkipped = true;
+  /** Every ad outcome resumes the lesson the same way (or ends the preparation card). */
+  skipAd(reason: AdEndReason = 'skipped'): void {
+    this.adEndReason = reason;
+    // The conductor keeps the ad phase through any state broadcast (a check, an answer, a
+    // pause) and lands wherever the room is when the ad ends, so this is always enough.
     this.conductor.skipAd();
+  }
+
+  /**
+   * Ad measurement (ADR-0014): product analytics for every step like any other
+   * interaction, and the room over `ad_event` — which it validates (host, once,
+   * an ad it sent) before writing the ledger entry, so the generic `report`
+   * path is deliberately not used for these.
+   */
+  adEvent(name: AdEventName, props: Record<string, string | number | boolean>): void {
+    trackInteraction(name, props, { report: false });
+    const adId = typeof props.adId === 'string' ? props.adId : null;
+    const atMs = typeof props.atMs === 'number' ? Math.max(0, Math.round(props.atMs)) : 0;
+    if (!adId) return;
+    const code = typeof props.code === 'string' ? props.code : undefined;
+    this.client.send({ kind: 'ad_event', adId, event: name, atMs, ...(code ? { code } : {}) });
   }
 
   toggleCaptions(): void {

@@ -73,6 +73,21 @@ describe('summariseCosts', () => {
     expect(byComponent.onten?.calls).toBe(1);
     expect(byComponent.stt).toBeUndefined();
   });
+
+  it('keeps the ad revenue estimate beside the spend, never inside it', () => {
+    const { totalUsd, revenueUsd, byComponent } = summariseCosts([
+      { component: 'tts', unit: 'bytes', units: 120, usd: 0.0018, meta: {} },
+      { component: 'ads', unit: 'requests', units: 1, usd: 0.008, meta: { purpose: 'ad_revenue' } },
+      { component: 'ads', unit: 'requests', units: 1, usd: 0.008, meta: { purpose: 'ad_revenue' } },
+    ]);
+    expect(totalUsd).toBeCloseTo(0.0018, 9);
+    expect(revenueUsd).toBeCloseTo(0.016, 9);
+    expect(byComponent.ads).toEqual({
+      usd: expect.closeTo(0.016, 9),
+      calls: 2,
+      units: { requests: 2 },
+    });
+  });
 });
 
 describe('computeTelemetry', () => {
@@ -91,7 +106,7 @@ describe('computeTelemetry', () => {
     });
     expect(t.latency.timeToFirstAudioMs).toBeNull();
     expect(t.latency.questionToFirstAudioMs).toEqual({ p50: null, p95: null, n: 0 });
-    expect(t.cost).toEqual({ totalUsd: 0, byComponent: {}, lines: [] });
+    expect(t.cost).toEqual({ totalUsd: 0, revenueUsd: 0, byComponent: {}, lines: [] });
   });
 
   it('derives totals, latencies and costs from a ledger', () => {
@@ -306,7 +321,7 @@ describe('aggregateReuse', () => {
     reuse: Partial<SessionTelemetry['reuse']>,
   ) => ({
     canonicalId,
-    cost: { totalUsd: cost, byComponent: {}, lines: [] },
+    cost: { totalUsd: cost, revenueUsd: 0, byComponent: {}, lines: [] },
     reuse: {
       packHit: false,
       memoSegmentsReused: 0,
@@ -380,6 +395,8 @@ describe('PostHog property shapes', () => {
       completed: true,
       'provider.tts': 'fish-cloud:s2.1-pro',
       'cost.totalUsd': 0,
+      'cost.adsRevenueUsd': 0,
+      'cost.adsCompleted': 0,
       'latency.timeToFirstAudioMs': null,
       'latency.questionToFirstAudioP50': null,
       'cost.tokensIn': 0,

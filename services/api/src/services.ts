@@ -19,6 +19,7 @@ import {
   type SpeechRecognizerFactory,
   type SpeechSynthesizer,
 } from '@pen/voice';
+import { AdEconomics } from './ads.js';
 import { Analytics } from './analytics.js';
 import { Billing } from './billing.js';
 import type { Config } from './config.js';
@@ -56,6 +57,8 @@ export interface Services {
   /** Web search backend name (searxng | tavily | exa | none), for pricing what a pack hit saved. */
   searchProvider: string;
   costs: CostLedger;
+  /** Free-plan video ad demand and the per-session revenue estimate (ADR-0014). */
+  ads: AdEconomics;
   /** MP4 export queue (one render at a time per process). */
   exports: ExportJobs;
   downloadTokens: DownloadTokens;
@@ -91,6 +94,20 @@ export class CostLedger implements CostMeter {
     this.byPurpose.set(usage.purpose, e);
     logger.debug({ evt: 'llm.usage', ...usage });
   }
+  /** A revenue line: negative usd under its own purpose (e.g. `ads`), so totals net out. */
+  credit(purpose: string, usd: number): void {
+    const e = this.byPurpose.get(purpose) ?? {
+      calls: 0,
+      usd: 0,
+      inputTokens: 0,
+      cachedTokens: 0,
+      outputTokens: 0,
+    };
+    e.calls += 1;
+    e.usd -= usd;
+    this.byPurpose.set(purpose, e);
+    logger.debug({ evt: 'revenue.credit', purpose, usd });
+  }
   snapshot() {
     return Object.fromEntries(this.byPurpose);
   }
@@ -112,6 +129,7 @@ export async function buildServices(
     JSON.parse(readFileSync(join(DATA_DIR, 'experts', 'catalog.json'), 'utf8')),
   );
   const costs = new CostLedger();
+  const ads = new AdEconomics(cfg, costs);
 
   const synthesizer: SpeechSynthesizer = (() => {
     switch (cfg.PEN_TTS_PROVIDER) {
@@ -257,6 +275,7 @@ export async function buildServices(
     intake,
     modelFor,
     costs,
+    ads,
     exports,
     downloadTokens,
     renderUnavailable,

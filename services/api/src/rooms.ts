@@ -200,14 +200,7 @@ export class RoomRegistry {
       searchProvider: services.searchProvider,
       targetMinutes: 14,
       participantAudio: services.livekit !== null,
-      ads:
-        args.host.plan === 'free'
-          ? {
-              everySegments: services.cfg.PEN_ADS_EVERY_SEGMENTS,
-              durationMs: 15_000,
-              skippableAfterMs: 5_000,
-            }
-          : null,
+      ads: services.ads.policyFor(args.host.plan, services.cfg.PEN_ADS_EVERY_SEGMENTS),
     });
     const record: SessionRecord = {
       id: sessionId,
@@ -342,7 +335,9 @@ export class RoomRegistry {
       .catch((error) => observer.error('rooms.audio.close', error, { sessionId }));
     const state = live.room.getState();
     // The full summary (latencies, costs, reuse; numbers and codes only) so PostHog can chart
-    // sessions without the ledger.
+    // sessions without the ledger. The ad tally is the room-validated count of host reports
+    // (ADR-0014); its revenue estimate is also in the ledger as `cost.adsRevenueUsd`.
+    const ads = this.services.ads.tally(sessionId);
     try {
       const telemetry = computeTelemetry({
         sessionId,
@@ -351,10 +346,8 @@ export class RoomRegistry {
         language: state.language,
         entries: this.services.ledger.read(sessionId),
       });
-      this.services.analytics.capture(
-        live.record.hostId,
-        'session_ended',
-        sessionEndedProperties(telemetry, {
+      this.services.analytics.capture(live.record.hostId, 'session_ended', {
+        ...sessionEndedProperties(telemetry, {
           completed: state.mode === 'complete',
           providers: {
             llm: this.services.cfg.PEN_LLM_PROVIDER,
@@ -362,13 +355,19 @@ export class RoomRegistry {
             stt: this.services.recognizer?.id ?? 'browser',
           },
         }),
-      );
+        adsRequested: ads.requested,
+        adsCompleted: ads.completed,
+        adsErrors: ads.errors,
+        adRevenueEstimateUsd: ads.revenueUsd,
+      });
       void this.services.analytics
         .flush()
         .catch((error) => observer.error('analytics.flush', error, { sessionId }));
     } catch (error) {
       observer.error('telemetry.session_ended', error, { sessionId });
     }
+    observer.event('room.economics', { sessionId, ...ads });
+    this.services.ads.forget(sessionId);
     await this.services.sessions.patch(sessionId, {
       endedAt: Date.now(),
       durationMs: state.clockMs,

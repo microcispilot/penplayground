@@ -403,6 +403,9 @@ describe('Conductor', () => {
       afterSeq: 3,
       skippableAfterMs: 5000,
       durationMs: 15000,
+      format: 'video',
+      tagUrl: 'https://ads.example.test/vast',
+      slot: 'boundary',
     });
     c.audioEvents.onSayStart('L0.s4@0');
     c.audioEvents.onSayEnd('L0.s4@0', 1000);
@@ -413,6 +416,62 @@ describe('Conductor', () => {
     expect(c.getPhase()).toBe('playing');
     expect(audio.paused).toBe(false);
     expect(presence.ads.at(-1)).toBeNull();
+  });
+
+  /** A boundary ad up and running: phase 'ad', audio held, ceiling timer armed. */
+  function adUp() {
+    const s = setup();
+    s.c.handleServer({ kind: 'cue', cue: say(3, 'L0.s4', 'End of segment.') });
+    s.c.handleServer({
+      kind: 'ad',
+      adId: 'ad-1',
+      afterSeq: 3,
+      skippableAfterMs: 5000,
+      durationMs: 30000,
+      format: 'video',
+      tagUrl: 'https://ads.example.test/vast',
+      slot: 'boundary',
+    });
+    s.c.audioEvents.onSayStart('L0.s4@0');
+    s.c.audioEvents.onSayEnd('L0.s4@0', 1000);
+    expect(s.c.getPhase()).toBe('ad');
+    return s;
+  }
+
+  it('an ad keeps the phase through answering/checking/teaching broadcasts, so the skip still ends it', () => {
+    for (const mode of ['answering', 'checking', 'teaching'] as const) {
+      const { c, audio, presence } = adUp();
+      c.handleServer({ kind: 'state', state: state(mode) });
+      expect(c.getPhase(), mode).toBe('ad');
+      expect(audio.paused, mode).toBe(true);
+      c.skipAd();
+      expect(c.getPhase(), mode).toBe('playing');
+      expect(audio.paused, mode).toBe(false);
+      expect(presence.ads.at(-1), mode).toBeNull();
+    }
+  });
+
+  it('a host pause during an ad keeps the ad; when the ad ends the conductor lands in paused with audio held', () => {
+    const { c, audio, presence, timers } = adUp();
+    c.handleServer({ kind: 'state', state: state('paused') });
+    expect(c.getPhase()).toBe('ad');
+    // The ceiling fires (or the learner skips): the overlay goes, but nothing plays while the room is paused.
+    timers.at(-1)?.fn();
+    expect(presence.ads.at(-1)).toBeNull();
+    expect(c.getPhase()).toBe('paused');
+    expect(audio.paused).toBe(true);
+    c.handleServer({ kind: 'state', state: state('teaching') });
+    expect(c.getPhase()).toBe('playing');
+  });
+
+  it("someone else's floor during an ad keeps the ad; the ad's end lands in listening with audio cancelled", () => {
+    const { c, audio } = adUp();
+    c.handleServer({ kind: 'state', state: state('listening', { floor: 'guest-1' }) });
+    expect(c.getPhase()).toBe('ad');
+    const cancelledBefore = audio.cancelled;
+    c.skipAd();
+    expect(c.getPhase()).toBe('listening');
+    expect(audio.cancelled).toBeGreaterThan(cancelledBefore);
   });
 
   it('host pause/resume: pauses locally and tells the room; resume discards held audio (new take incoming)', () => {

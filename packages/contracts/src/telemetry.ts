@@ -49,7 +49,12 @@ export const StageSample = z.object({
 export type StageSample = z.infer<typeof StageSample>;
 
 // ── costs ────────────────────────────────────────────────────────────────────
-export const CostComponent = z.enum(['llm', 'tts', 'stt', 'search', 'onten']);
+/**
+ * What produced a line. `ads` is the one credit: an estimated revenue line per completed
+ * ad (ADR-0014) whose `usd` is what was earned — reported as `cost.revenueUsd`, never
+ * added to `cost.totalUsd`.
+ */
+export const CostComponent = z.enum(['llm', 'tts', 'stt', 'search', 'onten', 'ads']);
 export type CostComponent = z.infer<typeof CostComponent>;
 
 export const CostUnit = z.enum([
@@ -86,6 +91,7 @@ export const InteractionName = z.enum([
   'pause',
   'resume',
   'ad_skipped',
+  'ad_clicked',
   'captions_on',
   'captions_off',
   'mic_on',
@@ -104,6 +110,15 @@ export const InteractionName = z.enum([
   'check_shown',
   'ad_shown',
   'ad_ended',
+  // the ad player's lifecycle (ADR-0014), host-validated by the room before it lands
+  'ad_requested',
+  'ad_loaded',
+  'ad_started',
+  'ad_first_quartile',
+  'ad_midpoint',
+  'ad_third_quartile',
+  'ad_completed',
+  'ad_error',
   'recap_shown',
   'first_audio',
   'answer_started',
@@ -206,7 +221,10 @@ export const SessionTelemetry = z.object({
     bargeInMs: Percentiles,
   }),
   cost: z.object({
+    /** Provider spend; never includes the ad credit. */
     totalUsd: z.number().nonnegative(),
+    /** Estimated ad revenue (the `ads` lines), labelled as an estimate wherever it is shown. */
+    revenueUsd: z.number().nonnegative(),
     byComponent: z.partialRecord(CostComponent, CostByComponent),
     lines: z.array(CostLine),
   }),

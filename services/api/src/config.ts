@@ -79,6 +79,18 @@ const Env = z.object({
   /** Dev only: force a plan for anonymous participants (e.g. classroom) to exercise gated features. */
   PEN_DEV_PLAN: z.enum(['free', 'standard', 'professional']).optional(),
   PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().default(3),
+  /**
+   * Video ad demand (ADR-0014): the Google Ad Manager VAST/VMAP tag for the free plan's in-stream
+   * ads (any VAST seller's tag works). Unset → no ads, unless PEN_AD_TEST_TAGS=1 substitutes
+   * Google's public IMA sample tag (dev/e2e only; refused in production).
+   */
+  PEN_AD_TAG_URL: z.string().url().optional(),
+  PEN_AD_TEST_TAGS: z
+    .enum(['0', '1', 'true', 'false'])
+    .default('0')
+    .transform((v) => v === '1' || v === 'true'),
+  /** Estimated net eCPM (USD per 1 000 completed ads) used for the per-session revenue line. */
+  PEN_AD_ECPM_USD: z.coerce.number().nonnegative().default(8),
 });
 
 export type Config = z.infer<typeof Env>;
@@ -100,6 +112,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (cfg.PEN_LLM_PROVIDER === 'fake')
       throw new Error('PEN_LLM_PROVIDER=fake is not allowed in production');
     if (cfg.PEN_DEV_PLAN) throw new Error('PEN_DEV_PLAN is not allowed in production');
+    if (cfg.PEN_AD_TEST_TAGS) throw new Error('PEN_AD_TEST_TAGS is not allowed in production');
   }
   return cfg;
 }

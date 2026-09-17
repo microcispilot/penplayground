@@ -1,0 +1,114 @@
+import { AD_RULES, GOOGLE_IMA_SAMPLE_TAG } from '@pen/contracts';
+import type { AdOutcome } from '@pen/session-engine';
+import { describe, expect, it } from 'vitest';
+import { AdEconomics, resolveAdDemand } from '../src/ads.js';
+import { loadConfig } from '../src/config.js';
+import { CostLedger } from '../src/services.js';
+
+const base = {
+  NODE_ENV: 'test',
+  PEN_JWT_SECRET: 'x'.repeat(40),
+  PEN_LLM_PROVIDER: 'fake',
+  PEN_TTS_PROVIDER: 'silent',
+};
+
+function outcome(event: AdOutcome['event'], sessionId = 's1'): AdOutcome {
+  return { sessionId, adId: `ad-${sessionId}-1`, slot: 'boundary', event, atMs: 0, code: null };
+}
+
+describe('ad demand resolution', () => {
+  it('uses the configured Ad Manager tag when set', () => {
+    const cfg = loadConfig({
+      ...base,
+      PEN_AD_TAG_URL: 'https://pubads.g.doubleclick.net/gampad/ads?iu=/1/pen',
+    });
+    expect(resolveAdDemand(cfg)).toEqual({
+      source: 'configured',
+      tagUrl: 'https://pubads.g.doubleclick.net/gampad/ads?iu=/1/pen',
+    });
+  });
+
+  it('falls back to the Google sample tag only with PEN_AD_TEST_TAGS=1', () => {
+    expect(resolveAdDemand(loadConfig({ ...base, PEN_AD_TEST_TAGS: '1' }))).toEqual({
+      source: 'google-sample',
+      tagUrl: GOOGLE_IMA_SAMPLE_TAG,
+    });
+    const off = resolveAdDemand(loadConfig(base));
+    expect(off.source).toBe('off');
+    expect(off.tagUrl).toBeNull();
+    if (off.source === 'off') expect(off.reason).toContain('PEN_AD_TAG_URL');
+  });
+
+  it('a configured tag wins over the test flag; test tags are refused in production', () => {
+    const cfg = loadConfig({
+      ...base,
+      PEN_AD_TAG_URL: 'https://x.test/vast',
+      PEN_AD_TEST_TAGS: '1',
+    });
+    expect(resolveAdDemand(cfg).source).toBe('configured');
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        PEN_JWT_SECRET: 'x'.repeat(40),
+        FISH_AUDIO_API_KEY: 'k',
+        PEN_AD_TEST_TAGS: '1',
+      }),
+    ).toThrow(/PEN_AD_TEST_TAGS/);
+  });
+
+  it('rejects a tag that is not a URL', () => {
+    expect(() => loadConfig({ ...base, PEN_AD_TAG_URL: 'not-a-url' })).toThrow(/PEN_AD_TAG_URL/);
+  });
+});
+
+describe('AdEconomics', () => {
+  it('gives the free plan a video policy with the product rules, and paid plans none', () => {
+    const ads = new AdEconomics(loadConfig({ ...base, PEN_AD_TEST_TAGS: '1' }));
+    const policy = ads.policyFor('free', 3);
+    expect(policy).toMatchObject({
+      everySegments: 3,
+      durationMs: AD_RULES.maxDurationMs,
+      skippableAfterMs: AD_RULES.skipAfterMs,
+      tagUrl: GOOGLE_IMA_SAMPLE_TAG,
+      // Default eCPM $8 → the per-completion line the room writes to the session ledger.
+      revenuePerCompletionUsd: 0.008,
+    });
+    expect(ads.policyFor('standard', 3)).toBeNull();
+    expect(ads.policyFor('professional', 3)).toBeNull();
+  });
+
+  it('gives nobody a policy when no demand is configured (and says why in the log)', () => {
+    const ads = new AdEconomics(loadConfig(base));
+    expect(ads.demand.source).toBe('off');
+    expect(ads.policyFor('free', 3)).toBeNull();
+  });
+
+  it('records an estimated revenue line per completed ad as a negative cost under `ads`', () => {
+    const costs = new CostLedger();
+    const ads = new AdEconomics(
+      loadConfig({ ...base, PEN_AD_TEST_TAGS: '1', PEN_AD_ECPM_USD: '12' }),
+      costs,
+    );
+    const policy = ads.policyFor('free', 3);
+    if (!policy?.onEvent) throw new Error('policy');
+    policy.onEvent(outcome('ad_requested'));
+    policy.onEvent(outcome('ad_started'));
+    policy.onEvent(outcome('ad_completed'));
+    policy.onEvent(outcome('ad_completed', 's2'));
+    policy.onEvent(outcome('ad_skipped', 's2'));
+    policy.onEvent({ ...outcome('ad_error', 's2'), code: '1009' });
+    expect(ads.tally('s1')).toEqual({
+      requested: 1,
+      started: 1,
+      completed: 1,
+      skipped: 0,
+      errors: 0,
+      clicks: 0,
+      revenueUsd: 0.012,
+    });
+    expect(ads.tally('s2')).toMatchObject({ completed: 1, skipped: 1, errors: 1 });
+    expect(costs.snapshot().ads).toMatchObject({ calls: 2, usd: -0.024 });
+    ads.forget('s1');
+    expect(ads.tally('s1').completed).toBe(0);
+  });
+});

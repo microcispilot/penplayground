@@ -129,6 +129,7 @@ export function buildApp(services: Services): App {
       render: services.renderUnavailable === null,
       google: services.google !== null,
       rooms: services.livekit !== null,
+      ads: services.ads.demand.source,
     }),
   );
 

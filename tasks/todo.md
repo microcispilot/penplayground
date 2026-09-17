@@ -38,4 +38,8 @@
 - [x] Dev DB: migration timestamp guard (journal `when` vs applied `created_at`, by hash)
 - [x] Session thumbnails: one background `session_meta` call → SketchSpec → SVG/PNG next to the ledger; cards, session page and share OG use it (ADR-0013)
 - [ ] Thumbnails: cache the sketch per lesson memo (memo-hit sessions repeat the call today); backfill sessions created before ADR-0013
-- [ ] Video ads (Google IMA, Ad Manager tag), skippable, measured, ads.txt + runbook
+- [x] Video ads (ADR-0014): Google Ad Manager via IMA behind `PEN_AD_TAG_URL`; player + overlay, measurement, revenue estimate, ads.txt, e2e against the sample tag
+- [x] Ads: `ad_event` lands in the session ledger (host-validated `interaction` entries; estimated revenue as an `ads` cost line → Insights + PostHog)
+- [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
+- [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
+- [ ] Ads: TCF 2.2 consent (EEA/UK) and child-directed tagging before serving there

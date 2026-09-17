@@ -288,13 +288,16 @@ export class Conductor {
       return;
     }
     const mode: LiveMode = state.mode;
+    // While an ad is up it owns the phase: the room's mode still drives the side effects, and
+    // endAd() re-applies this state so the conductor lands wherever the room is by then.
+    const inAd = this.phase === 'ad';
     if (mode === 'listening' || mode === 'thinking') {
       if (this.phase !== 'listening') {
         // Someone else has the floor (or the room confirmed ours).
         this.o.audio.cancel();
         for (const { exec } of this.executions.values()) exec.pause();
         this.clearCheckTimer();
-        this.phase = 'listening';
+        if (!inAd) this.phase = 'listening';
       }
       this.o.board.setDimmed(true);
       this.o.captions.hint(
@@ -305,20 +308,20 @@ export class Conductor {
         this.o.audio.pause();
         for (const { exec } of this.executions.values()) exec.pause();
       }
-      this.phase = 'paused';
+      if (!inAd) this.phase = 'paused';
       this.o.board.setDimmed(false);
       this.o.captions.hint('Paused');
       this.o.presence.setSpeaking(false);
     } else if (mode === 'answering') {
       // Answer audio flows on the turn thread; the board stays dimmed until the bridge sentence.
-      this.phase = 'playing';
+      if (!inAd) this.phase = 'playing';
       this.o.captions.hint(null);
     } else if (mode === 'checking') {
-      this.phase = 'playing';
+      if (!inAd) this.phase = 'playing';
       this.o.board.setDimmed(false);
       this.o.captions.hint('Answer out loud, or pick an option');
     } else {
-      if (this.phase !== 'ad') this.phase = 'playing';
+      if (!inAd) this.phase = 'playing';
       this.o.board.setDimmed(false);
       this.o.captions.hint(null);
       if (previous?.mode === 'paused')
@@ -501,6 +504,9 @@ export class Conductor {
     this.phase = 'playing';
     this.o.audio.resume();
     for (const { exec } of this.executions.values()) exec.resume();
+    // The room may have moved on during the ad (a check, an answer, a pause, someone else's
+    // floor): land there instead of assuming the lesson simply continues.
+    if (this.state && this.state.mode !== 'teaching') this.applyState(this.state);
   }
 
   private nameOf(participantId: string | null): string {

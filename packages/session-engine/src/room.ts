@@ -1,4 +1,6 @@
 import type {
+  AdEventName,
+  AdSlot,
   CheckEvent,
   ClientMessage,
   ClientReport,
@@ -75,6 +77,34 @@ export interface KnowledgeAcquirer {
   }): Promise<{ packId: string; provisional: boolean; background: Promise<unknown> }>;
 }
 
+/** An ad lifecycle step as the host's player reported it, attributed to its slot (ADR-0014). */
+export interface AdOutcome {
+  sessionId: string;
+  adId: string;
+  slot: AdSlot;
+  event: AdEventName;
+  atMs: number;
+  code: string | null;
+}
+
+/** Free-plan ad policy for one room; null on paid plans or when no demand is configured. */
+export interface AdPolicy {
+  /** One ad every N segments (a preparation ad consumes the first slot). */
+  everySegments: number;
+  /** Hard ceiling per ad; the conductor resumes the lesson here. */
+  durationMs: number;
+  skippableAfterMs: number;
+  /** VAST/VMAP tag handed to every ad of this room; the network is swappable here alone. */
+  tagUrl: string;
+  /**
+   * Estimated revenue per completed ad (eCPM / 1000), written to the session ledger as an
+   * `ads` cost line (ADR-0011) so Insights and PostHog see it beside the spend; 0 = no line.
+   */
+  revenuePerCompletionUsd?: number;
+  /** Ad outcomes, once each, for revenue estimates and analytics. */
+  onEvent?: (outcome: AdOutcome) => void;
+}
+
 export interface LedgerSink {
   append(sessionId: string, entry: LedgerEntry): void;
   /** Persist audio bytes and return a reference for the ledger. */
@@ -114,7 +144,7 @@ export interface SessionRoomDeps {
   acquirer: KnowledgeAcquirer | null;
   ledger?: LedgerSink;
   targetMinutes?: number;
-  ads?: { everySegments: number; durationMs: number; skippableAfterMs: number } | null;
+  ads?: AdPolicy | null;
   /** Initial teaching pace (the host's remembered preference arrives as `set_pace` right after join). */
   pace?: number;
   /** The API has a media server for human-to-human audio; the host's plan still decides. */
@@ -195,6 +225,8 @@ export class SessionRoom {
   private lastLessonUsd = 0;
   private pausedBeforeTurn: LiveMode = 'teaching';
   private adsShown = 0;
+  /** Ads this room broadcast, with the lifecycle steps already accepted for each (host-reported, once). */
+  private readonly adsSent = new Map<string, { slot: AdSlot; seen: Set<AdEventName> }>();
   private clockMs = 0;
   private lastFloorUtterance = new Map<string, string>();
   /** Communication language: follows the learner turn by turn (RoomState.language). */
@@ -415,6 +447,9 @@ export class SessionRoom {
       case 'utterance_end':
         p.micOn = false;
         break;
+      case 'ad_event':
+        this.adEvent(p, message);
+        break;
       default:
         break;
     }
@@ -560,13 +595,7 @@ export class SessionRoom {
       // carries one ad card, and it is taken out of the session's ad budget (never an extra ad).
       if (this.d.ads && !hasEntitlement(this.d.host.plan, 'no_ads')) {
         this.adsShown += 1;
-        this.d.transport.broadcast({
-          kind: 'ad',
-          adId: `ad-${this.sessionId}-prep`,
-          afterSeq: -1,
-          skippableAfterMs: this.d.ads.skippableAfterMs,
-          durationMs: this.d.ads.durationMs,
-        });
+        this.broadcastAd(`ad-${this.sessionId}-prep`, -1, 'preparation');
       }
       const preparing = this.metrics.start('prepare', { match: resolution.match });
       let prepared: Awaited<ReturnType<KnowledgeAcquirer['prepare']>>;
@@ -793,14 +822,63 @@ export class SessionRoom {
       this.adsShown < slotIndex
     ) {
       this.adsShown += 1;
-      this.d.transport.broadcast({
-        kind: 'ad',
-        adId: `ad-${this.sessionId}-${this.adsShown}`,
-        afterSeq: this.seq - 1,
-        skippableAfterMs: this.d.ads.skippableAfterMs,
-        durationMs: this.d.ads.durationMs,
-      });
+      this.broadcastAd(`ad-${this.sessionId}-${this.adsShown}`, this.seq - 1, 'boundary');
     }
+  }
+
+  /** Every ad is a video against the room's tag; the id is what the host reports outcomes against. */
+  private broadcastAd(adId: string, afterSeq: number, slot: AdSlot): void {
+    const ads = this.d.ads;
+    if (!ads) return;
+    this.adsSent.set(adId, { slot, seen: new Set() });
+    this.d.transport.broadcast({
+      kind: 'ad',
+      adId,
+      afterSeq,
+      skippableAfterMs: ads.skippableAfterMs,
+      durationMs: ads.durationMs,
+      format: 'video',
+      tagUrl: ads.tagUrl,
+      slot,
+    });
+    this.observer.event('room.ad', { adId, slot, afterSeq });
+  }
+
+  /**
+   * The host's player reports each lifecycle step once; anything else (a guest, an id the room
+   * never sent, a repeat) is dropped so revenue estimates cannot be inflated from a client.
+   */
+  private adEvent(p: Participant, m: Extract<ClientMessage, { kind: 'ad_event' }>): void {
+    if (p.role !== 'host') return;
+    const sent = this.adsSent.get(m.adId);
+    if (!sent || sent.seen.has(m.event)) return;
+    sent.seen.add(m.event);
+    const outcome: AdOutcome = {
+      sessionId: this.sessionId,
+      adId: m.adId,
+      slot: sent.slot,
+      event: m.event,
+      atMs: m.atMs,
+      code: m.code ?? null,
+    };
+    this.observer.event('room.ad_event', { ...outcome, code: outcome.code ?? undefined });
+    // Validated, it is an interaction like any other (ADR-0011): ledger, Insights, PostHog.
+    this.metrics.interaction(p.id, m.event, {
+      adId: m.adId,
+      slot: sent.slot,
+      atMs: m.atMs,
+      ...(m.code ? { code: m.code } : {}),
+    });
+    const revenue = this.d.ads?.revenuePerCompletionUsd ?? 0;
+    if (m.event === 'ad_completed' && revenue > 0)
+      this.metrics.cost({
+        component: 'ads',
+        unit: 'requests',
+        units: 1,
+        usd: revenue,
+        meta: { purpose: 'ad_revenue', estimate: true, adId: m.adId, slot: sent.slot },
+      });
+    this.d.ads?.onEvent?.(outcome);
   }
 
   private emitLessonEvent(raw: LessonEvent, segment: number): void {

@@ -84,6 +84,44 @@ describe('telemetry contracts', () => {
     ).toBe(false);
   });
 
+  it('the ad lifecycle is an interaction and its revenue estimate an `ads` cost line (ADR-0014)', () => {
+    for (const event of [
+      'ad_requested',
+      'ad_loaded',
+      'ad_started',
+      'ad_first_quartile',
+      'ad_midpoint',
+      'ad_third_quartile',
+      'ad_completed',
+      'ad_skipped',
+      'ad_error',
+      'ad_clicked',
+    ])
+      expect(
+        InteractionEvent.safeParse({
+          t: 0,
+          participantId: 'p_12345678',
+          event,
+          props: { adId: 'ad-1', slot: 'boundary', atMs: 5000 },
+        }).success,
+        event,
+      ).toBe(true);
+    expect(
+      CostLine.safeParse({
+        component: 'ads',
+        unit: 'requests',
+        units: 1,
+        usd: 0.008,
+        meta: { purpose: 'ad_revenue', estimate: true },
+      }).success,
+    ).toBe(true);
+    // Still a magnitude: the sign lives in the component, never in usd.
+    expect(
+      CostLine.safeParse({ component: 'ads', unit: 'requests', units: 1, usd: -0.008, meta: {} })
+        .success,
+    ).toBe(false);
+  });
+
   it('SessionTelemetry accepts a partial cost record', () => {
     const t = SessionTelemetry.parse({
       sessionId: 'sess-12345678',
@@ -111,6 +149,7 @@ describe('telemetry contracts', () => {
       },
       cost: {
         totalUsd: 0,
+        revenueUsd: 0,
         byComponent: { llm: { usd: 0, calls: 1, units: { tokens_in: 5 } } },
         lines: [],
       },

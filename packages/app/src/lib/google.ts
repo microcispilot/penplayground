@@ -36,7 +36,11 @@ interface GoogleAccountsId {
 
 declare global {
   interface Window {
-    google?: { accounts?: { id?: GoogleAccountsId } };
+    google?: GoogleGlobal;
+  }
+  /** `window.google` is shared by Google's SDKs: sign-in adds `accounts`, IMA (ads/ima.ts) adds `ima`. */
+  interface GoogleGlobal {
+    accounts?: { id?: GoogleAccountsId };
   }
 }
 

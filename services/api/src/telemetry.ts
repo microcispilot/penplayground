@@ -55,10 +55,12 @@ function numberProp(interaction: InteractionEvent, key: string): number | null {
 
 export function summariseCosts(lines: CostLine[]): {
   totalUsd: number;
+  revenueUsd: number;
   byComponent: Partial<Record<CostComponent, CostByComponent>>;
 } {
   const byComponent: Partial<Record<CostComponent, CostByComponent>> = {};
   let totalUsd = 0;
+  let revenueUsd = 0;
   for (const line of lines) {
     const entry = byComponent[line.component] ?? { usd: 0, calls: 0, units: {} };
     entry.usd += line.usd;
@@ -66,9 +68,11 @@ export function summariseCosts(lines: CostLine[]): {
     if (line.component !== 'llm' || line.unit === 'tokens_in') entry.calls += 1;
     entry.units[line.unit] = (entry.units[line.unit] ?? 0) + line.units;
     byComponent[line.component] = entry;
-    totalUsd += line.usd;
+    // The ad credit is revenue, not spend: it sits beside the total, never inside it.
+    if (line.component === 'ads') revenueUsd += line.usd;
+    else totalUsd += line.usd;
   }
-  return { totalUsd, byComponent };
+  return { totalUsd, revenueUsd, byComponent };
 }
 
 /** What this session served from earlier work, read off the stage samples' `reused` / `savedUsd` meta. */
@@ -209,7 +213,12 @@ export function computeTelemetry(input: TelemetryInput): SessionTelemetry {
       sttFinalMs: percentiles(sttFinal),
       bargeInMs: percentiles(bargeIn),
     },
-    cost: { totalUsd: cost.totalUsd, byComponent: cost.byComponent, lines },
+    cost: {
+      totalUsd: cost.totalUsd,
+      revenueUsd: cost.revenueUsd,
+      byComponent: cost.byComponent,
+      lines,
+    },
     reuse: summariseReuse(stages, cost.totalUsd),
     stages,
     interactions,
@@ -349,6 +358,8 @@ export function sessionEndedProperties(
     'cost.ttsUsd': usd('tts'),
     'cost.sttUsd': usd('stt'),
     'cost.searchUsd': usd('search'),
+    'cost.adsRevenueUsd': round6(t.cost.revenueUsd),
+    'cost.adsCompleted': t.cost.byComponent.ads?.calls ?? 0,
     'cost.llmCalls': t.cost.byComponent.llm?.calls ?? 0,
     'cost.tokensIn': units('llm', 'tokens_in'),
     'cost.tokensCached': units('llm', 'tokens_cached'),

@@ -1,8 +1,9 @@
-import type { PlanCode } from '@pen/contracts';
+import type { LedgerEntry, PlanCode } from '@pen/contracts';
 import { FakeLanguageModel } from '@pen/llm';
 import { SilentSynthesizer } from '@pen/voice';
 import { describe, expect, it } from 'vitest';
-import { type KnowledgeAcquirer, SessionRoom } from '../src/room.js';
+import { SessionMetrics } from '../src/metrics.js';
+import { type AdOutcome, type AdPolicy, type KnowledgeAcquirer, SessionRoom } from '../src/room.js';
 import {
   CANONICAL_ID,
   expert,
@@ -16,7 +17,8 @@ import {
 
 const HOST = 'host-1234';
 const SEGMENTS = 6;
-const ADS = { everySegments: 2, durationMs: 15_000, skippableAfterMs: 5_000 };
+const TAG = 'https://ads.example.test/vast?slot=pen';
+const ADS = { everySegments: 2, durationMs: 15_000, skippableAfterMs: 5_000, tagUrl: TAG };
 
 function model() {
   return new FakeLanguageModel(
@@ -25,7 +27,13 @@ function model() {
   );
 }
 
-async function makeRoom(opts: { plan: PlanCode; miss: boolean; sessionId: string }) {
+async function makeRoom(opts: {
+  plan: PlanCode;
+  miss: boolean;
+  sessionId: string;
+  onEvent?: AdPolicy['onEvent'];
+  revenuePerCompletionUsd?: number;
+}) {
   const { onten, packId } = await preparedPack();
   const transport = new MemoryTransport();
   const hit = await onten.registry.resolveTopic({
@@ -45,6 +53,13 @@ async function makeRoom(opts: { plan: PlanCode; miss: boolean; sessionId: string
       return { packId, provisional: false, background: Promise.resolve(null) };
     },
   };
+  // The session's own telemetry (ADR-0011): what the ledger would hold.
+  const entries: LedgerEntry[] = [];
+  const metrics = new SessionMetrics({
+    sessionId: opts.sessionId,
+    startedAt: Date.now(),
+    ledger: { append: (_id, entry) => void entries.push(entry) },
+  });
   const room = new SessionRoom({
     sessionId: opts.sessionId,
     topic: 'How Transformers work in LLMs',
@@ -66,9 +81,16 @@ async function makeRoom(opts: { plan: PlanCode; miss: boolean; sessionId: string
     transport,
     acquirer,
     targetMinutes: 6,
-    ads: ADS,
+    metrics,
+    ads: {
+      ...ADS,
+      ...(opts.onEvent ? { onEvent: opts.onEvent } : {}),
+      ...(opts.revenuePerCompletionUsd !== undefined
+        ? { revenuePerCompletionUsd: opts.revenuePerCompletionUsd }
+        : {}),
+    },
   });
-  return { room, transport, prepare };
+  return { room, transport, prepare, entries };
 }
 
 /** Plays the whole lesson as the host would: report each segment heard so the next one generates. */
@@ -106,7 +128,13 @@ describe('SessionRoom ad budget', () => {
     const ads = transport.ads();
     expect(ads.map((a) => a.afterSeq)).toEqual([lastSeq[2], lastSeq[4]]);
     expect(ads.map((a) => a.adId)).toEqual(['ad-sess-a-1', 'ad-sess-a-2']);
-    expect(ads[0]).toMatchObject({ skippableAfterMs: 5_000, durationMs: 15_000 });
+    expect(ads[0]).toMatchObject({
+      skippableAfterMs: 5_000,
+      durationMs: 15_000,
+      format: 'video',
+      tagUrl: TAG,
+      slot: 'boundary',
+    });
     // Never before the first sentence, never after the last segment.
     const firstCue = transport.messages.findIndex((m) => m.kind === 'cue');
     const firstAd = transport.messages.findIndex((m) => m.kind === 'ad');
@@ -140,6 +168,9 @@ describe('SessionRoom ad budget', () => {
       afterSeq: -1,
       skippableAfterMs: 5_000,
       durationMs: 15_000,
+      format: 'video',
+      tagUrl: TAG,
+      slot: 'preparation',
     });
     await until(() => transport.messages.some((m) => m.kind === 'cue'));
     const prepAt = transport.messages.findIndex((m) => m.kind === 'ad');
@@ -172,5 +203,110 @@ describe('SessionRoom ad budget', () => {
     await sleep(50);
     expect(hit.transport.ads()).toEqual([]);
     await hit.room.end();
+  });
+});
+
+describe('SessionRoom ad outcomes (ad_event)', () => {
+  it('accepts each lifecycle step once from the host, attributed to the ad slot', async () => {
+    const outcomes: AdOutcome[] = [];
+    const { room, transport, entries } = await makeRoom({
+      plan: 'free',
+      miss: true,
+      sessionId: 'sess-e',
+      onEvent: (o) => outcomes.push(o),
+      revenuePerCompletionUsd: 0.008,
+    });
+    await room.start();
+    const prep = transport.ads()[0];
+    expect(prep?.adId).toBe('ad-sess-e-prep');
+    room.handle(HOST, { kind: 'ad_event', adId: 'ad-sess-e-prep', event: 'ad_started', atMs: 0 });
+    room.handle(HOST, {
+      kind: 'ad_event',
+      adId: 'ad-sess-e-prep',
+      event: 'ad_completed',
+      atMs: 15_000,
+    });
+    // A repeat of a step is dropped: the client cannot inflate the tally.
+    room.handle(HOST, {
+      kind: 'ad_event',
+      adId: 'ad-sess-e-prep',
+      event: 'ad_completed',
+      atMs: 15_000,
+    });
+    expect(outcomes).toEqual([
+      {
+        sessionId: 'sess-e',
+        adId: 'ad-sess-e-prep',
+        slot: 'preparation',
+        event: 'ad_started',
+        atMs: 0,
+        code: null,
+      },
+      {
+        sessionId: 'sess-e',
+        adId: 'ad-sess-e-prep',
+        slot: 'preparation',
+        event: 'ad_completed',
+        atMs: 15_000,
+        code: null,
+      },
+    ]);
+    // Each accepted step is a ledger interaction (ADR-0011) — the repeat is not — and the
+    // completed ad books the estimated revenue as one `ads` cost line beside the spend.
+    const adInteractions = entries.flatMap((e) =>
+      e.kind === 'interaction' && e.interaction.event.startsWith('ad_') ? [e.interaction] : [],
+    );
+    expect(adInteractions.map((i) => [i.participantId, i.event, i.props])).toEqual([
+      [HOST, 'ad_started', { adId: 'ad-sess-e-prep', slot: 'preparation', atMs: 0 }],
+      [HOST, 'ad_completed', { adId: 'ad-sess-e-prep', slot: 'preparation', atMs: 15_000 }],
+    ]);
+    const revenue = entries.flatMap((e) =>
+      e.kind === 'cost' && e.line.component === 'ads' ? [e.line] : [],
+    );
+    expect(revenue).toEqual([
+      {
+        component: 'ads',
+        unit: 'requests',
+        units: 1,
+        usd: 0.008,
+        meta: {
+          purpose: 'ad_revenue',
+          estimate: true,
+          adId: 'ad-sess-e-prep',
+          slot: 'preparation',
+        },
+      },
+    ]);
+    await room.end();
+  });
+
+  it('drops reports for ads the room never sent and reports from anyone but the host', async () => {
+    const outcomes: AdOutcome[] = [];
+    const { room, transport, entries } = await makeRoom({
+      plan: 'free',
+      miss: true,
+      sessionId: 'sess-f',
+      onEvent: (o) => outcomes.push(o),
+      revenuePerCompletionUsd: 0.008,
+    });
+    await room.start();
+    room.handle(HOST, {
+      kind: 'ad_event',
+      adId: 'ad-someone-else',
+      event: 'ad_completed',
+      atMs: 1,
+    });
+    // Free rooms are solo (no `rooms` entitlement), so any other id is simply not a participant.
+    const adId = transport.ads()[0]?.adId ?? '';
+    room.handle('guest-1', { kind: 'ad_event', adId, event: 'ad_completed', atMs: 1 });
+    expect(outcomes).toEqual([]);
+    // Nothing a client could not legitimately report reaches the ledger or the revenue estimate.
+    expect(entries.filter((e) => e.kind === 'cost' && e.line.component === 'ads')).toEqual([]);
+    expect(
+      entries.filter((e) => e.kind === 'interaction' && e.interaction.event.startsWith('ad_')),
+    ).toEqual([]);
+    room.handle(HOST, { kind: 'ad_event', adId, event: 'ad_error', atMs: 1, code: '1009' });
+    expect(outcomes.map((o) => [o.event, o.code])).toEqual([['ad_error', '1009']]);
+    await room.end();
   });
 });

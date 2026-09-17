@@ -251,49 +251,6 @@ export function CheckCard({
   );
 }
 
-// ── ad card (free plan) ───────────────────────────────────────────────────────
-export function AdCard({
-  durationMs,
-  skippableAfterMs,
-  startedAt,
-  onSkip,
-}: {
-  durationMs: number;
-  skippableAfterMs: number;
-  startedAt: number;
-  onSkip: () => void;
-}) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(t);
-  }, []);
-  const elapsed = now - startedAt;
-  const canSkip = elapsed >= skippableAfterMs;
-  const left = Math.max(0, Math.ceil((durationMs - elapsed) / 1000));
-  return (
-    <div className="absolute inset-0 z-[8] grid place-items-center bg-navy-900/70 backdrop-blur-[2px]">
-      <div className="flex w-[min(520px,90%)] animate-rise flex-col gap-4 rounded-[var(--radius-xl)] bg-bg-elevated p-6 shadow-pop">
-        <div className="flex items-center justify-between">
-          <Pill tone="warm">Ad · supports free sessions</Pill>
-          <span className="text-xs text-fg-3 tabular">{left}s</span>
-        </div>
-        <div className="grid h-[180px] place-items-center rounded-[var(--radius-lg)] bg-warm-soft text-center text-sm text-fg-2">
-          Your ad could be here. Pen Playground stays free because of it.
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-fg-3">Standard removes ads.</span>
-          <Button variant={canSkip ? 'primary' : 'secondary'} disabled={!canSkip} onClick={onSkip}>
-            {canSkip
-              ? 'Skip ad'
-              : `Skip in ${Math.max(1, Math.ceil((skippableAfterMs - elapsed) / 1000))}`}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── recap panel ───────────────────────────────────────────────────────────────
 export function RecapPanel({
   state,

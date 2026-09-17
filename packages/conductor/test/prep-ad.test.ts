@@ -123,6 +123,9 @@ const say = (seq: number, id: string, text: string): Cue => ({
 });
 const PREP_AD = {
   kind: 'ad' as const,
+  format: 'video' as const,
+  tagUrl: 'https://ads.example.test/vast',
+  slot: 'preparation' as const,
   adId: 'ad-s-prep',
   afterSeq: -1,
   skippableAfterMs: 5000,

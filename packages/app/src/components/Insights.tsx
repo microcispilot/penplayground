@@ -55,6 +55,7 @@ const COMPONENT_LABEL: Record<CostComponent, string> = {
   stt: 'Hearing',
   search: 'Search',
   onten: 'Onten',
+  ads: 'Ads',
 };
 
 export function formatMs(ms: number | null): string {
@@ -97,6 +98,8 @@ export function describeComponent(
       return `${formatCount(u.requests ?? 0)} request${(u.requests ?? 0) === 1 ? '' : 's'}`;
     case 'onten':
       return `${formatCount(u.requests ?? 0)} context quer${(u.requests ?? 0) === 1 ? 'y' : 'ies'}`;
+    case 'ads':
+      return `${entry.calls} completed ad${entry.calls === 1 ? '' : 's'} · estimated revenue`;
   }
 }
 
@@ -294,6 +297,9 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
           <h6 className="text-fg-2">Cost</h6>
           <span className="text-sm text-fg tabular" data-testid="insights-total-usd">
             {formatUsd(t.cost.totalUsd)} total
+            {t.cost.revenueUsd > 0 ? (
+              <span className="text-fg-3"> · {formatUsd(t.cost.revenueUsd)} ads (est.)</span>
+            ) : null}
           </span>
         </div>
         {components.length === 0 ? (
@@ -313,7 +319,10 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
                     {describeComponent(component, entry)}
                   </span>
                 </span>
-                <span className="shrink-0 text-fg tabular">{formatUsd(entry.usd)}</span>
+                <span className="shrink-0 text-fg tabular">
+                  {component === 'ads' ? '+' : ''}
+                  {formatUsd(entry.usd)}
+                </span>
               </li>
             ))}
           </ul>

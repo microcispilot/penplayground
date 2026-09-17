@@ -49,6 +49,10 @@ export default defineConfig({
         // Each e2e API gets its own in-memory database: two processes on one PGlite dir abort.
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
+        // Free-plan video ads against Google's public IMA sample tag, at the first boundary
+        // (the fake lesson has three segments) — see e2e/ads.spec.ts.
+        PEN_AD_TEST_TAGS: '1',
+        PEN_ADS_EVERY_SEGMENTS: '1',
       },
       timeout: 60_000,
     },

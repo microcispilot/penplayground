@@ -89,13 +89,20 @@ export function takeStartClickedAt(maxAgeMs = 90_000): number | null {
  * ledger via `report` when in a room, and as a Sentry breadcrumb so an error
  * report shows what the learner did before it.
  */
-export function trackInteraction(event: InteractionName, props: InteractionProps = {}): void {
+export function trackInteraction(
+  event: InteractionName,
+  props: InteractionProps = {},
+  opts: {
+    /** false when the room already receives this step through its own validated message (`ad_event`). */
+    report?: boolean;
+  } = {},
+): void {
   const enriched: Record<string, string | number | boolean> = { ...props, screen: context.screen };
   if (context.sessionId) enriched.sessionId = context.sessionId;
   if (context.role) enriched.role = context.role;
   if (context.phase) enriched.phase = context.phase;
   track(event, enriched);
-  reporter?.(event, props);
+  if (opts.report !== false) reporter?.(event, props);
   monitor?.breadcrumb(event, props);
 }
 
