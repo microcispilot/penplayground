@@ -179,6 +179,15 @@ export function handLine(a: Point, b: Point, seed: string, amp = 1.2): Stroke[] 
   return [segment(a, b, rng, amp, bow)];
 }
 
+/**
+ * A deliberately bowed line (thumbnail curves, "this goes up" gestures):
+ * `bow` is the sagitta in world units, positive to the left of a→b.
+ */
+export function handCurve(a: Point, b: Point, bow: number, seed: string, amp = 1.2): Stroke[] {
+  const rng = createRng(`curve:${seed}`);
+  return [segment(a, b, rng, amp, bow + jitter(rng, Math.abs(bow) * 0.08))];
+}
+
 /** Shaft plus an open "V" head, drawn as two strokes. */
 export function handArrow(a: Point, b: Point, seed: string, amp = 1.2): Stroke[] {
   const rng = createRng(`arrow:${seed}`);

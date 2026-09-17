@@ -37,6 +37,11 @@ import { GradeOutput, IntentOutput, RecapOutput } from './schemas.js';
 import { SayPipeline } from './speech.js';
 import { type RoomObserver, type RoomTransport, SILENT_OBSERVER } from './transport.js';
 
+/** Prompt-cache key shared by every call of a session (and the background meta call): persona + level prefix. */
+export function roomCacheKey(expertId: string, band: SelectionBand): string {
+  return `pen:${expertId}:${band}`;
+}
+
 /** Topic-miss acquisition seam: the knowledge package implements it; tests use a stub. */
 export interface KnowledgeAcquirer {
   /**
@@ -1177,7 +1182,7 @@ export class SessionRoom {
   }
 
   private cacheKey(): string {
-    return `pen:${this.d.expert.id}:${this.d.band}`;
+    return roomCacheKey(this.d.expert.id, this.d.band);
   }
 
   private queryInputFor(text: string, revision: string): QueryInput {

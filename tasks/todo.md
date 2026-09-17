@@ -30,3 +30,5 @@
 - [ ] Stripe webhook endpoint registered
 - [ ] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
 - [ ] Fake model: completion for the knowledge outline purpose (Sentry issue)
+- [x] Session thumbnails: one background `session_meta` call → SketchSpec → SVG/PNG next to the ledger; cards, session page and share OG use it (ADR-0013)
+- [ ] Thumbnails: cache the sketch per lesson memo (memo-hit sessions repeat the call today); backfill sessions created before ADR-0013

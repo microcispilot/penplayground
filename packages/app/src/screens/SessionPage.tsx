@@ -12,7 +12,7 @@ import {
   SessionRecord as SessionRecordSchema,
 } from '../api/client.js';
 import { AppHeader } from '../components/AppHeader.js';
-import { BoardThumb } from '../components/SessionCard.js';
+import { SessionThumb } from '../components/SessionCard.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 
 const LedgerResponse = z.object({
@@ -328,7 +328,7 @@ export function SessionPage() {
         <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
           <div>
             {s ? (
-              <BoardThumb seed={s.id} className="relative aspect-video w-full" />
+              <SessionThumb session={s} watch className="relative aspect-video w-full" />
             ) : (
               <Skeleton className="aspect-video w-full" />
             )}

@@ -7,7 +7,7 @@ import type {
 } from '@pen/contracts';
 import { encodeAudioFrame } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
-import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
+import { newSessionId, type RoomTransport, roomCacheKey, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
 import { detectSpokenLanguage } from './language.js';
 import { observer } from './observability.js';
@@ -148,6 +148,8 @@ export class RoomRegistry {
       recap: [],
       views: 0,
       thumbnail: null,
+      description: '',
+      keywords: [],
     };
     await services.sessions.upsert(record);
     services.analytics.capture(args.host.id, 'session_started', {
@@ -162,12 +164,22 @@ export class RoomRegistry {
     this.rooms.set(sessionId, live);
     void room.start().then(async () => {
       const state = room.getState();
-      if (state.plan)
-        await services.sessions.patch(sessionId, {
-          title: state.plan.title,
-          promise: state.plan.promise,
-          segments: state.plan.segments.length,
-        });
+      if (!state.plan) return;
+      await services.sessions.patch(sessionId, {
+        title: state.plan.title,
+        promise: state.plan.promise,
+        segments: state.plan.segments.length,
+      });
+      // Card copy + sketch in the background (ADR-0013): the first audio never waits for it.
+      services.meta.enqueue({
+        sessionId,
+        expert,
+        band: args.band,
+        topic: args.topic,
+        plan: state.plan,
+        language: state.language,
+        cacheKey: roomCacheKey(expert.id, args.band),
+      });
     });
     return live;
   }

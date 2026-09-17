@@ -1,6 +1,96 @@
 import { Avatar, cn } from '@pen/design';
+import { useEffect, useRef, useState } from 'react';
 import type { SessionRecord } from '../api/client.js';
-import { formatDuration } from '../lib/context.js';
+import { formatDuration, useApp } from '../lib/context.js';
+
+/** Poll schedule while a fresh session's sketch is still being drawn (ADR-0013): ~2 minutes in total. */
+const THUMB_POLL_MS = [3_000, 5_000, 8_000, 13_000, 21_000, 34_000, 40_000];
+/** Older sessions with no thumbnail are not going to get one; do not poll for them. */
+const THUMB_WATCH_WINDOW_MS = 30 * 60_000;
+
+/**
+ * The session's real thumbnail (the sketch the expert drew for it) over the
+ * deterministic placeholder, which stays underneath until the image has
+ * loaded so the card never flashes empty. With `watch`, a session that has
+ * no sketch yet is polled on a slow back-off and upgrades in place — the
+ * saved-session page right after "End" is the case that matters.
+ * Positioning is the caller's (`absolute inset-0` inside a sized box, or
+ * `relative` with a size), exactly like `BoardThumb`.
+ */
+export function SessionThumb({
+  session,
+  className,
+  watch = false,
+}: {
+  session: Pick<SessionRecord, 'id' | 'thumbnail' | 'startedAt' | 'title'>;
+  className?: string;
+  /** Poll the record while the thumbnail is not ready (fresh sessions only). */
+  watch?: boolean;
+}) {
+  const { api } = useApp();
+  const [path, setPath] = useState<string | null>(session.thumbnail);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const attempt = useRef(0);
+
+  // A newer record (a list refresh, a parent poll) always wins over what we found ourselves.
+  useEffect(() => {
+    if (session.thumbnail) setPath(session.thumbnail);
+  }, [session.thumbnail]);
+
+  useEffect(() => {
+    if (!watch || path || Date.now() - session.startedAt > THUMB_WATCH_WINDOW_MS) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async () => {
+      try {
+        const { session: fresh } = await api.getSession(session.id);
+        if (cancelled) return;
+        if (fresh.thumbnail) {
+          setPath(fresh.thumbnail);
+          return;
+        }
+      } catch {
+        // A transient failure just waits for the next tick; the placeholder is a fine card.
+      }
+      const delay = THUMB_POLL_MS[attempt.current];
+      attempt.current += 1;
+      if (delay !== undefined && !cancelled) timer = setTimeout(() => void tick(), delay);
+    };
+    timer = setTimeout(() => void tick(), THUMB_POLL_MS[0]);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [api, watch, path, session.id, session.startedAt]);
+
+  const src = failed ? null : api.thumbnailUrl({ thumbnail: path });
+  return (
+    <div
+      className={cn('overflow-hidden rounded-[var(--radius-md)]', className)}
+      data-testid="session-thumb"
+      data-ready={loaded}
+    >
+      <BoardThumb seed={session.id} className="absolute inset-0" />
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          width={320}
+          height={180}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover transition-opacity duration-[var(--duration-slow)]',
+            loaded ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * Paper thumbnail with a deterministic hand-drawn sketch (three variants).
@@ -99,8 +189,8 @@ export function SessionCard({
       onClick={onOpen}
     >
       <div className="relative aspect-video">
-        <BoardThumb
-          seed={session.id}
+        <SessionThumb
+          session={session}
           className="absolute inset-0 transition-transform duration-[var(--duration-base)] group-hover:scale-[1.01]"
         />
         <span className="absolute right-2 bottom-2 rounded-[5px] bg-navy-900/85 px-1.5 py-0.5 text-xs text-white tabular">
@@ -114,7 +204,7 @@ export function SessionCard({
             {session.title}
           </span>
           <span className="line-clamp-2 text-sm leading-[1.42] text-fg-3 text-pretty">
-            {session.promise || session.topic}
+            {session.description || session.promise || session.topic}
           </span>
           <span className="text-sm text-fg-2">{expertName}</span>
         </div>

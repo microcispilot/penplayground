@@ -11,7 +11,7 @@ import {
   type Usage,
 } from '@pen/llm';
 import { createOnten, type Onten } from '@pen/onten';
-import { ExpertCatalog, type KnowledgeAcquirer } from '@pen/session-engine';
+import { ExpertCatalog, type KnowledgeAcquirer, type SessionMetaJobs } from '@pen/session-engine';
 import {
   FishBridgeSynthesizer,
   FishCloudSynthesizer,
@@ -29,6 +29,7 @@ import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
 import { createRecognizer } from './stt.js';
+import { createSessionMetaJobs, loadThumbnailFont, ThumbnailStore } from './thumbnails.js';
 import { ExpertVoices } from './voices.js';
 
 export interface Services {
@@ -54,6 +55,10 @@ export interface Services {
   downloadTokens: DownloadTokens;
   /** Null when ffmpeg + Chromium were found at boot; otherwise why exports are refused. */
   renderUnavailable: string | null;
+  /** Session thumbnails on disk (ADR-0013). */
+  thumbnails: ThumbnailStore;
+  /** Background card copy + sketch jobs; rooms enqueue once their plan exists. */
+  meta: SessionMetaJobs;
 }
 
 /** In-memory cost ledger with daily totals; persisted to the data dir hourly by main. */
@@ -117,13 +122,16 @@ export async function buildServices(
 
   const recognizer = createRecognizer(cfg);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
-  const models = new Map<PlanCode, LanguageModel>();
-  const modelFor = (plan: PlanCode): LanguageModel => {
-    const cached = models.get(plan);
+  const models = new Map<string, LanguageModel>();
+  /** One adapter per (plan key, model name); the fake provider serves every request from its scripts. */
+  const buildModel = (plan: PlanCode, modelName: string): LanguageModel => {
+    const cacheId = `${plan}:${modelName}`;
+    const cached = models.get(cacheId);
     if (cached) return cached;
     let model: LanguageModel;
     if (cfg.PEN_LLM_PROVIDER === 'fake') {
-      logger.warn('PEN_LLM_PROVIDER=fake: scripted demo lessons only (development only)');
+      if (models.size === 0)
+        logger.warn('PEN_LLM_PROVIDER=fake: scripted demo lessons only (development only)');
       model = new FakeLanguageModel(demoScripts.scripts, demoScripts.completions);
     } else {
       const key =
@@ -138,7 +146,7 @@ export async function buildServices(
         );
       model = new OpenAILanguageModel({
         apiKey: key,
-        model: cfg.PEN_LLM_MODEL,
+        model: modelName,
         ...(cfg.PEN_LLM_BASE_URL ? { baseURL: cfg.PEN_LLM_BASE_URL } : {}),
         ...(cfg.PEN_LLM_SERVICE_TIER ? { serviceTier: cfg.PEN_LLM_SERVICE_TIER } : {}),
         reasoningEffort: 'none',
@@ -147,9 +155,10 @@ export async function buildServices(
           observer.error('llm.invalid_event', error, { rawType: typeof raw }),
       });
     }
-    models.set(plan, model);
+    models.set(cacheId, model);
     return model;
   };
+  const modelFor = (plan: PlanCode): LanguageModel => buildModel(plan, cfg.PEN_LLM_MODEL);
 
   const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
   const db = await connect(cfg.DATABASE_URL);
@@ -178,6 +187,14 @@ export async function buildServices(
     onError: (area, error, data) => observer.error(area, error, data),
   });
   const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
+  const thumbnails = new ThumbnailStore(join(cfg.PEN_DATA_DIR, 'sessions'), loadThumbnailFont());
+  // Card copy and sketches are house-account work on the cheapest model; when it is the session
+  // model (the default) the plan call's persona prefix is already in the prompt cache.
+  const meta = createSessionMetaJobs({
+    model: buildModel('free', cfg.PEN_LLM_OUTLINE_MODEL),
+    store: thumbnails,
+    sessions,
+  });
   const base = {
     cfg,
     onten,
@@ -197,6 +214,8 @@ export async function buildServices(
     exports,
     downloadTokens,
     renderUnavailable,
+    thumbnails,
+    meta,
   };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;
   return { ...base, acquirer };

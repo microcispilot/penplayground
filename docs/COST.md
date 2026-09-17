@@ -7,6 +7,7 @@
 | STT | AssemblyAI Universal-Streaming $0.15/h (or $0 browser on-device / self-hosted) | $0.05 |
 | Onten context | mock today; target < 20 ms, amortised across learners | ~$0 |
 | Topic preparation (only on a miss, once per topic) | seed + Tavily + luna | $0.05–0.65 |
+| Session card + thumbnail (ADR-0013) | one luna structured-output call, ~1.4k in (persona prefix cached) + ~0.6k out; resvg raster in-process | ≈ $0.001 |
 | **Total marginal** | | **≈ $0.30 paid voice / ≈ $0.07 with free-tier voice and on-device STT** |
 
 Levers, in order of leverage: prompt-cache prefix discipline (input is >90 % of

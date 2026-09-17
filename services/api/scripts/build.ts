@@ -19,6 +19,8 @@ import { build, type Plugin } from 'esbuild';
  *   undici                 large CJS with optional `node:sqlite`/dispatcher requires
  *   playwright(-core)      locates browsers and its driver relative to its own package
  *   fasttext.wasm.js       loads its .wasm and the lid.176 model relative to its own package
+ *   @resvg/resvg-js        native (napi) rasteriser for thumbnail PNGs
+ *   @fontsource/caveat     the pen's WOFF files, resolved at runtime with require.resolve
  *
  * Output: dist/main.js (+ .map, meta.json) and dist/drizzle (migrations copied beside the bundle).
  */
@@ -39,6 +41,8 @@ const EXTERNAL = [
   'playwright',
   'playwright-core',
   'fasttext.wasm.js',
+  '@resvg/resvg-js',
+  '@fontsource/caveat',
 ];
 
 const externalPackages: Plugin = {

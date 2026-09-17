@@ -48,6 +48,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
     services.exports.close();
+    services.meta.close();
     logger.info({ signal }, 'shutting down');
     server.close(
       () =>

@@ -25,6 +25,10 @@ test.describe('a learner starts a session', () => {
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Open the saved session' }).click();
     await expect(page.getByRole('heading', { name: /Transformers/ })).toBeVisible();
+    // The sketch drawn in the background (ADR-0013) replaces the placeholder without a reload.
+    const thumb = page.getByTestId('session-thumb').first();
+    await expect(thumb.locator('img')).toHaveAttribute('src', /\/thumb\.svg$/, { timeout: 20_000 });
+    await expect(thumb).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
     await page.getByRole('button', { name: 'Transcript' }).click();
     await expect(page.getByText('square root of d', { exact: false })).toBeVisible();
   });

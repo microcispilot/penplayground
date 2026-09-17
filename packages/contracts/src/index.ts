@@ -7,4 +7,5 @@ export * from './ids.js';
 export * from './ledger.js';
 export * from './onten.js';
 export * from './session.js';
+export * from './thumbnail.js';
 export * from './wire.js';

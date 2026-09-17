@@ -51,6 +51,8 @@ async function session(
     recap: [],
     views: 0,
     thumbnail: null,
+    description: '',
+    keywords: [],
   };
   await services.sessions.upsert(record);
   services.ledger.append(id, {
