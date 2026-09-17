@@ -6,9 +6,16 @@ import { defineConfig, devices } from '@playwright/test';
  * is exercised deterministically without keys.
  */
 const apiPort = process.env.PEN_API_PORT ?? '4010';
-// Both ports are overridable so the suite can run next to a dev server (or another checkout's)
-// without reusing it: PEN_API_PORT=4410 PEN_WEB_PORT=5183 pnpm --filter @pen/web e2e
+/** Both ports are overridable so parallel checkouts (worktrees) never reuse each other's servers. */
 const webPort = process.env.PEN_WEB_PORT ?? '5173';
+/**
+ * A second API/web pair for `rooms.spec.ts`: plan forced to professional (rooms are a
+ * Professional feature) and LiveKit pointed at a local `livekit-server --dev` (:7880,
+ * key `devkey` / secret `secret`). The spec skips itself when that server is not running;
+ * the pair still boots so every run exercises the same config.
+ */
+const roomsApiPort = process.env.PEN_E2E_ROOMS_API_PORT ?? '4014';
+const roomsWebPort = process.env.PEN_E2E_ROOMS_WEB_PORT ?? '5174';
 
 export default defineConfig({
   testDir: './e2e',
@@ -47,6 +54,31 @@ export default defineConfig({
       command: `pnpm --filter @pen/web exec vite --port ${webPort} --strictPort`,
       url: `http://localhost:${webPort}`,
       env: { PEN_API_PORT: apiPort },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: 'pnpm --filter @pen/api start',
+      url: `http://127.0.0.1:${roomsApiPort}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        PEN_PORT: roomsApiPort,
+        PEN_PUBLIC_URL: `http://localhost:${roomsWebPort}`,
+        PEN_LLM_PROVIDER: 'fake',
+        PEN_TTS_PROVIDER: 'silent',
+        PEN_DATA_DIR: '.pen-data-e2e-rooms',
+        PEN_LOG_LEVEL: 'warn',
+        PEN_DEV_PLAN: 'professional',
+        LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
+        LIVEKIT_API_KEY: process.env.PEN_E2E_LIVEKIT_API_KEY ?? 'devkey',
+        LIVEKIT_API_SECRET: process.env.PEN_E2E_LIVEKIT_API_SECRET ?? 'secret',
+      },
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm --filter @pen/web exec vite --port ${roomsWebPort} --strictPort`,
+      url: `http://localhost:${roomsWebPort}`,
+      env: { PEN_API_PORT: roomsApiPort },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

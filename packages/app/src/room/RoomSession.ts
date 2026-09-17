@@ -11,6 +11,8 @@ import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
 import { readPacePreference, writePacePreference } from '../lib/pace-preference.js';
 import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../platform/types.js';
+import { LiveKitAudioRoom } from './audio/livekit.js';
+import { RoomAudio } from './audio/RoomAudio.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
 import { useRoomStore } from './store.js';
@@ -34,6 +36,12 @@ export class RoomSession {
   private readonly player: PcmPlayer;
   private readonly conductor: Conductor;
   private mic: Microphone | null = null;
+  /** The mic's own MediaStream, captured through the Microphone's getUserMedia seam so the room can share it. */
+  private micStream: MediaStream | null = null;
+  /** Human-to-human audio; connects once the room state says the session has it. */
+  private readonly audio: RoomAudio;
+  private expertSpeaking = false;
+  private remoteSpeaking = false;
   private recognizer: SpeechRecognizer | null = null;
   /**
    * No on-device recognizer (Electron, browsers without Web Speech): stream the
@@ -115,11 +123,13 @@ export class RoomSession {
         this.syncClock(state);
         this.followLanguage(state.language);
         set({ state, preparation: state.preparation, phase: this.conductor.getPhase() });
-        this.mic?.setPlaybackActive(state.mode === 'teaching' || state.mode === 'answering');
+        this.expertSpeaking = state.mode === 'teaching' || state.mode === 'answering';
+        this.syncPlaybackActive();
       },
       setSpeaking: (speaking) => {
         set({ speaking, phase: this.conductor.getPhase() });
-        this.mic?.setPlaybackActive(speaking);
+        this.expertSpeaking = speaking;
+        this.syncPlaybackActive();
       },
       showCheck: (check: CheckEvent | null) => set({ check }),
       showAd: (ad) => set({ ad: ad ? { ...ad, startedAt: Date.now() } : null }),
@@ -135,6 +145,31 @@ export class RoomSession {
       participantId: o.participantId,
     });
 
+    this.audio = new RoomAudio({
+      token: () => o.api.roomAudioToken(o.sessionId),
+      mute: (participantId) => o.api.muteRoomAudio(o.sessionId, participantId),
+      createPort: () => new LiveKitAudioRoom(),
+      onUpdate: (audio) => {
+        const previous = useRoomStore.getState().audio;
+        set({ audio });
+        if (audio.playbackBlocked && !previous.playbackBlocked) this.armRoomPlaybackGesture();
+        if (audio.mutedByHost && !previous.mutedByHost)
+          set({ notice: { text: 'The host muted you. Tap the mic to unmute.', tone: 'neutral' } });
+        if (audio.status === 'failed' && previous.status !== 'failed')
+          set({
+            notice: {
+              text: 'Voice between participants dropped. You can still hear the expert.',
+              tone: 'danger',
+            },
+          });
+      },
+      onError: (area, error) => console.warn(`[${area}]`, error),
+      onRemoteSpeaking: (speaking) => {
+        this.remoteSpeaking = speaking;
+        this.syncPlaybackActive();
+      },
+    });
+
     const token = o.api.authToken;
     if (!token) throw new Error('RoomSession requires an authenticated participant');
     this.client = new RoomClient(
@@ -147,6 +182,14 @@ export class RoomSession {
           set({ phase: this.conductor.getPhase() });
           if (m.kind === 'ready') this.applyRememberedPace(m.state);
           if (m.kind === 'state') this.rememberHostPace(m.state);
+          // Voice between participants: the server says whether this session has it (host plan +
+          // media server); the token route re-checks membership, so join first, then connect.
+          if (m.kind === 'ready' || m.kind === 'state') {
+            // The classroom is over: leave the voice channel even though the recap keeps this
+            // screen mounted (the API deletes the media room too).
+            if (m.state.phase === 'ended') void this.audio.disconnect();
+            else if (m.state.participantAudio) void this.audio.connect();
+          }
           if (m.kind === 'prep') set({ preparation: m.progress });
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
@@ -179,6 +222,25 @@ export class RoomSession {
     document.addEventListener('pointerdown', onTap, { once: true, capture: true });
   }
 
+  /** Remote voices need a gesture too when the page was opened cold: the next tap starts them. */
+  private armRoomPlaybackGesture(): void {
+    if (typeof document === 'undefined') return;
+    useRoomStore
+      .getState()
+      .set({ notice: { text: 'Tap anywhere to hear the room.', tone: 'neutral' } });
+    document.addEventListener(
+      'pointerdown',
+      () =>
+        void this.audio.resumePlayback().then(() => useRoomStore.getState().set({ notice: null })),
+      { once: true, capture: true },
+    );
+  }
+
+  /** The segmenter raises its bar while any voice plays through the speakers: the expert's or another participant's. */
+  private syncPlaybackActive(): void {
+    this.mic?.setPlaybackActive(this.expertSpeaking || this.remoteSpeaking);
+  }
+
   /** Call from a user gesture (Start / Join click) so the AudioContext is unlocked. */
   async start(): Promise<void> {
     await this.player.prime(AUDIO.ttsSampleRate);
@@ -209,6 +271,13 @@ export class RoomSession {
     const mic = new Microphone({
       workletSource: this.o.platform.mic.workletSource,
       createResamplerWorker: () => this.o.platform.mic.createResamplerWorker(),
+      // One grant for everything: the room publishes a clone of this stream's track rather than
+      // opening the microphone a second time (two prompts, two device handles, two AGC loops).
+      getUserMedia: async (constraints) => {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        this.micStream = stream;
+        return stream;
+      },
       onSpeechStart: () => {
         this.conductor.onSpeechStart();
         // Server STT: one VAD segment is one utterance. Browser STT keeps the id
@@ -253,6 +322,10 @@ export class RoomSession {
     });
     this.mic = mic;
     await mic.start();
+    this.syncPlaybackActive();
+    const track = this.micStream?.getAudioTracks()[0];
+    if (mic.state === 'listening' && track && this.mic === mic)
+      void this.audio.attachMicrophone(track);
     const recognizer = this.o.platform.speech.create(this.recognizerHandlers(), {
       language: useRoomStore.getState().state?.language ?? navigator.language ?? 'en-US',
     });
@@ -307,9 +380,23 @@ export class RoomSession {
     this.serverSpeech = false;
     this.recognizer?.stop();
     this.recognizer = null;
+    // Unpublish before the Microphone stops its tracks so the room sees a clean leave, not a dead track.
+    void this.audio.detachMicrophone();
+    this.micStream = null;
     this.mic?.stop();
     this.mic = null;
     useRoomStore.getState().set({ micState: 'idle', micLevel: 0 });
+  }
+
+  /** Lift a host mute on our own voice (the mic stayed on for questions the whole time). */
+  unmuteVoice(): Promise<void> {
+    useRoomStore.getState().set({ notice: null });
+    return this.audio.unmute();
+  }
+
+  /** Host: mute one guest's voice to the room, or everyone's. Rejects when the API refuses. */
+  muteParticipant(participantId?: string): Promise<string[]> {
+    return this.audio.muteParticipant(participantId);
   }
 
   /** Typed question fallback (accessibility, no mic). */
@@ -370,6 +457,7 @@ export class RoomSession {
     this.disposed = true;
     if (this.clockTimer) clearInterval(this.clockTimer);
     this.disableMic();
+    void this.audio.disconnect();
     this.conductor.dispose();
     this.client.close();
     this.player.dispose();

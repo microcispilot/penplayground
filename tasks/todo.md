@@ -19,9 +19,9 @@
 - [x] Replay from the ledger through the conductor
 - [x] Google sign-in (accounts on the same participant row; behind GOOGLE_CLIENT_ID / VITE_GOOGLE_CLIENT_ID; desktop hidden)
 - [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
-- [ ] LiveKit rooms audio (human-to-human voice)
-- [x] Desktop: unsigned package proven (`pnpm --filter @pen/desktop package` → out/Pen Playground-darwin-arm64, 329 MB)
-- [ ] Desktop: sign + notarise (needs Apple ID / Windows cert); Google sign-in on desktop (loopback flow)
+- [x] LiveKit rooms audio (human-to-human voice): self-hosted server in the stack, token + mute routes, shared-mic client, participants popover, two-browser e2e (ADR-0012)
+- [ ] Rooms audio follow-ups: TURN/TLS on 443 for UDP+7881-blocked networks; expert joins the media room as an agent (mixed track for export); guest voice in the ledger
+- [ ] Desktop: package and sign (needs Apple ID / Windows cert)
 - [x] Sentry projects (pen-academy-api/web/desktop)
 - [x] Sentry source maps upload (web + api; release = git sha; BuildKit secret in deploy.sh)
 - [x] Server-side STT relay (ws-relay to the 5090 box, Deepgram, AssemblyAI); warm-up at boot

@@ -93,6 +93,12 @@ export const RoomState = z.object({
   floor: ParticipantId.nullable(),
   hostId: ParticipantId,
   participants: z.array(Participant).max(12),
+  /**
+   * Participants can hear each other over the media server (LiveKit): the host's plan
+   * carries `rooms` and the server has a media server configured. Absent = false, so
+   * older ledgers and replays validate unchanged.
+   */
+  participantAudio: z.boolean().optional(),
   plan: LessonPlan.nullable(),
   /** Index of the segment currently being taught. */
   segment: z.number().int().nonnegative(),

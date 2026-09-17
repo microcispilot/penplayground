@@ -1,7 +1,7 @@
 # Deploying Pen Playground
 
 Production runs on the Hetzner host **prod-app-01** (Ubuntu 24.04, 4 vCPU, 7.6 GB, Docker 29,
-host nginx on :80/:443 with certbot). The stack is four containers behind the host nginx:
+host nginx on :80/:443 with certbot). The stack is five containers behind the host nginx:
 
 ```
 browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/sites-enabled/pen-playground.conf
@@ -12,11 +12,15 @@ browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/site
                       ▼
                 api  (node:22-alpine, bundled, uid 1000) pen-playground-api:<tag>   /srv/pen-playground/data:/data
                       ├── postgres:18                                             volume pen-postgres
-                      └── searxng (2026.9.16-461f174b0, JSON API, loopback only)
+                      ├── searxng (2026.9.16-461f174b0, JSON API, loopback only)
+                      └── livekit (livekit-server v1.9.12, rooms audio)
+                            ▲ signalling: host nginx /livekit → 127.0.0.1:7880
+                            ▲ media: 7881/tcp + 7882/udp, public
 ```
 
-Everything binds to `127.0.0.1` (api 4200, web 4201, postgres 5432, searxng 8080); nothing but
-the host nginx is reachable from the internet. `deploy/` holds every file involved:
+Everything binds to `127.0.0.1` (api 4200, web 4201, postgres 5432, searxng 8080, livekit
+signalling 7880); only the host nginx and LiveKit's two media ports (7881/tcp, 7882/udp) are
+reachable from the internet. `deploy/` holds every file involved:
 
 | file | purpose |
 | --- | --- |
@@ -25,6 +29,7 @@ the host nginx is reachable from the internet. `deploy/` holds every file involv
 | `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env` |
 | `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-playground/postgres.env` |
 | `deploy/searxng/` | SearXNG compose + `settings.yml` (included by the stack) |
+| `deploy/livekit/livekit.yaml` | LiveKit server config (ports, room limits; no secrets) |
 | `deploy/web/nginx.conf` | nginx inside the web container (baked into the image) |
 | `deploy/nginx/pen-playground.conf.example` | host vhost template (`DOMAIN` placeholder) |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | the images (build context = repo root) |
@@ -233,6 +238,68 @@ chromium`; `pnpm --filter @pen/api test` includes `test/export.integration.test.
 renders a real session and inspects the MP4 with ffprobe (it skips itself when either tool is
 missing).
 
+## Rooms audio (LiveKit)
+
+Professional hosts can run rooms where up to 12 participants hear each other
+(ADR-0012). The media server is a self-hosted `livekit/livekit-server` in the same compose
+stack; the API only mints join tokens and relays the host's mute requests.
+
+**Ports and firewall.** Signalling (WebSocket + HTTP API) listens on `127.0.0.1:7880` and is
+reached by browsers through the host nginx at `wss://DOMAIN/livekit` (the vhost template has
+the `/livekit/` location). Media uses two fixed public ports — `7881/tcp` (ICE over TCP, the
+fallback for networks that block UDP) and `7882/udp` (every stream, multiplexed on one port) —
+so the container needs no host networking and the firewall needs two rules. On the Hetzner host:
+
+```sh
+ufw allow 7881/tcp comment 'livekit ice-tcp'
+ufw allow 7882/udp comment 'livekit media'
+# Hetzner Cloud firewall (if one is attached to the server): add the same two inbound rules.
+# Kernel UDP buffers: LiveKit warns below ~5 MB; make it permanent in /etc/sysctl.d/90-livekit.conf
+sysctl -w net.core.rmem_max=5000000 net.core.wmem_max=5000000
+```
+
+`use_external_ip: true` in `livekit.yaml` makes the server discover the host's public address
+with STUN and advertise it in ICE candidates (inside Docker it only sees the bridge address).
+
+**Secrets.** `deploy.sh` writes the key pair once into `/srv/pen-playground/.env`
+(`LIVEKIT_API_KEY=API…`, `LIVEKIT_API_SECRET=…`) and sets `LIVEKIT_URL=wss://DOMAIN/livekit`
+on every run; compose injects them into both the `livekit` container (`LIVEKIT_KEYS`) and the
+`api` container, together with `LIVEKIT_API_URL=http://livekit:7880`. Nothing to copy into
+`api.env`. If any of the three is missing the feature is off: `/api/health` answers
+`"rooms":false`, `POST /api/rooms/:id/token` answers `503 ROOMS_UNAVAILABLE`, and rooms fall
+back to the phase-1 behaviour (expert voice + captions, no voice between participants).
+
+**Check it on the host:**
+
+```sh
+curl -s http://127.0.0.1:4200/api/health | grep -o '"rooms":[a-z]*'      # "rooms":true
+curl -s http://127.0.0.1:7880/                                            # OK
+curl -sI https://DOMAIN/livekit/ | head -1                                # 200 through nginx
+docker compose logs --tail=20 livekit                                     # "starting LiveKit server"
+docker compose logs api | grep rooms.audio.                               # token / mute events
+```
+
+Failures land in Sentry under `rooms.audio.mute` (media server unreachable); token minting
+never touches the network.
+
+**No TURN yet.** Clients on networks that block UDP *and* outbound TCP 7881 cannot connect
+(corporate proxies, some hotel Wi-Fi). A TURN/TLS listener on 443 needs its own IP or hostname;
+until then the participant sees "Voice between participants dropped" and keeps the lesson.
+
+**Locally** (the e2e uses exactly this):
+
+```sh
+# --bind: --dev alone listens on the container's loopback; --node-ip: advertise an address the
+# host's browsers can reach through the port mapping instead of the Docker bridge address.
+docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server:v1.9.12 \
+  --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+# API: LIVEKIT_URL=ws://127.0.0.1:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret PEN_DEV_PLAN=professional
+pnpm --filter @pen/web e2e rooms           # host + guest in two Chromium processes; skips without :7880
+# Ports are overridable when another checkout holds the defaults (4010/5173 and 4014/5174):
+# PEN_API_PORT=4016 PEN_WEB_PORT=5176 PEN_E2E_ROOMS_API_PORT=4017 PEN_E2E_ROOMS_WEB_PORT=5177 \
+#   PEN_E2E_ROOMS_WEB=http://localhost:5177 pnpm --filter @pen/web e2e
+```
+
 ## Updates
 
 ```sh
@@ -272,7 +339,8 @@ cd /srv/pen-playground
 docker compose ps                                   # health column per service
 docker compose logs -f --tail=200 api               # pino JSON lines (level 30 info, 40 warn, 50 error)
 docker compose logs -f web                          # nginx access/error
-curl -s http://127.0.0.1:4200/api/health            # {"ok":true,"tts":…,"llm":…,"acquirer":true}
+curl -s http://127.0.0.1:4200/api/health            # {"ok":true,"tts":…,"llm":…,"acquirer":true,"render":…,"rooms":true}
+docker compose logs -f --tail=100 livekit           # media server (json)
 curl -s 'http://127.0.0.1:8080/search?q=test&format=json' | head -c 300   # searxng
 ```
 

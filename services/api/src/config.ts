@@ -51,6 +51,17 @@ const Env = z.object({
   STRIPE_PRICE_PROFESSIONAL_MONTH: z.string().optional(),
   STRIPE_PRICE_PROFESSIONAL_YEAR: z.string().optional(),
 
+  /**
+   * Human-to-human audio in rooms (self-hosted LiveKit). Off unless all three are set.
+   * LIVEKIT_URL is what browsers connect to (wss://DOMAIN/livekit); LIVEKIT_API_URL is how the
+   * API reaches the server's HTTP API (http://livekit:7880 inside the stack), derived from
+   * LIVEKIT_URL when absent.
+   */
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().min(1).optional(),
+  LIVEKIT_API_SECRET: z.string().min(1).optional(),
+
   POSTHOG_PROJECT_TOKEN: z.string().optional(),
   POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
 

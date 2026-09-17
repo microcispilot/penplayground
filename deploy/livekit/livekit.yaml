@@ -1,0 +1,41 @@
+# LiveKit server for Pen Playground rooms (human-to-human audio, up to 12 participants).
+# Mounted read-only into the `livekit` container by deploy/docker-compose.yml; the API keys come
+# from the LIVEKIT_KEYS environment variable (deploy.sh writes them to /srv/pen-playground/.env),
+# so this file holds no secrets and is safe to commit.
+#
+# Ports (all fixed; the container publishes them 1:1 so ICE candidates match):
+#   7880/tcp  signalling WebSocket + HTTP API — loopback only, behind the host nginx at /livekit
+#   7881/tcp  ICE over TCP (fallback for networks that block UDP) — public
+#   7882/udp  every media stream, multiplexed on one UDP port — public
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+rtc:
+  tcp_port: 7881
+  # One muxed UDP port instead of a range: works through Docker's port mapping without
+  # host networking and keeps the firewall to two rules.
+  udp_port: 7882
+  # Discover the host's public address with STUN and advertise it in ICE candidates; the
+  # container itself only sees the bridge address.
+  use_external_ip: true
+
+room:
+  # A room is a session: nobody should be able to create one without the API minting a token.
+  auto_create: true
+  # Sessions end after three hours at most (API sweep); do not let a forgotten room outlive that.
+  empty_timeout: 300
+  max_participants: 12
+  # The host may mute a guest (mute requests are always honoured); nobody can remotely unmute.
+  enable_remote_unmute: false
+
+audio:
+  # Speaker activity for the avatars in the bottom bar (RoomEvent.ActiveSpeakersChanged).
+  active_level: 30
+  min_percentile: 40
+  update_interval: 400
+  smooth_intervals: 2
+
+logging:
+  level: info
+  json: true

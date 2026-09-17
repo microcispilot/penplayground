@@ -120,6 +120,7 @@ export class RoomRegistry {
       acquirer: services.acquirer,
       ledger: services.ledger,
       targetMinutes: 14,
+      participantAudio: services.livekit !== null,
       ads:
         args.host.plan === 'free'
           ? {
@@ -231,6 +232,11 @@ export class RoomRegistry {
     const live = this.rooms.get(sessionId);
     if (!live) return;
     await live.room.end();
+    // The media room goes with the session; clients also disconnect on the ended state, so a
+    // failure here only leaves an empty room for LiveKit's own empty_timeout to collect.
+    this.services.livekit
+      ?.closeRoom(sessionId)
+      .catch((error) => observer.error('rooms.audio.close', error, { sessionId }));
     const state = live.room.getState();
     this.services.analytics.capture(live.record.hostId, 'session_ended', {
       durationMs: state.clockMs,

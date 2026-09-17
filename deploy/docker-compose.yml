@@ -8,9 +8,12 @@
 #   postgres.env   POSTGRES_USER/PASSWORD/DB (template: postgres.env.example)
 #   data/          API state (sessions ledger, onten packs) — back this up
 #   searxng/       settings.yml + the included compose file
+#   livekit/       livekit.yaml (no secrets; keys come from .env)
 #
 # Host ports: 4200 (api) and 4201 (web) — 4100 was already taken on prod-app-01 by another
 # node process, 4000 by the onten backend. Postgres 18 mounts its volume at /var/lib/postgresql.
+# LiveKit: 127.0.0.1:7880 (signalling, behind nginx at /livekit), 7881/tcp and 7882/udp public
+# (media) — see docs/DEPLOY.md → "Rooms audio (LiveKit)".
 
 name: pen-playground
 
@@ -33,6 +36,13 @@ services:
       # than going out through the public edge. Only effective on an image built with
       # --build-arg WITH_RENDER=1 (docs/DEPLOY.md → "MP4 export (render)").
       PEN_RENDER_BASE_URL: http://web
+      # Human-to-human audio: browsers reach LiveKit through the host nginx (/livekit); the API
+      # reaches its HTTP API directly. Keys are generated once by deploy.sh into .env and shared
+      # with the livekit service below, so they are never typed twice.
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_URL: http://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
     # Headless Chromium needs more than Docker's 64 MB default /dev/shm (the image also passes
     # --disable-dev-shm-usage; this keeps large boards from falling back to disk).
     shm_size: 1g
@@ -44,6 +54,8 @@ services:
       postgres:
         condition: service_healthy
       searxng:
+        condition: service_started
+      livekit:
         condition: service_started
     logging:
       driver: json-file
@@ -58,6 +70,26 @@ services:
       - "127.0.0.1:4201:80"
     depends_on:
       - api
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  livekit:
+    # Tag verified on Docker Hub (livekit/livekit-server) on 2026-09-17.
+    image: livekit/livekit-server:v1.9.12
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    environment:
+      # "<api key>: <api secret>" — the same pair the API signs join tokens with.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}"
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
     logging:
       driver: json-file
       options:

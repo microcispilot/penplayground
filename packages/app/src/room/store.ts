@@ -1,6 +1,7 @@
 import type { ConductorPhase } from '@pen/conductor';
 import type { CheckEvent, Expert, NoteEvent, PreparationProgress, RoomState } from '@pen/contracts';
 import { create } from 'zustand';
+import type { RoomAudioUi } from './audio/RoomAudio.js';
 import type { RoomConnectionStatus } from './RoomClient.js';
 
 export interface CaptionLine {
@@ -34,6 +35,8 @@ export interface RoomUiState {
   /** Wall-clock derived lesson clock for the bottom bar. */
   clockMs: number;
   errorText: string | null;
+  /** Human-to-human audio (LiveKit): presence, speaking, mute state. `status: 'off'` in solo sessions. */
+  audio: RoomAudioUi;
 }
 
 export interface RoomUiActions {
@@ -60,6 +63,13 @@ const initial: RoomUiState = {
   notes: [],
   clockMs: 0,
   errorText: null,
+  audio: {
+    status: 'off',
+    participants: {},
+    speaking: [],
+    mutedByHost: false,
+    playbackBlocked: false,
+  },
 };
 
 export const useRoomStore = create<RoomUiState & RoomUiActions>((set) => ({

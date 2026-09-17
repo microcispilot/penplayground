@@ -101,6 +101,8 @@ export interface SessionRoomDeps {
   ads?: { everySegments: number; durationMs: number; skippableAfterMs: number } | null;
   /** Initial teaching pace (the host's remembered preference arrives as `set_pace` right after join). */
   pace?: number;
+  /** The API has a media server for human-to-human audio; the host's plan still decides. */
+  participantAudio?: boolean;
   now?: () => number;
 }
 
@@ -190,6 +192,7 @@ export class SessionRoom {
       floor: null,
       hostId: host.id,
       participants: [host],
+      participantAudio: Boolean(deps.participantAudio) && hasEntitlement(deps.host.plan, 'rooms'),
       plan: null,
       segment: 0,
       clockMs: 0,

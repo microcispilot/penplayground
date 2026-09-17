@@ -270,6 +270,24 @@ export function Room() {
           }
         }}
         onFullscreen={() => void shellRef.current?.requestFullscreen?.()}
+        audio={ui.audio}
+        selfId={participant?.id ?? ''}
+        onMuteParticipant={(id) =>
+          void session
+            ?.muteParticipant(id)
+            .then((muted) =>
+              toast(
+                id
+                  ? 'Muted'
+                  : muted.length === 0
+                    ? 'Nobody else is on voice'
+                    : `Muted ${muted.length} ${muted.length === 1 ? 'person' : 'people'}`,
+                'success',
+              ),
+            )
+            .catch(() => toast('Could not mute — try again', 'danger'))
+        }
+        onUnmuteVoice={() => void session?.unmuteVoice()}
         onLeave={() => {
           if (isHost && state.phase === 'live') session?.control('end');
           else navigate('/');

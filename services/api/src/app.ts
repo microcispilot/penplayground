@@ -6,6 +6,7 @@ import {
   ClientMessage,
   decodeAudioFrame,
   hasEntitlement,
+  ParticipantId,
   type ServerErrorCode,
   type ServerMessage,
   SessionId,
@@ -124,6 +125,7 @@ export function buildApp(services: Services): App {
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
       google: services.google !== null,
+      rooms: services.livekit !== null,
     }),
   );
 
@@ -495,6 +497,121 @@ export function buildApp(services: Services): App {
 <meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(record.promise || `A session with ${expert?.displayName ?? 'an AI expert'} on Pen Playground`)}">
 <meta property="og:type" content="video.other"><meta property="og:url" content="${esc(target)}">${record.thumbnail ? `<meta property="og:image" content="${esc(record.thumbnail)}">` : ''}
 <meta http-equiv="refresh" content="0;url=${esc(target)}"></head><body><a href="${esc(target)}">Open the session</a></body></html>`);
+  });
+
+  // ── rooms: human-to-human audio (LiveKit) ────────────────────────────────
+  /**
+   * A signed-in member of a live session, or the matching error. Membership is
+   * the room's own participant list, so a token can only be minted after the
+   * WebSocket join succeeded (which is where plan and capacity are enforced).
+   */
+  const roomAudioAccess = async (c: {
+    req: { header(name: string): string | undefined; param(name: string): string };
+  }): Promise<
+    | {
+        ok: true;
+        claims: Claims;
+        live: LiveRoom;
+        member: { id: string; name: string; role: string };
+      }
+    | { ok: false; status: 401 | 403 | 404 | 503; body: { error: string; message?: string } }
+  > => {
+    if (!services.livekit)
+      return {
+        ok: false,
+        status: 503,
+        body: {
+          error: 'ROOMS_UNAVAILABLE',
+          message: 'Voice between participants is not available here.',
+        },
+      };
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
+    const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success)
+      return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
+    const live = rooms.get(id);
+    const state = live?.room.getState();
+    if (!live || !state || state.phase === 'ended')
+      return {
+        ok: false,
+        status: 404,
+        body: { error: 'SESSION_NOT_LIVE', message: 'This session is not live.' },
+      };
+    const member = state.participants.find((p) => p.id === claims.sub);
+    if (!member)
+      return {
+        ok: false,
+        status: 403,
+        body: { error: 'NOT_MEMBER', message: 'Join the session first.' },
+      };
+    return { ok: true, claims, live, member };
+  };
+  /** The plan comes from the host's participant row so a billing change applies at once (same rule as `bearer`). */
+  const hostPlanOf = async (live: LiveRoom) =>
+    services.cfg.PEN_DEV_PLAN ??
+    (await services.participants.get(live.record.hostId))?.plan ??
+    'free';
+  app.post('/api/rooms/:id/token', async (c) => {
+    const access = await roomAudioAccess(c);
+    if (!access.ok) return c.json(access.body, access.status);
+    const livekit = services.livekit;
+    if (!livekit) return c.json({ error: 'ROOMS_UNAVAILABLE' }, 503);
+    if (!hasEntitlement(await hostPlanOf(access.live), 'rooms'))
+      return c.json(
+        {
+          error: 'ENTITLEMENT_REQUIRED',
+          message: 'Rooms with voice between participants need the Professional plan.',
+        },
+        402,
+      );
+    const roomAdmin = access.member.role === 'host';
+    const canPublish = access.member.role !== 'viewer';
+    const token = await livekit.token({
+      room: access.live.record.id,
+      identity: access.member.id,
+      name: access.member.name,
+      canPublish,
+      roomAdmin,
+    });
+    observer.event('rooms.audio.token', { sessionId: access.live.record.id, roomAdmin });
+    return c.json({ url: livekit.url, token, canPublish, roomAdmin });
+  });
+  const MuteBody = z.object({
+    /** A guest to mute; absent = everyone but the host. */
+    participantId: ParticipantId.optional(),
+  });
+  app.post('/api/rooms/:id/mute', async (c) => {
+    const access = await roomAudioAccess(c);
+    if (!access.ok) return c.json(access.body, access.status);
+    const livekit = services.livekit;
+    if (!livekit) return c.json({ error: 'ROOMS_UNAVAILABLE' }, 503);
+    if (access.member.role !== 'host')
+      return c.json({ error: 'NOT_HOST', message: 'Only the host can mute.' }, 403);
+    const body = MuteBody.safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const sessionId = access.live.record.id;
+    const state = access.live.room.getState();
+    const target = body.data.participantId;
+    if (target !== undefined && !state.participants.some((p) => p.id === target))
+      return c.json({ error: 'NOT_MEMBER', message: 'That person is not in the room.' }, 404);
+    try {
+      const muted =
+        target === undefined
+          ? await livekit.muteAll(sessionId, [state.hostId])
+          : (await livekit.muteParticipant(sessionId, target)) > 0
+            ? [target]
+            : [];
+      observer.event('rooms.audio.mute', {
+        sessionId,
+        all: target === undefined,
+        count: muted.length,
+      });
+      return c.json({ muted });
+    } catch (error) {
+      observer.error('rooms.audio.mute', error, { sessionId, all: target === undefined });
+      return c.json({ error: 'ROOMS_FAILED', message: 'Could not reach the voice server.' }, 502);
+    }
   });
 
   // ── billing ──────────────────────────────────────────────────────────────

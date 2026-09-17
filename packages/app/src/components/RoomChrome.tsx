@@ -3,8 +3,10 @@ import { Avatar, Button, Caption, cn, IconButton, Pill, SegmentDots } from '@pen
 import { Captions, Maximize2, Mic, MicOff, Pause, Play, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { formatClock } from '../lib/context.js';
+import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import type { CaptionLine } from '../room/store.js';
 import { PaceMenu } from './PaceMenu.js';
+import { ParticipantsControl } from './Participants.js';
 
 // ── bottom bar ────────────────────────────────────────────────────────────────
 export interface BottomBarProps {
@@ -22,6 +24,11 @@ export interface BottomBarProps {
   onToggleMic: () => void;
   onFullscreen: () => void;
   onLeave: () => void;
+  /** Human-to-human audio (rooms): who is on voice, speaking, muted; host mute controls. */
+  audio?: RoomAudioUi;
+  selfId?: string;
+  onMuteParticipant?: (participantId?: string) => void;
+  onUnmuteVoice?: () => void;
 }
 
 export function BottomBar(p: BottomBarProps) {
@@ -65,11 +72,13 @@ export function BottomBar(p: BottomBarProps) {
       </div>
       {total > 0 ? <SegmentDots total={total} done={done} active={p.state.segment} /> : null}
       <span className="shrink-0 text-sm text-fg-2 tabular">{formatClock(p.clockMs)}</span>
-      <div className="flex shrink-0 -space-x-2">
-        {p.state.participants.slice(0, 5).map((x) => (
-          <Avatar key={x.id} name={x.name} hue={x.hue} size={28} ring />
-        ))}
-      </div>
+      <ParticipantsControl
+        state={p.state}
+        isHost={p.isHost}
+        selfId={p.selfId ?? ''}
+        audio={p.audio ?? null}
+        onMute={p.onMuteParticipant ?? null}
+      />
       {p.isHost ? (
         <IconButton
           label={playing ? 'Pause' : 'Resume'}
@@ -95,12 +104,30 @@ export function BottomBar(p: BottomBarProps) {
         <Captions size={16} />
       </IconButton>
       <IconButton
-        label={p.micState === 'listening' ? 'Mute microphone' : 'Unmute microphone'}
-        state={p.micState === 'listening' ? 'on' : p.micState === 'denied' ? 'warn' : 'default'}
-        onClick={p.onToggleMic}
+        label={
+          p.audio?.mutedByHost
+            ? 'Muted by the host — unmute'
+            : p.micState === 'listening'
+              ? 'Mute microphone'
+              : 'Unmute microphone'
+        }
+        state={
+          p.audio?.mutedByHost
+            ? 'warn'
+            : p.micState === 'listening'
+              ? 'on'
+              : p.micState === 'denied'
+                ? 'warn'
+                : 'default'
+        }
+        onClick={p.audio?.mutedByHost && p.onUnmuteVoice ? p.onUnmuteVoice : p.onToggleMic}
         className="relative"
       >
-        {p.micState === 'listening' ? <Mic size={18} /> : <MicOff size={18} />}
+        {p.micState === 'listening' && !p.audio?.mutedByHost ? (
+          <Mic size={18} />
+        ) : (
+          <MicOff size={18} />
+        )}
         {p.micState === 'listening' ? (
           <span
             aria-hidden
