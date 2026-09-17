@@ -63,3 +63,8 @@ Workstreams (parallel, isolated worktrees, merged in this order):
 4. **livekit** — human-to-human audio in rooms: self-hosted `livekit-server`
    in the compose stack, token endpoint, client audio publish/subscribe,
    host mute controls, verified with two headless browsers.
+5. **thumbnails** — one background structured-output call per session (after
+   the plan resolves) returns description, keywords, category and a constrained
+   whiteboard sketch spec; our renderer turns the spec into a hand-drawn SVG
+   (plus PNG for OG/cards). Nothing blocks the learner; fallback stays the
+   deterministic BoardThumb.

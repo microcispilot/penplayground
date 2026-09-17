@@ -30,3 +30,4 @@
 - [ ] Stripe webhook endpoint registered
 - [ ] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
 - [ ] Fake model: completion for the knowledge outline purpose (Sentry issue)
+- [ ] Session thumbnails: one background structured call → sketch spec → SVG/PNG; cards + OG use it
