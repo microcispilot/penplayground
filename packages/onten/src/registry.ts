@@ -126,6 +126,7 @@ export class MockRegistry implements OntenRegistry {
     if (best?.pack.qualified && best.score >= 0.72) {
       return {
         canonicalKnowledgeId: best.pack.canonicalKnowledgeId,
+        language: request.language,
         title: best.pack.title,
         domainBoundary: best.pack.scope.domainBoundary,
         match: 'hit',
@@ -137,6 +138,7 @@ export class MockRegistry implements OntenRegistry {
     if (best && best.score >= 0.45) {
       return {
         canonicalKnowledgeId: best.pack.canonicalKnowledgeId,
+        language: request.language,
         title: best.pack.title,
         domainBoundary: best.pack.scope.domainBoundary,
         match: 'partial',
@@ -147,6 +149,7 @@ export class MockRegistry implements OntenRegistry {
     }
     return {
       canonicalKnowledgeId,
+      language: request.language,
       title,
       domainBoundary,
       match: 'miss',

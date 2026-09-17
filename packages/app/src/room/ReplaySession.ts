@@ -98,6 +98,7 @@ export class ReplaySession {
     const state: RoomState = {
       sessionId: this.sessionId,
       topic: '',
+      language: 'en',
       expertId: '',
       phase: 'live',
       mode: 'teaching',

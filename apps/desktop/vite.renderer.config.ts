@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  envDir: '../..',
   build: { target: 'es2023', sourcemap: true },
   worker: { format: 'es' },
 });

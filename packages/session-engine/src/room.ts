@@ -143,7 +143,7 @@ export class SessionRoom {
     this.sessionId = deps.sessionId;
     this.observer = deps.observer ?? SILENT_OBSERVER;
     this.now = deps.now ?? (() => Date.now());
-    this.system = lessonSystemPrompt(deps.expert, deps.band);
+    this.system = lessonSystemPrompt(deps.expert, deps.band, deps.language);
     const host: Participant = {
       id: deps.host.id,
       name: deps.host.name,
@@ -156,6 +156,7 @@ export class SessionRoom {
     this.state = {
       sessionId: deps.sessionId,
       topic: deps.topic,
+      language: deps.language,
       expertId: deps.expert.id,
       phase: 'preparing',
       mode: 'teaching',
@@ -1116,7 +1117,7 @@ export class SessionRoom {
   }
 
   private cacheKey(): string {
-    return `pen:${this.d.expert.id}:${this.d.band}`;
+    return `pen:${this.d.expert.id}:${this.d.band}:${this.d.language}`;
   }
 
   private queryInputFor(text: string, revision: string): QueryInput {

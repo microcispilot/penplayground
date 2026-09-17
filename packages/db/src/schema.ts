@@ -18,7 +18,7 @@ import {
 export const participants = pgTable('participants', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  plan: text('plan', { enum: ['free', 'plus', 'classroom'] })
+  plan: text('plan', { enum: ['free', 'standard', 'professional'] })
     .notNull()
     .default('free'),
   anonymous: boolean('anonymous').notNull().default(true),

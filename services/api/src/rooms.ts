@@ -9,6 +9,7 @@ import { encodeAudioFrame } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
+import { detectLanguage } from './language.js';
 import { observer } from './observability.js';
 import type { Services } from './services.js';
 
@@ -44,13 +45,18 @@ export class RoomRegistry {
     band: SelectionBand;
     expertId?: string;
     visibility: 'public' | 'private';
+    /** BCP-47 override; otherwise detected from the topic text. */
+    language?: string;
   }): Promise<LiveRoom> {
     const { services } = this;
     const sessionId = newSessionId();
+    const { language, locale } = args.language
+      ? { language: args.language.split('-')[0] ?? 'en', locale: args.language }
+      : detectLanguage(args.topic);
     const resolution = await services.onten.registry.resolveTopic({
       text: args.topic,
-      language: 'en',
-      locale: 'en-US',
+      language,
+      locale,
       band: args.band,
     });
     const allowPremium = args.host.plan !== 'free';
@@ -85,14 +91,14 @@ export class RoomRegistry {
       host: args.host,
       expert,
       band: args.band,
-      language: 'en',
-      locale: 'en-US',
+      language: locale,
+      locale,
       onten: services.onten,
       runtime: services.onten.newRuntime(),
       memo: services.onten.memo,
       model: services.modelFor(args.host.plan),
       synthesizer: services.synthesizer,
-      voice: services.voices.resolve(expert.voiceId),
+      voice: services.voices.resolve(expert, locale).id,
       sampleRate: 44100,
       transport,
       observer,
@@ -179,7 +185,7 @@ export class RoomRegistry {
           message:
             joined.code === 'ROOM_FULL'
               ? 'This room is full (12 people).'
-              : 'Rooms with guests need the Classroom plan.',
+              : 'Rooms with guests need the Professional plan.',
           spoken: false,
         },
       };

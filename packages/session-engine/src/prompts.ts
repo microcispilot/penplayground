@@ -68,10 +68,15 @@ export function bandPrompt(band: SelectionBand): string {
   }
 }
 
-export function lessonSystemPrompt(expert: Expert, band: SelectionBand): string {
+export function languagePrompt(language: string): string {
+  return `LANGUAGE: speak and write the board in the learner's language (${language}). Keep code, identifiers and proper nouns as they are. Evidence may be in another language; teach in ${language} anyway.`;
+}
+
+export function lessonSystemPrompt(expert: Expert, band: SelectionBand, language = 'en'): string {
   return [
     personaPrompt(expert),
     bandPrompt(band),
+    languagePrompt(language),
     SPEECH_RULES,
     BOARD_RULES,
     EVIDENCE_RULES,

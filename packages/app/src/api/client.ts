@@ -8,7 +8,7 @@ const NAME_KEY = 'pen.name';
 export const Participant = z.object({
   id: z.string(),
   name: z.string(),
-  plan: z.enum(['free', 'plus', 'classroom']),
+  plan: z.enum(['free', 'standard', 'professional']),
 });
 export type Participant = z.infer<typeof Participant>;
 
@@ -162,7 +162,7 @@ export class ApiClient {
   billingStatus() {
     return this.request('/api/billing/status', z.object({ enabled: z.boolean() }));
   }
-  checkout(plan: 'plus' | 'classroom', interval: 'month' | 'year') {
+  checkout(plan: 'standard' | 'professional', interval: 'month' | 'year') {
     return this.request('/api/billing/checkout', z.object({ url: z.string() }), {
       method: 'POST',
       body: JSON.stringify({ plan, interval }),

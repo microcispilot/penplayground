@@ -213,7 +213,7 @@ class CorpusRun {
 
     const seeds = matchSeeds(this.normalized, this.opts.seeds ?? SEEDS);
     for (const seed of seeds) {
-      for (const target of seed.targets(this.topic)) {
+      for (const target of seed.targets(this.topic, this.language)) {
         this.enqueue({
           url: target.url,
           title: target.title,

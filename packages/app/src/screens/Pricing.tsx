@@ -21,10 +21,10 @@ const PLANS = [
     ],
   },
   {
-    code: 'plus',
-    name: 'Plus',
-    monthly: 12,
-    annual: 120,
+    code: 'standard',
+    name: 'Standard',
+    monthly: 19,
+    annual: 190,
     blurb: 'No ads. Unlimited sessions. Share what you learned.',
     features: [
       'Everything in Free, no ads',
@@ -37,13 +37,13 @@ const PLANS = [
     highlight: true,
   },
   {
-    code: 'classroom',
-    name: 'Classroom',
-    monthly: 29,
-    annual: 290,
+    code: 'professional',
+    name: 'Professional',
+    monthly: 38,
+    annual: 380,
     blurb: 'Host rooms with up to 12 people, like a class over a call.',
     features: [
-      'Everything in Plus',
+      'Everything in Standard',
       'Rooms with up to 12 participants',
       'Guests ask questions by voice',
       'Shared replays and transcripts',
@@ -71,7 +71,7 @@ export function Pricing() {
     if (r === 'success') toast('Welcome aboard — your plan is active.', 'success');
     if (r === 'cancelled') toast('Checkout cancelled.');
   }, [params, toast]);
-  const buy = async (plan: 'plus' | 'classroom') => {
+  const buy = async (plan: 'standard' | 'professional') => {
     setBusy(plan);
     try {
       const url = await api.checkout(plan, interval);
@@ -98,8 +98,8 @@ export function Pricing() {
             Free to learn. Pay only for more.
           </h1>
           <p className="mt-3 max-w-[560px] text-center text-[15px] text-fg-2 text-pretty">
-            Sessions are cheap enough to run that the free plan is real. Plus removes ads and
-            unlocks sharing; Classroom turns a session into a room.
+            Sessions are cheap enough to run that the free plan is real. Standard removes ads and
+            unlocks sharing; Professional turns a session into a room.
           </p>
           <div className="mt-7 inline-flex overflow-hidden rounded-[var(--radius-md)] hairline">
             {(['month', 'year'] as const).map((i) => (
@@ -164,7 +164,9 @@ export function Pricing() {
                       disabled={current || p.code === 'free' || enabled === false}
                       loading={busy === p.code}
                       onClick={() =>
-                        p.code === 'plus' || p.code === 'classroom' ? void buy(p.code) : undefined
+                        p.code === 'standard' || p.code === 'professional'
+                          ? void buy(p.code)
+                          : undefined
                       }
                     >
                       {current

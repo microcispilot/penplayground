@@ -10,7 +10,7 @@ import { z } from 'zod';
 export const Claims = z.object({
   sub: z.string().min(8),
   name: z.string().min(1).max(60),
-  plan: z.enum(['free', 'plus', 'classroom']),
+  plan: z.enum(['free', 'standard', 'professional']),
   anonymous: z.boolean(),
 });
 export type Claims = z.infer<typeof Claims>;

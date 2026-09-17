@@ -107,6 +107,8 @@ export interface TopicRequest {
 
 export interface TopicResolution {
   canonicalKnowledgeId: string;
+  /** Language the packs/lesson are keyed by (from the request). */
+  language: string;
   /** Cleaned display title, e.g. "Swift fundamentals". */
   title: string;
   domainBoundary: string;

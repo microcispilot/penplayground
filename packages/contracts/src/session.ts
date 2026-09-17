@@ -83,6 +83,8 @@ export type PreparationProgress = z.infer<typeof PreparationProgress>;
 export const RoomState = z.object({
   sessionId: SessionId,
   topic: z.string().max(200),
+  /** BCP-47 language of the session (spoken, written, recognised). */
+  language: z.string().min(2).max(12),
   expertId: ExpertId,
   phase: SessionPhase,
   mode: LiveMode,

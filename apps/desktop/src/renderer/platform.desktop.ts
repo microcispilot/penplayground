@@ -35,5 +35,5 @@ export const desktopPlatform: Platform = {
   },
   openExternal: (url) => window.open(url),
   tldrawLicenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY ?? '',
-  sentryDsn: import.meta.env.VITE_SENTRY_DSN ?? null,
+  sentryDsn: import.meta.env.VITE_SENTRY_DSN_DESKTOP ?? null,
 };

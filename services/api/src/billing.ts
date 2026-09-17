@@ -8,8 +8,8 @@ import { observer } from './observability.js';
 export type Interval = 'month' | 'year';
 
 export interface BillingPlanPrices {
-  plus: Record<Interval, string>;
-  classroom: Record<Interval, string>;
+  standard: Record<Interval, string>;
+  professional: Record<Interval, string>;
 }
 
 /**
@@ -28,10 +28,10 @@ export class Billing {
   ) {
     const complete =
       cfg.STRIPE_SECRET_KEY &&
-      cfg.STRIPE_PRICE_PLUS_MONTH &&
-      cfg.STRIPE_PRICE_PLUS_YEAR &&
-      cfg.STRIPE_PRICE_CLASSROOM_MONTH &&
-      cfg.STRIPE_PRICE_CLASSROOM_YEAR;
+      cfg.STRIPE_PRICE_STANDARD_MONTH &&
+      cfg.STRIPE_PRICE_STANDARD_YEAR &&
+      cfg.STRIPE_PRICE_PROFESSIONAL_MONTH &&
+      cfg.STRIPE_PRICE_PROFESSIONAL_YEAR;
     this.enabled = Boolean(complete);
     this.stripe = cfg.STRIPE_SECRET_KEY
       ? new Stripe(cfg.STRIPE_SECRET_KEY, {
@@ -41,13 +41,13 @@ export class Billing {
       : null;
     this.prices = complete
       ? {
-          plus: {
-            month: cfg.STRIPE_PRICE_PLUS_MONTH ?? '',
-            year: cfg.STRIPE_PRICE_PLUS_YEAR ?? '',
+          standard: {
+            month: cfg.STRIPE_PRICE_STANDARD_MONTH ?? '',
+            year: cfg.STRIPE_PRICE_STANDARD_YEAR ?? '',
           },
-          classroom: {
-            month: cfg.STRIPE_PRICE_CLASSROOM_MONTH ?? '',
-            year: cfg.STRIPE_PRICE_CLASSROOM_YEAR ?? '',
+          professional: {
+            month: cfg.STRIPE_PRICE_PROFESSIONAL_MONTH ?? '',
+            year: cfg.STRIPE_PRICE_PROFESSIONAL_YEAR ?? '',
           },
         }
       : null;
@@ -144,5 +144,5 @@ export class Billing {
 }
 
 function planFrom(value: unknown): Exclude<PlanCode, 'free'> | null {
-  return value === 'plus' || value === 'classroom' ? value : null;
+  return value === 'standard' || value === 'professional' ? value : null;
 }

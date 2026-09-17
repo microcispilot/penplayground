@@ -16,7 +16,7 @@ export interface Seed {
   priority: number;
   /** Only used when no other seed matched (generic fallback). */
   fallback?: boolean;
-  targets(topic: string): SeedTarget[];
+  targets(topic: string, language: string): SeedTarget[];
 }
 
 export interface SeedTarget {
@@ -173,8 +173,14 @@ function fromPairs(
 
 export const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
 
+/** Wikipedia's Action API for a language edition (en, de, ja, …). */
+export function wikipediaApi(language = 'en'): string {
+  const lang = /^[a-z]{2,3}$/.test(language) ? language : 'en';
+  return `https://${lang}.wikipedia.org/w/api.php`;
+}
+
 /** Action API query for the best-matching article's plain-text extract (one request). */
-export function wikipediaSearchExtractUrl(topic: string): string {
+export function wikipediaSearchExtractUrl(topic: string, language = 'en'): string {
   const q = new URLSearchParams({
     action: 'query',
     generator: 'search',
@@ -186,11 +192,11 @@ export function wikipediaSearchExtractUrl(topic: string): string {
     format: 'json',
     formatversion: '2',
   });
-  return `${WIKIPEDIA_API}?${q.toString()}`;
+  return `${wikipediaApi(language)}?${q.toString()}`;
 }
 
 /** Action API query for a named article's plain-text extract. */
-export function wikipediaTitleExtractUrl(title: string): string {
+export function wikipediaTitleExtractUrl(title: string, language = 'en'): string {
   const q = new URLSearchParams({
     action: 'query',
     titles: title,
@@ -200,7 +206,7 @@ export function wikipediaTitleExtractUrl(title: string): string {
     format: 'json',
     formatversion: '2',
   });
-  return `${WIKIPEDIA_API}?${q.toString()}`;
+  return `${wikipediaApi(language)}?${q.toString()}`;
 }
 
 export const SEEDS: Seed[] = [
@@ -264,9 +270,9 @@ export const SEEDS: Seed[] = [
     label: 'Wikipedia',
     priority: 5,
     fallback: true,
-    targets: (topic) => [
+    targets: (topic, language) => [
       {
-        url: wikipediaSearchExtractUrl(topic),
+        url: wikipediaSearchExtractUrl(topic, language),
         title: `Wikipedia: ${topic}`,
         transform: 'wikipedia-extract',
         api: true,

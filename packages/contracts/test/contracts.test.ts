@@ -81,8 +81,8 @@ describe('AnswerContext', () => {
 describe('entitlements', () => {
   it('rooms are classroom-only', () => {
     expect(hasEntitlement('free', 'rooms')).toBe(false);
-    expect(hasEntitlement('plus', 'rooms')).toBe(false);
-    expect(hasEntitlement('classroom', 'rooms')).toBe(true);
+    expect(hasEntitlement('standard', 'rooms')).toBe(false);
+    expect(hasEntitlement('professional', 'rooms')).toBe(true);
   });
 });
 

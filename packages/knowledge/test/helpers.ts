@@ -217,6 +217,7 @@ export function resolutionFor(
   ckid = `en.${title.toLowerCase().replace(/\s+/g, '-')}`,
 ): TopicResolution {
   return {
+    language: 'en',
     canonicalKnowledgeId: ckid,
     title,
     domainBoundary: 'computing-data',

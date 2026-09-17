@@ -34,5 +34,7 @@ export const Expert = z.object({
   ]),
   /** Premium voices are a paid entitlement. */
   premium: z.boolean(),
+  /** Drives voice selection (same-gender voices). */
+  gender: z.enum(['woman', 'man', 'nonbinary']).default('nonbinary'),
 });
 export type Expert = z.infer<typeof Expert>;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PlanCode = z.enum(['free', 'plus', 'classroom']);
+export const PlanCode = z.enum(['free', 'standard', 'professional']);
 export type PlanCode = z.infer<typeof PlanCode>;
 
 export const Entitlement = z.enum([
@@ -16,8 +16,8 @@ export type Entitlement = z.infer<typeof Entitlement>;
 
 export const PLAN_ENTITLEMENTS: Record<PlanCode, readonly Entitlement[]> = {
   free: [],
-  plus: ['no_ads', 'export', 'premium_voices', 'priority_preparation', 'unlimited_sessions'],
-  classroom: [
+  standard: ['no_ads', 'export', 'premium_voices', 'priority_preparation', 'unlimited_sessions'],
+  professional: [
     'no_ads',
     'rooms',
     'export',
@@ -30,8 +30,8 @@ export const PLAN_ENTITLEMENTS: Record<PlanCode, readonly Entitlement[]> = {
 
 export const PLAN_LIMITS = {
   free: { sessionsPerDay: 3, maxParticipants: 1 },
-  plus: { sessionsPerDay: Number.POSITIVE_INFINITY, maxParticipants: 1 },
-  classroom: { sessionsPerDay: Number.POSITIVE_INFINITY, maxParticipants: 12 },
+  standard: { sessionsPerDay: Number.POSITIVE_INFINITY, maxParticipants: 1 },
+  professional: { sessionsPerDay: Number.POSITIVE_INFINITY, maxParticipants: 12 },
 } as const;
 
 export const BillingInterval = z.enum(['month', 'year']);

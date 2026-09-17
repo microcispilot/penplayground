@@ -124,6 +124,7 @@ function state(mode: RoomState['mode'], extra: Partial<RoomState> = {}): RoomSta
   return {
     sessionId: 's',
     topic: 't',
+    language: 'en',
     expertId: 'ada',
     phase: 'live',
     mode,

@@ -58,8 +58,8 @@ describe('ParticipantRepository', () => {
     const repo = new ParticipantRepository(conn.db);
     const p = await repo.ensure({ id: 'p_abcdefgh', name: 'Sam', plan: 'free', anonymous: true });
     expect(p.plan).toBe('free');
-    await repo.setPlan('p_abcdefgh', 'plus', 'cus_1');
-    expect((await repo.get('p_abcdefgh'))?.plan).toBe('plus');
+    await repo.setPlan('p_abcdefgh', 'standard', 'cus_1');
+    expect((await repo.get('p_abcdefgh'))?.plan).toBe('standard');
     const again = await repo.ensure({
       id: 'p_abcdefgh',
       name: 'Samantha',
@@ -67,6 +67,6 @@ describe('ParticipantRepository', () => {
       anonymous: true,
     });
     expect(again.name).toBe('Samantha');
-    expect(again.plan).toBe('plus');
+    expect(again.plan).toBe('standard');
   });
 });

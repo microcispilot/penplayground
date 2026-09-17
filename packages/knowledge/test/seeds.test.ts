@@ -28,12 +28,12 @@ describe('matchSeeds', () => {
 
   it('every static seed target is https and carries a title', () => {
     for (const seed of SEEDS) {
-      for (const t of seed.targets('topic')) {
+      for (const t of seed.targets('topic', 'en')) {
         expect(t.url.startsWith('https://')).toBe(true);
         expect(t.title.length).toBeGreaterThan(0);
       }
     }
-    expect(SEEDS.find((s) => s.id === 'swift-book')?.targets('x')[0]?.url).toBe(
+    expect(SEEDS.find((s) => s.id === 'swift-book')?.targets('x', 'en')[0]?.url).toBe(
       'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/LanguageGuide/TheBasics.md',
     );
   });

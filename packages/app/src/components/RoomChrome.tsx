@@ -246,7 +246,7 @@ export function AdCard({
           Your ad could be here. Pen Academy stays free because of it.
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-fg-3">Plus removes ads.</span>
+          <span className="text-xs text-fg-3">Standard removes ads.</span>
           <Button variant={canSkip ? 'primary' : 'secondary'} disabled={!canSkip} onClick={onSkip}>
             {canSkip
               ? 'Skip ad'

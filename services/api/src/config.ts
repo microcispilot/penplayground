@@ -21,16 +21,13 @@ const Env = z.object({
   PEN_LLM_BASE_URL: z.string().url().optional(),
   PEN_LLM_SERVICE_TIER: z.enum(['auto', 'default', 'flex', 'priority']).optional(),
   OPENAI_API_KEY_FREE: z.string().optional(),
-  OPENAI_API_KEY_PLUS: z.string().optional(),
-  OPENAI_API_KEY_CLASSROOM: z.string().optional(),
+  OPENAI_API_KEY_STANDARD: z.string().optional(),
+  OPENAI_API_KEY_PROFESSIONAL: z.string().optional(),
 
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),
   FISH_AUDIO_MODEL: z.string().default('s2.1-pro'),
   PEN_TTS_BRIDGE_URL: z.string().url().default('http://127.0.0.1:8310'),
-  /** JSON: catalog voice id → engine voice (Fish reference id or bridge profile). */
-  PEN_VOICE_MAP: z.string().default('{}'),
-  PEN_VOICE_DEFAULT: z.string().default(''),
 
   PEN_STT_PROVIDER: z.enum(['browser', 'ws-relay', 'deepgram', 'assemblyai']).default('browser'),
   PEN_STT_RELAY_URL: z.string().optional(),
@@ -44,20 +41,20 @@ const Env = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PORTAL_CONFIGURATION_ID: z.string().optional(),
   /** Stripe price ids per plan/interval; billing is disabled until all four exist. */
-  STRIPE_PRICE_PLUS_MONTH: z.string().optional(),
-  STRIPE_PRICE_PLUS_YEAR: z.string().optional(),
-  STRIPE_PRICE_CLASSROOM_MONTH: z.string().optional(),
-  STRIPE_PRICE_CLASSROOM_YEAR: z.string().optional(),
+  STRIPE_PRICE_STANDARD_MONTH: z.string().optional(),
+  STRIPE_PRICE_STANDARD_YEAR: z.string().optional(),
+  STRIPE_PRICE_PROFESSIONAL_MONTH: z.string().optional(),
+  STRIPE_PRICE_PROFESSIONAL_YEAR: z.string().optional(),
 
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
 
   /** Dev only: force a plan for anonymous participants (e.g. classroom) to exercise gated features. */
-  PEN_DEV_PLAN: z.enum(['free', 'plus', 'classroom']).optional(),
+  PEN_DEV_PLAN: z.enum(['free', 'standard', 'professional']).optional(),
   PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().default(3),
 });
 
-export type Config = z.infer<typeof Env> & { voiceMap: Record<string, string> };
+export type Config = z.infer<typeof Env>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // `KEY=` in a .env means "unset", not "empty string".
@@ -70,12 +67,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid environment:\n${lines}`);
   }
   const cfg = parsed.data;
-  let voiceMap: Record<string, string> = {};
-  try {
-    voiceMap = z.record(z.string(), z.string()).parse(JSON.parse(cfg.PEN_VOICE_MAP));
-  } catch {
-    throw new Error('PEN_VOICE_MAP must be a JSON object of voiceId to engine voice');
-  }
   if (cfg.NODE_ENV === 'production') {
     if (cfg.PEN_TTS_PROVIDER === 'silent')
       throw new Error('PEN_TTS_PROVIDER=silent is not allowed in production');
@@ -83,5 +74,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error('PEN_LLM_PROVIDER=fake is not allowed in production');
     if (cfg.PEN_DEV_PLAN) throw new Error('PEN_DEV_PLAN is not allowed in production');
   }
-  return { ...cfg, voiceMap };
+  return cfg;
 }

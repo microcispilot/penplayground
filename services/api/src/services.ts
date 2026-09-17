@@ -17,8 +17,6 @@ import {
   FishCloudSynthesizer,
   SilentSynthesizer,
   type SpeechSynthesizer,
-  StaticVoiceResolver,
-  type VoiceResolver,
 } from '@pen/voice';
 import { Billing } from './billing.js';
 import type { Config } from './config.js';
@@ -26,13 +24,14 @@ import { demoScripts } from './demo-scripts.js';
 import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
+import { ExpertVoices } from './voices.js';
 
 export interface Services {
   cfg: Config;
   onten: Onten;
   experts: ExpertCatalog;
   synthesizer: SpeechSynthesizer;
-  voices: VoiceResolver;
+  voices: ExpertVoices;
   ledger: FileLedger;
   db: Connection;
   sessions: SessionRepository;
@@ -102,7 +101,7 @@ export async function buildServices(
     }
   })();
 
-  const voices = new StaticVoiceResolver(cfg.voiceMap, cfg.PEN_VOICE_DEFAULT);
+  const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
   const models = new Map<PlanCode, LanguageModel>();
   const modelFor = (plan: PlanCode): LanguageModel => {
     const cached = models.get(plan);
@@ -113,10 +112,10 @@ export async function buildServices(
       model = new FakeLanguageModel(demoScripts.scripts, demoScripts.completions);
     } else {
       const key =
-        plan === 'classroom'
-          ? cfg.OPENAI_API_KEY_CLASSROOM
-          : plan === 'plus'
-            ? cfg.OPENAI_API_KEY_PLUS
+        plan === 'professional'
+          ? cfg.OPENAI_API_KEY_PROFESSIONAL
+          : plan === 'standard'
+            ? cfg.OPENAI_API_KEY_STANDARD
             : cfg.OPENAI_API_KEY_FREE;
       if (!key)
         throw new Error(

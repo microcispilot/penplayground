@@ -84,12 +84,11 @@ during preparation.
 
 | Tier | Price idea | What it buys |
 |------|-----------|--------------|
-| **Free** | $0, ad-supported (pre-roll on session start and a mid-session break card, like YouTube) | Solo sessions, replay of your own sessions, standard voices, 3 sessions/day cap. |
-| **Plus** | ~$12/mo | No ads. Unlimited solo sessions. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
-| **Classroom** | ~$29/mo | Everything in Plus. Host rooms with up to 12 participants. Shared replays. Class transcripts. Guest questions pinned by name. |
+| **Free** | $0, ad-supported (a skippable card between segments; on a topic miss one card runs while sources are gathered, counted against the same budget) | Solo sessions, replay of your own sessions, standard voices, 3 sessions/day cap. |
+| **Standard** | $19/mo ($190/yr) | No ads. Unlimited solo sessions. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
+| **Professional** | $38/mo ($380/yr) | Everything in Standard. Host rooms with up to 12 participants. Shared replays. Class transcripts. Guest questions pinned by name. |
 
-Prices are proposals; final numbers are a business decision (see
-`docs/QUESTIONS.md`). Ads never appear inside the live lesson audio; they are a
+Ads never appear inside the live lesson audio; they are a
 visible card between segments, skippable after 5 s, and never on paid tiers.
 
 ## Cost thesis

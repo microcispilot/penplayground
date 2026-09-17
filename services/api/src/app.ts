@@ -32,9 +32,16 @@ const CreateSession = z.object({
   band: z.enum(['beginner', 'intermediate', 'advanced']).default('beginner'),
   expertId: z.string().optional(),
   visibility: z.enum(['public', 'private']).default('public'),
+  /** BCP-47; detected from the topic when omitted. */
+  language: z.string().min(2).max(12).optional(),
 });
 
 const Anonymous = z.object({ name: z.string().max(60).optional() });
+
+/** Strip the creator from a session record for anyone but the host. */
+function anonymise<T extends { hostId: string; hostName: string }>(record: T): T {
+  return { ...record, hostId: '', hostName: '' };
+}
 
 /** In-memory token-bucket per key; enough for one node, replaced by Redis behind the same function. */
 function rateLimiter(limit: number, windowMs: number) {
@@ -122,7 +129,10 @@ export function buildApp(services: Services): App {
     return c.body(Readable.toWeb(createReadStream(p)) as ReadableStream);
   });
 
-  app.get('/api/sessions', async (c) => c.json({ sessions: await services.sessions.listPublic() }));
+  /** Public catalog: like any public video, without who started it. */
+  app.get('/api/sessions', async (c) =>
+    c.json({ sessions: (await services.sessions.listPublic()).map(anonymise) }),
+  );
   app.get('/api/sessions/mine', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -139,7 +149,7 @@ export function buildApp(services: Services): App {
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
-          message: 'Free plan: 3 sessions a day. Plus is unlimited.',
+          message: 'Free plan: 3 sessions a day. Standard is unlimited.',
         },
         402,
       );
@@ -149,6 +159,7 @@ export function buildApp(services: Services): App {
       band: body.data.band,
       visibility: body.data.visibility,
       ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
+      ...(body.data.language ? { language: body.data.language } : {}),
     });
     return c.json({ session: live.record, state: live.room.getState() }, 201);
   });
@@ -156,9 +167,10 @@ export function buildApp(services: Services): App {
     const id = c.req.param('id');
     const record = await services.sessions.get(id);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    const claims = await bearer(c.req.header('authorization'));
     const live = rooms.get(id);
     return c.json({
-      session: record,
+      session: claims?.sub === record.hostId ? record : anonymise(record),
       live: live !== null,
       state: live?.room.getState() ?? null,
       expert: services.experts.get(record.expertId),
@@ -169,9 +181,13 @@ export function buildApp(services: Services): App {
     const record = await services.sessions.get(id);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
     await services.sessions.recordView(id);
+    const claims = await bearer(c.req.header('authorization'));
+    const host = claims?.sub === record.hostId;
     return c.json({
-      session: record,
-      entries: services.ledger.read(id),
+      session: host ? record : anonymise(record),
+      entries: services.ledger
+        .read(id)
+        .map((e) => (!host && e.kind === 'join' ? { ...e, name: 'Learner' } : e)),
       expert: services.experts.get(record.expertId),
     });
   });
@@ -211,7 +227,7 @@ export function buildApp(services: Services): App {
 
   // ── billing ──────────────────────────────────────────────────────────────
   const CheckoutBody = z.object({
-    plan: z.enum(['plus', 'classroom']),
+    plan: z.enum(['standard', 'professional']),
     interval: z.enum(['month', 'year']).default('month'),
   });
   app.get('/api/billing/status', (c) => c.json({ enabled: services.billing.enabled }));

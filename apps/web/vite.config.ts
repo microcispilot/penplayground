@@ -7,6 +7,8 @@ const ws = api.replace('http', 'ws');
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // One .env at the repo root for every app and service.
+  envDir: '../..',
   server: {
     port: 5173,
     proxy: {

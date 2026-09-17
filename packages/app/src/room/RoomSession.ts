@@ -241,7 +241,7 @@ export class RoomSession {
             });
         },
       },
-      { language: 'en-US' },
+      { language: useRoomStore.getState().state?.language ?? navigator.language ?? 'en-US' },
     );
     this.recognizer = recognizer;
     if (recognizer.available) await recognizer.start();

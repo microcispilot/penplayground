@@ -91,7 +91,7 @@ export function Home() {
           );
         },
       },
-      { language: 'en-US' },
+      { language: navigator.language || 'en-US' },
     );
     if (!recognizer.available) {
       toast('Speech recognition is not available in this browser.', 'danger');

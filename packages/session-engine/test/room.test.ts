@@ -26,6 +26,7 @@ const expert: Expert = {
   voiceId: 'af_heart',
   domain: 'computing-data',
   premium: false,
+  gender: 'woman',
 };
 
 const rights = {
@@ -326,7 +327,7 @@ describe('SessionRoom', () => {
     const classroom = new SessionRoom({
       sessionId: 'sess-3',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-9999', name: 'Sam', plan: 'classroom' },
+      host: { id: 'host-9999', name: 'Sam', plan: 'professional' },
       expert,
       band: 'beginner',
       language: 'en',
