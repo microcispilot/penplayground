@@ -18,6 +18,7 @@ import {
   SilentSynthesizer,
   type SpeechSynthesizer,
 } from '@pen/voice';
+import { Analytics } from './analytics.js';
 import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
@@ -37,6 +38,7 @@ export interface Services {
   sessions: SessionRepository;
   participants: ParticipantRepository;
   billing: Billing;
+  analytics: Analytics;
   modelFor(plan: PlanCode): LanguageModel;
   acquirer: KnowledgeAcquirer | null;
   costs: CostLedger;
@@ -141,6 +143,7 @@ export async function buildServices(
   const sessions = new SessionRepository(db.db);
   const participants = new ParticipantRepository(db.db);
   const billing = new Billing(cfg, participants);
+  const analytics = new Analytics(cfg);
   const base = {
     cfg,
     onten,
@@ -152,6 +155,7 @@ export async function buildServices(
     sessions,
     participants,
     billing,
+    analytics,
     modelFor,
     costs,
   };

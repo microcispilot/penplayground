@@ -126,4 +126,7 @@ export const webPlatform: Platform = {
   openExternal: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
   tldrawLicenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY ?? '',
   sentryDsn: import.meta.env.VITE_SENTRY_DSN ?? null,
+  analytics: import.meta.env.VITE_POSTHOG_TOKEN
+    ? { token: import.meta.env.VITE_POSTHOG_TOKEN, host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com' }
+    : null,
 };

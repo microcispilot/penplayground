@@ -46,6 +46,9 @@ const Env = z.object({
   STRIPE_PRICE_PROFESSIONAL_MONTH: z.string().optional(),
   STRIPE_PRICE_PROFESSIONAL_YEAR: z.string().optional(),
 
+  POSTHOG_PROJECT_TOKEN: z.string().optional(),
+  POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
+
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
 

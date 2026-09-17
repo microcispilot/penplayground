@@ -261,6 +261,43 @@ export const demoScripts: {
       },
     },
     { purpose: 'intent', value: { intent: 'question', command: 'none' } },
+    { purpose: 'intake', value: { language: 'en-US', title: 'How Transformers work in LLMs' } },
+    {
+      purpose: 'knowledge.outline',
+      value: {
+        curriculum: ['Tokens', 'Attention', 'Heads', 'Residuals'],
+        queries: [
+          'transformer attention explained',
+          'positional encoding',
+          'multi-head attention',
+          'residual connections',
+          'softmax scaling',
+          'query key value',
+          'feed forward layer',
+          'next token prediction',
+        ],
+        candidateUrls: [],
+      },
+    },
+    {
+      purpose: 'knowledge.evalset',
+      value: {
+        development: [
+          { question: 'What does attention compare?' },
+          { question: 'Why scale by the square root of d?' },
+          { question: 'What is a token?' },
+          { question: 'What do residual connections do?' },
+          { question: 'How are heads combined?' },
+          { question: 'What does softmax produce?' },
+        ],
+        negative: [
+          { question: 'How do I bake bread?' },
+          { question: 'What is the capital of Peru?' },
+          { question: 'How do I change a tire?' },
+          { question: 'Who won the 1998 World Cup?' },
+        ],
+      },
+    },
     {
       purpose: 'outline',
       value: {

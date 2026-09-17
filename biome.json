@@ -17,7 +17,8 @@
       "!Pen Academy.html",
       "!**/.pen-data*",
       "!**/.pglite",
-      "!**/drizzle/meta"
+      "!**/drizzle/meta",
+      "!services/api/data/**"
     ]
   },
   "formatter": {
@@ -36,13 +37,16 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "suspicious": {
         "noExplicitAny": "error",
         "noConsole": {
           "level": "warn",
           "options": {
-            "allow": ["warn", "error"]
+            "allow": [
+              "warn",
+              "error"
+            ]
           }
         }
       },
@@ -63,11 +67,25 @@
   },
   "overrides": [
     {
-      "includes": ["**/*.css"],
+      "includes": [
+        "**/*.css"
+      ],
       "linter": {
         "rules": {
           "complexity": {
             "noImportantStyles": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/scripts/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
           }
         }
       }

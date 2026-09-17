@@ -9,7 +9,7 @@ import { encodeAudioFrame } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
-import { detectLanguage } from './language.js';
+import { intakeTopic } from './language.js';
 import { observer } from './observability.js';
 import type { Services } from './services.js';
 
@@ -50,15 +50,20 @@ export class RoomRegistry {
   }): Promise<LiveRoom> {
     const { services } = this;
     const sessionId = newSessionId();
+    // Intake (language + clean title) and an English resolution run concurrently: most topics are
+    // English hits, and the lookup is free, so the model's ~1.5 s never sits on the critical path for them.
+    const registry = services.onten.registry;
+    const [intake, quick] = await Promise.all([
+      intakeTopic(services.modelFor(args.host.plan), args.topic),
+      registry.resolveTopic({ text: args.topic, language: 'en', locale: 'en-US', band: args.band }),
+    ]);
     const { language, locale } = args.language
       ? { language: args.language.split('-')[0] ?? 'en', locale: args.language }
-      : detectLanguage(args.topic);
-    const resolution = await services.onten.registry.resolveTopic({
-      text: args.topic,
-      language,
-      locale,
-      band: args.band,
-    });
+      : intake;
+    const resolution =
+      language === 'en' && quick.match === 'hit'
+        ? quick
+        : await registry.resolveTopic({ text: intake.title, language, locale, band: args.band });
     const allowPremium = args.host.plan !== 'free';
     const expert =
       (args.expertId ? services.experts.get(args.expertId) : null) ??
@@ -135,6 +140,13 @@ export class RoomRegistry {
       thumbnail: null,
     };
     await services.sessions.upsert(record);
+    services.analytics.capture(args.host.id, 'session_started', {
+      match: resolution.match,
+      domain: resolution.domainBoundary,
+      language,
+      plan: args.host.plan,
+      band: args.band,
+    });
     const live: LiveRoom = { room, seats, record, createdAt: Date.now() };
     this.rooms.set(sessionId, live);
     void room.start().then(async () => {
@@ -209,6 +221,12 @@ export class RoomRegistry {
     if (!live) return;
     await live.room.end();
     const state = live.room.getState();
+    this.services.analytics.capture(live.record.hostId, 'session_ended', {
+      durationMs: state.clockMs,
+      segments: state.plan?.segments.length ?? 0,
+      questions: live.room.backlog().filter((c) => c.event.type === 'note').length,
+      completed: state.mode === 'complete',
+    });
     await this.services.sessions.patch(sessionId, {
       endedAt: Date.now(),
       durationMs: state.clockMs,

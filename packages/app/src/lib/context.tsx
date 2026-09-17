@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { ApiClient, type Participant } from '../api/client.js';
+import { identify, initAnalytics } from './analytics.js';
 import type { Platform } from '../platform/types.js';
 
 interface AppContextValue {
@@ -18,12 +19,17 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  useEffect(() => initAnalytics(platform), [platform]);
+
   useEffect(() => {
     let cancelled = false;
     api
       .ensureParticipant()
       .then((p) => {
-        if (!cancelled) setParticipant(p);
+        if (!cancelled) {
+          setParticipant(p);
+          identify(p.id);
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled)

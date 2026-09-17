@@ -37,6 +37,13 @@ for (const expert of experts) {
 writeFileSync(catalogFile, JSON.stringify(experts, null, 1));
 
 const usage = new Map<string, number>();
-for (const e of experts) usage.set(e.voices['en'] ?? '', (usage.get(e.voices['en'] ?? '') ?? 0) + 1);
-console.log(`${assigned} assignments written for ${experts.length} experts across ${keys.size} language keys`);
-console.log('English voice sharing (voice id → personas):', [...usage.entries()].map(([id, n]) => `${voices.all().find((v) => v.id === id)?.name ?? id}:${n}`).join(' '));
+for (const e of experts) usage.set(e.voices.en ?? '', (usage.get(e.voices.en ?? '') ?? 0) + 1);
+console.log(
+  `${assigned} assignments written for ${experts.length} experts across ${keys.size} language keys`,
+);
+console.log(
+  'English voice sharing (voice id → personas):',
+  [...usage.entries()]
+    .map(([id, n]) => `${voices.all().find((v) => v.id === id)?.name ?? id}:${n}`)
+    .join(' '),
+);

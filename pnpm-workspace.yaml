@@ -12,4 +12,5 @@ allowBuilds:
   electron-winstaller: true
   fs-xattr: true
   macos-alias: true
+  core-js: false
 blockExoticSubdeps: false

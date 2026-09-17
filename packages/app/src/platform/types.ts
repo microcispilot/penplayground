@@ -14,6 +14,8 @@ export interface Platform {
   /** Where the tldraw licence key comes from (empty in dev). */
   readonly tldrawLicenseKey: string;
   readonly sentryDsn: string | null;
+  /** PostHog project token + host; null disables analytics. */
+  readonly analytics: { token: string; host: string } | null;
 }
 
 export interface MicrophoneAssets {

@@ -35,7 +35,12 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
     logger.info({ signal }, 'shutting down');
-    server.close(() => void services.db.close().finally(() => process.exit(0)));
+    server.close(
+      () =>
+        void Promise.all([services.db.close(), services.analytics.shutdown()]).finally(() =>
+          process.exit(0),
+        ),
+    );
     setTimeout(() => process.exit(0), 3000).unref();
   });
 }
