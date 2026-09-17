@@ -65,7 +65,7 @@ export function Library() {
                     key={s.id}
                     className="flex gap-[18px] rounded-[var(--radius-lg)] bg-surface p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-line-strong)]"
                   >
-                    <BoardThumb seed={s.id} className="h-[106px] w-[188px] shrink-0" />
+                    <BoardThumb seed={s.id} className="relative h-[106px] w-[188px] shrink-0" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                       <span className="text-[17px] font-medium tracking-[-0.012em]">{s.title}</span>
                       <span className="text-sm text-fg-2">

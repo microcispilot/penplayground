@@ -1,11 +1,12 @@
 import type { Expert } from '@pen/contracts';
-import { Button, Chip, Skeleton, useToast } from '@pen/design';
-import { ArrowRight, Mic, Search } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Chip, cn, Skeleton, useToast } from '@pen/design';
+import { ArrowRight, ArrowUpRight, Mic, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
-import { AppHeader } from '../components/AppHeader.js';
-import { SessionCard } from '../components/SessionCard.js';
+import { AppHeader, PenMark } from '../components/AppHeader.js';
+import { HeroBoard } from '../components/HeroBoard.js';
+import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { useApp } from '../lib/context.js';
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -19,22 +20,68 @@ const DOMAIN_LABELS: Record<string, string> = {
   'learning-and-careers': 'Learning',
 };
 
-const QUICK = [
+const TRY = [
   'How Transformers work in LLMs',
   'Swift fundamentals',
   'Reading an ECG strip',
-  'How TCP handshakes work',
+  'Rumi in Persian',
+];
+
+/** Shown while the public list is still empty: real topics, each one a session away. */
+const STARTERS: { topic: string; domain: string; promise: string }[] = [
+  {
+    topic: 'How Transformers work in LLMs',
+    domain: 'Computing',
+    promise: 'Learn why attention lets a model weigh every word against every other.',
+  },
+  {
+    topic: 'Swift fundamentals',
+    domain: 'Computing',
+    promise: 'Learn to write your first Swift with values, optionals and functions.',
+  },
+  {
+    topic: 'Reading an ECG strip',
+    domain: 'Health & Law',
+    promise: 'Learn to read rate, rhythm and intervals from a 12-lead strip.',
+  },
+  {
+    topic: 'How TCP handshakes work',
+    domain: 'Computing',
+    promise: 'Learn why three packets open a connection and how it stays reliable.',
+  },
+  {
+    topic: 'The Pythagorean theorem, proven three ways',
+    domain: 'Science',
+    promise: 'Learn why a² + b² = c² from squares, similar triangles and algebra.',
+  },
+  {
+    topic: 'How compound interest really grows',
+    domain: 'Finance',
+    promise: 'Learn why time beats rate, with the numbers written out.',
+  },
+  {
+    topic: 'Rumi’s poems in the original Persian',
+    domain: 'Humanities',
+    promise: 'Learn to read three ghazals line by line, in Persian, with the meaning beside them.',
+  },
+  {
+    topic: 'Colour theory for interfaces',
+    domain: 'Design',
+    promise: 'Learn to build a palette that stays readable in light and dark.',
+  },
 ];
 
 export function Home() {
   const { api, participant, platform } = useApp();
   const navigate = useNavigate();
   const toast = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+  const [withExpert, setWithExpert] = useState<Expert | null>(null);
   const [listening, setListening] = useState(false);
   const [starting, setStarting] = useState(false);
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
-  const [experts, setExperts] = useState<Map<string, Expert>>(new Map());
+  const [experts, setExperts] = useState<Expert[]>([]);
   const [category, setCategory] = useState('All');
   const [filter, setFilter] = useState('');
 
@@ -44,7 +91,7 @@ export function Home() {
       .then(([s, e]) => {
         if (cancelled) return;
         setSessions(s);
-        setExperts(new Map(e.map((x) => [x.id, x])));
+        setExperts(e);
       })
       .catch(() => {
         if (!cancelled) setSessions([]);
@@ -53,6 +100,30 @@ export function Home() {
       cancelled = true;
     };
   }, [api]);
+
+  const expertById = useMemo(() => new Map(experts.map((e) => [e.id, e])), [experts]);
+  const heroExpert = useMemo(
+    () =>
+      experts.find((e) => e.id === 'maya-math-professor') ??
+      experts.find((e) => e.portrait) ??
+      null,
+    [experts],
+  );
+  const featured = useMemo(() => {
+    // One per domain first, so the row reads as breadth, then fill to 14.
+    const seen = new Set<string>();
+    const first: Expert[] = [];
+    const rest: Expert[] = [];
+    for (const e of experts) {
+      if (!e.portrait) continue;
+      if (seen.has(e.domain)) rest.push(e);
+      else {
+        seen.add(e.domain);
+        first.push(e);
+      }
+    }
+    return [...first, ...rest].slice(0, 14);
+  }, [experts]);
 
   const categories = useMemo(
     () => ['All', ...new Set((sessions ?? []).map((s) => DOMAIN_LABELS[s.domain] ?? 'Other'))],
@@ -64,11 +135,11 @@ export function Home() {
       (s) =>
         (category === 'All' || (DOMAIN_LABELS[s.domain] ?? 'Other') === category) &&
         (!f ||
-          `${s.title} ${s.topic} ${experts.get(s.expertId)?.displayName ?? ''}`
+          `${s.title} ${s.topic} ${expertById.get(s.expertId)?.displayName ?? ''}`
             .toLowerCase()
             .includes(f)),
     );
-  }, [sessions, category, filter, experts]);
+  }, [sessions, category, filter, expertById]);
 
   /** Voice search: the platform recognizer fills the box; Enter/Start still confirms. */
   const listen = () => {
@@ -104,7 +175,7 @@ export function Home() {
     }, 12_000);
   };
 
-  const start = async (topic: string) => {
+  const start = async (topic: string, expertId?: string) => {
     const t = topic.trim();
     if (!t || starting) return;
     if (!participant) {
@@ -113,7 +184,7 @@ export function Home() {
     }
     setStarting(true);
     try {
-      const { session } = await api.createSession({ topic: t });
+      const { session } = await api.createSession(expertId ? { topic: t, expertId } : { topic: t });
       navigate(`/room/${session.id}`, { state: { fresh: true } });
     } catch (error) {
       toast(error instanceof ApiError ? error.message : 'Could not start the session', 'danger');
@@ -121,118 +192,389 @@ export function Home() {
     }
   };
 
+  const chooseExpert = (e: Expert) => {
+    setWithExpert(e);
+    if (!query.trim()) setQuery(e.specialties[0] ?? '');
+    inputRef.current?.focus();
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
       <AppHeader />
-      <section className="px-7 pt-[76px] pb-[60px]">
-        <div className="mx-auto flex w-full max-w-[756px] flex-col items-center">
-          <h1 className="mb-8 text-center text-3xl leading-[1.02] tracking-[-0.036em] text-fg text-pretty">
-            What do you want to learn?
-          </h1>
-          <form
-            className="flex h-[60px] w-full items-center gap-2 rounded-[var(--radius-lg)] bg-surface pr-2 pl-[18px] hairline focus-within:shadow-[0_0_0_2px_var(--color-accent)]"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void start(query);
-            }}
-          >
-            <Search size={18} className="shrink-0 text-fg-3" aria-hidden />
-            <input
-              className="h-full min-w-0 flex-1 bg-transparent text-[17px] text-fg outline-none placeholder:text-fg-3 caret-accent"
-              placeholder="Ask for anything — “how Transformers work in LLMs”"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="What do you want to learn?"
-              // biome-ignore lint/a11y/noAutofocus: the page has one purpose and one field; focus belongs there (mockup)
-              autoFocus
-            />
-            <button
-              type="button"
-              title="Say it instead"
-              aria-label="Say it instead"
-              aria-pressed={listening}
-              className={`grid size-11 shrink-0 place-items-center rounded-[11px] transition-colors ${listening ? 'bg-presence-soft text-presence' : 'text-fg-3 hover:bg-surface-2 hover:text-fg'}`}
-              onClick={listen}
+
+      {/* ── hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              'radial-gradient(55% 60% at 12% 0%, var(--color-wash-yellow), transparent 70%), radial-gradient(50% 60% at 88% 20%, var(--color-wash-aqua), transparent 70%), radial-gradient(70% 50% at 60% 110%, var(--color-wash-pink), transparent 70%)',
+          }}
+        />
+        <div className="mx-auto grid w-full max-w-[1280px] items-center gap-12 px-6 pt-14 pb-24 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-16 lg:pt-20">
+          <div className="flex max-w-[600px] flex-col">
+            <span className="animate-rise mb-6 inline-flex w-fit items-center gap-2 rounded-full bg-bg-elevated/80 py-1.5 pr-3.5 pl-2 text-[12.5px] font-medium text-fg-2 hairline">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-presence opacity-60" />
+                <span className="relative inline-flex size-2 rounded-full bg-presence" />
+              </span>
+              Live expert · shared whiteboard · any language
+            </span>
+            <h1
+              className="animate-rise text-[clamp(2.6rem,5.2vw,4.25rem)] leading-[0.98] tracking-[-0.035em] text-fg text-pretty"
+              style={{ animationDelay: '60ms' }}
             >
-              <Mic size={19} />
-            </button>
-            <span className="h-7 w-px shrink-0 bg-line-strong" aria-hidden />
-            <Button
-              variant="primary"
-              size="lg"
-              type="submit"
-              disabled={!query.trim()}
-              loading={starting}
-              trailing={<ArrowRight size={16} />}
+              What do you want to{' '}
+              <span
+                className="relative inline-block text-accent-strong"
+                style={{
+                  fontVariationSettings: '"opsz" 96, "SOFT" 60, "WONK" 1',
+                  fontStyle: 'italic',
+                }}
+              >
+                learn
+                <svg
+                  viewBox="0 0 200 12"
+                  className="absolute -bottom-1 left-0 h-3 w-full"
+                  preserveAspectRatio="none"
+                  aria-hidden
+                >
+                  <path
+                    d="M3 8 C50 2 120 10 197 4"
+                    stroke="var(--color-yellow-500)"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              ?
+            </h1>
+            <p
+              className="animate-rise mt-6 max-w-[520px] text-[17px] leading-[1.55] text-fg-2 text-pretty"
+              style={{ animationDelay: '120ms' }}
             >
-              Start session
-            </Button>
-          </form>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {QUICK.map((q) => (
-              <Chip key={q} onClick={() => setQuery(q)}>
-                {q}
-              </Chip>
-            ))}
+              Ask for anything. An expert starts talking within seconds, writes it out on a board at
+              a human pace, and stops the moment you speak.
+            </p>
+
+            <form
+              className={cn(
+                'animate-rise mt-9 flex min-h-[64px] w-full items-center gap-1 rounded-[20px] bg-bg-elevated p-2 pl-5 shadow-float transition-shadow duration-[var(--duration-base)]',
+                'focus-within:shadow-[var(--shadow-lift),0_0_0_2px_var(--color-accent)]',
+              )}
+              style={{ animationDelay: '180ms' }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void start(query, withExpert?.id);
+              }}
+            >
+              <Search size={19} className="shrink-0 text-fg-3" aria-hidden />
+              {withExpert ? (
+                <span className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent-soft py-0.5 pr-1.5 pl-1 text-[13px] font-medium text-accent-strong">
+                  <img
+                    src={api.portraitUrl(withExpert.portrait?.src) ?? undefined}
+                    alt=""
+                    className="size-6 rounded-full object-cover"
+                  />
+                  with {withExpert.displayName.split(' ')[0]}
+                  <button
+                    type="button"
+                    aria-label="Any expert"
+                    className="grid size-5 place-items-center rounded-full hover:bg-accent/20"
+                    onClick={() => setWithExpert(null)}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ) : null}
+              <input
+                ref={inputRef}
+                className="h-12 min-w-0 flex-1 bg-transparent px-3 text-[17px] text-fg outline-none placeholder:text-fg-3 caret-accent"
+                placeholder="Try “how Transformers work in LLMs”"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="What do you want to learn?"
+                // biome-ignore lint/a11y/noAutofocus: the page has one purpose and one field; focus belongs there
+                autoFocus
+              />
+              <button
+                type="button"
+                title="Say it instead"
+                aria-label="Say it instead"
+                aria-pressed={listening}
+                className={cn(
+                  'grid size-11 shrink-0 place-items-center rounded-full transition-colors',
+                  listening
+                    ? 'bg-presence-soft text-presence shadow-[0_0_0_1px_var(--color-presence)]'
+                    : 'text-fg-3 hover:bg-surface-2 hover:text-fg',
+                )}
+                onClick={listen}
+              >
+                <Mic size={19} />
+              </button>
+              <button
+                type="submit"
+                disabled={!query.trim() || starting}
+                className="group ml-1 flex h-12 shrink-0 items-center gap-2 rounded-[14px] bg-fg px-5 text-[15px] font-medium text-bg transition-[transform,opacity,background-color] duration-[var(--duration-fast)] hover:bg-navy-700 active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-3 dark:hover:bg-white"
+              >
+                {starting ? 'Starting…' : 'Start'}
+                <ArrowRight
+                  size={16}
+                  className="transition-transform duration-[var(--duration-base)] group-hover:translate-x-0.5"
+                />
+              </button>
+            </form>
+
+            <div
+              className="animate-rise mt-4 flex flex-wrap items-center gap-x-1 gap-y-1.5 text-[14px] text-fg-3"
+              style={{ animationDelay: '240ms' }}
+            >
+              <span className="mr-1">Try</span>
+              {TRY.map((t, i) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="rounded-md px-1.5 py-0.5 text-fg-2 underline decoration-line-strong decoration-[1.5px] underline-offset-[5px] transition-colors hover:bg-fg/[0.05] hover:text-fg hover:decoration-accent"
+                  onClick={() => {
+                    setQuery(t);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  {t}
+                  {i < TRY.length - 1 ? '' : ''}
+                </button>
+              ))}
+            </div>
+            <p
+              className="animate-rise mt-7 text-[13px] text-fg-3"
+              style={{ animationDelay: '300ms' }}
+            >
+              Every expert is an AI, and says so if you ask. Sessions are public; your name never
+              is.
+            </p>
+          </div>
+
+          <HeroBoard
+            expert={heroExpert}
+            portraitUrl={api.portraitUrl(heroExpert?.portrait?.src)}
+            className="animate-rise mx-auto w-full max-w-[560px] lg:mx-0"
+          />
+        </div>
+      </section>
+
+      {/* ── experts ──────────────────────────────────────────────────────── */}
+      <section className="border-t border-line/70 py-16">
+        <div className="mx-auto w-full max-w-[1280px] px-6">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-[clamp(1.75rem,2.6vw,2.25rem)] tracking-[-0.03em]">
+                Taught by experts who never lose patience.
+              </h2>
+              <p className="mt-2 max-w-[560px] text-[15px] text-fg-2 text-pretty">
+                {experts.length > 0 ? `${experts.length} experts` : 'A hundred experts'} across
+                science, code, medicine, law, money and the arts. Pick one, or let the topic choose.
+              </p>
+            </div>
+            <span className="text-[13px] text-fg-3">They teach in your language</span>
+          </div>
+          <div className="-mx-6 flex gap-4 overflow-x-auto px-6 pt-2 pb-5 [mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-56px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {experts.length === 0
+              ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
+                  <Skeleton
+                    key={k}
+                    className="aspect-[4/5] w-[196px] shrink-0 rounded-[var(--radius-xl)]"
+                  />
+                ))
+              : featured.map((e) => (
+                  <ExpertCard
+                    key={e.id}
+                    expert={e}
+                    portraitUrl={api.portraitUrl(e.portrait?.src)}
+                    selected={withExpert?.id === e.id}
+                    onChoose={() => chooseExpert(e)}
+                  />
+                ))}
           </div>
         </div>
       </section>
 
-      <div className="sticky top-[65px] z-[9] bg-bg px-7 pt-[22px] pb-2.5">
-        <div className="mx-auto flex max-w-[1360px] items-center gap-3">
-          <h2 className="shrink-0 text-[19px] tracking-[-0.02em]">Most learned</h2>
-          <div className="flex min-w-0 flex-1 gap-1.5 overflow-auto py-1">
-            {categories.map((c) => (
-              <Chip key={c} selected={category === c} onClick={() => setCategory(c)}>
-                {c}
-              </Chip>
-            ))}
-          </div>
-          <label className="flex h-7 w-[280px] shrink-0 items-center gap-2 rounded-[var(--radius-sm)] bg-surface px-2.5 hairline">
-            <Search size={13} className="shrink-0 text-fg-3" aria-hidden />
-            <input
-              className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none placeholder:text-fg-3"
-              placeholder="Filter sessions"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              aria-label="Filter sessions"
-            />
-          </label>
-        </div>
-      </div>
-
-      <main className="flex-1 px-7 pt-3 pb-20">
-        <div className="mx-auto grid max-w-[1360px] grid-cols-[repeat(auto-fill,minmax(288px,1fr))] gap-x-[18px] gap-y-[34px]">
-          {sessions === null
-            ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
-                <div key={k} className="flex flex-col gap-3">
-                  <Skeleton className="aspect-video" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
+      {/* ── sessions ─────────────────────────────────────────────────────── */}
+      <section className="border-t border-line/70 bg-surface/50 py-16">
+        <div className="mx-auto w-full max-w-[1280px] px-6">
+          <div className="mb-7 flex flex-wrap items-center gap-3">
+            <h2 className="mr-2 text-[clamp(1.75rem,2.6vw,2.25rem)] tracking-[-0.03em]">
+              {sessions !== null && sessions.length === 0
+                ? 'Start with one of these'
+                : 'Most learned'}
+            </h2>
+            {sessions !== null && sessions.length > 0 ? (
+              <>
+                <div className="flex min-w-0 flex-1 gap-1.5 overflow-auto py-1">
+                  {categories.map((c) => (
+                    <Chip key={c} selected={category === c} onClick={() => setCategory(c)}>
+                      {c}
+                    </Chip>
+                  ))}
                 </div>
-              ))
-            : visible.map((s) => {
-                const expert = experts.get(s.expertId);
-                return (
-                  <SessionCard
-                    key={s.id}
-                    session={s}
-                    expertName={expert?.displayName ?? 'AI expert'}
-                    portraitUrl={api.portraitUrl(expert?.portrait?.src)}
-                    onOpen={() => navigate(`/sessions/${s.id}`)}
+                <label className="flex h-9 w-[260px] shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3.5 hairline">
+                  <Search size={14} className="shrink-0 text-fg-3" aria-hidden />
+                  <input
+                    className="min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-3"
+                    placeholder="Filter sessions"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    aria-label="Filter sessions"
                   />
-                );
-              })}
-          {sessions !== null && visible.length === 0 ? (
-            <div className="col-span-full flex flex-col items-center gap-2 py-16 text-center">
-              <p className="text-md text-fg">Nothing here yet.</p>
-              <p className="text-sm text-fg-2">
-                Start a session above — it becomes the first one in this list.
+                </label>
+              </>
+            ) : sessions !== null ? (
+              <p className="basis-full text-[15px] text-fg-2">
+                Sessions people learn from most will gather here. Until then, these are prepared and
+                ready to teach.
               </p>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(272px,1fr))] gap-x-5 gap-y-9">
+            {sessions === null
+              ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
+                  <div key={k} className="flex flex-col gap-3">
+                    <Skeleton className="aspect-video rounded-[var(--radius-lg)]" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                ))
+              : sessions.length === 0
+                ? STARTERS.map((s) => (
+                    <StarterCard key={s.topic} {...s} onStart={() => start(s.topic)} />
+                  ))
+                : visible.map((s) => {
+                    const expert = expertById.get(s.expertId);
+                    return (
+                      <SessionCard
+                        key={s.id}
+                        session={s}
+                        expertName={expert?.displayName ?? 'AI expert'}
+                        portraitUrl={api.portraitUrl(expert?.portrait?.src)}
+                        onOpen={() => navigate(`/sessions/${s.id}`)}
+                      />
+                    );
+                  })}
+            {sessions !== null && sessions.length > 0 && visible.length === 0 ? (
+              <div className="col-span-full flex flex-col items-center gap-1 py-16 text-center">
+                <p className="text-md text-fg">No sessions match.</p>
+                <p className="text-sm text-fg-2">Try another category, or clear the filter.</p>
+              </div>
+            ) : null}
+          </div>
         </div>
-      </main>
+      </section>
+
+      <footer className="border-t border-line/70">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-8 text-[13px] text-fg-3">
+          <span className="flex items-center gap-1.5 text-fg-2">
+            <PenMark size={16} /> Pen Playground
+          </span>
+          <a href="/pricing" className="hover:text-fg">
+            Pricing
+          </a>
+          <a href="/sessions" className="hover:text-fg">
+            My sessions
+          </a>
+          <span className="flex-1" />
+          <span>Experts are AI. They will tell you so.</span>
+        </div>
+      </footer>
     </div>
+  );
+}
+
+function ExpertCard({
+  expert,
+  portraitUrl,
+  selected,
+  onChoose,
+}: {
+  expert: Expert;
+  portraitUrl: string | null;
+  selected: boolean;
+  onChoose: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onChoose}
+      className={cn(
+        'group relative aspect-[4/5] w-[196px] shrink-0 overflow-hidden rounded-[var(--radius-xl)] bg-surface-2 text-left shadow-card transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-lift',
+        selected && 'ring-[3px] ring-accent ring-offset-2 ring-offset-bg',
+      )}
+    >
+      {portraitUrl ? (
+        <img
+          src={portraitUrl}
+          alt={expert.portrait?.alt ?? expert.displayName}
+          loading="lazy"
+          className="absolute inset-0 size-full object-cover transition-transform duration-[600ms] ease-[var(--ease-out)] group-hover:scale-[1.04]"
+        />
+      ) : null}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-[58%]"
+        style={{
+          background:
+            'linear-gradient(to top, oklch(0.2 0.05 248 / 92%), oklch(0.2 0.05 248 / 0%))',
+        }}
+      />
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-4 text-white">
+        <span className="text-[16px] font-medium leading-tight tracking-[-0.01em]">
+          {expert.displayName}
+        </span>
+        <span className="line-clamp-2 text-[12.5px] leading-snug text-white/75">{expert.role}</span>
+      </div>
+      <span className="absolute top-3 right-3 grid size-8 place-items-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+        <ArrowUpRight size={15} />
+      </span>
+    </button>
+  );
+}
+
+function StarterCard({
+  topic,
+  domain,
+  promise,
+  onStart,
+}: {
+  topic: string;
+  domain: string;
+  promise: string;
+  onStart: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onStart}
+      className="group flex cursor-pointer flex-col gap-3.5 rounded-[var(--radius-xl)] p-2.5 text-left transition-[background-color,transform] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:bg-bg-elevated hover:shadow-card"
+    >
+      <div className="relative aspect-video overflow-hidden rounded-[var(--radius-lg)] shadow-[0_0_0_1px_var(--color-line)]">
+        <BoardThumb seed={topic} className="absolute inset-0 rounded-none" />
+        <span className="absolute top-2.5 left-2.5 rounded-full bg-navy-900/80 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+          {domain}
+        </span>
+        <span className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5 rounded-full bg-bg-elevated px-2.5 py-1 text-[12px] font-medium text-fg opacity-0 shadow-card transition-opacity group-hover:opacity-100">
+          Start <ArrowRight size={12} />
+        </span>
+      </div>
+      <div className="flex flex-col gap-1 px-1">
+        <span className="text-[15.5px] font-medium leading-[1.3] tracking-[-0.01em] text-fg">
+          {topic}
+        </span>
+        <span className="line-clamp-2 text-[13.5px] leading-[1.45] text-fg-3 text-pretty">
+          {promise}
+        </span>
+      </div>
+    </button>
   );
 }

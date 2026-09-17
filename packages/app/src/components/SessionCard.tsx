@@ -2,13 +2,16 @@ import { Avatar, cn } from '@pen/design';
 import type { SessionRecord } from '../api/client.js';
 import { formatDuration } from '../lib/context.js';
 
-/** Paper thumbnail with a deterministic hand-drawn sketch (three variants, like the mockup). */
+/**
+ * Paper thumbnail with a deterministic hand-drawn sketch (three variants).
+ * Positioning is the caller's: pass `absolute inset-0` inside a sized box.
+ */
 export function BoardThumb({ seed, className }: { seed: string; className?: string }) {
   const variant = [...seed].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 3;
   const ink = 'oklch(0.27 0.055 248)';
   const accent = 'oklch(0.597 0.107 218.3)';
   return (
-    <div className={cn('paper relative overflow-hidden rounded-[var(--radius-md)]', className)}>
+    <div className={cn('paper overflow-hidden rounded-[var(--radius-md)]', className)}>
       <svg
         viewBox="0 0 320 180"
         className="absolute inset-0 h-full w-full"

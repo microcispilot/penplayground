@@ -328,7 +328,7 @@ export function SessionPage() {
         <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
           <div>
             {s ? (
-              <BoardThumb seed={s.id} className="aspect-video w-full" />
+              <BoardThumb seed={s.id} className="relative aspect-video w-full" />
             ) : (
               <Skeleton className="aspect-video w-full" />
             )}
