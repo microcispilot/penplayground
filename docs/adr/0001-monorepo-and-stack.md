@@ -3,7 +3,7 @@
 Status: accepted · 2026-09-16
 
 ## Context
-Pen Academy must run as a web app and as desktop apps (macOS/Windows/Linux), in
+Pen Playground must run as a web app and as desktop apps (macOS/Windows/Linux), in
 TypeScript, reusing Simurgh's TypeScript client pieces (ears/mouth/orb) and
 its Fish S2-Pro bridge (a Python service we call over HTTP; not re-implemented).
 Research (2026-09): Vite 8, React 19.3, Tailwind 4.3, Hono 4.13, Drizzle 1.0-rc,

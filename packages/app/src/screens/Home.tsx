@@ -108,7 +108,7 @@ export function Home() {
     const t = topic.trim();
     if (!t || starting) return;
     if (!participant) {
-      toast('Connecting to Pen Academy…');
+      toast('Connecting to Pen Playground…');
       return;
     }
     setStarting(true);

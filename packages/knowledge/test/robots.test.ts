@@ -7,7 +7,7 @@ describe('parseRobots (RFC 9309)', () => {
   it('applies the wildcard group with longest-match precedence and Allow winning ties', () => {
     const rules = parseRobots(
       'User-agent: *\nDisallow: /private/\nAllow: /private/public-note\nDisallow: /tmp\n',
-      'PenAcademyBot',
+      'PenPlaygroundBot',
     );
     expect(rules.allows('/')).toBe(true);
     expect(rules.allows('/private/x')).toBe(false);
@@ -18,8 +18,8 @@ describe('parseRobots (RFC 9309)', () => {
 
   it('prefers the group for our product token over *', () => {
     const rules = parseRobots(
-      'User-agent: *\nDisallow: /\n\nUser-agent: penacademybot\nDisallow: /nope\n',
-      'PenAcademyBot/0.1',
+      'User-agent: *\nDisallow: /\n\nUser-agent: penplaygroundbot\nDisallow: /nope\n',
+      'PenPlaygroundBot/0.1',
     );
     expect(rules.allows('/anything')).toBe(true);
     expect(rules.allows('/nope/x')).toBe(false);
@@ -44,8 +44,8 @@ describe('parseRobots (RFC 9309)', () => {
 
 describe('RobotsGate', () => {
   const opts = {
-    userAgent: 'PenAcademyBot/0.1',
-    productToken: 'PenAcademyBot',
+    userAgent: 'PenPlaygroundBot/0.1',
+    productToken: 'PenPlaygroundBot',
     timeoutMs: 1000,
     observer: SILENT_KNOWLEDGE_OBSERVER,
   };

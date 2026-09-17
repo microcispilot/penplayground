@@ -15,9 +15,9 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
  */
 const config: ForgeConfig = {
   packagerConfig: {
-    name: 'Pen Academy',
+    name: 'Pen Playground',
     executableName: 'pen-academy',
-    appBundleId: 'ai.penacademy.desktop',
+    appBundleId: 'com.penplayground.desktop',
     asar: true,
     ...(process.platform === 'darwin' && process.env.APPLE_ID
       ? {
@@ -31,7 +31,7 @@ const config: ForgeConfig = {
       : {}),
     extendInfo: {
       NSMicrophoneUsageDescription:
-        'Pen Academy listens so you can interrupt the expert and ask questions by voice.',
+        'Pen Playground listens so you can interrupt the expert and ask questions by voice.',
     },
   },
   rebuildConfig: {},

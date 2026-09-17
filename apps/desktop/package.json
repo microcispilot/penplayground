@@ -2,7 +2,7 @@
   "name": "@pen/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Pen Academy desktop",
+  "description": "Pen Playground desktop",
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",

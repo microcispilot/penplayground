@@ -4,7 +4,7 @@ import { app, BrowserWindow, session, shell, systemPreferences } from 'electron'
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
-const API_URL = process.env.PEN_API_URL ?? 'https://api.penacademy.ai';
+const API_URL = process.env.PEN_API_URL ?? 'https://api.penplayground.com';
 
 /** Native microphone permission on macOS must be requested before getUserMedia can succeed. */
 async function ensureMicrophone(): Promise<boolean> {
@@ -20,7 +20,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    title: 'Pen Academy',
+    title: 'Pen Playground',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#0f1013',
     webPreferences: {

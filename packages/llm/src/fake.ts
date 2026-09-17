@@ -15,10 +15,28 @@ export interface FakeScript {
   gapMs?: number;
 }
 
+/** Scripts write `{{expert}}` where the persona's first name belongs. */
+const EXPERT_PLACEHOLDER = /\{\{expert\}\}/g;
+
+/** The persona's first name, read from the system prompt (`YOU ARE <name>, <role>.`). */
+export function expertFirstName(request: EventStreamRequest): string | null {
+  const system = request.messages.find((m) => m.role === 'system');
+  const match = system?.content.match(/YOU ARE ([^,\n]+)/);
+  const first = match?.[1]?.trim().split(/\s+/)[0];
+  return first && first.length > 0 ? first : null;
+}
+
+function personalise(ev: LessonEvent, name: string | null): LessonEvent {
+  if (name === null || !('text' in ev) || typeof ev.text !== 'string') return ev;
+  return { ...ev, text: ev.text.replace(EXPERT_PLACEHOLDER, name) };
+}
+
 /**
  * Deterministic model for tests, demos and offline development. Streams
  * scripted events with realistic pacing so the conductor, TTS and board are
- * exercised end to end without an API key.
+ * exercised end to end without an API key. `{{expert}}` in a script's text is
+ * replaced with the persona the request is for, so demos and exports greet
+ * the learner with the right name.
  */
 export class FakeLanguageModel implements LanguageModel {
   readonly id = 'fake';
@@ -37,7 +55,8 @@ export class FakeLanguageModel implements LanguageModel {
       resolveUsage = r;
     });
     const started = performance.now();
-    const events = script.events;
+    const name = expertFirstName(request);
+    const events = script.events.map((ev) => personalise(ev, name));
     async function* gen(): AsyncGenerator<LessonEvent> {
       let first: number | null = null;
       try {

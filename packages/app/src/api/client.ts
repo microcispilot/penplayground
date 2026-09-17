@@ -34,6 +34,19 @@ export const SessionRecord = z.object({
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
 
+/** Server-side MP4 render of a session (paid plans). `none` = never requested. */
+export const ExportStatus = z.object({
+  status: z.enum(['none', 'queued', 'rendering', 'ready', 'failed']),
+  /** 0–1 while rendering. */
+  progress: z.number(),
+  error: z.string().nullable(),
+  /** Tokenised, header-free URL for `<a download>`; present only when ready. Short-lived. */
+  downloadUrl: z.string().nullable(),
+  bytes: z.number().nullable(),
+  durationMs: z.number().nullable(),
+});
+export type ExportStatus = z.infer<typeof ExportStatus>;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -158,6 +171,16 @@ export class ApiClient {
       z.object({ ok: z.boolean(), state: RoomState }),
       { method: 'POST' },
     );
+  }
+  /** Ask for the MP4 (idempotent: returns the current job when one exists). */
+  requestExport(id: string) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/export`, ExportStatus, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+  exportStatus(id: string) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/export`, ExportStatus);
   }
   billingStatus() {
     return this.request('/api/billing/status', z.object({ enabled: z.boolean() }));

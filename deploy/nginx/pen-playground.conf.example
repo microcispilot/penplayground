@@ -1,4 +1,4 @@
-# Pen Academy edge vhost for prod-app-01 — copy to /etc/nginx/sites-available/pen-academy.conf,
+# Pen Playground edge vhost for prod-app-01 — copy to /etc/nginx/sites-available/pen-playground.conf,
 # replace DOMAIN (all occurrences), symlink into sites-enabled, `nginx -t && systemctl reload nginx`.
 #
 # First pass (before the certificate exists): keep ONLY the port-80 server block enabled, run

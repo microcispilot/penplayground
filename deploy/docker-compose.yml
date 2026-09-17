@@ -1,4 +1,4 @@
-# Pen Academy on prod-app-01 — lives at /srv/pen-academy/docker-compose.yml (deploy/deploy.sh
+# Pen Playground on prod-app-01 — lives at /srv/pen-playground/docker-compose.yml (deploy/deploy.sh
 # copies it there). Everything binds to 127.0.0.1; the host nginx terminates TLS and forwards the
 # DOMAIN to the web container, which proxies /api, /experts, /s and /ws to the API internally.
 #
@@ -12,7 +12,7 @@
 # Host ports: 4200 (api) and 4201 (web) — 4100 was already taken on prod-app-01 by another
 # node process, 4000 by the onten backend. Postgres 18 mounts its volume at /var/lib/postgresql.
 
-name: pen-academy
+name: pen-playground
 
 include:
   - path: ./searxng/docker-compose.yml
@@ -20,7 +20,7 @@ include:
 
 services:
   api:
-    image: pen-academy-api:${PEN_IMAGE_TAG:-latest}
+    image: pen-playground-api:${PEN_IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     env_file:
@@ -29,6 +29,13 @@ services:
       NODE_ENV: production
       PEN_PORT: "4000"
       PEN_DATA_DIR: /data
+      # MP4 export renders the replay page headlessly; reach the web container directly rather
+      # than going out through the public edge. Only effective on an image built with
+      # --build-arg WITH_RENDER=1 (docs/DEPLOY.md → "MP4 export (render)").
+      PEN_RENDER_BASE_URL: http://web
+    # Headless Chromium needs more than Docker's 64 MB default /dev/shm (the image also passes
+    # --disable-dev-shm-usage; this keeps large boards from falling back to disk).
+    shm_size: 1g
     volumes:
       - ./data:/data
     ports:
@@ -45,7 +52,7 @@ services:
         max-file: "5"
 
   web:
-    image: pen-academy-web:${PEN_IMAGE_TAG:-latest}
+    image: pen-playground-web:${PEN_IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "127.0.0.1:4201:80"

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Pen Academy web — static Vite build served by nginx, which also proxies /api, /experts, /s
+# Pen Playground web — static Vite build served by nginx, which also proxies /api, /experts, /s
 # and the /ws WebSocket to the API container (deploy/web/nginx.conf).
 #
 # Build from the repository root:
@@ -51,7 +51,7 @@ RUN sh -eu -c ' \
 # ── runtime ───────────────────────────────────────────────────────────────────
 FROM ${NGINX_IMAGE} AS runtime
 ARG GIT_SHA=unknown
-LABEL org.opencontainers.image.title="Pen Academy web" \
+LABEL org.opencontainers.image.title="Pen Playground web" \
       org.opencontainers.image.revision="${GIT_SHA}"
 COPY deploy/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html

@@ -1,4 +1,4 @@
-# Capability Map: Pen Academy
+# Capability Map: Pen Playground
 
 Stable module ids. Arrows point one way. Interfaces live in the provider
 module's spec (`docs/spec/SPEC-<module>.md` where written).

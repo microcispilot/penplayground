@@ -1,11 +1,16 @@
 import type { LedgerEntry } from '@pen/contracts';
-import { Expert, LedgerEntry as LedgerEntrySchema } from '@pen/contracts';
-import { Avatar, Button, cn, Pill, Skeleton } from '@pen/design';
-import { Play, Share2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Expert, hasEntitlement, LedgerEntry as LedgerEntrySchema } from '@pen/contracts';
+import { Avatar, Button, cn, Pill, Skeleton, useToast } from '@pen/design';
+import { Download, Lock, Play, Share2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { z } from 'zod';
-import { type SessionRecord, SessionRecord as SessionRecordSchema } from '../api/client.js';
+import {
+  ApiError,
+  type ExportStatus,
+  type SessionRecord,
+  SessionRecord as SessionRecordSchema,
+} from '../api/client.js';
 import { AppHeader } from '../components/AppHeader.js';
 import { BoardThumb } from '../components/SessionCard.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
@@ -16,6 +21,176 @@ const LedgerResponse = z.object({
   expert: Expert.nullable(),
 });
 
+const EXPORT_POLL_MS = 2000;
+/** Download links carry a short-lived token; refresh one older than this before using it. */
+const EXPORT_LINK_MAX_AGE_MS = 20 * 60_000;
+
+function formatBytes(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)} GB`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(n / 1000))} KB`;
+}
+
+/**
+ * "Download" for the host of an ended session. Paid plans render the MP4 on
+ * the server (progress polled every 2 s) and then save it through a
+ * header-free tokenised link; the free plan sees the locked button that
+ * leads to pricing. Anything the server says goes wrong is shown in place.
+ */
+function ExportControl({
+  sessionId,
+  title,
+  plan,
+}: {
+  sessionId: string;
+  title: string;
+  plan: 'free' | 'standard' | 'professional';
+}) {
+  const { api } = useApp();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [status, setStatus] = useState<(ExportStatus & { at: number }) | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entitled = hasEntitlement(plan, 'export');
+
+  const stopPolling = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+
+  const poll = useCallback(async () => {
+    try {
+      const next = await api.exportStatus(sessionId);
+      setStatus({ ...next, at: Date.now() });
+      if (next.status === 'queued' || next.status === 'rendering')
+        timer.current = setTimeout(() => void poll(), EXPORT_POLL_MS);
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : 'Could not check the export.');
+    }
+  }, [api, sessionId]);
+
+  useEffect(() => {
+    if (!entitled) return;
+    void poll();
+    return stopPolling;
+  }, [entitled, poll, stopPolling]);
+
+  const save = (url: string) => {
+    // Same-origin in production (the web proxy) and `Content-Disposition: attachment` elsewhere:
+    // either way the browser saves rather than navigates.
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pen-${
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'session'
+    }.mp4`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const onClick = async () => {
+    if (!entitled) {
+      navigate('/pricing');
+      return;
+    }
+    setProblem(null);
+    if (status?.status === 'ready' && status.downloadUrl) {
+      let url = status.downloadUrl;
+      if (Date.now() - status.at > EXPORT_LINK_MAX_AGE_MS) {
+        try {
+          const fresh = await api.exportStatus(sessionId);
+          setStatus({ ...fresh, at: Date.now() });
+          if (fresh.status !== 'ready' || !fresh.downloadUrl) {
+            setProblem('The video needs to be rendered again.');
+            return;
+          }
+          url = fresh.downloadUrl;
+        } catch (error) {
+          setProblem(error instanceof Error ? error.message : 'Could not refresh the link.');
+          return;
+        }
+      }
+      save(url);
+      return;
+    }
+    setBusy(true);
+    try {
+      stopPolling();
+      const job = await api.requestExport(sessionId);
+      setStatus({ ...job, at: Date.now() });
+      if (job.status === 'ready' && job.downloadUrl) save(job.downloadUrl);
+      else if (job.status === 'queued' || job.status === 'rendering')
+        timer.current = setTimeout(() => void poll(), EXPORT_POLL_MS);
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.code === 'ENTITLEMENT_REQUIRED'
+            ? 'Video export is part of the Standard plan.'
+            : error.message
+          : 'Could not start the export.';
+      setProblem(message);
+      if (error instanceof ApiError && error.status === 402) toast(message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!entitled) {
+    return (
+      <Button variant="secondary" leading={<Lock size={14} />} onClick={() => void onClick()}>
+        Download · Standard
+      </Button>
+    );
+  }
+  const rendering = status?.status === 'queued' || status?.status === 'rendering' ? status : null;
+  const label = rendering
+    ? rendering.status === 'queued'
+      ? 'Preparing your video…'
+      : `Rendering your video… ${Math.round(rendering.progress * 100)}%`
+    : status?.status === 'ready'
+      ? 'Download video'
+      : status?.status === 'failed'
+        ? 'Try again'
+        : 'Download';
+  const detail =
+    problem ??
+    (status?.status === 'failed'
+      ? (status.error ?? 'The render failed.')
+      : status?.status === 'ready' && status.bytes
+        ? `MP4 · 1280×720 · ${formatBytes(status.bytes)}`
+        : null);
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        variant="secondary"
+        leading={rendering ? undefined : <Download size={14} />}
+        loading={busy || rendering !== null}
+        aria-live="polite"
+        onClick={() => void onClick()}
+      >
+        {label}
+      </Button>
+      {detail ? (
+        <span
+          className={cn(
+            'text-xs',
+            problem || status?.status === 'failed' ? 'text-danger' : 'text-fg-3',
+          )}
+          role={problem || status?.status === 'failed' ? 'alert' : undefined}
+        >
+          {detail}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * A saved session: recap, pinned questions and the full transcript, rebuilt
  * from the recording ledger. Deterministic audio+board replay lands in the
@@ -24,7 +199,7 @@ const LedgerResponse = z.object({
 export function SessionPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const { api, platform } = useApp();
+  const { api, platform, participant } = useApp();
   const navigate = useNavigate();
   const [data, setData] = useState<{
     session: SessionRecord;
@@ -105,6 +280,8 @@ export function SessionPage() {
   const s = data?.session;
   const live = s ? s.endedAt === null : false;
   const shareUrl = `${api.baseUrl}/s/${id}`;
+  // Only the host sees the export control (the API strips hostId for everyone else).
+  const isHost = Boolean(s && participant && s.hostId === participant.id);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -151,12 +328,15 @@ export function SessionPage() {
                   leading={<Share2 size={14} />}
                   onClick={() => {
                     if (navigator.share)
-                      void navigator.share({ title: s?.title ?? 'Pen Academy', url: shareUrl });
+                      void navigator.share({ title: s?.title ?? 'Pen Playground', url: shareUrl });
                     else void navigator.clipboard?.writeText(shareUrl);
                   }}
                 >
                   Share
                 </Button>
+                {s && participant && isHost && !live ? (
+                  <ExportControl sessionId={s.id} title={s.title} plan={participant.plan} />
+                ) : null}
               </div>
             </div>
             <div className="mt-6 flex gap-1 border-b border-line">

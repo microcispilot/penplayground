@@ -24,16 +24,30 @@ const server = serve({ fetch: app.fetch, port: cfg.PEN_PORT }, (info) => {
       sentry,
       acquirer: services.acquirer !== null,
     },
-    'Pen Academy API listening',
+    'Pen Playground API listening',
   );
 });
 injectWebSocket(server);
 
 const sweeper = setInterval(() => rooms.sweep(), 60_000);
 
+// The Simurgh STT host is reached over a Tailscale path that costs ~6 s to establish the
+// first time and ~0.3–0.6 s afterwards: warm it at boot and keep it warm.
+const warmer = services.recognizer && 'warm' in services.recognizer ? services.recognizer : null;
+if (warmer) {
+  const warm = () =>
+    void (warmer as { warm(): Promise<boolean> })
+      .warm()
+      .then((ok) => logger.info({ ok }, 'stt relay warmed'))
+      .catch((error) => observer.error('stt.warm', error));
+  warm();
+  setInterval(warm, 10 * 60_000).unref();
+}
+
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
+    services.exports.close();
     logger.info({ signal }, 'shutting down');
     server.close(
       () =>

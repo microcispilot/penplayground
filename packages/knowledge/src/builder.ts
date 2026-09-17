@@ -52,8 +52,8 @@ import {
 } from './types.js';
 
 export const KNOWLEDGE_USER_AGENT =
-  'PenAcademyBot/0.1 (+https://pen.academy/bot; corpus builder for tutoring)';
-const PRODUCT_TOKEN = 'PenAcademyBot';
+  'PenPlaygroundBot/0.1 (+https://penplayground.com/bot; corpus builder for tutoring)';
+const PRODUCT_TOKEN = 'PenPlaygroundBot';
 const MIN_DOCUMENT_CHARS = 200;
 const MAX_EXCERPT_CHARS = 300;
 const MAX_EVAL_TITLES = 40;

@@ -10,7 +10,7 @@ import type {
 
 /**
  * Host-facing Onten surface (ADR-0003). Mirrors onten/sdk/context/index.ts
- * `ContextClient` exactly; Pen Academy adds `Registry` and `Compiler` which
+ * `ContextClient` exactly; Pen Playground adds `Registry` and `Compiler` which
  * mirror the registry contract and compiler/progressive.ts.
  */
 export interface OntenClient {
@@ -114,7 +114,7 @@ export interface TopicResolution {
   domainBoundary: string;
   match: 'hit' | 'partial' | 'miss';
   packId: string | null;
-  /** A previously taught lesson for this scope and band, when one exists (Pen Academy memo extension). */
+  /** A previously taught lesson for this scope and band, when one exists (Pen Playground memo extension). */
   lessonMemoId: string | null;
   /** Similarity score of the best candidate, 0–1. */
   score: number;
@@ -180,7 +180,7 @@ export interface OntenCompiler {
   startProgressiveCompilation(request: CompileRequest): ProgressiveCompilation;
 }
 
-// ── lesson memo (Pen Academy extension: session plans keyed by scope + band) ─
+// ── lesson memo (Pen Playground extension: session plans keyed by scope + band) ─
 export interface LessonMemoEntry {
   id: string;
   canonicalKnowledgeId: string;

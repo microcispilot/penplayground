@@ -1,8 +1,8 @@
-# SearXNG for Pen Academy's topic-miss discovery (packages/knowledge SearxngSearch).
+# SearXNG for Pen Playground's topic-miss discovery (packages/knowledge SearxngSearch).
 #
 # Standalone:   cp .env.example .env && edit SEARXNG_SECRET, then `docker compose up -d` here.
 # In the stack: ../docker-compose.yml includes this file, so the `searxng` service joins the
-#               pen-academy project and the API reaches it as http://searxng:8080.
+#               pen-playground project and the API reaches it as http://searxng:8080.
 #
 # The port is published on 127.0.0.1 only: this instance must never be reachable from the
 # internet (no limiter, JSON API enabled).

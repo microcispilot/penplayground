@@ -36,7 +36,7 @@ const segments: LessonEvent[][] = [
   [
     say(
       's1',
-      "Hi — I'm Ada. Let's start with a sentence, because that's all a language model ever sees.",
+      "Hi — I'm {{expert}}. Let's start with a sentence, because that's all a language model ever sees.",
     ),
     write('b1', 's1', 'How Transformers work', {
       op: 'title',

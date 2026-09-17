@@ -1,16 +1,16 @@
-# Deploying Pen Academy
+# Deploying Pen Playground
 
 Production runs on the Hetzner host **prod-app-01** (Ubuntu 24.04, 4 vCPU, 7.6 GB, Docker 29,
 host nginx on :80/:443 with certbot). The stack is four containers behind the host nginx:
 
 ```
-browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/sites-enabled/pen-academy.conf
+browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/sites-enabled/pen-playground.conf
                       │ proxy 127.0.0.1:4201
                       ▼
-                web  (nginx:1.30-alpine, SPA + proxy)   pen-academy-web:<tag>
+                web  (nginx:1.30-alpine, SPA + proxy)   pen-playground-web:<tag>
                       │ /api /experts /s /ws → api:4000
                       ▼
-                api  (node:22-alpine, bundled, uid 1000) pen-academy-api:<tag>   /srv/pen-academy/data:/data
+                api  (node:22-alpine, bundled, uid 1000) pen-playground-api:<tag>   /srv/pen-playground/data:/data
                       ├── postgres:18                                             volume pen-postgres
                       └── searxng (2026.9.16-461f174b0, JSON API, loopback only)
 ```
@@ -21,12 +21,12 @@ the host nginx is reachable from the internet. `deploy/` holds every file involv
 | file | purpose |
 | --- | --- |
 | `deploy/deploy.sh` | build → ship → sync → `compose up` → health check, idempotent |
-| `deploy/docker-compose.yml` | the stack (`/srv/pen-academy/docker-compose.yml` on the host) |
-| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-academy/api.env` |
-| `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-academy/postgres.env` |
+| `deploy/docker-compose.yml` | the stack (`/srv/pen-playground/docker-compose.yml` on the host) |
+| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env` |
+| `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-playground/postgres.env` |
 | `deploy/searxng/` | SearXNG compose + `settings.yml` (included by the stack) |
 | `deploy/web/nginx.conf` | nginx inside the web container (baked into the image) |
-| `deploy/nginx/pen-academy.conf.example` | host vhost template (`DOMAIN` placeholder) |
+| `deploy/nginx/pen-playground.conf.example` | host vhost template (`DOMAIN` placeholder) |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | the images (build context = repo root) |
 
 ## Prerequisites (workstation)
@@ -41,7 +41,7 @@ the host nginx is reachable from the internet. `deploy/` holds every file involv
 export PEN_DEPLOY_HOST=root@100.118.252.64
 export PEN_DEPLOY_SSH_IDENTITY_FILE=$HOME/.ssh/id_ed25519
 export PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE=$HOME/.ssh/known_hosts
-export PEN_DOMAIN=pen.example.com            # the public hostname
+export PEN_DOMAIN=penplayground.com          # the public hostname (default)
 export VITE_TLDRAW_LICENSE_KEY=…             # optional web build args
 export VITE_SENTRY_DSN=…
 ```
@@ -60,7 +60,7 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
 
    ```sh
    ssh root@100.118.252.64
-   mkdir -p /srv/pen-academy && cd /srv/pen-academy
+   mkdir -p /srv/pen-playground && cd /srv/pen-playground
    # after the first `deploy.sh --no-up` run the .example files are already here; otherwise scp them
    cp api.env.example api.env && cp postgres.env.example postgres.env && chmod 600 *.env
    $EDITOR postgres.env      # POSTGRES_PASSWORD=$(openssl rand -hex 24)
@@ -74,16 +74,16 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
 
 2. **Deploy**: from the repo root, `deploy/deploy.sh`. It builds both images for linux/amd64
    (tag = git short sha), `docker save | ssh docker load`s only what the host lacks, rsyncs the
-   stack files, writes `PEN_IMAGE_TAG` into `/srv/pen-academy/.env`, runs
+   stack files, writes `PEN_IMAGE_TAG` into `/srv/pen-playground/.env`, runs
    `docker compose up -d --remove-orphans`, and waits until `/api/health` answers directly
    (4200) and through the web container (4201).
 
 3. **Edge vhost**: the script prints the exact commands. In short, on the host:
 
    ```sh
-   cp /srv/pen-academy/nginx/pen-academy.conf /etc/nginx/sites-available/pen-academy.conf
+   cp /srv/pen-playground/nginx/pen-playground.conf /etc/nginx/sites-available/pen-playground.conf
    # first time only: comment out the two `listen 443` server blocks until the cert exists
-   ln -sf /etc/nginx/sites-available/pen-academy.conf /etc/nginx/sites-enabled/
+   ln -sf /etc/nginx/sites-available/pen-playground.conf /etc/nginx/sites-enabled/
    nginx -t && systemctl reload nginx
    ```
 
@@ -105,6 +105,42 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
    must start speaking (Fish Audio) and the board must draw. `docker compose logs -f api` on the
    host shows the room events; Sentry (`SENTRY_DSN`) receives failures.
 
+## MP4 export (render)
+
+Paid plans can download a session as an MP4 (`POST /api/sessions/:id/export`). The API renders
+it itself: headless Chromium (Playwright 1.63, `channel: chromium`) plays `/replay/:id?export=1`
+while the screen is recorded, then ffmpeg muxes the ledger's audio at the offsets the page
+reported and transcodes to H.264/AAC 1280×720 30 fps (`services/api/src/export/`). One render
+runs at a time per API process; the file lands in `data/sessions/<id>/export.mp4` next to the
+ledger and is reused until the ledger changes.
+
+Prerequisites, all inside the **api** container:
+
+- an image built with `--build-arg WITH_RENDER=1` (see `services/api/Dockerfile`).
+  `deploy/deploy.sh` does not pass the arg yet: build the API image by hand with the same tag it
+  would use (`docker buildx build --platform linux/amd64 --load -f services/api/Dockerfile
+  --build-arg WITH_RENDER=1 --build-arg GIT_SHA=$(git rev-parse HEAD) -t pen-academy-api:<tag> .`)
+  and then run `deploy/deploy.sh --skip-build`. The runtime becomes
+  `mcr.microsoft.com/playwright:v1.63.0-noble` + `apt ffmpeg` (~1.9 GB). Without it the API
+  boots normally with export disabled: `/api/health` reports `render:false` and the endpoint
+  answers `503 RENDER_UNAVAILABLE`; the web app shows the failure in place.
+- `PEN_RENDER_BASE_URL=http://web` (set in the compose file): the renderer must be able to open
+  the web app; the web container proxies `/api` and `/ws` back to the API.
+- `shm_size: 1g` on the service (set in the compose file) and `--disable-dev-shm-usage` (set in
+  the image) so Chromium never runs out of shared memory.
+- CPU: a session renders in real time plus ~10 % for the transcode on one core; the queue is
+  per process, so exports never contend with each other.
+
+Check it on the host: `curl -s http://127.0.0.1:4200/api/health` must show `"render":true`, and
+`docker compose logs api | grep export.` shows `export.queued` → `export.rendered` (with
+`syncDriftMs`, the measured video/audio drift over the render) → `export.ready`. Failures go to
+Sentry under the `export.render` area with the ffmpeg/page reason.
+
+Locally: `brew install ffmpeg` (or set `PEN_FFMPEG_PATH`) and `pnpm exec playwright install
+chromium`; `pnpm --filter @pen/api test` includes `test/export.integration.test.ts`, which
+renders a real session and inspects the MP4 with ffprobe (it skips itself when either tool is
+missing).
+
 ## Updates
 
 ```sh
@@ -115,16 +151,16 @@ deploy/deploy.sh                 # new tag from HEAD; builds, ships, compose up,
 searxng keep running. Database migrations (Drizzle, `dist/drizzle`) run automatically when the
 API boots — deploys with schema changes are one step.
 
-Config-only changes (`api.env`): edit on the host, then `cd /srv/pen-academy && docker compose
+Config-only changes (`api.env`): edit on the host, then `cd /srv/pen-playground && docker compose
 up -d api`.
 
 ## Rollback
 
-Every shipped tag stays on the host (`docker image ls pen-academy-api`). To go back:
+Every shipped tag stays on the host (`docker image ls pen-playground-api`). To go back:
 
 ```sh
 PEN_IMAGE_TAG=<previous tag> deploy/deploy.sh --skip-build --skip-ship
-# or on the host: edit PEN_IMAGE_TAG in /srv/pen-academy/.env && docker compose up -d
+# or on the host: edit PEN_IMAGE_TAG in /srv/pen-playground/.env && docker compose up -d
 ```
 
 Migrations are forward-only; rolling the API back across a migration that dropped or renamed a
@@ -134,7 +170,7 @@ column needs a database restore (below). Prune old images now and then:
 ## Logs and health
 
 ```sh
-cd /srv/pen-academy
+cd /srv/pen-playground
 docker compose ps                                   # health column per service
 docker compose logs -f --tail=200 api               # pino JSON lines (level 30 info, 40 warn, 50 error)
 docker compose logs -f web                          # nginx access/error
@@ -148,18 +184,18 @@ Log files rotate (json-file, 20 MB × 5). Errors also go to Sentry with content-
 
 State lives in two places:
 
-- **`/srv/pen-academy/data`** — session ledger (transcripts, audio) and Onten packs, owned by
+- **`/srv/pen-playground/data`** — session ledger (transcripts, audio) and Onten packs, owned by
   uid 1000 (the container's `node` user; `deploy.sh` sets this). Plain files; snapshot with
   rsync/restic:
-  `rsync -a /srv/pen-academy/data/ /backups/pen-academy/data/`
+  `rsync -a /srv/pen-playground/data/ /backups/pen-playground/data/`
 - **Postgres** (participants, sessions):
 
   ```sh
-  cd /srv/pen-academy
-  docker compose exec -T postgres pg_dump -U pen -Fc pen > /backups/pen-academy/pen-$(date -u +%F).dump
+  cd /srv/pen-playground
+  docker compose exec -T postgres pg_dump -U pen -Fc pen > /backups/pen-playground/pen-$(date -u +%F).dump
   # restore (stop the api first):
   docker compose stop api
-  docker compose exec -T postgres pg_restore -U pen -d pen --clean --if-exists < /backups/pen-academy/pen-YYYY-MM-DD.dump
+  docker compose exec -T postgres pg_restore -U pen -d pen --clean --if-exists < /backups/pen-playground/pen-YYYY-MM-DD.dump
   docker compose start api
   ```
 
@@ -171,8 +207,8 @@ Schedule both from cron on the host and ship them off-box. Postgres major upgrad
 The same compose file works on a workstation with locally built images:
 
 ```sh
-docker buildx build --platform linux/amd64 --load -f services/api/Dockerfile -t pen-academy-api:local .
-docker buildx build --platform linux/amd64 --load -f apps/web/Dockerfile -t pen-academy-web:local .
+docker buildx build --platform linux/amd64 --load -f services/api/Dockerfile -t pen-playground-api:local .
+docker buildx build --platform linux/amd64 --load -f apps/web/Dockerfile -t pen-playground-web:local .
 mkdir -p /tmp/pen-stack/searxng && cp deploy/docker-compose.yml deploy/*.example /tmp/pen-stack/ \
   && cp deploy/searxng/{docker-compose.yml,settings.yml} /tmp/pen-stack/searxng/
 cd /tmp/pen-stack && cp api.env.example api.env && cp postgres.env.example postgres.env
@@ -184,7 +220,7 @@ docker compose up -d && curl -s http://127.0.0.1:4201/api/health
 ## Known host facts (2026-09-16)
 
 - Port 4100 is taken on prod-app-01 by an unrelated `node ./src/app.js` bound to all interfaces;
-  4000 by the onten backend. Pen Academy therefore uses 4200/4201.
+  4000 by the onten backend. Pen Playground therefore uses 4200/4201.
 - `/etc/nginx/conf.d/ws_upgrade.conf` already defines `$connection_upgrade`; the Pen vhost uses
   `$pen_connection_upgrade` to stay independent.
 - Certbot webroot for the onten vhosts is `/var/www/letsencrypt`; the Pen vhost uses the same.

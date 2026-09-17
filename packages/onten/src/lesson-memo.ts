@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid';
 import type { LessonMemo, LessonMemoEntry } from './types.js';
 
 /**
- * Pen Academy extension of the Canonical Question Memo: reuse a taught lesson
+ * Pen Playground extension of the Canonical Question Memo: reuse a taught lesson
  * (plan + cue script) for the same scope and selection band. Stores no
  * personal state — the band is the only personalisation in the key.
  */

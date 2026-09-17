@@ -23,6 +23,7 @@ import { Analytics } from './analytics.js';
 import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
+import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
 import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
@@ -48,6 +49,11 @@ export interface Services {
   modelFor(plan: PlanCode): LanguageModel;
   acquirer: KnowledgeAcquirer | null;
   costs: CostLedger;
+  /** MP4 export queue (one render at a time per process). */
+  exports: ExportJobs;
+  downloadTokens: DownloadTokens;
+  /** Null when ffmpeg + Chromium were found at boot; otherwise why exports are refused. */
+  renderUnavailable: string | null;
 }
 
 /** In-memory cost ledger with daily totals; persisted to the data dir hourly by main. */
@@ -153,6 +159,24 @@ export async function buildServices(
   const analytics = new Analytics(cfg);
   await loadLanguageId();
   const intake = new TopicIntake(modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
+  const renderer = new PlaywrightRenderer({
+    baseUrl: cfg.PEN_RENDER_BASE_URL ?? cfg.PEN_PUBLIC_URL,
+    ffmpegPath: cfg.PEN_FFMPEG_PATH,
+    chromiumPath: cfg.PEN_CHROMIUM_PATH,
+    chromiumArgs: cfg.PEN_CHROMIUM_ARGS?.split(/\s+/).filter(Boolean),
+    ledger,
+    onEvent: (name, data) => observer.event(name, data),
+  });
+  const availability = await renderer.available();
+  const renderUnavailable = availability.ok ? null : availability.reason;
+  if (renderUnavailable) logger.warn({ reason: renderUnavailable }, 'MP4 export disabled');
+  const exports = new ExportJobs({
+    sessionsDir: join(cfg.PEN_DATA_DIR, 'sessions'),
+    renderer,
+    onEvent: (name, data) => observer.event(name, data),
+    onError: (area, error, data) => observer.error(area, error, data),
+  });
+  const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
   const base = {
     cfg,
     onten,
@@ -169,6 +193,9 @@ export async function buildServices(
     intake,
     modelFor,
     costs,
+    exports,
+    downloadTokens,
+    renderUnavailable,
   };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;
   return { ...base, acquirer };

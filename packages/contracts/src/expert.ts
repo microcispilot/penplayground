@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ExpertId } from './ids.js';
 
-/** Mirrors Simurgh's persona catalog (schema 2.0.0) with Pen Academy voice routing. */
+/** Mirrors Simurgh's persona catalog (schema 2.0.0) with Pen Playground voice routing. */
 export const Portrait = z.object({
   /** URL of the w384 variant; the UI derives the smaller ones. */
   src: z.string(),

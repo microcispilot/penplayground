@@ -58,15 +58,21 @@ Round 2 lists what is still needed from you.
 
 1. **Domain** for Pen Academy (e.g. `penacademy.ai`), DNS A record → prod-app-01's
    public IP. I will run certbot and deploy once it resolves.
+   Answer: I registered another domain called: penplaygroud.com. I want this to be called Pen Playground instead of pen academy. The logo can be only Pen, but in description, we can say Pen playground, so short name is Pen. The domain is on hostinger, aceess that in the browswer and do whatever you need to do or add any DNS.
 2. **Fish API credit** for `s2.1-pro` (https://fish.audio/app/developers), or
    confirm shipping on `s2.1-pro-free` until November.
+   Answer: You can continue using this API, it has all the capabilities, before we go public, I wll replace it with a paid one. 
 3. **PostHog:** either a personal API key with organisation scope (so I can
    create a `pen-academy` project) or a project token from a project you create.
+   Answer: That is already in the Simurgh .env files. Find it and copy it in our .env file.
 4. **STT key** for the desktop app: a Deepgram (recommended: Nova-3,
    $0.0048/min) or AssemblyAI key. Sign-up needs email verification, which I
    cannot complete for you.
+   Answer: For Desktop app, use the 5090 GPU box we already use for the Simurgh.
 5. **Stripe:** confirm I should create the four prices (Standard/Professional ×
    month/year) in the connected Stripe account (test mode first).
+   Answer: Yes, use the stripe credintials in Simurgh project, and create these prices and packages.
 6. **YouTube upload** needs a Google Cloud project with the YouTube Data API,
    OAuth consent screen and a verified brand (2–6 weeks). Do you want me to start
    that now?
+   Answer: Work on a download instead. So the user can download their session and share it anywhere they want. Only paid users should be able to do that. 

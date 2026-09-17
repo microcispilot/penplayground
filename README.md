@@ -1,4 +1,4 @@
-# Pen Academy
+# Pen Playground
 
 Learn anything from a hyper-real AI human expert who talks to you and writes on a
 shared board at a human pace, stops the instant you speak, answers from prepared

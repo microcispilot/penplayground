@@ -30,7 +30,7 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
         className="font-display text-[19px] font-medium tracking-[-0.02em]"
         onClick={() => navigate('/')}
       >
-        Pen Academy
+        Pen
       </button>
       <nav className="ml-2 flex gap-1" aria-label="Primary">
         <NavLink to="/" end className={link}>

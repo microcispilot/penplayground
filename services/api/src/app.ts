@@ -1,10 +1,11 @@
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { createNodeWebSocket } from '@hono/node-ws';
 import {
   ClientMessage,
   decodeAudioFrame,
+  hasEntitlement,
   type ServerErrorCode,
   type ServerMessage,
 } from '@pen/contracts';
@@ -14,6 +15,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { WSContext } from 'hono/ws';
 import type { WebSocket } from 'ws';
 import { z } from 'zod';
+import { exportFilename } from './export/index.js';
 import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
 import { logger } from './logger.js';
@@ -92,6 +94,7 @@ export function buildApp(services: Services): App {
       llm: services.cfg.PEN_LLM_PROVIDER,
       stt: services.cfg.PEN_STT_PROVIDER,
       acquirer: services.acquirer !== null,
+      render: services.renderUnavailable === null,
     }),
   );
 
@@ -209,6 +212,143 @@ export function buildApp(services: Services): App {
     return c.json({ ok: true, state: live.room.getState() });
   });
 
+  // ── MP4 export (paid) ───────────────────────────────────────────────────
+  /**
+   * Host + `export` entitlement + ended session, or the matching error. The
+   * plan comes from the participant row (`bearer`), so an upgrade applies at once.
+   */
+  const exportAccess = async (c: {
+    req: { header(name: string): string | undefined; param(name: string): string };
+  }): Promise<
+    | {
+        ok: true;
+        claims: Claims;
+        record: NonNullable<Awaited<ReturnType<typeof services.sessions.get>>>;
+      }
+    | { ok: false; status: 401 | 402 | 403 | 404 | 409; body: { error: string; message?: string } }
+  > => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
+    const record = await services.sessions.get(c.req.param('id'));
+    if (!record) return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
+    if (record.hostId !== claims.sub)
+      return {
+        ok: false,
+        status: 403,
+        body: { error: 'NOT_HOST', message: 'Only the host can export a session.' },
+      };
+    if (!hasEntitlement(claims.plan, 'export'))
+      return {
+        ok: false,
+        status: 402,
+        body: {
+          error: 'ENTITLEMENT_REQUIRED',
+          message: 'Video export is part of the Standard plan.',
+        },
+      };
+    const live = rooms.get(record.id);
+    if (record.endedAt === null || (live && live.room.getState().phase !== 'ended'))
+      return {
+        ok: false,
+        status: 409,
+        body: { error: 'SESSION_LIVE', message: 'End the session before exporting it.' },
+      };
+    return { ok: true, claims, record };
+  };
+  /** What the client sees: never the file system path. */
+  const exportView = async (
+    job: ReturnType<typeof services.exports.status>,
+    claims: Claims,
+    sessionId: string,
+  ) => {
+    if (!job)
+      return {
+        status: 'none' as const,
+        progress: 0,
+        error: null,
+        downloadUrl: null,
+        bytes: null,
+        durationMs: null,
+      };
+    const downloadUrl =
+      job.status === 'ready'
+        ? `${services.cfg.PEN_API_URL}/api/sessions/${encodeURIComponent(sessionId)}/export.mp4?token=${encodeURIComponent(await services.downloadTokens.issue(claims.sub, sessionId))}`
+        : null;
+    return {
+      status: job.status,
+      progress: job.progress,
+      error: job.status === 'failed' ? (job.error ?? 'The render failed.') : null,
+      downloadUrl,
+      bytes: job.bytes,
+      durationMs: job.durationMs,
+    };
+  };
+  app.post('/api/sessions/:id/export', async (c) => {
+    const access = await exportAccess(c);
+    if (!access.ok) return c.json(access.body, access.status);
+    if (services.renderUnavailable) {
+      observer.error('export.unavailable', new Error(services.renderUnavailable));
+      return c.json(
+        { error: 'RENDER_UNAVAILABLE', message: 'Video export is temporarily unavailable.' },
+        503,
+      );
+    }
+    const job = services.exports.request(access.record.id);
+    services.analytics.capture(access.claims.sub, 'export_requested', { status: job.status });
+    return c.json(
+      await exportView(job, access.claims, access.record.id),
+      job.status === 'ready' ? 200 : 202,
+    );
+  });
+  app.get('/api/sessions/:id/export', async (c) => {
+    const access = await exportAccess(c);
+    if (!access.ok) return c.json(access.body, access.status);
+    return c.json(
+      await exportView(services.exports.status(access.record.id), access.claims, access.record.id),
+    );
+  });
+  /** The file itself: a bearer works, and so does the short-lived `token` the status endpoint hands out for `<a download>`. */
+  app.get('/api/sessions/:id/export.mp4', async (c) => {
+    const id = c.req.param('id');
+    const token = c.req.query('token');
+    let participantId: string | null = token
+      ? await services.downloadTokens.verify(token, id)
+      : null;
+    if (!participantId) {
+      const claims = await bearer(c.req.header('authorization'));
+      if (claims && hasEntitlement(claims.plan, 'export')) participantId = claims.sub;
+    }
+    if (!participantId) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const record = await services.sessions.get(id);
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (record.hostId !== participantId) return c.json({ error: 'NOT_HOST' }, 403);
+    const job = services.exports.status(id);
+    if (job?.status !== 'ready' || !job.output || !existsSync(job.output))
+      return c.json({ error: 'NOT_READY', message: 'The video is not ready yet.' }, 404);
+    const size = statSync(job.output).size;
+    c.header('Content-Type', 'video/mp4');
+    c.header('Content-Disposition', `attachment; filename="${exportFilename(record.title)}"`);
+    c.header('Cache-Control', 'private, no-store');
+    c.header('Accept-Ranges', 'bytes');
+    const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '');
+    if (range && (range[1] || range[2])) {
+      const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(size - 1, Number(range[2])) : size - 1;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) {
+        c.header('Content-Range', `bytes */${size}`);
+        return c.body(null, 416);
+      }
+      c.header('Content-Range', `bytes ${start}-${end}/${size}`);
+      c.header('Content-Length', String(end - start + 1));
+      return c.body(
+        Readable.toWeb(createReadStream(job.output, { start, end })) as ReadableStream,
+        206,
+      );
+    }
+    c.header('Content-Length', String(size));
+    return c.body(Readable.toWeb(createReadStream(job.output)) as ReadableStream);
+  });
+
   /** Share page metadata: crawlers get OG tags, humans get redirected to the app. */
   app.get('/s/:id', async (c) => {
     const record = await services.sessions.get(c.req.param('id'));
@@ -220,8 +360,8 @@ export function buildApp(services: Services): App {
         /[&<>"]/g,
         (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] ?? ch,
       );
-    return c.html(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(record.title)} · Pen Academy</title>
-<meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(record.promise || `A session with ${expert?.displayName ?? 'an AI expert'} on Pen Academy`)}">
+    return c.html(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(record.title)} · Pen Playground</title>
+<meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(record.promise || `A session with ${expert?.displayName ?? 'an AI expert'} on Pen Playground`)}">
 <meta property="og:type" content="video.other"><meta property="og:url" content="${esc(target)}">${record.thumbnail ? `<meta property="og:image" content="${esc(record.thumbnail)}">` : ''}
 <meta http-equiv="refresh" content="0;url=${esc(target)}"></head><body><a href="${esc(target)}">Open the session</a></body></html>`);
   });

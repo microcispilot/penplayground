@@ -6,7 +6,7 @@ export type PlanCode = z.infer<typeof PlanCode>;
 export const Entitlement = z.enum([
   'no_ads',
   'rooms', // host multi-participant sessions
-  'export', // MP4 export + YouTube share
+  'export', // MP4 download of an ended session (paid plans)
   'premium_voices',
   'priority_preparation',
   'unlimited_sessions',

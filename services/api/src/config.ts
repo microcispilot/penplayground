@@ -54,6 +54,14 @@ const Env = z.object({
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
 
+  /** MP4 export: ffmpeg binary (PATH lookup by default) and an optional system Chromium for Playwright. */
+  PEN_FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
+  PEN_CHROMIUM_PATH: z.string().min(1).optional(),
+  /** Extra Chromium flags for the renderer, space separated (Docker: `--disable-dev-shm-usage`). */
+  PEN_CHROMIUM_ARGS: z.string().optional(),
+  /** Where the renderer opens the replay page; defaults to PEN_PUBLIC_URL (set to the internal web origin in Docker). */
+  PEN_RENDER_BASE_URL: z.string().url().optional(),
+
   /** Dev only: force a plan for anonymous participants (e.g. classroom) to exercise gated features. */
   PEN_DEV_PLAN: z.enum(['free', 'standard', 'professional']).optional(),
   PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().default(3),

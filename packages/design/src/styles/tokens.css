@@ -1,5 +1,5 @@
 /*
- * Pen Academy design tokens (ADR-0007). Semantic names only; components never
+ * Pen Playground design tokens (ADR-0007). Semantic names only; components never
  * use raw colour values. Palette sources: navy #0C2C47, green #2D5652, yellow
  * #E2A54D, aqua #97D3CD, pink #EFEAE6, mint #E4F2EA, teal #008EAA, red #A6192E,
  * lime #78BE21 — converted to OKLCH so ramps share one lightness scale.

@@ -243,7 +243,7 @@ export function AdCard({
           <span className="text-xs text-fg-3 tabular">{left}s</span>
         </div>
         <div className="grid h-[180px] place-items-center rounded-[var(--radius-lg)] bg-warm-soft text-center text-sm text-fg-2">
-          Your ad could be here. Pen Academy stays free because of it.
+          Your ad could be here. Pen Playground stays free because of it.
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-fg-3">Standard removes ads.</span>

@@ -1,5 +1,5 @@
 /**
- * Pen Academy microphone capture AudioWorkletProcessor.
+ * Pen Playground microphone capture AudioWorkletProcessor.
  *
  * Plain JavaScript on purpose: this file is loaded as worklet SOURCE TEXT
  * (import it with Vite `?raw`, hand it to `Microphone` as `workletSource`)

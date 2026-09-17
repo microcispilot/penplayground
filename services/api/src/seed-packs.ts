@@ -15,7 +15,7 @@ interface SeedMeta {
 
 /**
  * Built-in packs so the product works on first boot without a network:
- * original markdown written for Pen Academy (CC0). Real topics arrive through
+ * original markdown written for Pen Playground (CC0). Real topics arrive through
  * the corpus builder; seeds never override a qualified pack of the same id.
  */
 const SEEDS: SeedMeta[] = [
@@ -23,7 +23,7 @@ const SEEDS: SeedMeta[] = [
     file: 'transformers.md',
     topic: 'How Transformers work in LLMs',
     title: 'How Transformers Work in LLMs',
-    attribution: 'Pen Academy original notes',
+    attribution: 'Pen Playground original notes',
     license: 'CC0-1.0',
   },
 ];

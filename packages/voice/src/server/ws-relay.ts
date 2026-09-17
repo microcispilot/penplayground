@@ -40,7 +40,11 @@ import {
 export interface WsRelayOptions {
   /** e.g. ws://127.0.0.1:8320 */
   baseUrl: string;
-  /** How long to wait for the terminal `end` after `stop` (Whisper decode on a home link). */
+  /**
+   * How long to wait for the terminal `end` after `stop`. Whisper decodes the
+   * closing segment after `stop` (measured 2–5 s on the founder's home link);
+   * on timeout the best partial is delivered as the final rather than failing.
+   */
   endTimeoutMs?: number;
   /** How long the per-utterance socket may take to open. */
   connectTimeoutMs?: number;
@@ -65,6 +69,44 @@ export class WsRelayRecognizer implements SpeechRecognizerFactory {
     const whisper = language.split('-')[0]?.toLowerCase() ?? '';
     if (whisper && whisper !== 'auto') url.searchParams.set('language', whisper);
     return url.toString();
+  }
+
+  /**
+   * Establishes the network path to the host so the first real utterance does
+   * not pay for it (measured: first socket 6.4 s over Tailscale, later ones
+   * 0.3–0.6 s). Opens a throwaway socket and closes it once open. Never throws.
+   */
+  warm(): Promise<boolean> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (!settled) {
+          settled = true;
+          resolve(ok);
+        }
+      };
+      try {
+        const socket = (this.opts.sockets ?? defaultSocketFactory)(
+          this.buildUrl('en', `pen-warm-${randomUUID()}`),
+          {},
+        );
+        const timer = setTimeout(() => {
+          done(false);
+          socket.close(1000, 'warm timeout');
+        }, this.opts.connectTimeoutMs ?? 10_000);
+        socket.on('open', () => {
+          clearTimeout(timer);
+          socket.close(1000, 'warm');
+          done(true);
+        });
+        socket.on('error', () => {
+          clearTimeout(timer);
+          done(false);
+        });
+      } catch {
+        done(false);
+      }
+    });
   }
 
   async open(o: RecognizerOpenOptions): Promise<RecognizerSession> {
@@ -211,11 +253,18 @@ class WsRelaySession implements RecognizerSession {
     this.socket.send(JSON.stringify({ type: 'stop' }));
     this.endTimer = setTimeout(() => {
       this.endTimer = null;
+      // The host is slow, not broken: what it transcribed so far is the answer the learner gets.
+      const best = joinText([...this.finals.values(), this.interim]) || this.lastPartial;
+      if (best.trim()) {
+        this.terminalSeen = true;
+        this.finishUtterance();
+        return;
+      }
       this.fail(
         'PEN_STT_TIMEOUT',
         new SttError('PEN_STT_TIMEOUT', 'STT relay did not send `end` after `stop`'),
       );
-    }, this.opts.endTimeoutMs ?? 6000);
+    }, this.opts.endTimeoutMs ?? 12_000);
   }
 
   private onMessage(text: string): void {

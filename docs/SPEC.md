@@ -1,4 +1,4 @@
-# Spec: Pen Academy
+# Spec: Pen Playground
 
 ## Objective
 A learner types or says what they want to learn and, within seconds, an AI

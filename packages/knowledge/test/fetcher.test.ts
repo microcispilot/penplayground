@@ -13,14 +13,14 @@ function fetcherWith(
   const throttle = new HostThrottle(opts.gapMs ?? 0);
   const robots = new RobotsGate({
     fetchImpl,
-    userAgent: 'PenAcademyBot/0.1',
-    productToken: 'PenAcademyBot',
+    userAgent: 'PenPlaygroundBot/0.1',
+    productToken: 'PenPlaygroundBot',
     timeoutMs: 500,
     observer: SILENT_KNOWLEDGE_OBSERVER,
   });
   const fetcher = new Fetcher({
     fetchImpl,
-    userAgent: 'PenAcademyBot/0.1',
+    userAgent: 'PenPlaygroundBot/0.1',
     robots,
     throttle,
     budget: {

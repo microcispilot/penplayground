@@ -1,4 +1,4 @@
-# SearXNG for Pen Academy — server-side meta-search used by the knowledge builder when a topic is
+# SearXNG for Pen Playground — server-side meta-search used by the knowledge builder when a topic is
 # not in the curated seeds (packages/knowledge SearxngSearch). Reached by the API at
 # http://127.0.0.1:8080 (same host) or http://searxng:8080 (same compose stack). Never public.
 #
@@ -19,7 +19,7 @@ use_default_settings:
 
 general:
   debug: false
-  instance_name: "Pen Academy search"
+  instance_name: "Pen Playground search"
   donation_url: false
   contact_url: false
   enable_metrics: false

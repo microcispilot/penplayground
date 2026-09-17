@@ -1,4 +1,4 @@
-# Pen Academy — Product Definition
+# Pen Playground — Product Definition
 
 > "Something between YouTube, a classroom, and an expert over Zoom."
 > Learn anything from a hyper-real AI human expert who talks to you and writes
@@ -6,7 +6,7 @@
 
 ## The user's moment
 
-A learner opens Pen Academy with one sentence in their head: *"I want to learn
+A learner opens Pen Playground with one sentence in their head: *"I want to learn
 Swift."* They are not looking for a course catalog. They want the feeling of
 sitting across from a patient expert who already has the whiteboard marker in
 hand. Within seconds the expert is talking, writing the first idea on the board
@@ -18,7 +18,7 @@ Everything below serves that moment.
 
 ## Product bar (Siri / ChatGPT Voice launch-review standard)
 
-| # | Bar | What it means for Pen Academy | Metric |
+| # | Bar | What it means for Pen Playground | Metric |
 |---|-----|-------------------------------|--------|
 | 1 | Zero-friction activation | Type or say the topic, press Start. No sign-in to try. No wizard. | Clicks to first spoken sentence = 1 |
 | 2 | Latency is the product | Prepared topic: expert speaks < 1.5 s after Start. Question: first audible reply ≤ 800 ms after the learner's last word (ceiling 1200 ms). | time-to-first-audio p50/p95 |

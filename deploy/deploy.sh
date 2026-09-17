@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pen Academy — build both images for linux/amd64, ship them over SSH, sync the stack files and
+# Pen Playground — build both images for linux/amd64, ship them over SSH, sync the stack files and
 # start (or update) the stack on prod-app-01. Idempotent: re-running with the same tag rebuilds
 # from cache, skips images the host already has, rewrites the same files and re-applies compose.
 #
@@ -7,15 +7,15 @@
 #   PEN_DEPLOY_HOST=root@100.118.252.64 \
 #   PEN_DEPLOY_SSH_IDENTITY_FILE=~/.ssh/id_ed25519 \
 #   PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE=~/.ssh/known_hosts \
-#   PEN_DOMAIN=pen.example.com \
+#   PEN_DOMAIN=penplayground.com \
 #   deploy/deploy.sh [--tag TAG] [--skip-build] [--skip-ship] [--no-up]
 #
-# Optional: PEN_DEPLOY_ROOT (default /srv/pen-academy), PEN_DEPLOY_EXPECTED_HOSTNAME (default
+# Optional: PEN_DEPLOY_ROOT (default /srv/pen-playground), PEN_DEPLOY_EXPECTED_HOSTNAME (default
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST (web build args).
 #
 # Rollback: PEN_IMAGE_TAG=<previous tag> deploy/deploy.sh --skip-build --skip-ship
-# (the host keeps every shipped tag; `docker image ls pen-academy-api` on the host lists them).
+# (the host keeps every shipped tag; `docker image ls pen-playground-api` on the host lists them).
 set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,8 +40,8 @@ done
 : "${PEN_DEPLOY_HOST:?set PEN_DEPLOY_HOST (e.g. root@100.118.252.64)}"
 : "${PEN_DEPLOY_SSH_IDENTITY_FILE:?set PEN_DEPLOY_SSH_IDENTITY_FILE}"
 : "${PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE:?set PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE}"
-: "${PEN_DOMAIN:?set PEN_DOMAIN (the public hostname, e.g. pen.example.com)}"
-PEN_DEPLOY_ROOT="${PEN_DEPLOY_ROOT:-/srv/pen-academy}"
+PEN_DOMAIN="${PEN_DOMAIN:-penplayground.com}"
+PEN_DEPLOY_ROOT="${PEN_DEPLOY_ROOT:-/srv/pen-playground}"
 PEN_DEPLOY_EXPECTED_HOSTNAME="${PEN_DEPLOY_EXPECTED_HOSTNAME:-prod-app-01}"
 API_PORT=4200
 WEB_PORT=4201
@@ -51,8 +51,8 @@ if [ -z "${PEN_IMAGE_TAG:-}" ]; then
   if [ -n "$(git status --porcelain 2>/dev/null)" ]; then PEN_IMAGE_TAG="${PEN_IMAGE_TAG}-dirty"; fi
 fi
 GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-API_IMAGE="pen-academy-api:${PEN_IMAGE_TAG}"
-WEB_IMAGE="pen-academy-web:${PEN_IMAGE_TAG}"
+API_IMAGE="pen-playground-api:${PEN_IMAGE_TAG}"
+WEB_IMAGE="pen-playground-web:${PEN_IMAGE_TAG}"
 
 SSH_OPTS=(
   -i "$PEN_DEPLOY_SSH_IDENTITY_FILE"
@@ -89,7 +89,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
   docker buildx build --platform linux/amd64 --load \
     -f services/api/Dockerfile \
     --build-arg "GIT_SHA=$GIT_SHA" \
-    -t "$API_IMAGE" -t pen-academy-api:latest .
+    -t "$API_IMAGE" -t pen-playground-api:latest .
 
   log "building $WEB_IMAGE (linux/amd64)"
   web_args=(--build-arg "GIT_SHA=$GIT_SHA")
@@ -98,7 +98,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
   done
   docker buildx build --platform linux/amd64 --load \
     -f apps/web/Dockerfile "${web_args[@]}" \
-    -t "$WEB_IMAGE" -t pen-academy-web:latest .
+    -t "$WEB_IMAGE" -t pen-playground-web:latest .
 else
   log "skipping build (--skip-build)"
   docker image inspect "$API_IMAGE" "$WEB_IMAGE" >/dev/null 2>&1 \
@@ -140,10 +140,10 @@ rsync -az --chmod=F0644 -e "$RSYNC_SSH" \
   deploy/searxng/docker-compose.yml deploy/searxng/settings.yml deploy/searxng/README.md \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/searxng/"
 rsync -az --chmod=F0644 -e "$RSYNC_SSH" \
-  deploy/nginx/pen-academy.conf.example \
+  deploy/nginx/pen-playground.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 # The vhost with DOMAIN filled in, ready to copy into /etc/nginx/sites-available.
-remote "sed 's/DOMAIN/$PEN_DOMAIN/g' '$PEN_DEPLOY_ROOT/nginx/pen-academy.conf.example' > '$PEN_DEPLOY_ROOT/nginx/pen-academy.conf'"
+remote "sed 's/DOMAIN/$PEN_DOMAIN/g' '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf.example' > '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf'"
 
 # ── 4. secrets present? (.env is managed here; api.env / postgres.env are never generated) ──
 log "checking secrets"
@@ -199,8 +199,8 @@ Deployed tag $PEN_IMAGE_TAG. The stack listens on 127.0.0.1:$API_PORT (api) and 
 Edge setup for https://$PEN_DOMAIN (run once, on the host, after the DNS A/AAAA records point here):
 
   # 1. vhost (port-80 block only until the certificate exists)
-  cp $PEN_DEPLOY_ROOT/nginx/pen-academy.conf /etc/nginx/sites-available/pen-academy.conf
-  ln -sf /etc/nginx/sites-available/pen-academy.conf /etc/nginx/sites-enabled/pen-academy.conf
+  cp $PEN_DEPLOY_ROOT/nginx/pen-playground.conf /etc/nginx/sites-available/pen-playground.conf
+  ln -sf /etc/nginx/sites-available/pen-playground.conf /etc/nginx/sites-enabled/pen-playground.conf
   nginx -t && systemctl reload nginx
 
   # 2. certificate (webroot is the same one the onten vhosts use)

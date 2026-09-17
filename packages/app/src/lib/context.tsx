@@ -33,7 +33,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       })
       .catch((error: unknown) => {
         if (!cancelled)
-          setAuthError(error instanceof Error ? error.message : 'Could not reach Pen Academy.');
+          setAuthError(error instanceof Error ? error.message : 'Could not reach Pen Playground.');
       });
     return () => {
       cancelled = true;

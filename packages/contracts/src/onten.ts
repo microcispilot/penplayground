@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Onten Context Runtime wire types. Field-for-field with
  * onten/contracts/context/schema-v1.json (18 required AnswerContext fields,
- * additionalProperties: false). Do not add fields here; Pen Academy's lesson
+ * additionalProperties: false). Do not add fields here; Pen Playground's lesson
  * shaping rides on `contentInstructions` (ADR-0003).
  */
 export const ContextStatus = z.enum(['sufficient', 'partial', 'conflict', 'stale', 'missing']);
@@ -133,7 +133,7 @@ export const QueryInput = z
     requiresComplete: z.boolean(),
     consequential: z.boolean(),
     tokenBudget: z.number().int().nullable(),
-    /** Ahead of spec: Pen Academy shape requests, e.g. "lesson-plan:v1", "answer:v1". */
+    /** Ahead of spec: Pen Playground shape requests, e.g. "lesson-plan:v1", "answer:v1". */
     contentInstructions: z.string().nullable(),
   })
   .strict();

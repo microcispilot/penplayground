@@ -19,7 +19,7 @@ is declared but unimplemented; `selectionBand` is prose-only.
 - The mock adapter assembles real AnswerContext objects (schema-faithful) from
   in-memory packs with lexical (MiniSearch) + optional embedding retrieval,
   simulating 1–5 ms assembly with a p99 tail toward 50 ms.
-- Pen Academy asks for its lesson-shaped context via `contentInstructions`
+- Pen Playground asks for its lesson-shaped context via `contentInstructions`
   (e.g. `"lesson-plan:v1"`, `"answer:v1"`) and learner level via
   `selectionBand`. Both are documented as **ahead of spec**; the real runtime
   will ignore `contentInstructions` until implemented, so the host never

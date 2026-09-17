@@ -1,4 +1,4 @@
-# SearXNG for Pen Academy
+# SearXNG for Pen Playground
 
 A private, server-side meta-search instance. When a learner asks for a topic that is not in the
 curated seeds, the API's knowledge builder (`packages/knowledge`, `SearxngSearch`) queries it to
@@ -9,7 +9,7 @@ discover licensed sources. It is free to run, so it takes precedence over Tavily
 
 - Same host, outside compose: `SEARXNG_URL=http://127.0.0.1:8080` — the container publishes port
   8080 on the loopback interface only.
-- Inside the pen-academy stack (`deploy/docker-compose.yml` includes this file): the service is
+- Inside the pen-playground stack (`deploy/docker-compose.yml` includes this file): the service is
   named `searxng`, so the API uses `SEARXNG_URL=http://searxng:8080`.
 
 The API calls `GET /search?q=…&format=json&language=en&safesearch=1&categories=general` with an

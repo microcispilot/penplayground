@@ -1,6 +1,6 @@
 import type { HostContextPolicy } from './types.js';
 
-/** Pen Academy's trusted host policy: progressive first use on, informational only. */
+/** Pen Playground's trusted host policy: progressive first use on, informational only. */
 export const PEN_HOST_POLICY: HostContextPolicy = {
   policyId: 'pen-academy-tutor',
   revision: '1',
