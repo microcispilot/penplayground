@@ -1,5 +1,7 @@
 import { ToastProvider } from '@pen/design';
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { useEffect } from 'react';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
+import { setAnalyticsContext, trackInteraction } from './lib/analytics.js';
 import { AppProvider } from './lib/context.js';
 import type { Platform } from './platform/types.js';
 import { Home } from './screens/Home.js';
@@ -10,12 +12,35 @@ import { Replay } from './screens/Replay.js';
 import { Room } from './screens/Room.js';
 import { SessionPage } from './screens/SessionPage.js';
 
+/** Which screen is on: a route pattern, never the id in it (ids are not content, but screens are what we chart). */
+function screenOf(pathname: string): string {
+  if (pathname === '/') return 'home';
+  if (pathname.startsWith('/room/')) return 'room';
+  if (pathname.startsWith('/replay/')) return 'replay';
+  if (pathname.startsWith('/sessions/')) return 'session';
+  if (pathname === '/sessions') return 'library';
+  if (pathname === '/pricing') return 'pricing';
+  return 'not-found';
+}
+
+/** Every screen transition is a "shown" event (and a Sentry breadcrumb). */
+function ScreenTracker() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const screen = screenOf(pathname);
+    setAnalyticsContext({ screen });
+    trackInteraction('screen_shown', { screen });
+  }, [pathname]);
+  return null;
+}
+
 /** The whole product. Hosts render this once with their Platform. */
 export function PenApp({ platform }: { platform: Platform }) {
   return (
     <AppProvider platform={platform}>
       <ToastProvider>
         <BrowserRouter>
+          <ScreenTracker />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/sessions" element={<Library />} />

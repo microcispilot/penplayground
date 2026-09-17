@@ -1,6 +1,7 @@
 import type {
   CheckEvent,
   ClientMessage,
+  ClientReport,
   Cue,
   Expert,
   LedgerEntry,
@@ -17,13 +18,22 @@ import type {
   SayEvent,
   SelectionBand,
   ServerErrorCode,
+  StageName,
+  TelemetryPort,
 } from '@pen/contracts';
-import { hasEntitlement, MAX_PARTICIPANTS } from '@pen/contracts';
+import {
+  freshEstimateUsd,
+  hasEntitlement,
+  MAX_PARTICIPANTS,
+  prepareFreshEstimateUsd,
+} from '@pen/contracts';
 import type { LanguageModel } from '@pen/llm';
+import { withTelemetry } from '@pen/llm';
 import type { LessonMemo, MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
 import { nanoid } from 'nanoid';
 import { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
+import { type Metrics, NullMetrics } from './metrics.js';
 import { planLesson } from './planner.js';
 import {
   answerMessages,
@@ -37,6 +47,9 @@ import { GradeOutput, IntentOutput, RecapOutput } from './schemas.js';
 import { SayPipeline } from './speech.js';
 import { type RoomObserver, type RoomTransport, SILENT_OBSERVER } from './transport.js';
 
+/** Client reports accepted per participant per session (a 20-minute session produces a few hundred). */
+export const MAX_REPORTS_PER_PARTICIPANT = 5000;
+
 /** Topic-miss acquisition seam: the knowledge package implements it; tests use a stub. */
 export interface KnowledgeAcquirer {
   /**
@@ -49,6 +62,8 @@ export interface KnowledgeAcquirer {
     resolution: TopicResolution;
     onProgress: (progress: PreparationProgress) => void;
     signal: AbortSignal;
+    /** Search requests and outline calls are priced into this session (ADR-0011). */
+    telemetry?: TelemetryPort;
   }): Promise<{ packId: string; provisional: boolean; background: Promise<unknown> }>;
 }
 
@@ -93,6 +108,10 @@ export interface SessionRoomDeps {
   targetMinutes?: number;
   ads?: { everySegments: number; durationMs: number; skippableAfterMs: number } | null;
   now?: () => number;
+  /** Stage timings, costs, interactions and errors for this session (ADR-0011); NullMetrics when absent. */
+  metrics?: Metrics;
+  /** Search provider name, for pricing what a pack hit saved (defaults to Tavily's price). */
+  searchProvider?: string;
 }
 
 interface Turn {
@@ -102,6 +121,10 @@ interface Turn {
   sayIds: Set<string>;
   completed: Set<string>;
   done: boolean;
+  /** When the learner's final words arrived; the `turn` stage runs from here to the first audible chunk. */
+  startedAt: number;
+  firstAudioAt: number | null;
+  kind: 'question' | 'clarify' | 'check';
 }
 
 /**
@@ -114,6 +137,9 @@ export class SessionRoom {
   private readonly d: SessionRoomDeps;
   private readonly observer: RoomObserver;
   private readonly now: () => number;
+  /** Public so the API can add what it measures itself (STT finals). */
+  readonly metrics: Metrics;
+  private readonly model: LanguageModel;
   private state: RoomState;
   private readonly participants = new Map<ParticipantId, Participant>();
   private readonly cues: Cue[] = [];
@@ -137,20 +163,43 @@ export class SessionRoom {
   private readonly abort = new AbortController();
   private lessonComplete = false;
   private resolution: TopicResolution | null = null;
-  private memoHit: { id: string; cuesBySegment: LessonEvent[][] } | null = null;
+  private memoHit: { id: string; cuesBySegment: LessonEvent[][]; segmentUsd: number[] } | null =
+    null;
   private packId: string | null = null;
+  private packRevision: string | null = null;
+  private packQualified = false;
+  /** Segments this session generated (index → cues + what the call cost), memoised as they land. */
+  private memoPending: Promise<void> = Promise.resolve();
+  /** The last lesson-segment model call's cost, read back from the metrics stream. */
+  private lastLessonUsd = 0;
   private pausedBeforeTurn: LiveMode = 'teaching';
   private adsShown = 0;
   private clockMs = 0;
   private lastFloorUtterance = new Map<string, string>();
   /** Communication language: follows the learner turn by turn (RoomState.language). */
   private language: string;
+  /** Arrival of the learner's last final transcript / typed answer; consumed by the next turn. */
+  private turnStartedAt: number | null = null;
+  /** Reports accepted per participant; a runaway client cannot grow the ledger without bound. */
+  private readonly reportCounts = new Map<ParticipantId, number>();
 
   constructor(deps: SessionRoomDeps) {
     this.d = deps;
     this.sessionId = deps.sessionId;
     this.observer = deps.observer ?? SILENT_OBSERVER;
     this.now = deps.now ?? (() => Date.now());
+    this.metrics = deps.metrics ?? new NullMetrics();
+    const metered = withTelemetry(deps.model, this.metrics);
+    // Remember what the plan call cost so the memo can report exactly what a reuse saves.
+    this.model = {
+      id: metered.id,
+      streamEvents: (r) => metered.streamEvents(r),
+      complete: async (r) => {
+        const result = await metered.complete(r);
+        if (r.purpose === 'plan') this.lastLessonUsd = result.usage.usd;
+        return result;
+      },
+    };
     this.system = lessonSystemPrompt(deps.expert, deps.band);
     this.language = deps.language;
     const host: Participant = {
@@ -209,10 +258,24 @@ export class SessionRoom {
         },
       },
       observer: this.observer,
+      telemetry: this.metrics,
       onComplete: (sayId) => this.onSayComplete(sayId),
       onFailure: (sayId, error) => this.onSayFailure(sayId, error),
+      onFirstChunk: (sayId, thread) => this.onFirstChunk(sayId, thread),
     });
     this.ledger({ kind: 'join', t: this.now(), participantId: host.id, name: host.name });
+    this.metrics.sample({
+      stage: 'join',
+      ms: 0,
+      ok: true,
+      meta: {
+        role: 'host',
+        participants: 1,
+        plan: deps.host.plan,
+        expertId: deps.expert.id,
+        language: deps.language,
+      },
+    });
   }
 
   // ── public surface ─────────────────────────────────────────────────────────
@@ -234,9 +297,9 @@ export class SessionRoom {
       if (this.abort.signal.aborted) return;
       this.state = { ...this.state, phase: 'live', mode: 'teaching', preparation: null };
       this.broadcastState();
-      void this.generateLoop().catch((error) => this.observer.error('room.generate_loop', error));
+      void this.generateLoop().catch((error) => this.fail('room.generate_loop', error, null));
     } catch (error) {
-      this.observer.error('room.start', error, { sessionId: this.sessionId });
+      this.fail('room.start', error, 'prepare');
       this.failSession(
         'KNOWLEDGE_UNAVAILABLE',
         "I couldn't get this session ready. Let's try again in a moment.",
@@ -263,6 +326,12 @@ export class SessionRoom {
     };
     this.participants.set(p.id, p);
     this.ledger({ kind: 'join', t: this.now(), participantId: p.id, name: p.name });
+    this.metrics.sample({
+      stage: 'join',
+      ms: 0,
+      ok: true,
+      meta: { role: 'guest', participants: this.participants.size },
+    });
     this.syncParticipants();
     return { ok: true, participant: p };
   }
@@ -276,6 +345,12 @@ export class SessionRoom {
     }
     this.participants.delete(participantId);
     this.ledger({ kind: 'leave', t: this.now(), participantId });
+    this.metrics.sample({
+      stage: 'leave',
+      ms: 0,
+      ok: true,
+      meta: { role: 'guest', participants: this.participants.size },
+    });
     if (this.state.floor === participantId) this.endTurnEarly();
     this.syncParticipants();
   }
@@ -294,7 +369,11 @@ export class SessionRoom {
         this.transcript(p, message.utteranceId, message.text, message.final);
         break;
       case 'check_answer':
+        this.turnStartedAt = this.now();
         void this.gradeCheck(p, message.checkId, message.text);
+        break;
+      case 'report':
+        this.report(p, message.event, message.props);
         break;
       case 'progress':
         this.progress(p, message.seq, message.clockMs);
@@ -321,7 +400,7 @@ export class SessionRoom {
     let recap: string[] = [];
     if (this.plan && this.spoken.length > 0) {
       try {
-        const { value } = await this.d.model.complete({
+        const { value } = await this.model.complete({
           messages: recapMessages({
             system: this.system,
             plan: this.plan,
@@ -337,7 +416,7 @@ export class SessionRoom {
         });
         recap = value.points.slice(0, 6).map((s) => s.slice(0, 120));
       } catch (error) {
-        this.observer.error('room.recap', error);
+        this.fail('room.recap', error, 'llm');
         recap = this.plan.segments.slice(0, 6).map((s) => s.goal);
       }
     }
@@ -354,30 +433,91 @@ export class SessionRoom {
   // ── preparation & planning ─────────────────────────────────────────────────
 
   private async resolveAndPrepare(): Promise<void> {
-    const resolution =
-      this.d.resolution ??
-      (await this.d.onten.registry.resolveTopic({
-        text: this.d.topic,
-        // Packs are keyed by language, never by region.
-        language: this.d.language.split('-')[0] ?? this.d.language,
-        locale: this.d.locale,
-        band: this.d.band,
-      }));
+    let resolution = this.d.resolution ?? null;
+    if (!resolution) {
+      const timer = this.metrics.start('resolve');
+      try {
+        resolution = await this.d.onten.registry.resolveTopic({
+          text: this.d.topic,
+          // Packs are keyed by language, never by region.
+          language: this.d.language.split('-')[0] ?? this.d.language,
+          locale: this.d.locale,
+          band: this.d.band,
+        });
+        const hit =
+          resolution.match === 'hit' ||
+          (resolution.match === 'partial' && resolution.packId !== null);
+        timer.end(true, {
+          canonicalId: resolution.canonicalKnowledgeId,
+          match: resolution.match,
+          score: resolution.score,
+          reused: hit,
+          savedUsd: hit
+            ? prepareFreshEstimateUsd(this.d.model.id, this.d.searchProvider ?? 'tavily')
+            : 0,
+        });
+      } catch (error) {
+        timer.end(false);
+        throw error;
+      }
+    }
     this.resolution = resolution;
     this.observer.event('room.resolve', {
       match: resolution.match,
       score: resolution.score,
       ckid: resolution.canonicalKnowledgeId,
     });
-    if (resolution.match === 'hit' || (resolution.match === 'partial' && resolution.packId)) {
+    const packHit =
+      resolution.match === 'hit' || (resolution.match === 'partial' && resolution.packId !== null);
+    if (this.d.resolution) {
+      // The API resolved (and timed) the topic; the room records what the hit saved.
+      this.metrics.sample({
+        stage: 'resolve',
+        ms: 0,
+        ok: true,
+        meta: {
+          canonicalId: resolution.canonicalKnowledgeId,
+          match: resolution.match,
+          score: resolution.score,
+          reused: packHit,
+          savedUsd: packHit
+            ? prepareFreshEstimateUsd(this.d.model.id, this.d.searchProvider ?? 'tavily')
+            : 0,
+          viaApi: true,
+        },
+      });
+    }
+    if (packHit && resolution.packId) {
       this.packId = resolution.packId;
-      if (resolution.lessonMemoId) {
-        const memo = await this.d.memo.find(resolution.canonicalKnowledgeId, this.d.band);
-        if (memo && memo.expertId === this.d.expert.id) {
-          this.memoHit = { id: memo.id, cuesBySegment: memo.cuesBySegment as LessonEvent[][] };
-          this.plan = memo.plan as LessonPlan;
-          await this.d.memo.touch(memo.id);
-        }
+      // The persona's own memo for this scope and band: the plan and every segment it holds are reused.
+      const memo = await this.d.memo.find(
+        resolution.canonicalKnowledgeId,
+        this.d.band,
+        this.d.expert.id,
+      );
+      if (memo) {
+        this.memoHit = {
+          id: memo.id,
+          cuesBySegment: memo.cuesBySegment as LessonEvent[][],
+          segmentUsd: memo.costUsd.segments,
+        };
+        this.plan = memo.plan as LessonPlan;
+        await this.d.memo.touch(memo.id);
+        this.metrics.sample({
+          stage: 'llm',
+          ms: 0,
+          ok: true,
+          meta: {
+            purpose: 'plan',
+            model: this.d.model.id,
+            firstTokenMs: -1,
+            reused: true,
+            memo: true,
+            savedUsd:
+              memo.costUsd.plan > 0 ? memo.costUsd.plan : freshEstimateUsd('plan', this.d.model.id),
+            segmentsMemoised: memo.cuesBySegment.filter((c) => c.length > 0).length,
+          },
+        });
       }
       this.setPreparation({
         stage: 'ready',
@@ -400,10 +540,22 @@ export class SessionRoom {
           durationMs: this.d.ads.durationMs,
         });
       }
-      const prepared = await this.d.acquirer.prepare({
-        resolution,
-        onProgress: (p) => this.setPreparation(p),
-        signal: this.abort.signal,
+      const preparing = this.metrics.start('prepare', { match: resolution.match });
+      let prepared: Awaited<ReturnType<KnowledgeAcquirer['prepare']>>;
+      try {
+        prepared = await this.d.acquirer.prepare({
+          resolution,
+          onProgress: (p) => this.setPreparation(p),
+          signal: this.abort.signal,
+          telemetry: this.metrics,
+        });
+      } catch (error) {
+        preparing.end(false);
+        throw error;
+      }
+      preparing.end(true, {
+        provisional: prepared.provisional,
+        sourcesFetched: this.state.preparation?.sourcesFetched ?? 0,
       });
       this.packId = prepared.packId;
       if (prepared.provisional)
@@ -416,7 +568,7 @@ export class SessionRoom {
           this.setPreparation(null);
           this.broadcastState();
         },
-        (error) => this.observer.error('room.background_compile', error),
+        (error) => this.fail('room.background_compile', error, 'prepare'),
       );
     }
     if (!this.packId) throw new Error('PACK_MISSING');
@@ -427,12 +579,16 @@ export class SessionRoom {
     });
   }
 
+  private planUsd = 0;
+
   private async makePlan(): Promise<void> {
+    const pack = this.packId ? await this.d.onten.registry.getPack(this.packId) : null;
+    this.packRevision = pack?.packRevision ?? null;
+    this.packQualified = pack?.qualified ?? false;
     if (this.plan) {
       this.state = { ...this.state, plan: this.plan };
       return;
     }
-    const pack = this.packId ? await this.d.onten.registry.getPack(this.packId) : null;
     const unitTitles = pack ? [...new Set(pack.units.map((u) => u.title))] : [];
     this.setPreparation({
       stage: 'outlining',
@@ -442,7 +598,7 @@ export class SessionRoom {
       sourcesFetched: pack?.sources.length ?? 0,
     });
     this.plan = await planLesson(
-      this.d.model,
+      this.model,
       {
         expert: this.d.expert,
         topic: this.resolution?.title ?? this.d.topic,
@@ -453,6 +609,7 @@ export class SessionRoom {
       },
       this.abort.signal,
     );
+    this.planUsd = this.lastLessonUsd;
     this.state = { ...this.state, plan: this.plan };
   }
 
@@ -469,21 +626,52 @@ export class SessionRoom {
       await this.generateSegment(i);
     }
     this.lessonComplete = true;
-    if (this.memoHit === null && this.plan && this.packId) {
-      const pack = await this.d.onten.registry.getPack(this.packId);
-      if (pack?.qualified) {
-        const cuesBySegment = plan.segments.map((s) => this.segmentEvents.get(s.index) ?? []);
-        await this.d.memo.put({
-          canonicalKnowledgeId: pack.canonicalKnowledgeId,
+    await this.memoPending;
+  }
+
+  /**
+   * Memoise a segment the moment it is generated (qualified packs only), so a
+   * session that ends early still leaves its segments for the next learner of
+   * this topic, band and persona. Writes are serialised; failures are reported,
+   * never surfaced to the learner.
+   */
+  private memoise(index: number, events: LessonEvent[], usd: number): void {
+    if (!this.packQualified || !this.packId || !this.plan || events.length === 0) return;
+    const plan = this.plan;
+    const packId = this.packId;
+    const packRevision = this.packRevision ?? '';
+    const ckid = this.resolution?.canonicalKnowledgeId ?? this.d.topic;
+    this.memoPending = this.memoPending
+      .then(async () => {
+        if (this.memoHit) {
+          await this.d.memo.extend(this.memoHit.id, [{ index, cues: events, usd }]);
+          this.memoHit.cuesBySegment[index] = events;
+          return;
+        }
+        const entry = await this.d.memo.put({
+          canonicalKnowledgeId: ckid,
           band: this.d.band,
-          packId: pack.packId,
-          packRevision: pack.packRevision,
+          packId,
+          packRevision,
           expertId: this.d.expert.id,
-          plan: this.plan,
-          cuesBySegment,
+          plan,
+          cuesBySegment: plan.segments.map((s) => (s.index === index ? events : [])),
+          costUsd: {
+            plan: this.planUsd,
+            segments: plan.segments.map((s) => (s.index === index ? usd : 0)),
+          },
         });
-      }
-    }
+        this.memoHit = {
+          id: entry.id,
+          cuesBySegment: entry.cuesBySegment as LessonEvent[][],
+          segmentUsd: entry.costUsd.segments,
+        };
+        this.observer.event('room.memo_created', {
+          segment: index,
+          segments: plan.segments.length,
+        });
+      })
+      .catch((error) => this.fail('room.memo', error, null, { segment: index }));
   }
 
   private async generateSegment(index: number): Promise<void> {
@@ -500,6 +688,22 @@ export class SessionRoom {
     const memo = this.memoHit?.cuesBySegment[index];
     if (memo && memo.length > 0) {
       for (const ev of memo) emit(ev);
+      const recorded = this.memoHit?.segmentUsd[index] ?? 0;
+      this.metrics.sample({
+        stage: 'llm',
+        ms: 0,
+        ok: true,
+        meta: {
+          purpose: 'lesson',
+          model: this.d.model.id,
+          firstTokenMs: -1,
+          reused: true,
+          memo: true,
+          segment: index,
+          events: memo.length,
+          savedUsd: recorded > 0 ? recorded : freshEstimateUsd('lessonSegment', this.d.model.id),
+        },
+      });
     } else {
       const context = await this.contextFor(
         `${segment.title}. ${segment.goal}`,
@@ -514,7 +718,7 @@ export class SessionRoom {
         evidenceTier: this.state.evidenceTier,
         language: this.language,
       });
-      const stream = this.d.model.streamEvents({
+      const stream = this.model.streamEvents({
         messages,
         cacheKey: this.cacheKey(),
         maxOutputTokens: 2200,
@@ -529,7 +733,7 @@ export class SessionRoom {
           count++;
         }
       } catch (error) {
-        this.observer.error('room.generate', error, { segment: index });
+        this.fail('room.generate', error, 'llm', { segment: index });
         if (count === 0) {
           this.failSession(
             'LLM_UNAVAILABLE',
@@ -545,6 +749,7 @@ export class SessionRoom {
         firstTokenMs: usage.firstTokenMs,
         usd: usage.usd,
       });
+      if (count > 0) this.memoise(index, events, usage.usd);
     }
     this.segmentEvents.set(index, events);
     this.lastSeqOfSegment[index] = this.seq - 1;
@@ -624,11 +829,29 @@ export class SessionRoom {
       tokenBudget: null,
       contentInstructions,
     };
-    const result = await this.d.runtime.query(input);
+    const timer = this.metrics.start('context', { purpose: contentInstructions });
+    let result: Awaited<ReturnType<MockContextRuntime['query']>>;
+    try {
+      result = await this.d.runtime.query(input);
+    } catch (error) {
+      timer.end(false);
+      throw error;
+    }
+    const assemblyMs = result.metrics.assemblyNs / 1e6;
+    timer.end(true, {
+      status: result.context.status,
+      spans: result.context.evidenceSpans.length,
+      assemblyMs,
+      speculationHit: result.metrics.speculationHit,
+      reused: result.metrics.speculationHit,
+      savedUsd: 0,
+    });
+    // Onten is amortised across learners (mock today): the request is counted, the price is nil.
+    this.metrics.cost({ component: 'onten', unit: 'requests', units: 1, usd: 0, meta: {} });
     this.observer.event('onten.query', {
       status: result.context.status,
       spans: result.context.evidenceSpans.length,
-      assemblyMs: result.metrics.assemblyNs / 1e6,
+      assemblyMs,
       speculationHit: result.metrics.speculationHit,
     });
     return { modelContext: result.context.modelContext, status: result.context.status };
@@ -807,6 +1030,7 @@ export class SessionRoom {
     }
     this.lastFloorUtterance.delete(utteranceId);
     this.ledger({ kind: 'caption', t: this.now(), participantId: p.id, text });
+    this.turnStartedAt = this.now();
     // Detection is ~0.05 ms; awaiting it keeps the acknowledgement in the right language.
     void this.followLanguage(text).then(() => this.decide(p, text));
   }
@@ -819,7 +1043,7 @@ export class SessionRoom {
     let intent = classifyLocally(text, { pendingCheck });
     if (!intent) {
       try {
-        const { value } = await this.d.model.complete({
+        const { value } = await this.model.complete({
           messages: intentMessages({ text, mode: this.state.mode, pendingCheck }),
           schema: IntentOutput,
           schemaName: 'intent',
@@ -829,7 +1053,7 @@ export class SessionRoom {
         });
         intent = value;
       } catch (error) {
-        this.observer.error('room.intent', error);
+        this.fail('room.intent', error, 'llm');
         intent = { intent: 'question', command: 'none' };
       }
     }
@@ -923,6 +1147,9 @@ export class SessionRoom {
       sayIds: new Set(),
       completed: new Set(),
       done: false,
+      startedAt: this.takeTurnStart(),
+      firstAudioAt: null,
+      kind,
     };
     this.turn = turn;
     this.questions.push(question);
@@ -942,7 +1169,7 @@ export class SessionRoom {
         kind === 'clarify' ? 'clarify:v1' : 'answer:v1',
       );
       const recent = this.spoken.slice(-4);
-      const stream = this.d.model.streamEvents({
+      const stream = this.model.streamEvents({
         messages: answerMessages({
           system: this.system,
           plan: this.plan,
@@ -985,7 +1212,7 @@ export class SessionRoom {
           tone: 'neutral',
         });
     } catch (error) {
-      this.observer.error('room.answer', error, { turn: turnId });
+      this.fail('room.answer', error, 'llm', { turn: turnId });
       if (this.turn === turn)
         this.emitTurnEvent(turn, {
           type: 'say',
@@ -1018,7 +1245,11 @@ export class SessionRoom {
   }
 
   private onSayFailure(sayId: string, error: unknown): void {
-    this.observer.error('room.say_failed', error, { sayId });
+    // The pipeline already captured the failure (with its Sentry ref); this is the room's reaction.
+    this.observer.event('room.say_failed', {
+      sayId,
+      code: error instanceof Error ? error.message.split(':')[0] : 'TTS_ERROR',
+    });
     this.d.transport.broadcast({
       kind: 'error',
       code: 'TTS_UNAVAILABLE',
@@ -1061,6 +1292,9 @@ export class SessionRoom {
       sayIds: new Set(),
       completed: new Set(),
       done: false,
+      startedAt: this.takeTurnStart(),
+      firstAudioAt: null,
+      kind: 'check',
     };
     this.turn = turn;
     this.pendingCheck = null;
@@ -1069,7 +1303,7 @@ export class SessionRoom {
     let verdict: 'correct' | 'partial' | 'incorrect' | 'ungraded' = 'ungraded';
     let feedback = entry.check.explain;
     try {
-      const { value } = await this.d.model.complete({
+      const { value } = await this.model.complete({
         messages: gradeMessages({
           system: this.system,
           question: entry.question,
@@ -1089,7 +1323,7 @@ export class SessionRoom {
       verdict = this.state.evidenceTier === 'unverified_live_source' ? 'ungraded' : value.verdict;
       feedback = value.feedback;
     } catch (error) {
-      this.observer.error('room.grade', error);
+      this.fail('room.grade', error, 'llm');
     }
     this.d.transport.broadcast({ kind: 'check_result', checkId, participantId: p.id, verdict });
     this.setMode('answering', p.id);
@@ -1150,13 +1384,94 @@ export class SessionRoom {
     this.d.ledger?.append(this.sessionId, entry);
   }
 
+  /** Log + Sentry (content-free) and the ledger `error` entry carrying the Sentry ref. */
+  private fail(
+    area: string,
+    error: unknown,
+    stage: StageName | null,
+    data: Record<string, unknown> = {},
+  ): void {
+    const ref = this.observer.error(area, error, { ...data, sessionId: this.sessionId, stage });
+    this.metrics.error({ code: area, stage, ref: ref ?? null });
+  }
+
+  /** The turn's start: the learner's last final words, or now when the turn began another way. */
+  private takeTurnStart(): number {
+    const at = this.turnStartedAt ?? this.now();
+    this.turnStartedAt = null;
+    return at;
+  }
+
+  /** First audio of a turn thread: the `turn` stage (learner's last word → first audible chunk). */
+  private onFirstChunk(sayId: string, thread: string): void {
+    const turn = this.turn;
+    if (!turn || thread !== turn.id || turn.firstAudioAt !== null) return;
+    turn.firstAudioAt = this.now();
+    this.metrics.sample({
+      stage: 'turn',
+      ms: turn.firstAudioAt - turn.startedAt,
+      ok: true,
+      startedAt: turn.startedAt,
+      meta: {
+        thread,
+        sayId,
+        kind: turn.kind,
+        // The acknowledgement (s0) is the first thing heard; the composed answer follows.
+        ack: sayId.endsWith('.s0'),
+      },
+    });
+  }
+
+  /**
+   * A client interaction or something it showed. Recorded for every
+   * participant; the host's board and ad timings become stage samples so the
+   * timeline shows what the room actually rendered.
+   */
+  private report(p: Participant, event: ClientReport['event'], props: ClientReport['props']): void {
+    const count = (this.reportCounts.get(p.id) ?? 0) + 1;
+    this.reportCounts.set(p.id, count);
+    if (count > MAX_REPORTS_PER_PARTICIPANT) return;
+    this.metrics.interaction(p.id, event, props);
+    const ms = typeof props.ms === 'number' && Number.isFinite(props.ms) ? props.ms : null;
+    switch (event) {
+      case 'board_done':
+        if (p.role === 'host' && ms !== null)
+          this.metrics.sample({
+            stage: 'board',
+            ms,
+            ok: props.ok !== false,
+            meta: pickMeta(props, ['op', 'chars', 'seq', 'anchored']),
+          });
+        return;
+      case 'ad_skipped':
+      case 'ad_ended':
+        if (p.role === 'host' && ms !== null)
+          this.metrics.sample({
+            stage: 'ad',
+            ms,
+            ok: true,
+            meta: { ...pickMeta(props, ['adId']), skipped: event === 'ad_skipped' },
+          });
+        return;
+      case 'error_shown':
+        this.metrics.error({
+          code: typeof props.code === 'string' && props.code ? props.code : 'CLIENT_ERROR',
+          stage: null,
+          ref: typeof props.ref === 'string' && props.ref ? props.ref : null,
+        });
+        return;
+      default:
+        return;
+    }
+  }
+
   /** Switch the communication language when the learner clearly wrote in another one (script change). */
   private async followLanguage(text: string): Promise<void> {
     try {
       const detected = await this.d.languageOf?.(text);
       if (detected) this.setLanguage(detected);
     } catch (error) {
-      this.observer.error('room.language_detect', error);
+      this.fail('room.language_detect', error, null);
     }
   }
 
@@ -1200,6 +1515,18 @@ export class SessionRoom {
       contentInstructions: 'answer:v1',
     };
   }
+}
+
+function pickMeta(
+  props: Record<string, string | number | boolean>,
+  keys: string[],
+): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const k of keys) {
+    const v = props[k];
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
 }
 
 /** Prefix model-minted ids (s1, b1, c1 and their references) with the thread prefix. */

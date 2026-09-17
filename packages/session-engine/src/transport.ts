@@ -10,7 +10,8 @@ export interface RoomTransport {
 export interface RoomObserver {
   /** Structured events for logs/Sentry/analytics; never throws. */
   event(name: string, data: Record<string, unknown>): void;
-  error(area: string, error: unknown, data?: Record<string, unknown>): void;
+  /** Returns the Sentry event id when one was captured, so the ledger can reference it. */
+  error(area: string, error: unknown, data?: Record<string, unknown>): string | null | undefined;
 }
 
-export const SILENT_OBSERVER: RoomObserver = { event: () => undefined, error: () => undefined };
+export const SILENT_OBSERVER: RoomObserver = { event: () => undefined, error: () => null };

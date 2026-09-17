@@ -190,14 +190,30 @@ export interface LessonMemoEntry {
   expertId: string;
   /** Serialized LessonPlan. */
   plan: unknown;
-  /** Serialized lesson cues (the narration + board script), by segment. */
+  /**
+   * Serialized lesson cues (the narration + board script), by segment. Grows
+   * as sessions get further into the lesson: an empty slot means "not taught
+   * yet", and the next session generates only that segment.
+   */
   cuesBySegment: unknown[][];
+  /** What generating the plan and each segment cost (USD), so a reuse can report exactly what it saved. */
+  costUsd: { plan: number; segments: number[] };
   timesReused: number;
   createdAt: number;
 }
 
 export interface LessonMemo {
-  find(canonicalKnowledgeId: string, band: SelectionBand): Promise<LessonMemoEntry | null>;
+  /** The latest memo for the scope and band; for one persona when `expertId` is given (scripts carry the persona's voice). */
+  find(
+    canonicalKnowledgeId: string,
+    band: SelectionBand,
+    expertId?: string,
+  ): Promise<LessonMemoEntry | null>;
   put(entry: Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>): Promise<LessonMemoEntry>;
+  /** Fill segments a later session generated (never overwrites a segment already memoised). */
+  extend(
+    id: string,
+    segments: Array<{ index: number; cues: unknown[]; usd: number }>,
+  ): Promise<void>;
   touch(id: string): Promise<void>;
 }

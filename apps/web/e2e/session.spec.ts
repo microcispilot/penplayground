@@ -1,7 +1,14 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
+/** Git-ignored: `.pen-data*` holds runtime data and, here, the screenshots the report describes. */
+const SCREENS_DIR = join(process.cwd(), '..', '..', '.pen-data', 'screens');
+
 test.describe('a learner starts a session', () => {
-  test('home → live room → captions → typed question → end → saved session', async ({ page }) => {
+  test('home → live room → captions → typed question → end → saved session → insights', async ({
+    page,
+  }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /What do you want to/ })).toBeVisible();
     await page.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
@@ -19,13 +26,37 @@ test.describe('a learner starts a session', () => {
     await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
       timeout: 20_000,
     });
+    // A couple of interactions the ledger must carry.
+    await page.getByRole('button', { name: 'Captions' }).click();
+    await page.getByRole('button', { name: 'Captions' }).click();
 
     // Host ends the session → recap panel → saved session page.
     await page.getByRole('button', { name: 'End' }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Open the saved session' }).click();
     await expect(page.getByRole('heading', { name: /Transformers/ })).toBeVisible();
-    await page.getByRole('button', { name: 'Transcript' }).click();
+    await page.getByRole('tab', { name: 'Transcript' }).click();
     await expect(page.getByText('square root of d', { exact: false })).toBeVisible();
+
+    // Insights (host only): latency cards, cost, reuse, the stage timeline, interactions, errors.
+    await page.getByRole('tab', { name: 'Insights' }).click();
+    const insights = page.getByTestId('insights');
+    await expect(insights).toBeVisible({ timeout: 15_000 });
+    await expect(insights.getByText('Time to first audio')).toBeVisible();
+    await expect(insights.getByText('Question → answer')).toBeVisible();
+    await expect(page.getByTestId('insights-total-usd')).toContainText('$');
+    await expect(insights.getByText('Model', { exact: true }).first()).toBeVisible();
+    await expect(insights.getByText('Voice', { exact: true }).first()).toBeVisible();
+    await expect(page.getByTestId('insights-reuse')).toContainText('Knowledge pack reused');
+    await expect(insights.getByText('Typed a question')).toBeVisible();
+    await expect(insights.getByText('Captions off')).toBeVisible();
+    await expect(insights.getByText('First audio heard')).toBeVisible();
+    await expect(insights.getByText('Nothing went wrong.')).toBeVisible();
+    // The timeline has bars for the model and the voice.
+    await expect(insights.getByRole('button', { name: /^Model at/ }).first()).toBeVisible();
+    await expect(insights.getByRole('button', { name: /^Voice at/ }).first()).toBeVisible();
+
+    mkdirSync(SCREENS_DIR, { recursive: true });
+    await page.screenshot({ path: join(SCREENS_DIR, 'insights.png'), fullPage: true });
   });
 });

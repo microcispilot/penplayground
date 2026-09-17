@@ -8,6 +8,19 @@ export interface RecognizerRouterOptions {
   /** The provider failed; the current and any pending utterances are lost. */
   onError(code: SttErrorCode, error: unknown, context: { utteranceId: string | null }): void;
   onEvent?(name: string, data: Record<string, unknown>): void;
+  /**
+   * One utterance is complete: how long the provider took after the client's
+   * endpoint to deliver the final, and how much audio it recognised (ADR-0011).
+   */
+  onUtteranceDone?(info: {
+    utteranceId: string;
+    /** Client endpoint (`utteranceEnd`) → provider final, ms; null when the final arrived before the endpoint. */
+    finalMs: number | null;
+    /** 16 kHz s16le: 32 bytes per ms. */
+    audioMs: number;
+    chars: number;
+    startedAt: number;
+  }): void;
   /** Per-utterance audio cap; the utterance is ended for the client when reached. */
   maxUtteranceBytes?: number;
   /** Close the provider session after this much silence between utterances (billing). */
@@ -24,6 +37,8 @@ interface Utterance {
   id: string;
   bytes: number;
   ended: boolean;
+  startedAt: number;
+  endedAt: number | null;
 }
 
 /**
@@ -66,7 +81,13 @@ export class RecognizerRouter {
     if (this.closed) return;
     if (this.current && !this.current.ended) this.utteranceEnd(this.current.id);
     this.clearIdle();
-    const utterance: Utterance = { id: utteranceId, bytes: 0, ended: false };
+    const utterance: Utterance = {
+      id: utteranceId,
+      bytes: 0,
+      ended: false,
+      startedAt: Date.now(),
+      endedAt: null,
+    };
     this.current = utterance;
     this.awaitingFinal.push(utterance);
     this.ensureSession();
@@ -91,6 +112,7 @@ export class RecognizerRouter {
     const u = this.current;
     if (!u || u.id !== utteranceId || u.ended) return;
     u.ended = true;
+    u.endedAt = Date.now();
     if (this.session) this.session.endUtterance();
     else this.pending.push({ kind: 'end' });
   }
@@ -172,6 +194,13 @@ export class RecognizerRouter {
     if (epoch !== this.epoch || this.closed) return;
     const u = this.awaitingFinal.shift();
     if (!u) return;
+    this.o.onUtteranceDone?.({
+      utteranceId: u.id,
+      finalMs: u.endedAt === null ? null : Math.max(0, Date.now() - u.endedAt),
+      audioMs: u.bytes / 32,
+      chars: text.length,
+      startedAt: u.startedAt,
+    });
     if (text) this.o.onTranscript(u.id, text, true);
     if (this.current?.id === u.id) this.current = null;
     if (this.awaitingFinal.length === 0) this.armIdle();

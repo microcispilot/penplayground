@@ -9,6 +9,7 @@ import {
   type ServerErrorCode,
   type ServerMessage,
   SessionId,
+  sttUsd,
 } from '@pen/contracts';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -24,6 +25,7 @@ import { observer } from './observability.js';
 import { RecognizerRouter } from './recognizer-router.js';
 import { type LiveRoom, RoomRegistry } from './rooms.js';
 import { DATA_DIR, type Services } from './services.js';
+import { aggregateReuse, computeTelemetry } from './telemetry.js';
 
 export interface App {
   app: Hono;
@@ -203,6 +205,70 @@ export function buildApp(services: Services): App {
     c.header('Cache-Control', 'private, max-age=3600');
     return c.body(Readable.toWeb(createReadStream(p)) as ReadableStream);
   });
+  /**
+   * The session's telemetry (ADR-0011): stage timings, costs, interactions,
+   * errors and what was reused, computed from its ledger. Host only — it
+   * carries the host's plan and spend.
+   */
+  app.get('/api/sessions/:id/telemetry', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success) return c.json({ error: 'NOT_FOUND' }, 404);
+    const record = await services.sessions.get(id);
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (record.hostId !== claims.sub) return c.json({ error: 'NOT_HOST' }, 403);
+    const live = rooms.get(id);
+    return c.json(
+      computeTelemetry({
+        sessionId: id,
+        plan: live?.plan ?? claims.plan,
+        expertId: record.expertId,
+        language: live?.room.getState().language ?? 'und',
+        entries: services.ledger.read(id),
+      }),
+    );
+  });
+
+  /**
+   * Same-intent reuse across every session on this node's disk: how often an
+   * existing pack and memo served a topic instead of fresh generation, and what
+   * that saved. Any signed-in bearer for now (like /api/admin/costs).
+   */
+  app.get('/api/stats/reuse', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const topic = c.req.query('topic') ?? null;
+    const sessions = services.ledger
+      .list()
+      .map((id) => computeTelemetry({ sessionId: id, entries: services.ledger.read(id) }))
+      .filter((t) => topic === null || t.canonicalId === topic);
+    return c.json(aggregateReuse(sessions));
+  });
+
+  /**
+   * Development only: raise one synthetic error inside a session so the
+   * Sentry → ledger link can be verified end to end with real keys. The
+   * event carries the session tags and its id lands in the ledger.
+   */
+  if (services.cfg.NODE_ENV !== 'production')
+    app.post('/api/dev/sessions/:id/error', async (c) => {
+      const claims = await bearer(c.req.header('authorization'));
+      if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+      const live = rooms.get(c.req.param('id'));
+      if (!live) return c.json({ error: 'NOT_FOUND' }, 404);
+      if (live.record.hostId !== claims.sub) return c.json({ error: 'NOT_HOST' }, 403);
+      const ref =
+        observer.error('dev.test_error', new Error('PEN_TEST_ERROR: deliberate test error'), {
+          sessionId: live.record.id,
+          expertId: live.record.expertId,
+          plan: live.plan,
+          stage: 'turn',
+        }) ?? null;
+      live.metrics.error({ code: 'PEN_TEST_ERROR', stage: 'turn', ref });
+      return c.json({ ok: true, ref });
+    });
+
   app.post('/api/sessions/:id/end', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -469,13 +535,36 @@ export function buildApp(services: Services): App {
               final,
             }),
           onError: (code, error, ctx) => {
-            observer.error('stt.session', error, {
+            const ref = observer.error('stt.session', error, {
               code,
               provider: factory.id,
               participantId,
               utteranceId: ctx.utteranceId,
+              sessionId: live.record.id,
+              expertId: live.record.expertId,
+              plan: live.plan,
+              stage: 'stt',
             });
+            live.metrics.error({ code, stage: 'stt', ref: ref ?? null });
             fail(ws, 'STT_UNAVAILABLE', "We couldn't hear that clearly. Please say it again.");
+          },
+          onUtteranceDone: (info) => {
+            // Endpoint → final is the STT share of the turn; the audio seconds are what the provider bills.
+            if (info.finalMs !== null)
+              live.metrics.sample({
+                stage: 'stt',
+                ms: info.finalMs,
+                ok: true,
+                meta: { provider: factory.id, audioMs: info.audioMs, chars: info.chars },
+              });
+            const seconds = info.audioMs / 1000;
+            live.metrics.cost({
+              component: 'stt',
+              unit: 'seconds',
+              units: seconds,
+              usd: sttUsd(factory.id, seconds),
+              meta: { provider: factory.id },
+            });
           },
           onEvent: (name, data) => observer.event(name, { ...data, participantId }),
         });
@@ -582,7 +671,9 @@ export function buildApp(services: Services): App {
         onMessage(evt, ws) {
           chain = chain
             .then(() => handle(evt, ws))
-            .catch((error) => observer.error('ws.chain', error));
+            .catch((error) => {
+              observer.error('ws.chain', error);
+            });
         },
         onClose(_evt, ws) {
           if (authTimer) clearTimeout(authTimer);

@@ -26,7 +26,10 @@
 - [x] Server-side STT relay (ws-relay to the 5090 box, Deepgram, AssemblyAI); warm-up at boot
 - [x] Listen test with Fish Audio (s2.1-pro-free)
 - [ ] Pace: host-set, synchronized (voice + board + captions), presets, persisted; teacher-rhythm default
-- [ ] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified
+- [x] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified (ADR-0011)
+- [x] Reuse statistics: `reused`/`savedUsd` on stages, `SessionTelemetry.reuse`, `canonicalId`, incremental lesson memo, `/api/stats/reuse`, `telemetry:pull --topic|--all`
+- [ ] Synthesis cache (TTS reuse is always false today)
+- [ ] Replay scrubber (`replay_seeked` is reserved in the interaction contract)
 - [ ] Stripe webhook endpoint registered
 - [ ] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
 - [ ] Fake model: completion for the knowledge outline purpose (Sentry issue)

@@ -48,6 +48,8 @@ export interface Services {
   intake: TopicIntake;
   modelFor(plan: PlanCode): LanguageModel;
   acquirer: KnowledgeAcquirer | null;
+  /** Web search backend name (searxng | tavily | exa | none), for pricing what a pack hit saved. */
+  searchProvider: string;
   costs: CostLedger;
   /** MP4 export queue (one render at a time per process). */
   exports: ExportJobs;
@@ -178,9 +180,17 @@ export async function buildServices(
     onError: (area, error, data) => observer.error(area, error, data),
   });
   const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
+  const searchProvider = cfg.SEARXNG_URL
+    ? 'searxng'
+    : cfg.TAVILY_API_KEY
+      ? 'tavily'
+      : cfg.EXA_API_KEY
+        ? 'exa'
+        : 'none';
   const base = {
     cfg,
     onten,
+    searchProvider,
     experts,
     synthesizer,
     recognizer,

@@ -1,4 +1,5 @@
 import type {
+  Monitor,
   Platform,
   SpeechRecognizer,
   SpeechRecognizerFactory,
@@ -6,6 +7,7 @@ import type {
 } from '@pen/app';
 import ResamplerWorker from '@pen/voice/resampler-worker?worker&inline';
 import workletSource from '@pen/voice/worklet?raw';
+import * as Sentry from '@sentry/react';
 
 /** Web Speech API recognizer: on-device in Chrome when available, otherwise the browser's cloud recognizer. */
 class WebSpeechRecognizer implements SpeechRecognizer {
@@ -117,6 +119,33 @@ const storage = {
   },
 };
 
+/** Content-free by construction: only codes, numbers, booleans and short ids reach Sentry. */
+const SAFE_VALUE = /^[\w.:@/-]{1,64}$/;
+function safe(
+  data: Record<string, string | number | boolean | null>,
+): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === null) continue;
+    if (typeof v === 'string' ? SAFE_VALUE.test(v) : true) out[k] = v;
+  }
+  return out;
+}
+
+const sentryMonitor: Monitor = {
+  setTag: (key, value) => Sentry.setTag(key, value ?? undefined),
+  breadcrumb: (category, data) =>
+    Sentry.addBreadcrumb({ category, level: 'info', data: safe(data) }),
+  captureError: (code, error, context) => {
+    if (!Sentry.isInitialized()) return null;
+    return Sentry.withScope((scope) => {
+      scope.setTag('code', code);
+      for (const [k, v] of Object.entries(safe(context))) scope.setTag(k, String(v));
+      return Sentry.captureException(error instanceof Error ? error : new Error(code));
+    });
+  },
+};
+
 export const webPlatform: Platform = {
   name: 'web',
   apiUrl: import.meta.env.VITE_API_URL ?? window.location.origin,
@@ -126,6 +155,7 @@ export const webPlatform: Platform = {
   openExternal: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
   tldrawLicenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY ?? '',
   sentryDsn: import.meta.env.VITE_SENTRY_DSN ?? null,
+  ...(import.meta.env.VITE_SENTRY_DSN ? { monitor: sentryMonitor } : {}),
   analytics: import.meta.env.VITE_POSTHOG_TOKEN
     ? {
         token: import.meta.env.VITE_POSTHOG_TOKEN,

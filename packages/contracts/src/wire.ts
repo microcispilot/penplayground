@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Cue } from './cues.js';
 import { CheckId, ParticipantId, SayId, SessionId } from './ids.js';
 import { PreparationProgress, RoomState } from './session.js';
+import { InteractionName, InteractionProps } from './telemetry.js';
 
 /**
  * Room WebSocket protocol. Text frames are JSON messages below; binary frames
@@ -60,6 +61,15 @@ export const ClientProgress = z.object({
 });
 /** The host's conductor finished the current turn/ad and resumed the lesson. */
 export const ClientResumed = z.object({ kind: z.literal('resumed') });
+/**
+ * A client interaction or something the client showed (ADR-0011). The server
+ * stamps the time and the participant; props are codes and numbers only.
+ */
+export const ClientReport = z.object({
+  kind: z.literal('report'),
+  event: InteractionName,
+  props: InteractionProps.default({}),
+});
 export const ClientMessage = z.discriminatedUnion('kind', [
   ClientAuth,
   ClientJoin,
@@ -71,8 +81,10 @@ export const ClientMessage = z.discriminatedUnion('kind', [
   ClientCheckAnswer,
   ClientProgress,
   ClientResumed,
+  ClientReport,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
+export type ClientReport = z.infer<typeof ClientReport>;
 
 // ── server → client ──────────────────────────────────────────────────────────
 export const ServerReady = z.object({

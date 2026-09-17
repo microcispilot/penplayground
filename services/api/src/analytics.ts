@@ -33,6 +33,11 @@ export class Analytics {
     });
   }
 
+  /** Push what is queued now (session end): the summary should be queryable within seconds. */
+  async flush(): Promise<void> {
+    await this.client?.flush();
+  }
+
   async shutdown(): Promise<void> {
     await this.client?.shutdown();
   }

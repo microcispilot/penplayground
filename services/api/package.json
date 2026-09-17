@@ -10,7 +10,8 @@
     "start:prod": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "voices:assign": "node --import tsx scripts/assign-voices.ts"
+    "voices:assign": "node --import tsx scripts/assign-voices.ts",
+    "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",

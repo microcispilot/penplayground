@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   writeSync,
 } from 'node:fs';
@@ -62,6 +63,14 @@ export class FileLedger implements LedgerSink {
         const parsed = LedgerEntrySchema.safeParse(JSON.parse(line));
         return parsed.success ? [parsed.data] : [];
       });
+  }
+
+  /** Every session with a ledger on disk (for reuse statistics across sessions). */
+  list(): string[] {
+    if (!existsSync(this.dir)) return [];
+    return readdirSync(this.dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && existsSync(join(this.dir, d.name, 'ledger.jsonl')))
+      .map((d) => d.name);
   }
 
   audioPath(sessionId: string, file: string): string | null {

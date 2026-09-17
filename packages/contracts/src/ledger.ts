@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DownstreamAudioHeader } from './audio-frame.js';
 import { Cue } from './cues.js';
 import { ParticipantId } from './ids.js';
+import { CostLine, ErrorEvent, InteractionEvent, StageSample } from './telemetry.js';
 
 /**
  * Recording ledger: everything needed to replay a session deterministically.
@@ -42,5 +43,10 @@ export const LedgerEntry = z.discriminatedUnion('kind', [
     name: z.string(),
   }),
   z.object({ kind: z.literal('leave'), t: z.number().int(), participantId: ParticipantId }),
+  // ── telemetry (ADR-0011): the saved session carries its own timings, costs, interactions and errors ──
+  z.object({ kind: z.literal('metric'), t: z.number().int(), sample: StageSample }),
+  z.object({ kind: z.literal('cost'), t: z.number().int(), line: CostLine }),
+  z.object({ kind: z.literal('interaction'), t: z.number().int(), interaction: InteractionEvent }),
+  z.object({ kind: z.literal('error'), t: z.number().int(), error: ErrorEvent }),
 ]);
 export type LedgerEntry = z.infer<typeof LedgerEntry>;

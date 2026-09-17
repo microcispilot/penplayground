@@ -1,4 +1,4 @@
-import type { LedgerEntry } from '@pen/contracts';
+import type { LedgerEntry, SessionTelemetry } from '@pen/contracts';
 import { Expert, hasEntitlement, LedgerEntry as LedgerEntrySchema } from '@pen/contracts';
 import { Avatar, Button, cn, Pill, Skeleton, useToast } from '@pen/design';
 import { Download, Lock, Play, Share2 } from 'lucide-react';
@@ -12,7 +12,9 @@ import {
   SessionRecord as SessionRecordSchema,
 } from '../api/client.js';
 import { AppHeader } from '../components/AppHeader.js';
+import { Insights } from '../components/Insights.js';
 import { BoardThumb } from '../components/SessionCard.js';
+import { trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 
 const LedgerResponse = z.object({
@@ -113,6 +115,7 @@ function ExportControl({
   };
 
   const onClick = async () => {
+    trackInteraction('download_requested', { entitled, status: status?.status ?? 'none' });
     if (!entitled) {
       navigate('/pricing');
       return;
@@ -245,11 +248,18 @@ export function SessionPage() {
     expert: Expert | null;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const tab = params.get('tab') === 'transcript' ? 'transcript' : 'recap';
+  const [telemetry, setTelemetry] = useState<SessionTelemetry | null>(null);
+  const [telemetryError, setTelemetryError] = useState<string | null>(null);
+  const requested = params.get('tab');
+  const tab =
+    requested === 'transcript' ? 'transcript' : requested === 'insights' ? 'insights' : 'recap';
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${api.baseUrl}/api/sessions/${encodeURIComponent(id)}/ledger`)
+    // With the bearer the host gets their own record (hostId, names); everyone else the anonymised one.
+    fetch(`${api.baseUrl}/api/sessions/${encodeURIComponent(id)}/ledger`, {
+      headers: api.authToken ? { authorization: `Bearer ${api.authToken}` } : {},
+    })
       .then(async (r) => {
         if (!r.ok)
           throw new Error(
@@ -299,6 +309,37 @@ export function SessionPage() {
     );
   }, [data]);
 
+  const s = data?.session;
+  const live = s ? s.endedAt === null : false;
+  const shareUrl = `${api.baseUrl}/s/${id}`;
+  // Only the host sees the export control (the API strips hostId for everyone else).
+  const isHost = Boolean(s && participant && s.hostId === participant.id);
+
+  // Insights are the host's: loaded on demand, refreshed while the session is still live.
+  useEffect(() => {
+    if (tab !== 'insights' || !isHost) return;
+    let cancelled = false;
+    const load = () =>
+      api
+        .telemetry(id)
+        .then((t) => {
+          if (!cancelled) {
+            setTelemetry(t);
+            setTelemetryError(null);
+          }
+        })
+        .catch((e: unknown) => {
+          if (!cancelled)
+            setTelemetryError(e instanceof Error ? e.message : 'Could not load the insights.');
+        });
+    void load();
+    const timer = live ? setInterval(() => void load(), 5000) : null;
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [api, id, tab, isHost, live]);
+
   if (error) {
     return (
       <div className="flex min-h-screen flex-col">
@@ -314,12 +355,6 @@ export function SessionPage() {
       </div>
     );
   }
-
-  const s = data?.session;
-  const live = s ? s.endedAt === null : false;
-  const shareUrl = `${api.baseUrl}/s/${id}`;
-  // Only the host sees the export control (the API strips hostId for everyone else).
-  const isHost = Boolean(s && participant && s.hostId === participant.id);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -377,22 +412,41 @@ export function SessionPage() {
                 ) : null}
               </div>
             </div>
-            <div className="mt-6 flex gap-1 border-b border-line">
-              {(['recap', 'transcript'] as const).map((t) => (
+            <div className="mt-6 flex gap-1 border-b border-line" role="tablist">
+              {(isHost
+                ? (['recap', 'transcript', 'insights'] as const)
+                : (['recap', 'transcript'] as const)
+              ).map((t) => (
                 <button
                   key={t}
                   type="button"
+                  role="tab"
+                  aria-selected={tab === t}
                   className={cn(
                     'px-3 py-2 text-sm',
                     tab === t ? 'border-b-2 border-accent text-fg' : 'text-fg-2 hover:text-fg',
                   )}
                   onClick={() => setParams(t === 'recap' ? {} : { tab: t })}
                 >
-                  {t === 'recap' ? 'Recap' : 'Transcript'}
+                  {t === 'recap' ? 'Recap' : t === 'transcript' ? 'Transcript' : 'Insights'}
                 </button>
               ))}
             </div>
-            {tab === 'recap' ? (
+            {tab === 'insights' ? (
+              telemetry ? (
+                <Insights telemetry={telemetry} />
+              ) : telemetryError ? (
+                <p className="mt-5 text-sm text-danger" role="alert">
+                  {telemetryError}
+                </p>
+              ) : (
+                <div className="mt-5 flex flex-col gap-3">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-40 w-full" />
+                </div>
+              )
+            ) : tab === 'recap' ? (
               <div className="mt-5 flex flex-col gap-6">
                 <section>
                   <h6 className="mb-2.5 text-fg-2">What was covered</h6>
