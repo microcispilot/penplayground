@@ -211,14 +211,24 @@
 }
 
 /* ── note-card ──────────────────────────────────────────────────────── */
+/*
+ * The board is ALWAYS paper, so the card must not use theme-flipping tokens
+ * (--color-bg*, --color-fg*, --color-surface*, --color-line*, --shadow-*).
+ * Surfaces are explicit light values from the palette; text uses ink tokens.
+ * Mockup: white-ish card, 2 px accent left border, "YOU ASKED" small caps in
+ * accent, question in the hand font in ink, detail in sans muted ink.
+ */
 .pen-note {
   box-sizing: border-box;
   width: 100%;
   border-radius: var(--radius-lg, 14px);
-  background: var(--color-bg-elevated, #fff);
-  box-shadow: var(--shadow-card);
-  border: 1px solid var(--color-line);
-  color: var(--color-fg);
+  background: oklch(0.985 0.006 80);
+  border: 1px solid oklch(0.285 0.062 247.7 / 14%);
+  border-left: 2px solid var(--color-ink-accent);
+  box-shadow:
+    0 1px 2px oklch(0.2 0.05 248 / 6%),
+    0 8px 24px oklch(0.2 0.05 248 / 10%);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   animation: pen-note-rise 0.45s var(--ease-out, ease-out) both;
   transform-origin: 50% 100%;
@@ -238,7 +248,7 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: none;
-  color: var(--color-fg-2);
+  color: var(--color-ink-muted);
   font-size: 12px;
 }
 .pen-note__question {
@@ -252,7 +262,7 @@
   margin: 8px 0 0;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--color-fg-2);
+  color: var(--color-ink-muted);
 }
 @keyframes pen-note-rise {
   from {
