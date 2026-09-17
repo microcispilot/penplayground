@@ -9,7 +9,7 @@ import { encodeAudioFrame } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import { newSessionId, type RoomTransport, SessionRoom } from '@pen/session-engine';
 import type { WebSocket } from 'ws';
-import { detectSpokenLanguage, intakeTopic } from './language.js';
+import { detectSpokenLanguage } from './language.js';
 import { observer } from './observability.js';
 import type { Services } from './services.js';
 
@@ -54,7 +54,7 @@ export class RoomRegistry {
     // English hits, and the lookup is free, so the model's ~1.5 s never sits on the critical path for them.
     const registry = services.onten.registry;
     const [intake, quick] = await Promise.all([
-      intakeTopic(services.modelFor(args.host.plan), args.topic),
+      services.intake.intake(args.topic),
       registry.resolveTopic({ text: args.topic, language: 'en', locale: 'en-US', band: args.band }),
     ]);
     const { language, locale } = args.language
@@ -151,6 +151,7 @@ export class RoomRegistry {
     };
     await services.sessions.upsert(record);
     services.analytics.capture(args.host.id, 'session_started', {
+      intake: intake.via,
       match: resolution.match,
       domain: resolution.domainBoundary,
       language,

@@ -1,109 +1,135 @@
-import { francAll } from 'franc';
-
-/** ISO 639-3 → BCP-47 for the languages Fish s2.1-pro and the recognizers cover well. */
-const LOCALES: Record<string, string> = {
-  eng: 'en-US',
-  spa: 'es-ES',
-  fra: 'fr-FR',
-  deu: 'de-DE',
-  ita: 'it-IT',
-  por: 'pt-BR',
-  nld: 'nl-NL',
-  pol: 'pl-PL',
-  rus: 'ru-RU',
-  ukr: 'uk-UA',
-  tur: 'tr-TR',
-  ara: 'ar-SA',
-  pes: 'fa-IR',
-  hin: 'hi-IN',
-  ben: 'bn-BD',
-  urd: 'ur-PK',
-  jpn: 'ja-JP',
-  kor: 'ko-KR',
-  cmn: 'zh-CN',
-  zho: 'zh-CN',
-  yue: 'zh-HK',
-  vie: 'vi-VN',
-  tha: 'th-TH',
-  ind: 'id-ID',
-  msa: 'ms-MY',
-  swe: 'sv-SE',
-  dan: 'da-DK',
-  nob: 'nb-NO',
-  fin: 'fi-FI',
-  ell: 'el-GR',
-  ces: 'cs-CZ',
-  hun: 'hu-HU',
-  ron: 'ro-RO',
-  heb: 'he-IL',
-  cat: 'ca-ES',
-  tgl: 'tl-PH',
-  kat: 'ka-GE',
-  amh: 'am-ET',
-  hrv: 'hr-HR',
-  slk: 'sk-SK',
-  bul: 'bg-BG',
-  tam: 'ta-IN',
-  tel: 'te-IN',
-  mar: 'mr-IN',
-  guj: 'gu-IN',
-  pan: 'pa-IN',
-  mal: 'ml-IN',
-  kan: 'kn-IN',
-  nep: 'ne-NP',
-};
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { LanguageModel } from '@pen/llm';
+import { normalizeTopic } from '@pen/onten';
+import { getLIDModel } from 'fasttext.wasm.js';
+import { z } from 'zod';
+import { logger } from './logger.js';
 
 /**
- * Detects the learner's language from the topic text. Short topics are hard
- * to classify, so anything below franc's confidence floor is treated as
- * English; a session may still be created with an explicit language.
+ * Language identification: fastText lid.176 (Facebook's 176-language model,
+ * ~900 KB, offline, ~0.05 ms per call). Measured on our own short topic and
+ * question strings it was 23/23 where the n-gram detector was 18/23, so no
+ * model call is spent on identification anywhere in the product.
  */
-export function detectLanguage(text: string): { language: string; locale: string } {
-  const trimmed = text.trim();
-  const words = trimmed.split(/\s+/).filter(Boolean).length;
-  let code = 'eng';
-  if (trimmed.length >= 12) {
-    // Only the languages we can actually teach in, and a clear margin over the runner-up:
-    // short topic strings are easy to misread ("Swift fundamentals" scores as Catalan unconstrained).
-    const ranked = francAll(trimmed, { minLength: 12, only: Object.keys(LOCALES) });
-    const top = ranked[0];
-    const second = ranked[1];
-    const nonLatin = /[^\p{Script=Latin}\s\d\p{P}\p{S}]/u.test(trimmed);
-    if (top && top[0] !== 'und') {
-      const margin = second ? top[1] - second[1] : 1;
-      const confident = nonLatin || margin >= 0.12 || words >= 8;
-      if (confident || top[0] === 'eng') code = top[0];
-    }
-  }
-  const locale = LOCALES[code] ?? 'en-US';
-  return { language: locale.split('-')[0] ?? 'en', locale };
+type Lid = Awaited<ReturnType<typeof getLIDModel>>;
+let lid: Lid | null = null;
+
+export async function loadLanguageId(): Promise<void> {
+  if (lid) return;
+  const model = await getLIDModel();
+  await model.load();
+  lid = model;
 }
 
-// ── model-assisted intake ─────────────────────────────────────────────────────
-import type { LanguageModel } from '@pen/llm';
-import { z } from 'zod';
+/** ISO 639-1 → the locale we use for voices and recognition. */
+const LOCALES: Record<string, string> = {
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+  pt: 'pt-BR',
+  nl: 'nl-NL',
+  pl: 'pl-PL',
+  ru: 'ru-RU',
+  uk: 'uk-UA',
+  tr: 'tr-TR',
+  ar: 'ar-SA',
+  fa: 'fa-IR',
+  hi: 'hi-IN',
+  bn: 'bn-BD',
+  ur: 'ur-PK',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  zh: 'zh-CN',
+  vi: 'vi-VN',
+  th: 'th-TH',
+  id: 'id-ID',
+  ms: 'ms-MY',
+  sv: 'sv-SE',
+  da: 'da-DK',
+  no: 'nb-NO',
+  fi: 'fi-FI',
+  el: 'el-GR',
+  cs: 'cs-CZ',
+  hu: 'hu-HU',
+  ro: 'ro-RO',
+  he: 'he-IL',
+  ca: 'ca-ES',
+  tl: 'tl-PH',
+  ka: 'ka-GE',
+  am: 'am-ET',
+  hr: 'hr-HR',
+  sk: 'sk-SK',
+  bg: 'bg-BG',
+  ta: 'ta-IN',
+  te: 'te-IN',
+  mr: 'mr-IN',
+  gu: 'gu-IN',
+  pa: 'pa-IN',
+  ml: 'ml-IN',
+  kn: 'kn-IN',
+  ne: 'ne-NP',
+  sq: 'sq-AL',
+  az: 'az-AZ',
+  kk: 'kk-KZ',
+  et: 'et-EE',
+  lt: 'lt-LT',
+  lv: 'lv-LV',
+  sl: 'sl-SI',
+  sr: 'sr-RS',
+  sw: 'sw-KE',
+  af: 'af-ZA',
+  is: 'is-IS',
+  ga: 'ga-IE',
+  mn: 'mn-MN',
+};
 
-export const TopicIntake = z.object({
-  /** BCP-47 tag of the language the learner wrote in (en-US, es-ES, ja-JP …). */
-  language: z.string(),
-  /** Clean topic title in the learner's language, ≤ 8 words, no "I want to learn". */
-  title: z.string(),
-  /** The same topic in English, ≤ 8 words: the key the knowledge is stored under. */
-  canonicalTitle: z.string(),
-  /**
-   * ISO 639-1 language the knowledge should be gathered in. "en" for anything
-   * universal (Swift, calculus, ECG). Only a subject that is intrinsically tied
-   * to a language keeps that language (Rumi's poems → "fa", Japanese keigo → "ja").
-   */
-  sourceLanguage: z.string(),
-});
-export type TopicIntake = z.infer<typeof TopicIntake>;
+export interface Detected {
+  language: string;
+  locale: string;
+  /** 0–1 from the classifier. */
+  confidence: number;
+}
+
+/** Below this the text is too short/ambiguous to act on ("why?", "TCP handshake"): keep the current language. */
+const CONFIDENT = 0.5;
+
+/** ~0.05 ms once loaded; English when unloaded or uncertain. */
+export async function detectLanguage(text: string, fallback = 'en'): Promise<Detected> {
+  const trimmed = text.trim();
+  if (!lid || trimmed.length < 2) return locale(fallback, 0);
+  const r = await lid.identify(trimmed);
+  const code = (r.alpha2 ?? '').toLowerCase();
+  const confidence = Number(r.possibility ?? 0);
+  if (!code || !(code in LOCALES) || confidence < CONFIDENT) return locale(fallback, confidence);
+  return locale(code, confidence);
+}
+
+function locale(code: string, confidence: number): Detected {
+  const lang = code.split('-')[0] ?? 'en';
+  return { language: lang, locale: LOCALES[lang] ?? `${lang}-${lang.toUpperCase()}`, confidence };
+}
 
 /**
- * Short topic strings defeat n-gram detectors ("Swift fundamentals" reads as
- * Catalan), so the cheap model reads the intent instead: language + a clean
- * title. Falls back to the statistical detector when the model is unavailable.
+ * Language of a learner utterance mid-session: only a confident read moves
+ * voice and recognition; the model still answers in the question's language.
  */
+export async function detectSpokenLanguage(text: string): Promise<string | null> {
+  const d = await detectLanguage(text, '');
+  return d.confidence >= 0.8 && d.language ? d.locale : null;
+}
+
+// ── topic intake ──────────────────────────────────────────────────────────────
+
+const Translation = z.object({
+  /** The topic in English, ≤ 8 words, the way an English textbook would name it. */
+  canonicalTitle: z.string(),
+  /** "en" unless the subject itself belongs to a language (poetry, grammar, songs, a country's law): that ISO 639-1 code. */
+  sourceLanguage: z.string(),
+});
+
 export interface TopicIntakeResult {
   language: string;
   locale: string;
@@ -113,71 +139,126 @@ export interface TopicIntakeResult {
   canonicalTitle: string;
   /** Language the knowledge is gathered in ("en" unless the subject is language-bound). */
   sourceLanguage: string;
-}
-
-export async function intakeTopic(model: LanguageModel, text: string): Promise<TopicIntakeResult> {
-  try {
-    const { value } = await model.complete({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You classify a learning request. Return: language — the BCP-47 tag the learner wrote in (default en-US when unsure; code identifiers do not change it); title — a clean topic title in that language, ≤ 8 words, no "I want to learn"; canonicalTitle — the same topic in English, ≤ 8 words, the way an English textbook would name it; sourceLanguage — "en" unless the subject itself belongs to a language (poetry, literature, grammar, songs, law of a specific country in its language), in which case that ISO 639-1 code.',
-        },
-        { role: 'user', content: text },
-      ],
-      schema: TopicIntake,
-      schemaName: 'topic_intake',
-      cacheKey: 'pen:intake',
-      maxOutputTokens: 60,
-      purpose: 'intake',
-    });
-    const locale = normaliseLocale(value.language);
-    const source = /^[a-z]{2}$/.test(value.sourceLanguage.trim().toLowerCase())
-      ? value.sourceLanguage.trim().toLowerCase()
-      : 'en';
-    return {
-      language: locale.split('-')[0] ?? 'en',
-      locale,
-      title: value.title.trim().slice(0, 80) || text,
-      canonicalTitle:
-        value.canonicalTitle.trim().slice(0, 80) || value.title.trim().slice(0, 80) || text,
-      sourceLanguage: source,
-    };
-  } catch {
-    const detected = detectLanguage(text);
-    return { ...detected, title: text, canonicalTitle: text, sourceLanguage: 'en' };
-  }
-}
-
-function normaliseLocale(tag: string): string {
-  const m = /^([a-zA-Z]{2,3})(?:[-_]([a-zA-Z]{2,4}))?/.exec(tag.trim());
-  if (!m) return 'en-US';
-  const lang = (m[1] ?? 'en').toLowerCase();
-  const region = m[2]?.toUpperCase();
-  if (region) return `${lang}-${region}`;
-  const known = Object.values(LOCALES).find((l) => l.startsWith(`${lang}-`));
-  return known ?? `${lang}-${lang.toUpperCase()}`;
+  /** Where the answer came from (for telemetry). */
+  via: 'english' | 'cache' | 'model' | 'fallback';
 }
 
 /**
- * Language of a learner utterance mid-session. Confident only: a script change
- * or a clear statistical winner on a long enough sentence; otherwise null so
- * the session keeps its current language.
+ * English requests never touch a model: identification is local and the
+ * cleaned text is the canonical title. Non-English requests need one
+ * translation to the English canonical title (and the language-bound check);
+ * that result is cached on disk by normalised text, so each distinct topic
+ * pays once ever, not once per session.
  */
-export function detectSpokenLanguage(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed.length < 8) return null;
-  const nonLatin = /[^\p{Script=Latin}\s\d\p{P}\p{S}]/u.test(trimmed);
-  const ranked = francAll(trimmed, { minLength: 8, only: Object.keys(LOCALES) });
-  const top = ranked[0];
-  const second = ranked[1];
-  if (!top || top[0] === 'und') return null;
-  const margin = second ? top[1] - second[1] : 1;
-  const words = trimmed.split(/\s+/).length;
-  // Latin-script sentences are ambiguous in a few words ("¿y si uso let…?" scores Swedish):
-  // switch only on a script change or a decisive, long-enough sentence. The model still
-  // answers in the language of the question either way; this only moves voice + recognition.
-  if (!(nonLatin || (words >= 8 && margin >= 0.2))) return null;
-  return LOCALES[top[0]] ?? null;
+export class TopicIntake {
+  private cache = new Map<string, { canonicalTitle: string; sourceLanguage: string }>();
+  private readonly file: string;
+
+  constructor(
+    private readonly model: LanguageModel,
+    dataDir: string,
+  ) {
+    mkdirSync(dataDir, { recursive: true });
+    this.file = join(dataDir, 'intake-cache.json');
+    try {
+      const raw = JSON.parse(readFileSync(this.file, 'utf8')) as Record<
+        string,
+        { canonicalTitle: string; sourceLanguage: string }
+      >;
+      this.cache = new Map(Object.entries(raw));
+    } catch {
+      this.cache = new Map();
+    }
+  }
+
+  async intake(text: string): Promise<TopicIntakeResult> {
+    const detected = await detectLanguage(text);
+    const title = cleanTitle(text, detected.language);
+    if (detected.language === 'en') {
+      return { ...detected, title, canonicalTitle: title, sourceLanguage: 'en', via: 'english' };
+    }
+    const key = `${detected.language}:${normalizeTopic(text)}`;
+    const hit = this.cache.get(key);
+    if (hit) return { ...detected, title, ...hit, via: 'cache' };
+    try {
+      const { value } = await this.model.complete({
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Translate a learning request into an English topic title (≤ 8 words, as an English textbook would name it). Also decide sourceLanguage: "en" unless the subject itself belongs to a language — poetry, literature, grammar, songs, or one country\'s law in its own language — in which case that ISO 639-1 code.',
+          },
+          { role: 'user', content: text },
+        ],
+        schema: Translation,
+        schemaName: 'topic_translation',
+        cacheKey: 'pen:intake',
+        maxOutputTokens: 40,
+        purpose: 'intake',
+      });
+      const source = /^[a-z]{2}$/.test(value.sourceLanguage.trim().toLowerCase())
+        ? value.sourceLanguage.trim().toLowerCase()
+        : 'en';
+      const entry = {
+        canonicalTitle: value.canonicalTitle.trim().slice(0, 80) || title,
+        sourceLanguage: source,
+      };
+      this.cache.set(key, entry);
+      this.persist();
+      return { ...detected, title, ...entry, via: 'model' };
+    } catch (error) {
+      logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'intake translation failed; using the learner text as the key',
+      );
+      return {
+        ...detected,
+        title,
+        canonicalTitle: title,
+        sourceLanguage: detected.language,
+        via: 'fallback',
+      };
+    }
+  }
+
+  private persist(): void {
+    try {
+      writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.cache)));
+    } catch (error) {
+      logger.warn({ err: String(error) }, 'intake cache not persisted');
+    }
+  }
+}
+
+/** Strip "I want to learn" phrasing (English) and title-case; other languages keep the learner's words. */
+export function cleanTitle(text: string, language: string): string {
+  const t = text.trim().replace(/\s+/g, ' ');
+  if (language !== 'en') return t.slice(0, 80);
+  const cleaned = normalizeTopic(t);
+  if (!cleaned) return t.slice(0, 80);
+  return cleaned
+    .split(' ')
+    .map((w, i) =>
+      i > 0 &&
+      [
+        'a',
+        'an',
+        'the',
+        'of',
+        'in',
+        'on',
+        'for',
+        'and',
+        'or',
+        'to',
+        'vs',
+        'with',
+        'at',
+        'by',
+      ].includes(w)
+        ? w
+        : w.charAt(0).toUpperCase() + w.slice(1),
+    )
+    .join(' ')
+    .slice(0, 80);
 }

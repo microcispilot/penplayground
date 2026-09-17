@@ -84,7 +84,7 @@ export interface SessionRoomDeps {
   /** The persona's voice for a communication language; falls back to `voice`. */
   voiceFor?: (language: string) => string;
   /** Detects the language of a learner utterance (BCP-47) or null when unsure. */
-  languageOf?: (text: string) => string | null;
+  languageOf?: (text: string) => Promise<string | null> | string | null;
   sampleRate: 24000 | 44100 | 48000;
   transport: RoomTransport;
   observer?: RoomObserver;
@@ -807,8 +807,8 @@ export class SessionRoom {
     }
     this.lastFloorUtterance.delete(utteranceId);
     this.ledger({ kind: 'caption', t: this.now(), participantId: p.id, text });
-    this.followLanguage(text);
-    void this.decide(p, text);
+    // Detection is ~0.05 ms; awaiting it keeps the acknowledgement in the right language.
+    void this.followLanguage(text).then(() => this.decide(p, text));
   }
 
   /** perceive → decide → act. */
@@ -927,14 +927,13 @@ export class SessionRoom {
     this.turn = turn;
     this.questions.push(question);
     this.setMode('thinking', p.id);
-    // Instant acknowledgement: audible within the TTS first-chunk time, while the answer is composed.
-    const ack: SayEvent = {
-      type: 'say',
-      id: 's0',
-      text: acknowledgement(kind, this.turnCounter),
-      tone: 'warm',
-    };
-    this.emitTurnEvent(turn, ack);
+    // Instant acknowledgement in the learner's language: audible within the TTS first-chunk
+    // time, while the answer is composed. Languages without a table stay silent instead.
+    const ackText = acknowledgement(kind, this.turnCounter, this.language);
+    if (ackText) {
+      const ack: SayEvent = { type: 'say', id: 's0', text: ackText, tone: 'warm' };
+      this.emitTurnEvent(turn, ack);
+    }
     const segment = this.plan.segments[this.state.segment] ?? this.plan.segments[0];
     if (!segment) return;
     try {
@@ -991,7 +990,7 @@ export class SessionRoom {
         this.emitTurnEvent(turn, {
           type: 'say',
           id: 's98',
-          text: `I lost my connection for a second — ${bridgeBack(this.turnCounter).toLowerCase()}`,
+          text: `I lost my connection for a second — ${bridgeBack(this.turnCounter, this.language)}`,
           tone: 'neutral',
         });
     }
@@ -1152,9 +1151,13 @@ export class SessionRoom {
   }
 
   /** Switch the communication language when the learner clearly wrote in another one (script change). */
-  private followLanguage(text: string): void {
-    const detected = this.d.languageOf?.(text);
-    if (detected) this.setLanguage(detected);
+  private async followLanguage(text: string): Promise<void> {
+    try {
+      const detected = await this.d.languageOf?.(text);
+      if (detected) this.setLanguage(detected);
+    } catch (error) {
+      this.observer.error('room.language_detect', error);
+    }
   }
 
   private setLanguage(tag: string): void {

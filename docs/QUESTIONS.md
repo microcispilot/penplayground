@@ -38,16 +38,18 @@ Round 2 lists what is still needed from you.
    behind `POSTHOG_PROJECT_TOKEN` / `VITE_POSTHOG_TOKEN`.
 10. **Public sessions.** All sessions are public and the creator is never shown
     (host id and name are stripped from public records and ledgers).
-11. **Languages.** Any language, with knowledge kept in English. A cheap model
-    call reads each request and returns the learner's language, a title in it, an
-    **English canonical title** (the key packs are stored under, so "من میخواهم
-    سویفت را از پایه بیاموزم" and "I want to learn Swift" share one prepared pack)
-    and a **source language** that is only non-English for language-bound subjects
-    (Rumi's poems → Persian sources). Communication follows the learner turn by
-    turn: the model declares the language of each question, the expert answers,
-    writes the board and continues the lesson in it with the persona's voice for
-    that language, and recognition switches with it — as many switches as the
-    learner makes.
+11. **Languages.** Any language, with knowledge kept in English. Language
+    identification is local and free: fastText's lid.176 model (900 KB, ~0.05 ms,
+    23/23 on our short topic and question strings). English requests never touch
+    a model. A non-English request needs one translation to the **English
+    canonical title** (the key packs are stored under, so "من میخواهم سویفت را از
+    پایه بیاموزم" and "I want to learn Swift" share one prepared pack) plus the
+    language-bound check (Rumi's poems → Persian sources); that answer is cached on
+    disk, so each distinct topic pays once ever. Communication follows the learner
+    turn by turn: the utterance is identified locally in milliseconds, so even the
+    instant acknowledgement ("Ah, muy buena.") is in the learner's language with
+    the persona's voice for it; the model confirms the language on the note, and
+    board, lesson and recognition follow — as many switches as the learner makes.
 12. **Onten.** The host keeps the general-purpose surface (`ContextClient`) and
     shapes lessons through `contentInstructions`; nothing education-specific is
     assumed of Onten.

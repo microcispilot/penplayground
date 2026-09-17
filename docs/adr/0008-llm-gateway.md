@@ -39,5 +39,5 @@ Knowledge is English-canonical: topic intake returns an English title and a
 source language ("en" unless the subject is language-bound). The communication
 language is per turn: it is sent with every request (never in the cached
 system prefix), the model declares each question's language on the `note`
-event, and the room switches voice/recognition on it. Statistical detection is
-used only for script changes before the model has read the question.
+event, and the room switches voice/recognition on it. Identification is local (fastText lid.176, ~0.05 ms) and used for every
+utterance; the model's declaration on the `note` event only confirms it.

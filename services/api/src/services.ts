@@ -23,6 +23,7 @@ import { Analytics } from './analytics.js';
 import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
+import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
@@ -43,6 +44,7 @@ export interface Services {
   participants: ParticipantRepository;
   billing: Billing;
   analytics: Analytics;
+  intake: TopicIntake;
   modelFor(plan: PlanCode): LanguageModel;
   acquirer: KnowledgeAcquirer | null;
   costs: CostLedger;
@@ -149,6 +151,8 @@ export async function buildServices(
   const participants = new ParticipantRepository(db.db);
   const billing = new Billing(cfg, participants);
   const analytics = new Analytics(cfg);
+  await loadLanguageId();
+  const intake = new TopicIntake(modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
   const base = {
     cfg,
     onten,
@@ -162,6 +166,7 @@ export async function buildServices(
     participants,
     billing,
     analytics,
+    intake,
     modelFor,
     costs,
   };

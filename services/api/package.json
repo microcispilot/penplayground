@@ -24,7 +24,6 @@
     "@pen/session-engine": "workspace:*",
     "@pen/voice": "workspace:*",
     "@sentry/node": "10.75.0",
-    "franc": "6.2.0",
     "hono": "4.13.8",
     "jose": "6.2.12",
     "nanoid": "6.0.1",
@@ -33,7 +32,8 @@
     "posthog-node": "5.52.4",
     "stripe": "22.6.2",
     "ws": "8.21.3",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "fasttext.wasm.js": "1.0.0"
   },
   "devDependencies": {
     "@types/node": "22.20.3",
