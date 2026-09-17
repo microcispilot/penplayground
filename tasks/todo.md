@@ -21,6 +21,12 @@
 - [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
 - [ ] LiveKit rooms audio (human-to-human voice)
 - [ ] Desktop: package and sign (needs Apple ID / Windows cert)
-- [ ] Sentry projects + source maps (needs go-ahead, docs/QUESTIONS.md #9)
-- [ ] Server-side STT relay (ws-relay/Deepgram/AssemblyAI) for the desktop host
-- [ ] Listen test with Fish Audio once a key exists (docs/QUESTIONS.md #2)
+- [x] Sentry projects (pen-academy-api/web/desktop)
+- [ ] Sentry source maps upload (web + api)
+- [x] Server-side STT relay (ws-relay to the 5090 box, Deepgram, AssemblyAI); warm-up at boot
+- [x] Listen test with Fish Audio (s2.1-pro-free)
+- [ ] Pace: host-set, synchronized (voice + board + captions), presets, persisted; teacher-rhythm default
+- [ ] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified
+- [ ] Stripe webhook endpoint registered
+- [ ] Export follow-ups: queued jobs resume; no anonymous participant per render; pre-mixed PCM
+- [ ] Fake model: completion for the knowledge outline purpose (Sentry issue)

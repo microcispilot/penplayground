@@ -26,3 +26,40 @@ complete and verified.
 
 Risks: tldraw licence; Fish self-host licence; browser STT quality on
 non-Chrome; cost of preparation on topic misses (bounded by guardrails).
+
+## Phase 3 (2026-09-17): complete the product surface, full visibility, pace
+
+Owner's brief: finish everything planned; every session must be 100 % visible
+(stage timings end to end, user interactions, what was shown, errors) in
+PostHog and Sentry and pullable with our keys; per-session cost with the
+breakdown by model / TTS / STT / search; the tutor's pace must feel like a
+real teacher and be adjustable by the learner, with voice, board and captions
+staying in sync (like a video speed control).
+
+Workstreams (parallel, isolated worktrees, merged in this order):
+
+1. **pace** — `pace` on RoomState (host-set, broadcast, in the ledger), presets
+   0.75× / 0.9× / 1× / 1.15× / 1.3×; default 1× is re-tuned to a teacher's rhythm
+   (Fish speed 0.95, 400 ms between sentences, 700 ms after a check, board
+   ≈ 10 chars/s). Pace scales TTS speed (Fish `prosody.speed`), the gaps, and
+   the board rate; the conductor keeps the audio clock master so everything
+   follows. Replay gets the same control (pitch-preserving). Learner's chosen
+   pace persists as a setting.
+2. **observability** — `packages/contracts/telemetry.ts`: stage samples
+   (intake, resolve, context, llm, tts, stt, board, turn, ad, prepare), cost
+   lines (llm tokens in/cached/out, tts bytes, stt seconds, search requests),
+   client interaction events (what was tapped, what was shown, when), errors
+   with a Sentry ref. All are ledger entries too, so the saved session carries
+   its own telemetry. `GET /api/sessions/:id/telemetry` (host) and an Insights
+   tab on the session page. PostHog receives the same events (server + client)
+   with `sessionId`; Sentry gets `sessionId`/`expertId`/`plan` tags and
+   breadcrumbs. Verification pulls the events back through the PostHog query
+   API and the Sentry API with the keys in `.env`.
+3. **backlog** — Google sign-in (behind `GOOGLE_CLIENT_ID`), Stripe webhook
+   endpoint registered, Sentry source maps for web/api, export follow-ups
+   (queued jobs resume, no anonymous participant per render, pre-mixed PCM),
+   desktop unsigned package proof, fake-model completion for the knowledge
+   purpose (Sentry issue), dev-DB migration timestamp guard.
+4. **livekit** — human-to-human audio in rooms: self-hosted `livekit-server`
+   in the compose stack, token endpoint, client audio publish/subscribe,
+   host mute controls, verified with two headless browsers.
