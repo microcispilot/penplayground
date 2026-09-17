@@ -16,6 +16,11 @@
 # Alpine route (musl chromium + Playwright's static ffmpeg) is smaller but not supported by
 # Playwright, so it is deliberately not offered. Without the arg the API boots with export
 # disabled (`/api/health` → render:false, POST export → 503 RENDER_UNAVAILABLE).
+#
+# Sentry source maps: mount the auth token as a BuildKit secret and the bundle's map is uploaded
+# under release = GIT_SHA (the bundle carries the matching debug id and release):
+#   --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN --build-arg GIT_SHA=$(git rev-parse HEAD)
+# Without the secret the build is identical minus the upload.
 
 ARG NODE_IMAGE=node:22-alpine
 # Tag matches the `playwright` npm version pinned in services/api/package.json.
@@ -45,8 +50,15 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # ── build: bundle, then a hoisted production node_modules for the bundle's externals ──
 FROM deps AS build
+ARG GIT_SHA=unknown
+ARG SENTRY_ORG=microcis-0s
 COPY . .
-RUN pnpm --filter @pen/api build
+RUN --mount=type=secret,id=sentry_auth_token \
+    sh -eu -c ' \
+      if [ -s /run/secrets/sentry_auth_token ]; then \
+        export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" SENTRY_RELEASE="$GIT_SHA"; \
+      fi; \
+      pnpm --filter @pen/api build'
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm --filter @pen/api deploy --legacy --prod --config.node-linker=hoisted \
       --store-dir /pnpm/store /out \

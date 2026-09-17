@@ -28,8 +28,10 @@
     "@electron-forge/maker-zip": "7.11.2",
     "@electron-forge/plugin-fuses": "7.11.2",
     "@electron-forge/plugin-vite": "7.11.2",
+    "@electron-forge/shared-types": "7.11.2",
     "@electron/fuses": "1.8.0",
     "@tailwindcss/vite": "4.3.3",
+    "@types/node": "22.20.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
@@ -37,8 +39,6 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vite": "8.3.0",
-    "vitest": "5.0.1",
-    "@types/node": "22.20.3",
-    "@electron-forge/shared-types": "7.11.2"
+    "vitest": "5.0.1"
   }
 }

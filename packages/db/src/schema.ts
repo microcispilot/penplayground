@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -15,19 +16,26 @@ import {
  * by session id. Participants become accounts when sign-in lands: the same
  * row gains an email and a provider.
  */
-export const participants = pgTable('participants', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  plan: text('plan', { enum: ['free', 'standard', 'professional'] })
-    .notNull()
-    .default('free'),
-  anonymous: boolean('anonymous').notNull().default(true),
-  email: text('email'),
-  provider: text('provider'),
-  stripeCustomerId: text('stripe_customer_id'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const participants = pgTable(
+  'participants',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    plan: text('plan', { enum: ['free', 'standard', 'professional'] })
+      .notNull()
+      .default('free'),
+    anonymous: boolean('anonymous').notNull().default(true),
+    email: text('email'),
+    provider: text('provider'),
+    /** Google's stable account id (`sub` in the ID token); the one key a Google sign-in is looked up by. */
+    googleSub: text('google_sub'),
+    avatarUrl: text('avatar_url'),
+    stripeCustomerId: text('stripe_customer_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('participants_google_sub_idx').on(t.googleSub)],
+);
 
 export const sessions = pgTable(
   'sessions',

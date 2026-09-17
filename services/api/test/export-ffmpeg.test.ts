@@ -12,40 +12,19 @@ import {
 } from '../src/export/ffmpeg.js';
 import { alignToTape, exportFilename } from '../src/export/plan.js';
 
-const says = [
-  { sayId: 'L0.s1', take: 0, offsetMs: 0, pcmPath: '/a/L0.s1.0.pcm', durationMs: 3200 },
-  { sayId: 'L0.s2', take: 1, offsetMs: 3212.4, pcmPath: '/a/L0.s2.1.pcm', durationMs: 2500 },
-  {
-    sayId: 't1.s1',
-    take: 0,
-    offsetMs: 5730,
-    pcmPath: '/a/t1.s1.0.pcm',
-    durationMs: 1800,
-    sampleRate: 24000 as const,
-  },
-];
+const mix = { pcmPath: '/tmp/pen-export-x/mix.pcm' };
 
 describe('export ffmpeg builder', () => {
-  it('places every say at its video offset with adelay, trimmed to the ledger length, and mixes without normalisation', () => {
-    const { filter, label } = buildAudioFilter(says);
+  it('takes the pre-mixed track as one input: upmixed to stereo at 44.1 kHz and padded to the video', () => {
+    const { filter, label } = buildAudioFilter(mix);
     expect(label).toBe('[a]');
     expect(filter).toBe(
-      [
-        '[1:a]atrim=end=3.200,aresample=44100,adelay=delays=0:all=1[d0]',
-        '[2:a]atrim=end=2.500,aresample=44100,adelay=delays=3212:all=1[d1]',
-        '[3:a]atrim=end=1.800,aresample=44100,adelay=delays=5730:all=1[d2]',
-        '[d0][d1][d2]amix=inputs=3:normalize=0:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad[a]',
-      ].join(';'),
+      '[1:a]aresample=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad[a]',
     );
   });
 
   it('substitutes stereo silence when nothing was spoken', () => {
-    expect(buildAudioFilter([]).filter).toBe('anullsrc=r=44100:cl=stereo[a]');
-  });
-
-  it('never emits a negative delay', () => {
-    const one = [{ ...says[0], offsetMs: -12 }] as typeof says;
-    expect(buildAudioFilter(one).filter).toContain('adelay=delays=0:all=1');
+    expect(buildAudioFilter(null).filter).toBe('anullsrc=r=44100:cl=stereo[a]');
   });
 
   it('trims the video at the sync curtain and normalises to 1280x720 @ 30 fps yuv420p', () => {
@@ -54,15 +33,15 @@ describe('export ffmpeg builder', () => {
     );
   });
 
-  it('declares each raw PCM input with its own sample rate and muxes H.264 + AAC with faststart', () => {
+  it('declares the raw PCM input with its sample rate and muxes H.264 + AAC with faststart', () => {
     const args = buildMuxArgs({
       videoPath: '/tmp/v.webm',
       videoStartSec: 0.8,
       durationSec: 8.53,
-      says,
+      audio: mix,
       outputPath: '/out/export.mp4',
     });
-    // Input 0 is the video; PCM inputs follow in say order with their format declared before `-i`.
+    // Input 0 is the video; the mix follows with its format declared before `-i`.
     expect(args.slice(0, 10)).toEqual([
       '-hide_banner',
       '-nostdin',
@@ -75,12 +54,12 @@ describe('export ffmpeg builder', () => {
       '-i',
       '/tmp/v.webm',
     ]);
-    expect(args.join(' ')).toContain('-f s16le -ar 44100 -ac 1 -i /a/L0.s1.0.pcm');
-    expect(args.join(' ')).toContain('-f s16le -ar 44100 -ac 1 -i /a/L0.s2.1.pcm');
-    expect(args.join(' ')).toContain('-f s16le -ar 24000 -ac 1 -i /a/t1.s1.0.pcm');
+    expect(args.join(' ')).toContain('-f s16le -ar 44100 -ac 1 -i /tmp/pen-export-x/mix.pcm');
+    expect(args.filter((a) => a === '-i')).toHaveLength(2);
     const graph = args[args.indexOf('-filter_complex') + 1] ?? '';
     expect(graph.startsWith('[0:v]trim=start=0.800,')).toBe(true);
-    expect(graph).toContain('amix=inputs=3:normalize=0');
+    expect(graph).toContain('[1:a]aresample=44100');
+    expect(graph).not.toContain('amix');
     expect(args).toContain('-map');
     expect(args[args.indexOf('-map') + 1]).toBe('[v]');
     expect(args[args.lastIndexOf('-map') + 1]).toBe('[a]');
@@ -100,6 +79,24 @@ describe('export ffmpeg builder', () => {
       expect(args[args.lastIndexOf(pair[0] ?? '') + 1]).toBe(pair[1]);
     }
     expect(args.slice(-3)).toEqual(['-f', 'mp4', '/out/export.mp4']);
+    // A 24 kHz mix declares its own rate; no audio means the video is the only input.
+    const at24k = buildMuxArgs({
+      videoPath: '/tmp/v.webm',
+      videoStartSec: 0,
+      durationSec: 1,
+      audio: { pcmPath: '/m.pcm', sampleRate: 24000 },
+      outputPath: '/o.mp4',
+    });
+    expect(at24k.join(' ')).toContain('-f s16le -ar 24000 -ac 1 -i /m.pcm');
+    const silent = buildMuxArgs({
+      videoPath: '/tmp/v.webm',
+      videoStartSec: 0,
+      durationSec: 1,
+      audio: null,
+      outputPath: '/o.mp4',
+    });
+    expect(silent.filter((a) => a === '-i')).toHaveLength(1);
+    expect(silent[silent.indexOf('-filter_complex') + 1]).toContain('anullsrc');
   });
 
   it('parses blackdetect intervals from ffmpeg stderr', () => {

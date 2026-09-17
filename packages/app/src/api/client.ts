@@ -9,8 +9,15 @@ export const Participant = z.object({
   id: z.string(),
   name: z.string(),
   plan: z.enum(['free', 'standard', 'professional']),
+  /** False once a Google account is attached to this row. */
+  anonymous: z.boolean().default(true),
+  email: z.string().nullable().default(null),
+  avatarUrl: z.string().nullable().default(null),
 });
 export type Participant = z.infer<typeof Participant>;
+
+export const GoogleSignInOutcome = z.enum(['linked', 'existing', 'created']);
+export type GoogleSignInOutcome = z.infer<typeof GoogleSignInOutcome>;
 
 export const SessionRecord = z.object({
   id: z.string(),
@@ -126,6 +133,43 @@ export class ApiClient {
     this.storage.set(TOKEN_KEY, res.token);
     this.storage.set(NAME_KEY, res.participant.name);
     return res.participant;
+  }
+
+  /**
+   * Trade a Google ID token for the account's bearer. Sent with the current
+   * (anonymous) bearer so the server can upgrade this very row; the token that
+   * comes back replaces it either way.
+   */
+  async signInWithGoogle(idToken: string): Promise<{
+    participant: Participant;
+    outcome: GoogleSignInOutcome;
+  }> {
+    const res = await this.request(
+      '/api/identity/google',
+      z.object({ token: z.string(), participant: Participant, outcome: GoogleSignInOutcome }),
+      { method: 'POST', body: JSON.stringify({ idToken }) },
+    );
+    this.token = res.token;
+    this.storage.set(TOKEN_KEY, res.token);
+    this.storage.set(NAME_KEY, res.participant.name);
+    return { participant: res.participant, outcome: res.outcome };
+  }
+
+  /** Rename in place: same participant, same sessions, same bearer. */
+  async rename(name: string): Promise<Participant> {
+    const res = await this.request('/api/me', z.object({ participant: Participant }), {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+    this.storage.set(NAME_KEY, res.participant.name);
+    return res.participant;
+  }
+
+  /** Forget the bearer; the next `ensureParticipant()` mints a fresh anonymous one. */
+  signOut(): void {
+    this.token = null;
+    this.storage.remove(TOKEN_KEY);
+    this.storage.remove(NAME_KEY);
   }
 
   listPublicSessions() {

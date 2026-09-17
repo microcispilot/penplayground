@@ -1,6 +1,8 @@
+import { execSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 import { build, type Plugin } from 'esbuild';
 
 /**
@@ -19,8 +21,15 @@ import { build, type Plugin } from 'esbuild';
  *   undici                 large CJS with optional `node:sqlite`/dispatcher requires
  *   playwright(-core)      locates browsers and its driver relative to its own package
  *   fasttext.wasm.js       loads its .wasm and the lid.176 model relative to its own package
+ *   google-auth-library    gaxios/gcp-metadata reach for optional peers at runtime
  *
  * Output: dist/main.js (+ .map, meta.json) and dist/drizzle (migrations copied beside the bundle).
+ *
+ * Source maps: with `SENTRY_AUTH_TOKEN` set the map is uploaded to Sentry (project
+ * pen-academy-api) under the release = git sha, and the bundle carries the matching debug id
+ * and release, so production stack traces resolve to TypeScript. The `.map` stays on disk for
+ * `NODE_OPTIONS=--enable-source-maps`. Without the token the build is exactly the same minus
+ * the upload.
  */
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outdir = join(root, 'dist');
@@ -39,6 +48,7 @@ const EXTERNAL = [
   'playwright',
   'playwright-core',
   'fasttext.wasm.js',
+  'google-auth-library',
 ];
 
 const externalPackages: Plugin = {
@@ -54,6 +64,36 @@ const externalPackages: Plugin = {
   },
 };
 
+/** The release every Sentry event and uploaded map is filed under: the commit being built. */
+function releaseName(): string {
+  const given = process.env.SENTRY_RELEASE?.trim();
+  if (given) return given;
+  try {
+    // Docker builds have no .git: the Dockerfile passes SENTRY_RELEASE (= GIT_SHA) instead.
+    return execSync('git rev-parse HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN?.trim();
+const sentryRelease = sentryAuthToken ? releaseName() : null;
+const sentry: Plugin[] =
+  sentryAuthToken && sentryRelease
+    ? [
+        sentryEsbuildPlugin({
+          org: process.env.SENTRY_ORG?.trim() || 'microcis-0s',
+          project: 'pen-academy-api',
+          authToken: sentryAuthToken,
+          release: { name: sentryRelease },
+          telemetry: false,
+        }),
+      ]
+    : [];
+if (sentryRelease) console.log(`sentry: uploading source maps as release ${sentryRelease}`);
+
 rmSync(outdir, { recursive: true, force: true });
 mkdirSync(outdir, { recursive: true });
 
@@ -68,7 +108,8 @@ const result = await build({
   legalComments: 'none',
   logLevel: 'info',
   metafile: true,
-  plugins: [externalPackages],
+  // The Sentry plugin must come last so it sees the final output.
+  plugins: [externalPackages, ...sentry],
   banner: {
     // Some CommonJS-authored dependencies reach for `require` even when imported from ESM.
     js: "import { createRequire as __penCreateRequire } from 'node:module';\nconst require = __penCreateRequire(import.meta.url);",

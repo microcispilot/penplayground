@@ -39,6 +39,9 @@ const Env = z.object({
   TAVILY_API_KEY: z.string().optional(),
   EXA_API_KEY: z.string().optional(),
 
+  /** Google Identity Services web client id; sign-in is off (and `/api/health` says `google:false`) until set. */
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PORTAL_CONFIGURATION_ID: z.string().optional(),

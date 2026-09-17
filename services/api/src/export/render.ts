@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Browser, type BrowserType, chromium } from 'playwright';
@@ -16,6 +16,7 @@ import {
   runFfmpeg,
 } from './ffmpeg.js';
 import { RenderError, type Renderer, type RenderResult } from './jobs.js';
+import { bytesFromPcm, type MixTake, mixTakes, pcmFromBytes } from './mix.js';
 import { alignToTape, planExport } from './plan.js';
 
 export interface PlaywrightRendererOptions {
@@ -62,8 +63,9 @@ const MAX_DRIFT_MS = 500;
 /**
  * Renders a session deterministically: headless Chromium plays the replay page
  * in export mode while Playwright records the screen; the page reports the
- * video time at which every sentence began; ffmpeg then places each sentence's
- * PCM at that offset and muxes it with the H.264 transcode.
+ * video time at which every sentence began; every sentence's PCM is laid out
+ * at that offset into one track (mix.ts), which ffmpeg muxes with the H.264
+ * transcode.
  *
  * Sync guarantee: the page is a solid black curtain until it marks `videoStart`
  * (a `requestAnimationFrame` that lifts the curtain and starts the export clock
@@ -166,28 +168,30 @@ export class PlaywrightRenderer implements Renderer {
       onProgress(0.88);
       // The recording's clock vs the page's: correct the audio offsets by the measured stretch.
       const tapeStarts = alignToTape(capture.sayStarts, capture.doneMs, curtain.driftMs);
-      const says = plan.says.flatMap((say, i) => {
+      const takes = plan.says.flatMap((say, i): MixTake[] => {
         const offsetMs = tapeStarts[i];
         if (!say.pcmPath || offsetMs === undefined || !existsSync(say.pcmPath)) return [];
         return [
           {
-            sayId: say.sayId,
-            take: say.take,
-            offsetMs,
-            pcmPath: say.pcmPath,
-            durationMs: say.durationMs,
+            pcm: pcmFromBytes(readFileSync(say.pcmPath)),
             sampleRate: say.sampleRate,
+            offsetMs,
+            durationMs: say.durationMs,
           },
         ];
       });
       const durationSec = (curtain.measuredMs ?? capture.doneMs) / 1000;
+      // One raw track for ffmpeg, whatever the number of sentences.
+      const mixPath = join(scratch, 'mix.pcm');
+      if (takes.length > 0)
+        writeFileSync(mixPath, bytesFromPcm(mixTakes(takes, durationSec * 1000)));
       await runFfmpeg(
         this.o.ffmpegPath,
         buildMuxArgs({
           videoPath: capture.videoPath,
           videoStartSec: curtain.videoStartSec,
           durationSec,
-          says,
+          audio: takes.length > 0 ? { pcmPath: mixPath } : null,
           outputPath: tmpOut,
         }),
         {
@@ -200,7 +204,7 @@ export class PlaywrightRenderer implements Renderer {
       renameSync(tmpOut, outputPath);
       this.o.onEvent?.('export.rendered', {
         sessionId,
-        says: says.length,
+        says: takes.length,
         estimatedSays: plan.says.filter((s) => s.estimated).length,
         durationMs: Math.round(durationSec * 1000),
         curtainSec: curtain.videoStartSec,

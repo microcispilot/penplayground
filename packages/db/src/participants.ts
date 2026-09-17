@@ -1,6 +1,14 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from './client.js';
-import { type ParticipantRow, participants } from './schema.js';
+import { type ParticipantRow, participants, sessions } from './schema.js';
+
+/** What a Google sign-in contributes to a participant row. */
+export interface GoogleLink {
+  googleSub: string;
+  email: string | null;
+  name: string;
+  avatarUrl: string | null;
+}
 
 export class ParticipantRepository {
   constructor(private readonly db: Database) {}
@@ -27,6 +35,85 @@ export class ParticipantRepository {
   async get(id: string): Promise<ParticipantRow | null> {
     const rows = await this.db.select().from(participants).where(eq(participants.id, id)).limit(1);
     return rows[0] ?? null;
+  }
+
+  async findByGoogleSub(googleSub: string): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .select()
+      .from(participants)
+      .where(eq(participants.googleSub, googleSub))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async rename(id: string, name: string): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ name, lastSeenAt: new Date() })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Attach a Google account to an existing row (an anonymous participant
+   * signing in keeps its id, so its sessions stay its own) or refresh the
+   * profile of a row that already carries this account.
+   */
+  async linkGoogle(id: string, link: GoogleLink): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({
+        googleSub: link.googleSub,
+        email: link.email,
+        name: link.name,
+        avatarUrl: link.avatarUrl,
+        provider: 'google',
+        anonymous: false,
+        lastSeenAt: new Date(),
+      })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /** A brand-new account for a Google identity nobody here has used before. */
+  async createGoogle(
+    id: string,
+    plan: ParticipantRow['plan'],
+    link: GoogleLink,
+  ): Promise<ParticipantRow> {
+    const rows = await this.db
+      .insert(participants)
+      .values({
+        id,
+        name: link.name,
+        plan,
+        anonymous: false,
+        email: link.email,
+        provider: 'google',
+        googleSub: link.googleSub,
+        avatarUrl: link.avatarUrl,
+      })
+      .returning();
+    const row = rows[0];
+    if (!row) throw new Error('participant insert returned no row');
+    return row;
+  }
+
+  /**
+   * Move every session an anonymous participant hosted onto the account it
+   * signed into (when that Google account already had a row of its own).
+   * Returns how many sessions moved.
+   */
+  async adoptSessions(fromId: string, toId: string, toName: string): Promise<number> {
+    if (fromId === toId) return 0;
+    const rows = await this.db
+      .update(sessions)
+      .set({ hostId: toId, hostName: toName })
+      .where(eq(sessions.hostId, fromId))
+      .returning();
+    return rows.length;
   }
 
   async setPlan(

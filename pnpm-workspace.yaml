@@ -14,3 +14,8 @@ allowBuilds:
   macos-alias: true
   core-js: false
 blockExoticSubdeps: false
+# pnpm's own default, written out because Electron Forge refuses to package a pnpm workspace
+# unless a hoist pattern (or node-linker=hoisted) is explicitly configured; the install layout
+# is unchanged (apps/desktop ships only its Vite output, never node_modules).
+hoistPattern:
+  - '*'

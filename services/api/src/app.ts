@@ -17,6 +17,7 @@ import type { WSContext } from 'hono/ws';
 import type { WebSocket } from 'ws';
 import { z } from 'zod';
 import { ExportRefused, exportFilename } from './export/index.js';
+import { GoogleTokenError } from './google.js';
 import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
 import { logger } from './logger.js';
@@ -41,6 +42,27 @@ const CreateSession = z.object({
 });
 
 const Anonymous = z.object({ name: z.string().max(60).optional() });
+const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
+const Rename = z.object({ name: z.string().trim().min(1).max(60) });
+
+/** The participant as the client sees it; `anonymous` decides whether the account chip offers sign-in or sign-out. */
+function participantView(row: {
+  id: string;
+  name: string;
+  plan: Claims['plan'];
+  anonymous: boolean;
+  email?: string | null;
+  avatarUrl?: string | null;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    plan: row.plan,
+    anonymous: row.anonymous,
+    email: row.email ?? null,
+    avatarUrl: row.avatarUrl ?? null,
+  };
+}
 
 /** Strip the creator from a session record for anyone but the host. */
 function anonymise<T extends { hostId: string; hostName: string }>(record: T): T {
@@ -84,7 +106,12 @@ export function buildApp(services: Services): App {
     if (!claims) return null;
     const row = await services.participants.get(claims.sub);
     return row
-      ? { ...claims, name: row.name, plan: services.cfg.PEN_DEV_PLAN ?? row.plan }
+      ? {
+          ...claims,
+          name: row.name,
+          plan: services.cfg.PEN_DEV_PLAN ?? row.plan,
+          anonymous: row.anonymous,
+        }
       : claims;
   };
 
@@ -96,6 +123,7 @@ export function buildApp(services: Services): App {
       stt: services.cfg.PEN_STT_PROVIDER,
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
+      google: services.google !== null,
     }),
   );
 
@@ -106,17 +134,102 @@ export function buildApp(services: Services): App {
     const name = safeName(body.success ? body.data.name : undefined);
     const plan = services.cfg.PEN_DEV_PLAN ?? 'free';
     const issued = await identity.issue({ name, plan, anonymous: true });
-    await services.participants.ensure({ id: issued.claims.sub, name, plan, anonymous: true });
+    const row = await services.participants.ensure({
+      id: issued.claims.sub,
+      name,
+      plan,
+      anonymous: true,
+    });
     return c.json({
       token: issued.token,
-      participant: { id: issued.claims.sub, name: issued.claims.name, plan: issued.claims.plan },
+      participant: participantView({ ...row, plan: issued.claims.plan }),
     });
+  });
+
+  /**
+   * Google sign-in. The ID token comes from Google Identity Services in the
+   * browser; the verifier checks it was minted for our client id. With a
+   * bearer for an anonymous participant the same row is upgraded, so the
+   * caller keeps its id, its sessions and (re-issued with the new claims)
+   * its bearer. Without one, or for an account that already exists, the
+   * account's own bearer is returned.
+   */
+  app.post('/api/identity/google', async (c) => {
+    const ip = c.req.header('x-forwarded-for') ?? 'local';
+    if (!allowAuth(ip)) return c.json({ error: 'RATE_LIMITED' }, 429);
+    if (!services.google)
+      return c.json(
+        { error: 'GOOGLE_DISABLED', message: 'Google sign-in is not available here.' },
+        503,
+      );
+    const body = GoogleBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const claims = await bearer(c.req.header('authorization'));
+    const caller = claims ? await services.participants.get(claims.sub) : null;
+    try {
+      const result = await services.google.signIn(body.data.idToken, caller);
+      const plan = services.cfg.PEN_DEV_PLAN ?? result.participant.plan;
+      const issued = await identity.issue({
+        sub: result.participant.id,
+        name: result.participant.name,
+        plan,
+        anonymous: false,
+      });
+      observer.event('identity.google', {
+        outcome: result.outcome,
+        adoptedSessions: result.adoptedSessions,
+      });
+      services.analytics.capture(result.participant.id, 'signed_in', {
+        provider: 'google',
+        outcome: result.outcome,
+      });
+      return c.json({
+        token: issued.token,
+        participant: participantView({ ...result.participant, plan }),
+        outcome: result.outcome,
+      });
+    } catch (error) {
+      if (error instanceof GoogleTokenError) {
+        observer.event('identity.google_rejected', { reason: error.reason });
+        return c.json(
+          {
+            error: 'INVALID_TOKEN',
+            reason: error.reason,
+            message:
+              error.reason === 'expired'
+                ? 'That sign-in expired. Please try again.'
+                : 'Google did not accept that sign-in. Please try again.',
+          },
+          401,
+        );
+      }
+      observer.error('identity.google', error);
+      return c.json({ error: 'SIGN_IN_FAILED', message: 'Could not sign you in.' }, 502);
+    }
   });
 
   app.get('/api/me', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    return c.json({ participant: { id: claims.sub, name: claims.name, plan: claims.plan } });
+    const row = await services.participants.get(claims.sub);
+    return c.json({
+      participant: participantView(
+        row
+          ? { ...row, plan: claims.plan }
+          : { id: claims.sub, name: claims.name, plan: claims.plan, anonymous: claims.anonymous },
+      ),
+    });
+  });
+
+  /** Rename in place: the id, sessions and bearer are untouched. */
+  app.patch('/api/me', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const body = Rename.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const row = await services.participants.rename(claims.sub, safeName(body.data.name));
+    if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
+    return c.json({ participant: participantView({ ...row, plan: claims.plan }) });
   });
 
   app.get('/api/experts', (c) => c.json({ experts: services.experts.all() }));

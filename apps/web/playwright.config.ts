@@ -6,6 +6,9 @@ import { defineConfig, devices } from '@playwright/test';
  * is exercised deterministically without keys.
  */
 const apiPort = process.env.PEN_API_PORT ?? '4010';
+// Both ports are overridable so the suite can run next to a dev server (or another checkout's)
+// without reusing it: PEN_API_PORT=4410 PEN_WEB_PORT=5183 pnpm --filter @pen/web e2e
+const webPort = process.env.PEN_WEB_PORT ?? '5173';
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,7 +16,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: `http://localhost:${webPort}`,
     trace: 'retain-on-failure',
     permissions: ['microphone'],
     launchOptions: {
@@ -41,8 +44,8 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'pnpm --filter @pen/web dev',
-      url: 'http://localhost:5173',
+      command: `pnpm --filter @pen/web exec vite --port ${webPort} --strictPort`,
+      url: `http://localhost:${webPort}`,
       env: { PEN_API_PORT: apiPort },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,

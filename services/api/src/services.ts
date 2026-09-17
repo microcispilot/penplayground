@@ -24,6 +24,7 @@ import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
 import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
+import { GoogleLibraryVerifier, GoogleSignIn, type GoogleTokenVerifier } from './google.js';
 import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { logger } from './logger.js';
@@ -44,6 +45,8 @@ export interface Services {
   sessions: SessionRepository;
   participants: ParticipantRepository;
   billing: Billing;
+  /** Google sign-in; null until `GOOGLE_CLIENT_ID` is configured. */
+  google: GoogleSignIn | null;
   analytics: Analytics;
   intake: TopicIntake;
   modelFor(plan: PlanCode): LanguageModel;
@@ -88,7 +91,11 @@ export const DATA_DIR = join(here, '..', 'data');
 
 export async function buildServices(
   cfg: Config,
-  opts: { acquirerFactory?: (s: Omit<Services, 'acquirer'>) => KnowledgeAcquirer | null } = {},
+  opts: {
+    acquirerFactory?: (s: Omit<Services, 'acquirer'>) => KnowledgeAcquirer | null;
+    /** Google ID-token verification seam (tests inject a fake; production uses Google's library). */
+    googleVerifier?: GoogleTokenVerifier;
+  } = {},
 ): Promise<Services> {
   const onten = createOnten({ dataDir: join(cfg.PEN_DATA_DIR, 'onten') });
   const experts = ExpertCatalog.fromJson(
@@ -152,10 +159,19 @@ export async function buildServices(
   };
 
   const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
-  const db = await connect(cfg.DATABASE_URL);
+  const db = await connect(cfg.DATABASE_URL, {
+    log: (message, detail) => logger.warn({ evt: message, ...detail }),
+  });
   const sessions = new SessionRepository(db.db);
   const participants = new ParticipantRepository(db.db);
   const billing = new Billing(cfg, participants);
+  const googleVerifier =
+    opts.googleVerifier ??
+    (cfg.GOOGLE_CLIENT_ID ? new GoogleLibraryVerifier(cfg.GOOGLE_CLIENT_ID) : null);
+  const google = googleVerifier
+    ? new GoogleSignIn(googleVerifier, participants, cfg.PEN_DEV_PLAN ?? 'free')
+    : null;
+  if (!google) logger.info('google sign-in disabled: set GOOGLE_CLIENT_ID');
   const analytics = new Analytics(cfg);
   await loadLanguageId();
   const intake = new TopicIntake(modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
@@ -174,9 +190,14 @@ export async function buildServices(
   const exports = new ExportJobs({
     sessionsDir: join(cfg.PEN_DATA_DIR, 'sessions'),
     renderer,
+    // Without a renderer a queued job would only fail again; leave it "interrupted" for the client.
+    resumeQueued: renderUnavailable === null,
     onEvent: (name, data) => observer.event(name, data),
     onError: (area, error, data) => observer.error(area, error, data),
   });
+  // Jobs that were waiting when the previous process stopped render now instead of reading "interrupted".
+  const resumed = exports.resume();
+  if (resumed.length > 0) logger.info({ count: resumed.length }, 'export jobs resumed');
   const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
   const base = {
     cfg,
@@ -190,6 +211,7 @@ export async function buildServices(
     sessions,
     participants,
     billing,
+    google,
     analytics,
     intake,
     modelFor,

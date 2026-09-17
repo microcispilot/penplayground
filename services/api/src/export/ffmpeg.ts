@@ -9,27 +9,24 @@ import { spawn } from 'node:child_process';
  *    black again when the replay is done. The first black interval's end is
  *    t=0 of the export; the second one's start measures drift.
  * 2. The mux: video trimmed at the curtain and transcoded to H.264 30 fps;
- *    each say's raw PCM delayed to the video offset the page reported for it,
- *    mixed without normalisation (says never overlap) into 44.1 kHz stereo AAC.
+ *    the audio is one raw PCM track that `mixTakes` (mix.ts) already laid out
+ *    on the export's timeline, so ffmpeg sees a single input however many
+ *    sentences were spoken — no per-say `adelay`/`amix` graph to grow with
+ *    the session.
  */
 
 export const EXPORT_WIDTH = 1280;
 export const EXPORT_HEIGHT = 720;
 export const EXPORT_FPS = 30;
 export const EXPORT_AUDIO_RATE = 44100;
-/** `amix normalize=` and `adelay all=` need this ffmpeg. */
+/** The oldest ffmpeg the mux and `blackdetect` options were verified on (Ubuntu 22.04's). */
 export const MIN_FFMPEG_VERSION = [4, 4] as const;
 
-export interface AudioPlacement {
-  sayId: string;
-  take: number;
-  /** Where in the output this say starts, ms. */
-  offsetMs: number;
+/** The pre-mixed track: s16le mono, already on the export's timeline (see mix.ts). */
+export interface MixedAudio {
   pcmPath: string;
-  /** Audio the ledger accounts for; anything beyond it in the file is trimmed off. */
-  durationMs: number;
-  /** Sample rate of the raw file (s16le mono). Defaults to 44.1 kHz. */
-  sampleRate?: 24000 | 44100 | 48000;
+  /** Sample rate of the raw file. Defaults to 44.1 kHz. */
+  sampleRate?: number;
 }
 
 export interface MuxInput {
@@ -38,41 +35,38 @@ export interface MuxInput {
   videoStartSec: number;
   /** Output length, seconds. */
   durationSec: number;
-  says: AudioPlacement[];
+  /** Null when nothing was spoken: the output gets a silent stereo track. */
+  audio: MixedAudio | null;
   outputPath: string;
 }
 
-/** Raw PCM inputs need their format declared before `-i`. */
-function pcmInputArgs(say: AudioPlacement): string[] {
+/** A raw PCM input needs its format declared before `-i`. */
+function pcmInputArgs(audio: MixedAudio): string[] {
   return [
     '-f',
     's16le',
     '-ar',
-    String(say.sampleRate ?? EXPORT_AUDIO_RATE),
+    String(audio.sampleRate ?? EXPORT_AUDIO_RATE),
     '-ac',
     '1',
     '-i',
-    say.pcmPath,
+    audio.pcmPath,
   ];
 }
 
-/** The audio half of the filter graph: `atrim` + `adelay` per say, `amix` with `normalize=0`, stereo upmix, pad to the video. */
-export function buildAudioFilter(says: AudioPlacement[]): { filter: string; label: string } {
-  if (says.length === 0) {
+/** The audio half of the filter graph: the mixed track upmixed to stereo at 44.1 kHz and padded to the video's length. */
+export function buildAudioFilter(audio: MixedAudio | null): { filter: string; label: string } {
+  if (!audio) {
     return {
       filter: `anullsrc=r=${EXPORT_AUDIO_RATE}:cl=stereo[a]`,
       label: '[a]',
     };
   }
-  const chains = says.map((say, i) => {
-    const delay = Math.max(0, Math.round(say.offsetMs));
-    const end = (Math.max(1, say.durationMs) / 1000).toFixed(3);
-    // Inputs are 1-based: input 0 is the video.
-    return `[${i + 1}:a]atrim=end=${end},aresample=${EXPORT_AUDIO_RATE},adelay=delays=${delay}:all=1[d${i}]`;
-  });
-  const labels = says.map((_, i) => `[d${i}]`).join('');
-  const mix = `${labels}amix=inputs=${says.length}:normalize=0:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=${EXPORT_AUDIO_RATE}:channel_layouts=stereo,apad[a]`;
-  return { filter: [...chains, mix].join(';'), label: '[a]' };
+  // Input 0 is the video; the mix is input 1.
+  return {
+    filter: `[1:a]aresample=${EXPORT_AUDIO_RATE},aformat=sample_fmts=fltp:sample_rates=${EXPORT_AUDIO_RATE}:channel_layouts=stereo,apad[a]`,
+    label: '[a]',
+  };
 }
 
 /** The video half: trim at the curtain, re-time to t=0, constant 30 fps, exact size, 4:2:0 for every player. */
@@ -83,7 +77,7 @@ export function buildVideoFilter(videoStartSec: number): string {
 
 /** Full argv (without the binary) for the mux pass. Progress is reported on stdout (`-progress pipe:1`). */
 export function buildMuxArgs(input: MuxInput): string[] {
-  const audio = buildAudioFilter(input.says);
+  const audio = buildAudioFilter(input.audio);
   const graph = `${buildVideoFilter(input.videoStartSec)};${audio.filter}`;
   return [
     '-hide_banner',
@@ -96,7 +90,7 @@ export function buildMuxArgs(input: MuxInput): string[] {
     '-y',
     '-i',
     input.videoPath,
-    ...input.says.flatMap(pcmInputArgs),
+    ...(input.audio ? pcmInputArgs(input.audio) : []),
     '-filter_complex',
     graph,
     '-map',

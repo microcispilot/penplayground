@@ -193,8 +193,8 @@ describe('ExportJobs', () => {
     await jobs.idle();
   });
 
-  const persistedRendering = (pid: number, heartbeatAt: number) => ({
-    sessionId: 's',
+  const persistedRendering = (pid: number, heartbeatAt: number, sessionId = 's') => ({
+    sessionId,
     status: 'rendering',
     progress: 0.4,
     error: null,
@@ -208,6 +208,95 @@ describe('ExportJobs', () => {
     ledgerFingerprint: null,
     pid,
     heartbeatAt,
+  });
+
+  const persistedQueued = (pid: number, heartbeatAt: number, createdAt = 1, sessionId = 's') => ({
+    ...persistedRendering(pid, heartbeatAt, sessionId),
+    status: 'queued',
+    progress: 0,
+    startedAt: null,
+    createdAt,
+  });
+
+  it('queues a persisted queued job again after a restart instead of calling it interrupted', async () => {
+    const { sessionsDir, session } = fixture();
+    const dir = session('s');
+    writeFileSync(join(dir, 'export.json'), JSON.stringify(persistedQueued(4242, 1_000)));
+    const fake = fakeRenderer();
+    const events: Array<{ name: string; resumed: unknown }> = [];
+    const jobs = new ExportJobs({
+      sessionsDir,
+      renderer: fake.renderer,
+      pid: 1,
+      onEvent: (name, data) => events.push({ name, resumed: data.resumed }),
+    });
+    const st = jobs.status('s');
+    expect(st?.status).toBe('queued');
+    expect(st?.pid).toBe(1);
+    expect(events[0]).toEqual({ name: 'export.queued', resumed: true });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(jobs.status('s')?.status).toBe('rendering');
+    fake.release();
+    await jobs.idle();
+    expect(jobs.status('s')?.status).toBe('ready');
+    expect(fake.calls).toEqual(['s']);
+  });
+
+  it('resume() picks up every cold queued job on disk, oldest first, and nothing else', async () => {
+    const { sessionsDir, session } = fixture();
+    const a = session('a');
+    const b = session('b');
+    const c = session('c');
+    const d = session('d');
+    session('e');
+    writeFileSync(join(a, 'export.json'), JSON.stringify(persistedQueued(4242, 1_000, 200, 'a')));
+    writeFileSync(join(b, 'export.json'), JSON.stringify(persistedQueued(4242, 1_000, 100, 'b')));
+    // Rendering when the old process died: reported as interrupted, not re-run.
+    writeFileSync(join(c, 'export.json'), JSON.stringify(persistedRendering(4242, 1_000, 'c')));
+    // Queued by another process that is still alive: left alone.
+    const now = 10_000_000;
+    writeFileSync(join(d, 'export.json'), JSON.stringify(persistedQueued(7, now - 5_000, 1, 'd')));
+    const fake = fakeRenderer();
+    const events: string[] = [];
+    const jobs = new ExportJobs({
+      sessionsDir,
+      renderer: fake.renderer,
+      pid: 1,
+      now: () => now,
+      onEvent: (name) => events.push(name),
+    });
+    expect(jobs.resume()).toEqual(['b', 'a']);
+    expect(events).toEqual(['export.queued', 'export.queued', 'export.resumed']);
+    expect(jobs.pending).toBe(2);
+    expect(jobs.status('c')?.status).toBe('failed');
+    expect(jobs.status('d')?.status).toBe('queued');
+    expect(jobs.status('d')?.pid).toBe(7);
+    expect(jobs.status('e')).toBeNull();
+    // A second resume is a no-op.
+    expect(jobs.resume()).toEqual([]);
+    fake.release();
+    await new Promise((r) => setTimeout(r, 20));
+    fake.release();
+    await jobs.idle();
+    expect(fake.calls).toEqual(['b', 'a']);
+    expect(jobs.status('a')?.status).toBe('ready');
+    expect(jobs.status('b')?.status).toBe('ready');
+  });
+
+  it('with resumeQueued off (no renderer here) a cold queued job reads as interrupted', () => {
+    const { sessionsDir, session } = fixture();
+    const dir = session('s');
+    writeFileSync(join(dir, 'export.json'), JSON.stringify(persistedQueued(4242, 1_000)));
+    const jobs = new ExportJobs({
+      sessionsDir,
+      renderer: fakeRenderer().renderer,
+      pid: 1,
+      resumeQueued: false,
+    });
+    expect(jobs.resume()).toEqual([]);
+    const st = jobs.status('s');
+    expect(st?.status).toBe('failed');
+    expect(st?.error).toMatch(/interrupted/);
   });
 
   it('treats a persisted rendering record with a cold heartbeat as a crashed process', () => {

@@ -16,6 +16,13 @@ export interface Platform {
   readonly sentryDsn: string | null;
   /** PostHog project token + host; null disables analytics. */
   readonly analytics: { token: string; host: string } | null;
+  /**
+   * Google Identity Services web client id; null hides "Continue with Google".
+   * Desktop passes null: GIS needs a real browser origin, and Google refuses
+   * OAuth inside embedded web views, so the desktop path is a loopback flow
+   * that is not built yet.
+   */
+  readonly googleClientId: string | null;
 }
 
 export interface MicrophoneAssets {
