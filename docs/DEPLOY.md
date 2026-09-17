@@ -49,6 +49,22 @@ export VITE_SENTRY_DSN=…
 The script refuses to run unless the remote hostname is `prod-app-01`
 (`PEN_DEPLOY_EXPECTED_HOSTNAME` overrides).
 
+## Releases and branches
+
+- Source of truth: `git@github.com:microcispilot/penplayground.git`, branch `main`.
+- Every web release gets a branch `release/web/<semver>` cut from `main`
+  (`release/web/0.0.1` is the first, deployed 2026-09-17). The next one is
+  `release/web/0.0.2`, and so on; branches are never force-pushed after they ship.
+- Deploy from the release branch so the image tag is that branch's commit:
+
+  ```sh
+  git switch release/web/0.0.2 && deploy/deploy.sh
+  ```
+
+  Rollback is `PEN_IMAGE_TAG=<previous tag> deploy/deploy.sh --skip-build --skip-ship`.
+- The web app is served by the `web` container on prod-app-01 behind the host nginx; Hostinger
+  only holds the DNS zone (`A @` and `A www` → 5.78.205.172). Nothing deploys from Hostinger.
+
 ## DNS
 
 Create `A` (and `AAAA` if the host has IPv6) records for `DOMAIN` and `www.DOMAIN` pointing at
