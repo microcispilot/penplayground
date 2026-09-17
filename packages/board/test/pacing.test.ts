@@ -39,6 +39,6 @@ describe('pacing', () => {
 
   it('ignores non-finite pace values', () => {
     expect(resolvePace(1000, Number.NaN).durationMs).toBe(1000);
-    expect(resolvePace(1000, Number.POSITIVE_INFINITY).durationMs).toBe(1000 * MAX_STRETCH);
+    expect(resolvePace(1000, Number.POSITIVE_INFINITY).durationMs).toBe(1000);
   });
 });

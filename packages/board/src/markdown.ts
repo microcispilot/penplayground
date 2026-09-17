@@ -60,9 +60,9 @@ export function parseInline(src: string): MdInline[] {
         continue;
       }
     }
-    if ((ch === '*' || ch === '_') && i + 1 < src.length && !/\s/.test(src[i + 1] ?? '')) {
+    if ((ch === '*' || ch === '_') && i + 1 < src.length && !/\s/.test(src[i + 1] ?? '') && src[i + 1] !== ch) {
       const close = findClose(src, ch, i + 1);
-      if (close !== -1 && !/\s/.test(src[close - 1] ?? '')) {
+      if (close > i + 1 && !/\s/.test(src[close - 1] ?? '')) {
         flush();
         out.push({ type: 'italic', children: parseInline(src.slice(i + 1, close)) });
         i = close + 1;
@@ -70,7 +70,7 @@ export function parseInline(src: string): MdInline[] {
       }
     }
     if (ch === '[') {
-      const m = /^\[([^\]]+)\]\(([^)\s]+)\)/.exec(src.slice(i));
+      const m = /^\[([^\]]+)\]\(([^\s]*)\)/.exec(src.slice(i));
       if (m) {
         flush();
         out.push(...parseInline(m[1] ?? ''));

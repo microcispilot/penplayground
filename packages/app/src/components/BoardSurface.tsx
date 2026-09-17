@@ -1,14 +1,14 @@
 import { Board } from '@pen/board';
 import type { BoardPort } from '@pen/conductor';
 import { useCallback } from 'react';
-import type { RoomSession } from '../room/RoomSession.js';
+import type { LazyBoard } from '../room/LazyBoard.js';
 
 /** Mounts the shared board and attaches its controller to the session's lazy board port. */
 export function BoardSurface({
   session,
   licenseKey,
 }: {
-  session: RoomSession | null;
+  session: { board: LazyBoard } | null;
   licenseKey: string;
 }) {
   const onReady = useCallback(

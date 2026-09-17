@@ -141,8 +141,7 @@ export function SessionPage() {
                   <Button
                     variant="primary"
                     leading={<Play size={14} />}
-                    onClick={() => navigate(`/room/${id}`)}
-                    disabled
+                    onClick={() => navigate(`/replay/${id}`)}
                   >
                     Replay
                   </Button>

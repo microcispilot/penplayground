@@ -1,88 +1,18 @@
 import {
   type AudioPort,
-  type BoardExecution,
-  type BoardPort,
   type CaptionPort,
   Conductor,
   estimateSpeechMs,
   type PresencePort,
 } from '@pen/conductor';
-import type { BoardEvent, CheckEvent, NoteEvent, RoomState } from '@pen/contracts';
+import type { CheckEvent, RoomState } from '@pen/contracts';
 import { AUDIO } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
 import type { Platform, SpeechRecognizer } from '../platform/types.js';
+import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
 import { useRoomStore } from './store.js';
-
-/**
- * A board port that buffers until the real board mounts, so cues that arrive
- * during the first render are never lost and never reordered.
- */
-class LazyBoard implements BoardPort {
-  private real: BoardPort | null = null;
-  private readonly queue: Array<() => void> = [];
-  private dimmed = false;
-
-  attach(board: BoardPort): void {
-    this.real = board;
-    board.setDimmed(this.dimmed);
-    for (const fn of this.queue.splice(0)) fn();
-  }
-
-  execute(op: BoardEvent, opts: { paceMs: number | null }): BoardExecution {
-    if (this.real) return this.real.execute(op, opts);
-    let inner: BoardExecution | null = null;
-    let paused = false;
-    let finished = false;
-    let cancelled = false;
-    let resolveDone!: () => void;
-    const done = new Promise<void>((r) => {
-      resolveDone = r;
-    });
-    this.queue.push(() => {
-      if (cancelled || !this.real) {
-        resolveDone();
-        return;
-      }
-      inner = this.real.execute(op, opts);
-      if (paused) inner.pause();
-      if (finished) inner.finish();
-      void inner.done.then(resolveDone);
-    });
-    return {
-      done,
-      pause: () => {
-        paused = true;
-        inner?.pause();
-      },
-      resume: () => {
-        paused = false;
-        inner?.resume();
-      },
-      finish: () => {
-        finished = true;
-        inner?.finish();
-      },
-      cancel: () => {
-        cancelled = true;
-        inner?.cancel();
-        resolveDone();
-      },
-    };
-  }
-  pinNote(note: NoteEvent, id: string): void {
-    if (this.real) this.real.pinNote(note, id);
-    else this.queue.push(() => this.real?.pinNote(note, id));
-  }
-  setDimmed(dimmed: boolean): void {
-    this.dimmed = dimmed;
-    this.real?.setDimmed(dimmed);
-  }
-  clear(): void {
-    this.real?.clear();
-  }
-}
 
 export interface RoomSessionOptions {
   api: ApiClient;
