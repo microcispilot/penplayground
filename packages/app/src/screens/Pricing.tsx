@@ -1,6 +1,7 @@
 import { Button, cn, Pill } from '@pen/design';
 import { Check } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { AppHeader } from '../components/AppHeader.js';
 import { useApp } from '../lib/context.js';
 
@@ -53,8 +54,41 @@ const PLANS = [
 ] as const;
 
 export function Pricing() {
-  const { participant } = useApp();
+  const { participant, api, platform } = useApp();
+  const toast = useToast();
+  const [params] = useSearchParams();
   const [interval, setInterval] = useState<'month' | 'year'>('month');
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    api
+      .billingStatus()
+      .then((s) => setEnabled(s.enabled))
+      .catch(() => setEnabled(false));
+  }, [api]);
+  useEffect(() => {
+    const r = params.get('checkout');
+    if (r === 'success') toast('Welcome aboard — your plan is active.', 'success');
+    if (r === 'cancelled') toast('Checkout cancelled.');
+  }, [params, toast]);
+  const buy = async (plan: 'plus' | 'classroom') => {
+    setBusy(plan);
+    try {
+      const url = await api.checkout(plan, interval);
+      platform.openExternal(url);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not start checkout', 'danger');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const manage = async () => {
+    try {
+      platform.openExternal(await api.billingPortal());
+    } catch {
+      toast('No billing account yet.', 'danger');
+    }
+  };
   return (
     <div className="flex min-h-screen flex-col">
       <AppHeader />

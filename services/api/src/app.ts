@@ -66,9 +66,15 @@ export function buildApp(services: Services): App {
     }),
   );
 
+  /** Verify the token, then take the plan from the participant row so billing changes apply at once. */
   const bearer = async (header: string | undefined): Promise<Claims | null> => {
     const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
-    return token ? identity.verify(token) : null;
+    const claims = token ? await identity.verify(token) : null;
+    if (!claims) return null;
+    const row = await services.participants.get(claims.sub);
+    return row
+      ? { ...claims, name: row.name, plan: services.cfg.PEN_DEV_PLAN ?? row.plan }
+      : claims;
   };
 
   app.get('/api/health', (c) =>
@@ -203,6 +209,49 @@ export function buildApp(services: Services): App {
 <meta http-equiv="refresh" content="0;url=${esc(target)}"></head><body><a href="${esc(target)}">Open the session</a></body></html>`);
   });
 
+  // ── billing ──────────────────────────────────────────────────────────────
+  const CheckoutBody = z.object({
+    plan: z.enum(['plus', 'classroom']),
+    interval: z.enum(['month', 'year']).default('month'),
+  });
+  app.get('/api/billing/status', (c) => c.json({ enabled: services.billing.enabled }));
+  app.post('/api/billing/checkout', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    if (!services.billing.enabled)
+      return c.json({ error: 'BILLING_DISABLED', message: 'Checkout is not available yet.' }, 503);
+    const body = CheckoutBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID' }, 400);
+    try {
+      const url = await services.billing.checkout(claims.sub, body.data.plan, body.data.interval);
+      return c.json({ url });
+    } catch (error) {
+      observer.error('billing.checkout', error);
+      return c.json({ error: 'BILLING_FAILED', message: 'Could not start checkout.' }, 502);
+    }
+  });
+  app.post('/api/billing/portal', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    try {
+      return c.json({ url: await services.billing.portal(claims.sub) });
+    } catch (error) {
+      observer.error('billing.portal', error);
+      return c.json({ error: 'BILLING_FAILED', message: 'No billing account yet.' }, 404);
+    }
+  });
+  app.post('/api/billing/webhook', async (c) => {
+    const signature = c.req.header('stripe-signature');
+    if (!signature) return c.json({ error: 'MISSING_SIGNATURE' }, 400);
+    try {
+      const result = await services.billing.webhook(await c.req.text(), signature);
+      return c.json(result);
+    } catch (error) {
+      observer.error('billing.webhook', error);
+      return c.json({ error: 'WEBHOOK_REJECTED' }, 400);
+    }
+  });
+
   app.get('/api/admin/costs', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -255,7 +304,7 @@ export function buildApp(services: Services): App {
           }
           const msg = parsed.data;
           if (msg.kind === 'auth') {
-            claims = await identity.verify(msg.token);
+            claims = await bearer(`Bearer ${msg.token}`);
             if (!claims) {
               fail(ws, 'UNAUTHORIZED', 'Sign in again.');
               ws.close(4001, 'unauthorized');

@@ -159,6 +159,21 @@ export class ApiClient {
       { method: 'POST' },
     );
   }
+  billingStatus() {
+    return this.request('/api/billing/status', z.object({ enabled: z.boolean() }));
+  }
+  checkout(plan: 'plus' | 'classroom', interval: 'month' | 'year') {
+    return this.request('/api/billing/checkout', z.object({ url: z.string() }), {
+      method: 'POST',
+      body: JSON.stringify({ plan, interval }),
+    }).then((r) => r.url);
+  }
+  billingPortal() {
+    return this.request('/api/billing/portal', z.object({ url: z.string() }), {
+      method: 'POST',
+      body: '{}',
+    }).then((r) => r.url);
+  }
   portraitUrl(src: string | null | undefined): string | null {
     return src ? `${this.baseUrl}${src}` : null;
   }

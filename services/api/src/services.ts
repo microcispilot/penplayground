@@ -20,6 +20,7 @@ import {
   StaticVoiceResolver,
   type VoiceResolver,
 } from '@pen/voice';
+import type { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
 import { FileLedger } from './ledger.js';
@@ -36,6 +37,7 @@ export interface Services {
   db: Connection;
   sessions: SessionRepository;
   participants: ParticipantRepository;
+  billing: Billing;
   modelFor(plan: PlanCode): LanguageModel;
   acquirer: KnowledgeAcquirer | null;
   costs: CostLedger;
@@ -139,6 +141,7 @@ export async function buildServices(
   const db = await connect(cfg.DATABASE_URL);
   const sessions = new SessionRepository(db.db);
   const participants = new ParticipantRepository(db.db);
+  const billing = new Billing(cfg, participants);
   const base = {
     cfg,
     onten,
@@ -149,6 +152,7 @@ export async function buildServices(
     db,
     sessions,
     participants,
+    billing,
     modelFor,
     costs,
   };

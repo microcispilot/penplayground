@@ -40,6 +40,15 @@ const Env = z.object({
   TAVILY_API_KEY: z.string().optional(),
   EXA_API_KEY: z.string().optional(),
 
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PORTAL_CONFIGURATION_ID: z.string().optional(),
+  /** Stripe price ids per plan/interval; billing is disabled until all four exist. */
+  STRIPE_PRICE_PLUS_MONTH: z.string().optional(),
+  STRIPE_PRICE_PLUS_YEAR: z.string().optional(),
+  STRIPE_PRICE_CLASSROOM_MONTH: z.string().optional(),
+  STRIPE_PRICE_CLASSROOM_YEAR: z.string().optional(),
+
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
 
