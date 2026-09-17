@@ -1,11 +1,31 @@
+import { CorpusBuilder, chooseSearchProvider } from '@pen/knowledge';
 import type { KnowledgeAcquirer } from '@pen/session-engine';
+import { observer } from './observability.js';
 import type { Services } from './services.js';
 
 /**
- * Topic-miss acquisition wiring. Bound to `@pen/knowledge` once that package
- * lands; until then sessions on unknown topics fail honestly rather than
- * pretending to prepare.
+ * Topic-miss acquisition: the corpus builder streams licensed sources into
+ * Onten's progressive compiler. The outline/evalset model is the free-plan
+ * key's model (cheap, cached); search is Tavily → Exa → curated seeds only.
  */
-export function createAcquirer(_services: Omit<Services, 'acquirer'>): KnowledgeAcquirer | null {
-  return null;
+export function createAcquirer(services: Omit<Services, 'acquirer'>): KnowledgeAcquirer | null {
+  let model: ReturnType<Services['modelFor']>;
+  try {
+    model = services.modelFor('free');
+  } catch (error) {
+    observer.error('knowledge.no_model', error);
+    return null;
+  }
+  const env = {
+    TAVILY_API_KEY: services.cfg.TAVILY_API_KEY,
+    EXA_API_KEY: services.cfg.EXA_API_KEY,
+  };
+  return new CorpusBuilder({
+    compiler: services.onten.compiler,
+    model,
+    policy: services.onten.policy,
+    search: chooseSearchProvider(env, { observer }),
+    observer,
+    hostId: 'pen',
+  });
 }

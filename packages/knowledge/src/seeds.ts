@@ -27,7 +27,8 @@ export interface SeedTarget {
   api?: boolean;
 }
 
-const SWIFT_BOOK = 'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/LanguageGuide';
+const SWIFT_BOOK =
+  'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/LanguageGuide';
 const SWIFT_CHAPTERS: Array<[string, string]> = [
   ['TheBasics', 'The Basics'],
   ['BasicOperators', 'Basic Operators'],
@@ -161,7 +162,12 @@ const MDN_HTML: Array<[string, string]> = [
   ['html_forms', 'Forms and buttons in HTML'],
 ];
 
-function fromPairs(base: string, pairs: Array<[string, string]>, suffix: string, transform: Transform): SeedTarget[] {
+function fromPairs(
+  base: string,
+  pairs: Array<[string, string]>,
+  suffix: string,
+  transform: Transform,
+): SeedTarget[] {
   return pairs.map(([slug, title]) => ({ url: `${base}/${slug}${suffix}`, title, transform }));
 }
 
@@ -221,7 +227,8 @@ export const SEEDS: Seed[] = [
   },
   {
     id: 'mdn-javascript',
-    pattern: /\b(javascript|js|ecmascript|es6|dom|node(js)?|react|vue|svelte|front-?end|web (dev|development|apps?))\b/,
+    pattern:
+      /\b(javascript|js|ecmascript|es6|dom|node(js)?|react|vue|svelte|front-?end|web (dev|development|apps?))\b/,
     label: 'MDN Web Docs',
     priority: 1,
     targets: () => [
@@ -231,17 +238,25 @@ export const SEEDS: Seed[] = [
   },
   {
     id: 'mdn-css',
-    pattern: /\bcss\b|\bstyl(e|ing) (a |the )?(web|page)|\bflexbox\b|\bcss grid\b|\bweb design\b|\bfront-?end\b/,
+    pattern:
+      /\bcss\b|\bstyl(e|ing) (a |the )?(web|page)|\bflexbox\b|\bcss grid\b|\bweb design\b|\bfront-?end\b/,
     label: 'MDN Web Docs',
     priority: 1,
-    targets: () => fromPairs(`${MDN}/learn_web_development/core/styling_basics`, MDN_CSS, '/index.md', 'mdn'),
+    targets: () =>
+      fromPairs(`${MDN}/learn_web_development/core/styling_basics`, MDN_CSS, '/index.md', 'mdn'),
   },
   {
     id: 'mdn-html',
     pattern: /\bhtml\b|\bweb ?pages?\b|\bfront-?end\b|\bweb (dev|development)\b/,
     label: 'MDN Web Docs',
     priority: 1,
-    targets: () => fromPairs(`${MDN}/learn_web_development/core/structuring_content`, MDN_HTML, '/index.md', 'mdn'),
+    targets: () =>
+      fromPairs(
+        `${MDN}/learn_web_development/core/structuring_content`,
+        MDN_HTML,
+        '/index.md',
+        'mdn',
+      ),
   },
   {
     id: 'wikipedia',
@@ -250,7 +265,12 @@ export const SEEDS: Seed[] = [
     priority: 5,
     fallback: true,
     targets: (topic) => [
-      { url: wikipediaSearchExtractUrl(topic), title: `Wikipedia: ${topic}`, transform: 'wikipedia-extract', api: true },
+      {
+        url: wikipediaSearchExtractUrl(topic),
+        title: `Wikipedia: ${topic}`,
+        transform: 'wikipedia-extract',
+        api: true,
+      },
     ],
   },
 ];
@@ -260,7 +280,71 @@ export function matchSeeds(normalizedTopic: string, seeds: Seed[] = SEEDS): Seed
   const topic = normalizedTopic.toLowerCase().trim();
   const primary = seeds.filter((s) => !s.fallback && s.pattern.test(topic));
   if (primary.length > 0) return primary.sort((a, b) => a.priority - b.priority);
-  return seeds.filter((s) => s.fallback && s.pattern.test(topic)).sort((a, b) => a.priority - b.priority);
+  return seeds
+    .filter((s) => s.fallback && s.pattern.test(topic))
+    .sort((a, b) => a.priority - b.priority);
+}
+
+export interface CanonicalSource {
+  url: string;
+  transform: Transform;
+  api: boolean;
+}
+
+const SWIFT_CHAPTER_BY_SLUG = new Map(SWIFT_CHAPTERS.map(([file]) => [file.toLowerCase(), file]));
+
+/**
+ * Rendered-site URLs the model or a search engine hands us are mapped to the
+ * licensed markdown source we already know how to read (and dedupe against
+ * the seeds): docs.swift.org (a JS-rendered DocC site) → swift-book raw,
+ * doc.rust-lang.org/book → rust-lang/book raw, developer.mozilla.org → mdn
+ * content raw, Wikipedia articles → the Action API extract.
+ */
+export function canonicalizeSourceUrl(url: string): CanonicalSource | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const path = u.pathname.replace(/\/+$/, '');
+  if (host === 'docs.swift.org') {
+    const m = /^\/swift-book\/documentation\/the-swift-programming-language\/([a-z0-9-]+)$/i.exec(
+      path,
+    );
+    const slug = m?.[1]?.toLowerCase();
+    if (!slug) return null;
+    if (slug === 'guidedtour') {
+      return {
+        url: 'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/GuidedTour/GuidedTour.md',
+        transform: 'docc',
+        api: false,
+      };
+    }
+    const chapter = SWIFT_CHAPTER_BY_SLUG.get(slug);
+    return chapter ? { url: `${SWIFT_BOOK}/${chapter}.md`, transform: 'docc', api: false } : null;
+  }
+  if (host === 'doc.rust-lang.org') {
+    const m = /^(?:\/(?:stable|beta|nightly))?\/book\/((?:ch|appendix)[a-z0-9-]+)\.html$/i.exec(
+      path,
+    );
+    return m?.[1]
+      ? { url: `${RUST_BOOK}/${m[1].toLowerCase()}.md`, transform: 'mdbook', api: false }
+      : null;
+  }
+  if (host === 'developer.mozilla.org') {
+    const m = /^\/en-us\/docs\/([a-z0-9_/.:-]+)$/i.exec(path);
+    return m?.[1]
+      ? {
+          url: `${MDN}/${m[1].toLowerCase().replace(/\/+$/, '')}/index.md`,
+          transform: 'mdn',
+          api: false,
+        }
+      : null;
+  }
+  const wiki = wikipediaArticleToApi(url);
+  return wiki ? { url: wiki, transform: 'wikipedia-extract', api: true } : null;
 }
 
 /** Rewrite a canonical Wikipedia article URL to the API extract endpoint; null for anything else. */

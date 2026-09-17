@@ -200,6 +200,13 @@ export class Layout {
     }
   }
 
+  /** After `erase all`: same page, cursor back at the top, refs gone. */
+  restartPage(): void {
+    this.refs.clear();
+    this.noteBottom.delete(this.pageIndex);
+    this.resetCursor();
+  }
+
   /** `newpage`: a fresh page area below; returns its bounds. */
   newPage(): Bounds {
     this.pageIndex += 1;

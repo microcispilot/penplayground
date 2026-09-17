@@ -350,3 +350,15 @@ describe('SessionRoom', () => {
     await classroom.end();
   });
 });
+
+describe('spokenText', () => {
+  it('strips markdown before the voice hears it', async () => {
+    const { spokenText } = await import('../src/speech.js');
+    expect(spokenText('For example, `"Hello"` is text, while `42` is a **whole** number.')).toBe(
+      'For example, "Hello" is text, while 42 is a whole number.',
+    );
+    expect(spokenText('See https://docs.swift.org/x for more.')).toBe(
+      'See the link on the board for more.',
+    );
+  });
+});

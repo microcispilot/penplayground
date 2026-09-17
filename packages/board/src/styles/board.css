@@ -1,0 +1,275 @@
+/*
+ * @pen/board styles. Import after `tldraw/tldraw.css` and the design tokens.
+ * Colours come from tokens only (ADR-0007); the board is always paper.
+ */
+
+.pen-board {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  /* tldraw's own theme variables, pinned to paper so its chrome never leaks a dark theme. */
+  --color-background: var(--color-paper);
+}
+
+.pen-board .tl-container,
+.pen-board .tl-background,
+.pen-board__paper {
+  background: var(--color-paper) !important;
+}
+
+.pen-board__paper {
+  position: absolute;
+  inset: 0;
+}
+
+/* Viewers never fight the camera: the expert layer takes no pointer input. */
+.pen-board--static .tl-canvas {
+  pointer-events: none;
+  cursor: default;
+}
+
+.pen-board__grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pen-board__grid-dot {
+  fill: var(--color-paper-grid);
+}
+
+/* Dim while a learner has the floor: 55 % navy with a 1.5 px blur, overlay not shape. */
+.pen-board__dim {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: oklch(0.285 0.062 247.7 / 55%);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+  opacity: 0;
+  transition: opacity var(--duration-slow, 320ms) var(--ease-out, ease-out);
+  pointer-events: none;
+}
+.pen-board__dim[data-dimmed="true"] {
+  opacity: 1;
+}
+
+.pen-board__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.pen-board__overlay > * {
+  pointer-events: auto;
+}
+
+/* Hidden measuring surface for md-block heights. */
+.pen-board__measure {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── code-block ─────────────────────────────────────────────────────── */
+.pen-code {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  line-height: 1.55;
+}
+.pen-code__pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre;
+  tab-size: 2;
+}
+.pen-code__line {
+  min-height: 1.55em;
+}
+.pen-code__lang {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-family: var(--font-sans);
+  font-size: 0.62em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.pen-code__caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.2em;
+  background: var(--color-ink-accent);
+  animation: pen-caret 1s step-end infinite;
+}
+@keyframes pen-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── md-block ───────────────────────────────────────────────────────── */
+.pen-md {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  line-height: 1.5;
+}
+.pen-md > * + * {
+  margin-top: 0.45em;
+}
+.pen-md h1,
+.pen-md h2,
+.pen-md h3 {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
+  color: var(--color-ink);
+}
+.pen-md h1 {
+  font-size: 1.7em;
+}
+.pen-md h2 {
+  font-size: 1.45em;
+}
+.pen-md h3 {
+  font-size: 1.25em;
+}
+.pen-md p {
+  margin: 0;
+}
+.pen-md ul,
+.pen-md ol {
+  margin: 0;
+  padding-left: 1.3em;
+}
+.pen-md li + li {
+  margin-top: 0.2em;
+}
+.pen-md code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 0 0.25em;
+  border-radius: var(--radius-xs, 4px);
+  background: var(--color-ink-highlight);
+}
+.pen-md pre {
+  margin: 0;
+  padding: 0.5em 0.7em;
+  border-radius: var(--radius-sm, 7px);
+  border: 1px solid var(--color-paper-grid);
+  overflow: hidden;
+}
+.pen-md pre code {
+  padding: 0;
+  background: none;
+}
+.pen-md table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95em;
+}
+.pen-md th,
+.pen-md td {
+  padding: 0.3em 0.55em;
+  text-align: left;
+  border-bottom: 1px solid var(--color-paper-grid);
+}
+.pen-md th {
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pen-md hr {
+  border: 0;
+  border-top: 1.5px solid var(--color-paper-grid);
+}
+.pen-md strong {
+  font-weight: 650;
+}
+
+/* ── note-card ──────────────────────────────────────────────────────── */
+.pen-note {
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: var(--radius-lg, 14px);
+  background: var(--color-bg-elevated, #fff);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-line);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  animation: pen-note-rise 0.45s var(--ease-out, ease-out) both;
+  transform-origin: 50% 100%;
+}
+.pen-note__label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-accent);
+}
+.pen-note__headline {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--color-fg-2);
+  font-size: 12px;
+}
+.pen-note__question {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: 26px;
+  line-height: 1.15;
+  color: var(--color-ink);
+}
+.pen-note__detail {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-fg-2);
+}
+@keyframes pen-note-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pen-note {
+    animation-duration: 1ms;
+  }
+  .pen-code__caret {
+    animation: none;
+  }
+}

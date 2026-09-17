@@ -18,5 +18,5 @@ export {
   type SessionRoomDeps,
 } from './room.js';
 export * from './schemas.js';
-export { SayPipeline } from './speech.js';
+export { SayPipeline, spokenText } from './speech.js';
 export { type RoomObserver, type RoomTransport, SILENT_OBSERVER } from './transport.js';

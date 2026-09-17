@@ -19,6 +19,19 @@ export interface SayPipelineOptions {
  * as binary audio frames, bounds lookahead so a barge-in wastes at most a
  * couple of sentences, and reports per-sentence duration for the clock.
  */
+/** Markdown never reaches the voice: backticks, emphasis markers and bare URLs read badly aloud. */
+export function spokenText(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|[.,;:!?]|$)/g, '$1$2')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/https?:\/\/\S+/g, 'the link on the board')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export class SayPipeline {
   private readonly queue: Array<{ say: SayEvent; thread: string; take: number }> = [];
   private readonly lookahead: number;

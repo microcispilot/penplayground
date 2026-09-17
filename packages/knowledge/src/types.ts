@@ -1,6 +1,11 @@
 import type { PreparationProgress } from '@pen/contracts';
 import type { LanguageModel } from '@pen/llm';
-import type { HostContextPolicy, OntenCompiler, QualifiedPackReference, TopicResolution } from '@pen/onten';
+import type {
+  HostContextPolicy,
+  OntenCompiler,
+  QualifiedPackReference,
+  TopicResolution,
+} from '@pen/onten';
 import type { Seed } from './seeds.js';
 
 /** Same shape as `RoomObserver` in @pen/session-engine: structured events + errors, never throws. */

@@ -13,27 +13,168 @@ export interface ExtractedPage {
 }
 
 const JUNK_TAGS = new Set([
-  'script', 'style', 'noscript', 'template', 'svg', 'canvas', 'iframe', 'object', 'embed', 'video', 'audio',
-  'form', 'button', 'input', 'select', 'textarea', 'nav', 'aside', 'map', 'link', 'meta', 'head', 'dialog',
+  'script',
+  'style',
+  'noscript',
+  'template',
+  'svg',
+  'canvas',
+  'iframe',
+  'object',
+  'embed',
+  'video',
+  'audio',
+  'form',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'nav',
+  'aside',
+  'map',
+  'link',
+  'meta',
+  'head',
+  'dialog',
 ]);
-const JUNK_ROLES = new Set(['navigation', 'banner', 'contentinfo', 'complementary', 'search', 'menu', 'menubar', 'toolbar', 'dialog', 'alert', 'tablist']);
-const NEGATIVE = /(^|[\s_-])(nav|navbar|navigation|menu|sidebar|sidenav|side-nav|breadcrumbs?|toc|footer|header|masthead|cookie|banner|advert|ads|promo|share|social|comments?|related|pagination|skip|sphinxsidebar|edit-page|feedback|announcement|newsletter|subscribe|popup|modal)([\s_-]|$)/i;
-const POSITIVE = /(^|[\s_-])(article|body|content|main|post|text|entry|document|page|section|markdown-body|prose|tutorial|guide|lesson)([\s_-]|$)/i;
+const JUNK_ROLES = new Set([
+  'navigation',
+  'banner',
+  'contentinfo',
+  'complementary',
+  'search',
+  'menu',
+  'menubar',
+  'toolbar',
+  'dialog',
+  'alert',
+  'tablist',
+]);
+const NEGATIVE =
+  /(^|[\s_-])(nav|navbar|navigation|menu|sidebar|sidenav|side-nav|breadcrumbs?|toc|footer|header|masthead|cookie|banner|advert|ads|promo|share|social|comments?|related|pagination|skip|sphinxsidebar|edit-page|feedback|announcement|newsletter|subscribe|popup|modal)([\s_-]|$)/i;
+const POSITIVE =
+  /(^|[\s_-])(article|body|content|main|post|text|entry|document|page|section|markdown-body|prose|tutorial|guide|lesson)([\s_-]|$)/i;
 const ANCHOR_JUNK = /(^|\s)(headerlink|anchor|hash-link|permalink|anchor-link|heading-link)(\s|$)/i;
-const ANCHOR_JUNK_TEXT = new Set(['¶', '#', '§', '🔗', 'permalink', 'link', 'permalink to this heading', 'link to this heading', 'link to this section']);
+const ANCHOR_JUNK_TEXT = new Set([
+  '¶',
+  '#',
+  '§',
+  '🔗',
+  'permalink',
+  'link',
+  'permalink to this heading',
+  'link to this heading',
+  'link to this section',
+]);
 
 const BLOCK_TAGS = new Set([
-  'p', 'div', 'section', 'article', 'main', 'body', 'html', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'ul', 'ol', 'li',
-  'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'blockquote', 'hr', 'dl', 'dt', 'dd', 'figure',
-  'figcaption', 'details', 'summary', 'address', 'center', 'fieldset', 'legend', 'header', 'footer', 'colgroup',
+  'p',
+  'div',
+  'section',
+  'article',
+  'main',
+  'body',
+  'html',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'pre',
+  'ul',
+  'ol',
+  'li',
+  'table',
+  'thead',
+  'tbody',
+  'tfoot',
+  'tr',
+  'td',
+  'th',
+  'caption',
+  'blockquote',
+  'hr',
+  'dl',
+  'dt',
+  'dd',
+  'figure',
+  'figcaption',
+  'details',
+  'summary',
+  'address',
+  'center',
+  'fieldset',
+  'legend',
+  'header',
+  'footer',
+  'colgroup',
 ]);
-const CONTAINER_TAGS = new Set(['div', 'section', 'article', 'main', 'body', 'td', 'li', 'blockquote', 'figure', 'details', 'header', 'footer', 'center', 'fieldset', 'dd']);
+const CONTAINER_TAGS = new Set([
+  'div',
+  'section',
+  'article',
+  'main',
+  'body',
+  'td',
+  'li',
+  'blockquote',
+  'figure',
+  'details',
+  'header',
+  'footer',
+  'center',
+  'fieldset',
+  'dd',
+]);
 const CODE_TAGS = new Set(['code', 'kbd', 'samp', 'tt', 'var']);
-const IGNORED_LANGS = new Set(['default', 'text', 'none', 'plain', 'plaintext', 'notranslate', 'highlight', 'source']);
-const LANG_ALIASES: Record<string, string> = { python3: 'python', py: 'python', js: 'javascript', ts: 'typescript', rs: 'rust', sh: 'bash', shell: 'bash', 'shell-session': 'console', jsx: 'javascript', tsx: 'typescript', cs: 'csharp', 'c++': 'cpp', yml: 'yaml' };
+const IGNORED_LANGS = new Set([
+  'default',
+  'text',
+  'none',
+  'plain',
+  'plaintext',
+  'notranslate',
+  'highlight',
+  'source',
+]);
+const LANG_ALIASES: Record<string, string> = {
+  python3: 'python',
+  py: 'python',
+  js: 'javascript',
+  ts: 'typescript',
+  rs: 'rust',
+  sh: 'bash',
+  shell: 'bash',
+  'shell-session': 'console',
+  jsx: 'javascript',
+  tsx: 'typescript',
+  cs: 'csharp',
+  'c++': 'cpp',
+  yml: 'yaml',
+};
 
-const LANDMARK_IDS = new Set(['content', 'main-content', 'main', 'primary', 'article', 'maincontent', 'main_content']);
-const LANDMARK_CLASSES = ['main-content', 'markdown-body', 'post-content', 'article-content', 'entry-content', 'article-body', 'document', 'content', 'body', 'prose'];
+const LANDMARK_IDS = new Set([
+  'content',
+  'main-content',
+  'main',
+  'primary',
+  'article',
+  'maincontent',
+  'main_content',
+]);
+const LANDMARK_CLASSES = [
+  'main-content',
+  'markdown-body',
+  'post-content',
+  'article-content',
+  'entry-content',
+  'article-body',
+  'document',
+  'content',
+  'body',
+  'prose',
+];
 const MIN_LANDMARK_TEXT = 200;
 
 export function htmlToMarkdown(html: string): ExtractedPage {
@@ -43,9 +184,14 @@ export function htmlToMarkdown(html: string): ExtractedPage {
   const titleEl = findFirst(doc.children, (el) => el.name === 'title');
   const root = body ? pickRoot(body) : null;
   const blocks = root ? renderBlocks(childrenOf(root), 0) : renderBlocks(doc.children, 0);
-  const markdown = blocks.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+  const markdown = blocks
+    .join('\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   const h1 = root ? findFirst(childrenOf(root), (el) => el.name === 'h1') : null;
-  const title = cleanTitle(titleEl ? textOf(titleEl, false) : '') ?? (h1 ? cleanTitle(textOf(h1, false)) : null);
+  const title =
+    cleanTitle(titleEl ? textOf(titleEl, false) : '') ??
+    (h1 ? cleanTitle(textOf(h1, false)) : null);
   return { title, markdown };
 }
 
@@ -96,7 +242,13 @@ function isJunk(el: Element): boolean {
   const a = el.attribs;
   if (a.hidden !== undefined || a['aria-hidden'] === 'true') return true;
   if (a.role && JUNK_ROLES.has(a.role)) return true;
-  if ((el.name === 'header' || el.name === 'footer') && el.parent && isTag(el.parent) && (el.parent.name === 'body' || el.parent.name === 'html')) return true;
+  if (
+    (el.name === 'header' || el.name === 'footer') &&
+    el.parent &&
+    isTag(el.parent) &&
+    (el.parent.name === 'body' || el.parent.name === 'html')
+  )
+    return true;
   const hint = `${a.class ?? ''} ${a.id ?? ''}`;
   return NEGATIVE.test(hint) && !POSITIVE.test(hint);
 }
@@ -159,7 +311,14 @@ function renderBlockElement(el: Element, depth: number): string[] {
       return renderTable(el);
     case 'blockquote': {
       const inner = renderBlocks(childrenOf(el), depth).join('\n\n');
-      return inner ? [inner.split('\n').map((l) => (l ? `> ${l}` : '>')).join('\n')] : [];
+      return inner
+        ? [
+            inner
+              .split('\n')
+              .map((l) => (l ? `> ${l}` : '>'))
+              .join('\n'),
+          ]
+        : [];
     }
     case 'hr':
       return ['---'];
@@ -192,7 +351,9 @@ function renderBlockElement(el: Element, depth: number): string[] {
 }
 
 function renderPre(el: Element): string {
-  const code = rawText(el).replace(/[ \t]+$/gm, '').replace(/^\n+|\n+$/g, '');
+  const code = rawText(el)
+    .replace(/[ \t]+$/gm, '')
+    .replace(/^\n+|\n+$/g, '');
   const lang = detectLang(el);
   const fence = code.includes('```') ? '````' : '```';
   return `${fence}${lang}\n${code}\n${fence}`;
@@ -204,7 +365,8 @@ function renderList(el: Element, depth: number, ordered: boolean): string {
   for (const child of childrenOf(el)) {
     if (!isTag(child) || isJunk(child)) continue;
     if (child.name !== 'li') {
-      if (child.name === 'ul' || child.name === 'ol') items.push(indent(renderList(child, depth + 1, child.name === 'ol'), 2));
+      if (child.name === 'ul' || child.name === 'ol')
+        items.push(indent(renderList(child, depth + 1, child.name === 'ol'), 2));
       continue;
     }
     const marker = ordered ? `${index}. ` : '- ';
@@ -222,7 +384,8 @@ function renderList(el: Element, depth: number, ordered: boolean): string {
         const para = finishParagraph(run);
         if (para) lines.push(para);
         run = '';
-        if (grand.name === 'ul' || grand.name === 'ol') lines.push(renderList(grand, depth + 1, grand.name === 'ol'));
+        if (grand.name === 'ul' || grand.name === 'ol')
+          lines.push(renderList(grand, depth + 1, grand.name === 'ol'));
         else lines.push(...renderBlockElement(grand, depth + 1));
       } else run += renderInline(grand, false);
     }
@@ -231,7 +394,9 @@ function renderList(el: Element, depth: number, ordered: boolean): string {
     if (lines.length === 0) continue;
     const [first = '', ...rest] = lines;
     const [firstLine = '', ...firstRest] = first.split('\n');
-    const continuation = [...firstRest, ...rest.flatMap((block) => block.split('\n'))].map((l) => (l ? `${pad}${l}` : l));
+    const continuation = [...firstRest, ...rest.flatMap((block) => block.split('\n'))].map((l) =>
+      l ? `${pad}${l}` : l,
+    );
     items.push([`${marker}${firstLine}`, ...continuation].join('\n'));
   }
   return items.join('\n');
@@ -244,10 +409,18 @@ function renderTable(el: Element): string[] {
       if (!isTag(child) || isJunk(child)) continue;
       if (child.name === 'tr') {
         const cells = childrenOf(child)
-          .filter((c): c is Element => isTag(c) && (c.name === 'td' || c.name === 'th') && !isJunk(c))
-          .map((c) => inlineOf(c).replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|').trim());
+          .filter(
+            (c): c is Element => isTag(c) && (c.name === 'td' || c.name === 'th') && !isJunk(c),
+          )
+          .map((c) =>
+            inlineOf(c)
+              .replace(/\s*\n\s*/g, ' ')
+              .replace(/\|/g, '\\|')
+              .trim(),
+          );
         if (cells.length > 0) rows.push(cells);
-      } else if (child.name === 'thead' || child.name === 'tbody' || child.name === 'tfoot') visit(child);
+      } else if (child.name === 'thead' || child.name === 'tbody' || child.name === 'tfoot')
+        visit(child);
     }
   };
   visit(el);
@@ -257,7 +430,11 @@ function renderTable(el: Element): string[] {
   const line = (r: string[]) => `| ${pad(r).join(' | ')} |`;
   const [head, ...body] = rows;
   if (!head) return [];
-  const out = [line(head), `| ${Array.from({ length: width }, () => '---').join(' | ')} |`, ...body.map(line)];
+  const out = [
+    line(head),
+    `| ${Array.from({ length: width }, () => '---').join(' | ')} |`,
+    ...body.map(line),
+  ];
   const caption = findFirst(childrenOf(el), (c) => c.name === 'caption');
   const captionText = caption ? inlineOf(caption).trim() : '';
   return captionText ? [`*${captionText}*`, out.join('\n')] : [out.join('\n')];
@@ -313,7 +490,7 @@ function inlineOf(el: Element): string {
 
 function wrap(text: string, mark: string): string {
   const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(text);
-  if (!m || !m[2]) return text;
+  if (!m?.[2]) return text;
   return `${m[1] ?? ''}${mark}${m[2]}${mark}${m[3] ?? ''}`;
 }
 
@@ -371,7 +548,8 @@ function findFirst(nodes: ChildNode[], pred: (el: Element) => boolean): Element 
   return null;
 }
 
-const LANG_TOKEN = /^(?:language|lang|highlight|brush|code|syntax|highlight-source)[-:]([a-z0-9#+_-]+)$/i;
+const LANG_TOKEN =
+  /^(?:language|lang|highlight|brush|code|syntax|highlight-source)[-:]([a-z0-9#+_-]+)$/i;
 
 /** Language from class / data attributes on the pre, its code child, or up to three ancestors (Sphinx wraps in `.highlight-python3`). */
 function detectLang(pre: Element): string {

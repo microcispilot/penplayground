@@ -65,12 +65,6 @@ export function handRect(w: number, h: number, seed: string, amp = 1.2): Stroke[
   const rng = createRng(`rect:${seed}`);
   const over = () => 2 + rng() * 4;
   const startX = 6 + rng() * 6;
-  const corners: Point[] = [
-    { x: 0, y: 0 },
-    { x: w, y: 0 },
-    { x: w, y: h },
-    { x: 0, y: h },
-  ];
   const pts: Stroke = [];
   const push = (s: Stroke) => {
     for (const p of s) pts.push(p);
@@ -81,7 +75,6 @@ export function handRect(w: number, h: number, seed: string, amp = 1.2): Stroke[
   push(segment({ x: w + over() * 0.5, y: h + jitter(rng, 0.8) }, { x: -over(), y: h }, rng, amp));
   push(segment({ x: jitter(rng, 0.8), y: h + over() * 0.4 }, { x: 0, y: -over() * 0.5 }, rng, amp));
   push(segment({ x: -over() * 0.3, y: jitter(rng, 0.8) }, { x: startX + 10, y: 0 }, rng, amp * 0.6));
-  void corners;
   return [pts];
 }
 

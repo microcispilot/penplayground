@@ -50,7 +50,12 @@ export function outlineMessages(input: OutlineInput): Message[] {
   ];
 }
 
-export async function requestOutline(model: LanguageModel, input: OutlineInput, cacheKey: string, signal: AbortSignal): Promise<CorpusOutline> {
+export async function requestOutline(
+  model: LanguageModel,
+  input: OutlineInput,
+  cacheKey: string,
+  signal: AbortSignal,
+): Promise<CorpusOutline> {
   const { value } = await model.complete({
     messages: outlineMessages(input),
     schema: OutlineSchema,
@@ -70,8 +75,24 @@ export async function requestOutline(model: LanguageModel, input: OutlineInput, 
 /** Used when the model is unavailable: the pipeline must never depend on it for the interactive path. */
 export function heuristicOutline(topic: string): CorpusOutline {
   const t = topic.trim();
-  const curriculum = [`What ${t} is and why it matters`, `Core concepts of ${t}`, `${t} in practice`, `Common mistakes with ${t}`];
-  const facets = ['tutorial', 'official documentation', 'beginner guide', 'examples', 'common mistakes', 'cheat sheet', 'explained', 'reference', 'best practices', 'exercises'];
+  const curriculum = [
+    `What ${t} is and why it matters`,
+    `Core concepts of ${t}`,
+    `${t} in practice`,
+    `Common mistakes with ${t}`,
+  ];
+  const facets = [
+    'tutorial',
+    'official documentation',
+    'beginner guide',
+    'examples',
+    'common mistakes',
+    'cheat sheet',
+    'explained',
+    'reference',
+    'best practices',
+    'exercises',
+  ];
   return { curriculum, queries: facets.map((f) => `${t} ${f}`), candidateUrls: [] };
 }
 
@@ -97,7 +118,12 @@ export function evaluationMessages(input: EvaluationInput): Message[] {
   ];
 }
 
-export async function requestEvaluation(model: LanguageModel, input: EvaluationInput, cacheKey: string, signal: AbortSignal): Promise<Pack['evaluation']> {
+export async function requestEvaluation(
+  model: LanguageModel,
+  input: EvaluationInput,
+  cacheKey: string,
+  signal: AbortSignal,
+): Promise<Pack['evaluation']> {
   const { value } = await model.complete({
     messages: evaluationMessages(input),
     schema: EvaluationSchema,
@@ -118,7 +144,10 @@ export function heuristicEvaluation(topic: string, curriculum: string[]): Pack['
   const items = curriculum.length > 0 ? curriculum : [topic];
   const development = Array.from({ length: 6 }, (_, i) => {
     const item = items[i % items.length] ?? topic;
-    return { question: i < items.length ? `Can you explain ${item}?` : `Give me an example of ${item}.`, expectedUnitIds: [] };
+    return {
+      question: i < items.length ? `Can you explain ${item}?` : `Give me an example of ${item}.`,
+      expectedUnitIds: [],
+    };
   });
   const negative = [
     `What is the weather like today?`,

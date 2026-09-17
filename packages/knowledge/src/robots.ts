@@ -59,7 +59,11 @@ export function parseRobots(text: string, productToken: string): RobotsRules {
       } catch {
         pattern = value;
       }
-      current.rules.push({ allow: field === 'allow', pattern: compile(pattern), length: pattern.length });
+      current.rules.push({
+        allow: field === 'allow',
+        pattern: compile(pattern),
+        length: pattern.length,
+      });
     }
   }
   const specific = groups.filter((g) => g.agents.some((a) => a !== '*' && token.includes(a)));
@@ -71,7 +75,12 @@ export function parseRobots(text: string, productToken: string): RobotsRules {
       let best: Rule | null = null;
       for (const rule of rules) {
         if (!rule.pattern.test(path)) continue;
-        if (!best || rule.length > best.length || (rule.length === best.length && rule.allow && !best.allow)) best = rule;
+        if (
+          !best ||
+          rule.length > best.length ||
+          (rule.length === best.length && rule.allow && !best.allow)
+        )
+          best = rule;
       }
       return best ? best.allow : true;
     },

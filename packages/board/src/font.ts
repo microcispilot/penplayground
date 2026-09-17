@@ -6,47 +6,96 @@ import { type Font, type Glyph, parse } from 'opentype.js';
  * the bytes from `@fontsource/caveat` (WOFF; opentype.js 2 parses WOFF, not
  * WOFF2 — verified in Node), tests read the same file from disk.
  *
- * The registry is a module singleton: shapes render from whatever font is
- * loaded, the executor waits for it before creating ink-text shapes, and the
- * Board component kicks the load off on mount.
+ * `GlyphSource` is the seam the layout engine uses: `HandFont` implements it
+ * with real outlines; `FallbackFont` implements it with average metrics so
+ * text can still be laid out and revealed (as CSS-font text) if the font
+ * fails to load. The lesson never stalls on a font.
  */
-export class HandFont {
+export interface GlyphSource {
+  /** Ascender in em (0..1). */
+  readonly ascent: number;
+  /** Descender in em, positive. */
+  readonly descent: number;
+  /** True when a real outline exists for the character. */
+  has(ch: string): boolean;
+  advance(ch: string, fontSize: number): number;
+  kerning(prev: string, ch: string, fontSize: number): number;
+  /** SVG path data with the pen origin at (x, baselineY), y-down; '' when `has` is false. */
+  path(ch: string, x: number, baselineY: number, fontSize: number): string;
+}
+
+export class HandFont implements GlyphSource {
+  private readonly cache = new Map<string, Glyph>();
+
   constructor(readonly font: Font) {}
 
   get unitsPerEm(): number {
     return this.font.unitsPerEm;
   }
 
-  /** Ascender in em (0..1), e.g. 0.96 for Caveat. */
   get ascent(): number {
     return this.font.ascender / this.font.unitsPerEm;
   }
 
-  /** Descender in em as a positive number, e.g. 0.30 for Caveat. */
   get descent(): number {
     return Math.abs(this.font.descender) / this.font.unitsPerEm;
   }
 
-  glyph(char: string): Glyph {
-    return this.font.charToGlyph(char);
+  glyph(ch: string): Glyph {
+    let g = this.cache.get(ch);
+    if (!g) {
+      g = this.font.charToGlyph(ch);
+      this.cache.set(ch, g);
+    }
+    return g;
   }
 
-  /** False for `.notdef` (index 0): the font has no outline for the character. */
-  hasGlyph(char: string): boolean {
-    return this.font.charToGlyph(char).index !== 0;
+  has(ch: string): boolean {
+    return this.glyph(ch).index !== 0;
   }
 
-  advance(glyph: Glyph, fontSize: number): number {
-    return ((glyph.advanceWidth ?? 0) * fontSize) / this.font.unitsPerEm;
+  advance(ch: string, fontSize: number): number {
+    return ((this.glyph(ch).advanceWidth ?? 0) * fontSize) / this.font.unitsPerEm;
   }
 
-  kerning(left: Glyph, right: Glyph, fontSize: number): number {
-    return (this.font.getKerningValue(left, right) * fontSize) / this.font.unitsPerEm;
+  kerning(prev: string, ch: string, fontSize: number): number {
+    const a = this.glyph(prev);
+    const b = this.glyph(ch);
+    if (a.index === 0 || b.index === 0) return 0;
+    return (this.font.getKerningValue(a, b) * fontSize) / this.font.unitsPerEm;
   }
 
-  /** SVG path data for a glyph with its origin at (x, baselineY), y-down. */
-  path(glyph: Glyph, x: number, baselineY: number, fontSize: number): string {
-    return glyph.getPath(x, baselineY, fontSize).toPathData(2);
+  path(ch: string, x: number, baselineY: number, fontSize: number): string {
+    const g = this.glyph(ch);
+    if (g.index === 0) return '';
+    return g.getPath(x, baselineY, fontSize).toPathData(2);
+  }
+}
+
+/**
+ * Metrics-only stand-in (Caveat-ish proportions) used when the font is not
+ * available. Every character reports `has() === false`, so the renderer draws
+ * it as text in the CSS hand font (which the design package ships) instead of
+ * an outline; the pen reveal still works through the clip.
+ */
+export class FallbackFont implements GlyphSource {
+  readonly ascent = 0.96;
+  readonly descent = 0.3;
+  has(): boolean {
+    return false;
+  }
+  advance(ch: string, fontSize: number): number {
+    if (ch === ' ') return fontSize * 0.22;
+    if (/[iljtf.,:;'|!]/.test(ch)) return fontSize * 0.24;
+    if (/[mwMW]/.test(ch)) return fontSize * 0.62;
+    if (/[A-Z]/.test(ch)) return fontSize * 0.5;
+    return fontSize * 0.42;
+  }
+  kerning(): number {
+    return 0;
+  }
+  path(): string {
+    return '';
   }
 }
 
@@ -83,7 +132,7 @@ export function whenHandFont(): Promise<HandFont> {
 
 /**
  * Load once; concurrent callers share the promise. A failed load clears the
- * memo so the next call retries (network blips must not kill handwriting for
+ * memo so the next call retries (a network blip must not kill handwriting for
  * the whole session).
  */
 export function loadHandFont(loader: () => Promise<ArrayBuffer>): Promise<HandFont> {

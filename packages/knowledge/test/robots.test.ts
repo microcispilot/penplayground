@@ -5,7 +5,10 @@ import { fakeFetch, recordingObserver } from './helpers.js';
 
 describe('parseRobots (RFC 9309)', () => {
   it('applies the wildcard group with longest-match precedence and Allow winning ties', () => {
-    const rules = parseRobots('User-agent: *\nDisallow: /private/\nAllow: /private/public-note\nDisallow: /tmp\n', 'PenAcademyBot');
+    const rules = parseRobots(
+      'User-agent: *\nDisallow: /private/\nAllow: /private/public-note\nDisallow: /tmp\n',
+      'PenAcademyBot',
+    );
     expect(rules.allows('/')).toBe(true);
     expect(rules.allows('/private/x')).toBe(false);
     expect(rules.allows('/private/public-note.html')).toBe(true);
@@ -14,13 +17,19 @@ describe('parseRobots (RFC 9309)', () => {
   });
 
   it('prefers the group for our product token over *', () => {
-    const rules = parseRobots('User-agent: *\nDisallow: /\n\nUser-agent: penacademybot\nDisallow: /nope\n', 'PenAcademyBot/0.1');
+    const rules = parseRobots(
+      'User-agent: *\nDisallow: /\n\nUser-agent: penacademybot\nDisallow: /nope\n',
+      'PenAcademyBot/0.1',
+    );
     expect(rules.allows('/anything')).toBe(true);
     expect(rules.allows('/nope/x')).toBe(false);
   });
 
   it('supports * and $ wildcards and empty Disallow', () => {
-    const rules = parseRobots('User-agent: *\nDisallow: /*.pdf$\nDisallow: /search*\nDisallow:\n', 'bot');
+    const rules = parseRobots(
+      'User-agent: *\nDisallow: /*.pdf$\nDisallow: /search*\nDisallow:\n',
+      'bot',
+    );
     expect(rules.allows('/a/b.pdf')).toBe(false);
     expect(rules.allows('/a/b.pdf?x=1')).toBe(true);
     expect(rules.allows('/search?q=1')).toBe(false);
@@ -34,16 +43,35 @@ describe('parseRobots (RFC 9309)', () => {
 });
 
 describe('RobotsGate', () => {
-  const opts = { userAgent: 'PenAcademyBot/0.1', productToken: 'PenAcademyBot', timeoutMs: 1000, observer: SILENT_KNOWLEDGE_OBSERVER };
+  const opts = {
+    userAgent: 'PenAcademyBot/0.1',
+    productToken: 'PenAcademyBot',
+    timeoutMs: 1000,
+    observer: SILENT_KNOWLEDGE_OBSERVER,
+  };
 
   it('fetches robots.txt once per origin and treats 404 as allow-all', async () => {
     const log: Array<{ url: string; at: number }> = [];
-    const gate = new RobotsGate({ ...opts, fetchImpl: fakeFetch({ 'https://a.example.org/robots.txt': { body: 'User-agent: *\nDisallow: /x/\n', type: 'text/plain' } }, log) });
+    const gate = new RobotsGate({
+      ...opts,
+      fetchImpl: fakeFetch(
+        {
+          'https://a.example.org/robots.txt': {
+            body: 'User-agent: *\nDisallow: /x/\n',
+            type: 'text/plain',
+          },
+        },
+        log,
+      ),
+    });
     const signal = new AbortController().signal;
     expect(await gate.isAllowed('https://a.example.org/x/1', signal)).toBe(false);
     expect(await gate.isAllowed('https://a.example.org/y/1', signal)).toBe(true);
     expect(await gate.isAllowed('https://b.example.org/x/1', signal)).toBe(true);
-    expect(log.map((l) => l.url)).toEqual(['https://a.example.org/robots.txt', 'https://b.example.org/robots.txt']);
+    expect(log.map((l) => l.url)).toEqual([
+      'https://a.example.org/robots.txt',
+      'https://b.example.org/robots.txt',
+    ]);
   });
 
   it('treats 5xx and network errors as disallow and reports them', async () => {

@@ -1,4 +1,4 @@
-import type { HandFont } from './font.js';
+import type { GlyphSource } from './font.js';
 import { createRng, jitter } from './rng.js';
 
 /**
@@ -65,28 +65,35 @@ export const ROTATION_JITTER_DEG = 1.5;
 export const DEFAULT_LINE_HEIGHT = 1.25;
 
 /** Kerned single-line width in world units. */
-export function measureHandText(font: HandFont, text: string, fontSize: number): number {
+export function measureHandText(font: GlyphSource, text: string, fontSize: number): number {
   let x = 0;
-  let prev: ReturnType<HandFont['glyph']> | null = null;
+  let prev: string | null = null;
   for (const ch of text) {
-    const g = font.glyph(ch);
-    const missing = g.index === 0;
-    if (prev && !missing) x += font.kerning(prev, g, fontSize);
-    x += missing ? advanceForMissing(ch, fontSize) : font.advance(g, fontSize);
-    prev = missing ? null : g;
+    const missing = !font.has(ch);
+    if (prev !== null && !missing) x += font.kerning(prev, ch, fontSize);
+    x += glyphAdvance(font, ch, fontSize);
+    prev = missing ? null : ch;
   }
   return x;
 }
 
+/** Advance for any character: the font's, a synthesised symbol's, or the fallback width. */
+function glyphAdvance(font: GlyphSource, ch: string, fontSize: number): number {
+  if (font.has(ch)) return font.advance(ch, fontSize);
+  const synth = SYNTH[ch];
+  if (synth) return synth.advance * fontSize;
+  return font.advance(ch, fontSize) || fontSize * 0.55;
+}
+
 /** Greedy word wrap; a single word longer than the width breaks by character. */
 export function wrapHandText(
-  font: HandFont,
+  font: GlyphSource,
   text: string,
   fontSize: number,
   maxWidth: number,
 ): string[] {
   const out: string[] = [];
-  const spaceW = font.advance(font.glyph(' '), fontSize);
+  const spaceW = font.advance(' ', fontSize);
   for (const paragraph of text.split('\n')) {
     const words = paragraph.split(/ +/).filter((w) => w.length > 0);
     if (words.length === 0) {
@@ -126,7 +133,7 @@ export function wrapHandText(
   return out;
 }
 
-export function layoutHandText(font: HandFont, text: string, opts: HandTextOptions): HandTextLayout {
+export function layoutHandText(font: GlyphSource, text: string, opts: HandTextOptions): HandTextLayout {
   const fontSize = opts.fontSize;
   const lineHeight = fontSize * (opts.lineHeight ?? DEFAULT_LINE_HEIGHT);
   const useJitter = opts.jitter ?? true;
@@ -145,16 +152,16 @@ export function layoutHandText(font: HandFont, text: string, opts: HandTextOptio
     const lineW = widths[li] ?? 0;
     let x = opts.align === 'center' ? (width - lineW) / 2 : 0;
     const glyphs: GlyphPlacement[] = [];
-    let prev: ReturnType<HandFont['glyph']> | null = null;
+    let prev: string | null = null;
     for (const ch of line) {
-      const g = font.glyph(ch);
-      const missing = g.index === 0;
-      if (prev && !missing) x += font.kerning(prev, g, fontSize);
+      const missing = !font.has(ch);
+      if (prev !== null && !missing) x += font.kerning(prev, ch, fontSize);
       const rot = useJitter ? jitter(rng, ROTATION_JITTER_DEG) : 0;
       const dy = useJitter ? jitter(rng, BASELINE_JITTER_PX) : 0;
       const y = baseline + dy;
+      const advance = glyphAdvance(font, ch, fontSize);
       if (missing) {
-        const synth = synthGlyph(ch, x, y, fontSize);
+        const synth = ch === ' ' ? null : synthGlyph(ch, x, y, fontSize);
         glyphs.push({
           char: ch,
           index,
@@ -162,26 +169,24 @@ export function layoutHandText(font: HandFont, text: string, opts: HandTextOptio
           d: synth?.d ?? '',
           x,
           y,
-          advance: synth?.advance ?? advanceForMissing(ch, fontSize),
+          advance,
           rotation: rot,
         });
-        x += synth?.advance ?? advanceForMissing(ch, fontSize);
         prev = null;
       } else {
-        const advance = font.advance(g, fontSize);
         glyphs.push({
           char: ch,
           index,
           kind: 'outline',
-          d: ch === ' ' ? '' : font.path(g, x, y, fontSize),
+          d: ch === ' ' ? '' : font.path(ch, x, y, fontSize),
           x,
           y,
           advance,
           rotation: rot,
         });
-        x += advance;
-        prev = g;
+        prev = ch;
       }
+      x += advance;
       index += 1;
     }
     index += 1; // the newline / wrap boundary
@@ -198,9 +203,6 @@ export function layoutHandText(font: HandFont, text: string, opts: HandTextOptio
   };
 }
 
-function advanceForMissing(ch: string, fontSize: number): number {
-  return SYNTH[ch] ? fontSize * (SYNTH[ch]?.advance ?? 1) : fontSize * 0.55;
-}
 
 // ── synthesised symbols ───────────────────────────────────────────────────
 // Caveat has no √, →, ≤ … which lessons use constantly. Rather than dropping

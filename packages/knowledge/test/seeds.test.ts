@@ -1,6 +1,12 @@
 import { normalizeTopic } from '@pen/onten';
 import { describe, expect, it } from 'vitest';
-import { matchSeeds, SEEDS, wikipediaArticleToApi, wikipediaSearchExtractUrl } from '../src/seeds.js';
+import {
+  canonicalizeSourceUrl,
+  matchSeeds,
+  SEEDS,
+  wikipediaArticleToApi,
+  wikipediaSearchExtractUrl,
+} from '../src/seeds.js';
 
 describe('matchSeeds', () => {
   const ids = (topic: string) => matchSeeds(normalizeTopic(topic)).map((s) => s.id);
@@ -27,7 +33,9 @@ describe('matchSeeds', () => {
         expect(t.title.length).toBeGreaterThan(0);
       }
     }
-    expect(SEEDS.find((s) => s.id === 'swift-book')?.targets('x')[0]?.url).toBe('https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/LanguageGuide/TheBasics.md');
+    expect(SEEDS.find((s) => s.id === 'swift-book')?.targets('x')[0]?.url).toBe(
+      'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/LanguageGuide/TheBasics.md',
+    );
   });
 });
 
@@ -40,10 +48,65 @@ describe('wikipedia helpers', () => {
   });
 
   it('rewrites article URLs to the extract endpoint and ignores special pages', () => {
-    const api = wikipediaArticleToApi('https://en.wikipedia.org/wiki/Swift_(programming_language)#History');
+    const api = wikipediaArticleToApi(
+      'https://en.wikipedia.org/wiki/Swift_(programming_language)#History',
+    );
     expect(api).not.toBeNull();
     expect(new URL(api ?? '').searchParams.get('titles')).toBe('Swift (programming language)');
     expect(wikipediaArticleToApi('https://en.wikipedia.org/wiki/Special:Random')).toBeNull();
     expect(wikipediaArticleToApi('https://docs.python.org/3/')).toBeNull();
+  });
+});
+
+describe('canonicalizeSourceUrl', () => {
+  it('maps rendered doc sites to the licensed markdown source we already read', () => {
+    expect(
+      canonicalizeSourceUrl(
+        'https://docs.swift.org/swift-book/documentation/the-swift-programming-language/thebasics/',
+      ),
+    ).toEqual({
+      url: 'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/LanguageGuide/TheBasics.md',
+      transform: 'docc',
+      api: false,
+    });
+    expect(
+      canonicalizeSourceUrl(
+        'https://docs.swift.org/swift-book/documentation/the-swift-programming-language/guidedtour',
+      )?.url,
+    ).toBe(
+      'https://raw.githubusercontent.com/swiftlang/swift-book/main/TSPL.docc/GuidedTour/GuidedTour.md',
+    );
+    expect(
+      canonicalizeSourceUrl(
+        'https://docs.swift.org/swift-book/documentation/the-swift-programming-language/optionals',
+      ),
+    ).toBeNull();
+    expect(
+      canonicalizeSourceUrl('https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html'),
+    ).toEqual({
+      url: 'https://raw.githubusercontent.com/rust-lang/book/main/src/ch04-01-what-is-ownership.md',
+      transform: 'mdbook',
+      api: false,
+    });
+    expect(
+      canonicalizeSourceUrl('https://doc.rust-lang.org/stable/book/ch04-03-slices.html')?.url,
+    ).toBe('https://raw.githubusercontent.com/rust-lang/book/main/src/ch04-03-slices.md');
+    expect(
+      canonicalizeSourceUrl(
+        'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures',
+      ),
+    ).toEqual({
+      url: 'https://raw.githubusercontent.com/mdn/content/main/files/en-us/web/javascript/guide/closures/index.md',
+      transform: 'mdn',
+      api: false,
+    });
+    expect(
+      canonicalizeSourceUrl('https://en.wikipedia.org/wiki/Rust_(programming_language)'),
+    ).toMatchObject({
+      transform: 'wikipedia-extract',
+      api: true,
+    });
+    expect(canonicalizeSourceUrl('https://docs.python.org/3/tutorial/classes.html')).toBeNull();
+    expect(canonicalizeSourceUrl('nonsense')).toBeNull();
   });
 });

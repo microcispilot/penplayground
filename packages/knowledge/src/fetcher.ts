@@ -14,7 +14,9 @@ export interface FetchedPage {
 
 export type SkipReason = 'robots' | 'budget' | 'status' | 'type' | 'aborted' | 'timeout' | 'error';
 
-export type FetchOutcome = { ok: true; page: FetchedPage } | { ok: false; reason: SkipReason; status?: number };
+export type FetchOutcome =
+  | { ok: true; page: FetchedPage }
+  | { ok: false; reason: SkipReason; status?: number };
 
 const TEXT_TYPES = /^(text\/|application\/(json|xhtml\+xml|xml|markdown|x-markdown))/;
 
@@ -75,8 +77,12 @@ export function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
 
-async function readBounded(res: Response, maxBytes: number): Promise<{ text: string; truncated: boolean }> {
-  const charset = /charset=["']?([^;"']+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim() ?? 'utf-8';
+async function readBounded(
+  res: Response,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
+  const charset =
+    /charset=["']?([^;"']+)/i.exec(res.headers.get('content-type') ?? '')?.[1]?.trim() ?? 'utf-8';
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
@@ -86,7 +92,10 @@ async function readBounded(res: Response, maxBytes: number): Promise<{ text: str
   const body = res.body;
   if (!body) {
     const buf = new Uint8Array(await res.arrayBuffer());
-    return { text: decoder.decode(buf.subarray(0, maxBytes)), truncated: buf.byteLength > maxBytes };
+    return {
+      text: decoder.decode(buf.subarray(0, maxBytes)),
+      truncated: buf.byteLength > maxBytes,
+    };
   }
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
@@ -137,11 +146,15 @@ export class Fetcher {
     return this.pages;
   }
 
-  async get(url: string, options: { api?: boolean; countsTowardBudget?: boolean } = {}): Promise<FetchOutcome> {
+  async get(
+    url: string,
+    options: { api?: boolean; countsTowardBudget?: boolean } = {},
+  ): Promise<FetchOutcome> {
     const { signal, observer } = this.opts;
     const counts = options.countsTowardBudget ?? true;
     if (signal.aborted) return { ok: false, reason: 'aborted' };
     if (counts && this.pages >= this.opts.budget.maxPages) return { ok: false, reason: 'budget' };
+    let timeout: AbortSignal | null = null;
     try {
       if (!options.api) {
         const allowed = await this.opts.robots.isAllowed(url, signal);
@@ -155,16 +168,19 @@ export class Fetcher {
         this.pages += 1;
       }
       await sleep(this.opts.throttle.reserve(hostOf(url)), signal);
+      timeout = AbortSignal.timeout(this.opts.budget.timeoutMs);
       const res = await this.opts.fetchImpl(url, {
-        signal: AbortSignal.any([signal, AbortSignal.timeout(this.opts.budget.timeoutMs)]),
+        signal: AbortSignal.any([signal, timeout]),
         headers: {
           'user-agent': this.opts.userAgent,
-          accept: 'text/markdown, text/html;q=0.9, text/plain;q=0.8, application/json;q=0.8, */*;q=0.1',
+          accept:
+            'text/markdown, text/html;q=0.9, text/plain;q=0.8, application/json;q=0.8, */*;q=0.1',
           'accept-language': 'en',
         },
         redirect: 'follow',
       });
-      const contentType = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+      const contentType =
+        (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
       if (!res.ok) {
         await res.body?.cancel().catch(() => undefined);
         return { ok: false, reason: 'status', status: res.status };
@@ -174,13 +190,24 @@ export class Fetcher {
         return { ok: false, reason: 'type' };
       }
       const { text, truncated } = await readBounded(res, this.opts.budget.maxPageBytes);
-      return { ok: true, page: { url, finalUrl: res.url || url, status: res.status, contentType, body: text, truncated } };
+      return {
+        ok: true,
+        page: {
+          url,
+          finalUrl: res.url || url,
+          status: res.status,
+          contentType,
+          body: text,
+          truncated,
+        },
+      };
     } catch (error) {
-      if (signal.aborted || isAbortError(error)) return { ok: false, reason: 'aborted' };
-      if (error instanceof Error && error.name === 'TimeoutError') {
+      if (signal.aborted) return { ok: false, reason: 'aborted' };
+      if (timeout?.aborted || (error instanceof Error && error.name === 'TimeoutError')) {
         observer.event('knowledge.fetch_timeout', { url, timeoutMs: this.opts.budget.timeoutMs });
         return { ok: false, reason: 'timeout' };
       }
+      if (isAbortError(error)) return { ok: false, reason: 'aborted' };
       observer.error('knowledge.fetch', error, { url });
       return { ok: false, reason: 'error' };
     }
@@ -248,10 +275,13 @@ export class FetchQueue<T extends QueueJob> {
 
   private waitForWake(maxMs: number): Promise<void> {
     return new Promise<void>((resolve) => {
-      const timer = maxMs === Number.POSITIVE_INFINITY ? null : setTimeout(() => {
-        this.waiters.delete(resolve);
-        resolve();
-      }, maxMs);
+      const timer =
+        maxMs === Number.POSITIVE_INFINITY
+          ? null
+          : setTimeout(() => {
+              this.waiters.delete(resolve);
+              resolve();
+            }, maxMs);
       const wrapped = () => {
         if (timer) clearTimeout(timer);
         resolve();
@@ -301,7 +331,8 @@ export class FetchQueue<T extends QueueJob> {
         try {
           await this.opts.run(job);
         } catch (error) {
-          if (!this.opts.signal.aborted) this.opts.observer.error('knowledge.fetch_job', error, { url: job.url });
+          if (!this.opts.signal.aborted)
+            this.opts.observer.error('knowledge.fetch_job', error, { url: job.url });
         }
       }
     } finally {

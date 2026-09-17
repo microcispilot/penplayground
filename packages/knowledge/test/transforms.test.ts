@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { cleanDocc, cleanMdn, resolveMdbook, stripFrontmatter, titleFromMarkdown, wikipediaExtractToMarkdown } from '../src/transforms.js';
+import {
+  cleanDocc,
+  cleanMdn,
+  resolveMdbook,
+  stripFrontmatter,
+  titleFromMarkdown,
+  wikipediaExtractToMarkdown,
+} from '../src/transforms.js';
 
 describe('cleanDocc', () => {
   it('strips @Comment blocks, humanises <doc:> links and keeps the chapter heading', () => {
@@ -26,7 +33,9 @@ let maximumNumberOfLoginAttempts = 10
     expect(out.markdown).not.toContain('hidden text');
     expect(out.markdown).not.toContain('@Comment');
     expect(out.markdown).not.toContain('editorial note');
-    expect(out.markdown).toContain('described in Collection Types and Type Safety and Type Inference.');
+    expect(out.markdown).toContain(
+      'described in Collection Types and Type Safety and Type Inference.',
+    );
     expect(out.markdown).toContain('- **Constant**: a value that never changes.');
     expect(out.markdown).toContain('```swift\nlet maximumNumberOfLoginAttempts = 10\n```');
   });
@@ -53,7 +62,9 @@ Welcome to the {{glossary("JavaScript")}} course. Add a {{htmlelement("script")}
     const out = cleanMdn(md);
     expect(out.title).toBe('What is JavaScript?');
     expect(out.markdown.startsWith('# What is JavaScript?')).toBe(true);
-    expect(out.markdown).toContain('Welcome to the JavaScript course. Add a `<script>` element and call `querySelector()` or `Array`.');
+    expect(out.markdown).toContain(
+      'Welcome to the JavaScript course. Add a `<script>` element and call `querySelector()` or `Array`.',
+    );
     expect(out.markdown).not.toContain('{{');
     expect(out.markdown).toContain('## A high-level definition');
   });
@@ -65,11 +76,15 @@ Welcome to the {{glossary("JavaScript")}} course. Add a {{htmlelement("script")}
 
 describe('resolveMdbook', () => {
   it('inlines rustdoc includes (with anchors) as fenced code and flattens Listing / filename markup', async () => {
-    const chapter = 'https://raw.githubusercontent.com/rust-lang/book/main/src/ch03-01-variables-and-mutability.md';
+    const chapter =
+      'https://raw.githubusercontent.com/rust-lang/book/main/src/ch03-01-variables-and-mutability.md';
     const files: Record<string, string> = {
-      'https://raw.githubusercontent.com/rust-lang/book/main/listings/ch03/no-listing-01/src/main.rs': 'fn main() {\n    let x = 5;\n    println!("{x}");\n}\n',
-      'https://raw.githubusercontent.com/rust-lang/book/main/listings/ch03/no-listing-01/output.txt': '$ cargo run\nerror[E0384]: cannot assign twice\n',
-      'https://raw.githubusercontent.com/rust-lang/book/main/listings/ch03/no-listing-05/src/main.rs': 'fn main() {\n    // ANCHOR: here\n    let mut spaces = "   ";\n    spaces = spaces.len();\n    // ANCHOR_END: here\n}\n',
+      'https://raw.githubusercontent.com/rust-lang/book/main/listings/ch03/no-listing-01/src/main.rs':
+        'fn main() {\n    let x = 5;\n    println!("{x}");\n}\n',
+      'https://raw.githubusercontent.com/rust-lang/book/main/listings/ch03/no-listing-01/output.txt':
+        '$ cargo run\nerror[E0384]: cannot assign twice\n',
+      'https://raw.githubusercontent.com/rust-lang/book/main/listings/ch03/no-listing-05/src/main.rs':
+        'fn main() {\n    // ANCHOR: here\n    let mut spaces = "   ";\n    spaces = spaces.len();\n    // ANCHOR_END: here\n}\n',
     };
     const md = `## Variables and Mutability
 
@@ -98,9 +113,15 @@ As mentioned in the [“Storing Values”][storing]<!-- ignore --> section, vari
     });
     expect(out.title).toBe('Variables and Mutability');
     expect(out.markdown).toContain('**Listing 3-1** (`src/main.rs`): Trying to assign twice');
-    expect(out.markdown).toContain('```rust\nfn main() {\n    let x = 5;\n    println!("{x}");\n}\n```');
-    expect(out.markdown).toContain('```console\n$ cargo run\nerror[E0384]: cannot assign twice\n```');
-    expect(out.markdown).toContain('```rust\n    let mut spaces = "   ";\n    spaces = spaces.len();\n```');
+    expect(out.markdown).toContain(
+      '```rust\nfn main() {\n    let x = 5;\n    println!("{x}");\n}\n```',
+    );
+    expect(out.markdown).toContain(
+      '```console\n$ cargo run\nerror[E0384]: cannot assign twice\n```',
+    );
+    expect(out.markdown).toContain(
+      '```rust\n    let mut spaces = "   ";\n    spaces = spaces.len();\n```',
+    );
     expect(out.markdown).toContain('**Filename: src/main.rs**');
     expect(out.markdown).not.toContain('<!-- ignore -->');
     expect(out.markdown).not.toContain('{{#');
@@ -109,7 +130,9 @@ As mentioned in the [“Storing Values”][storing]<!-- ignore --> section, vari
   });
 
   it('caps the number of includes fetched per chapter', async () => {
-    const md = Array.from({ length: 5 }, (_, i) => `{{#include ../listings/f${i}.rs}}`).join('\n\n');
+    const md = Array.from({ length: 5 }, (_, i) => `{{#include ../listings/f${i}.rs}}`).join(
+      '\n\n',
+    );
     let calls = 0;
     await resolveMdbook(md, 'https://example.org/src/ch.md', {
       fetchText: async () => {
@@ -130,18 +153,23 @@ describe('wikipediaExtractToMarkdown', () => {
           {
             pageid: 1,
             title: 'Swift (programming language)',
-            extract: 'Swift is a language.\n\n\n== History ==\nDevelopment began in 2010.\n\n\n=== Releases ===\nSwift 1.0 shipped in 2014.\n\n\n== See also ==\nObjective-C\n\n\n== References ==\nRef 1',
+            extract:
+              'Swift is a language.\n\n\n== History ==\nDevelopment began in 2010.\n\n\n=== Releases ===\nSwift 1.0 shipped in 2014.\n\n\n== See also ==\nObjective-C\n\n\n== References ==\nRef 1',
           },
         ],
       },
     });
     const out = wikipediaExtractToMarkdown(json);
     expect(out?.title).toBe('Swift (programming language)');
-    expect(out?.markdown).toBe('# Swift (programming language)\n\nSwift is a language.\n\n## History\nDevelopment began in 2010.\n\n### Releases\nSwift 1.0 shipped in 2014.');
+    expect(out?.markdown).toBe(
+      '# Swift (programming language)\n\nSwift is a language.\n\n## History\nDevelopment began in 2010.\n\n### Releases\nSwift 1.0 shipped in 2014.',
+    );
   });
 
   it('returns null for missing pages or invalid JSON', () => {
-    expect(wikipediaExtractToMarkdown('{"query":{"pages":[{"title":"X","missing":true}]}}')).toBeNull();
+    expect(
+      wikipediaExtractToMarkdown('{"query":{"pages":[{"title":"X","missing":true}]}}'),
+    ).toBeNull();
     expect(wikipediaExtractToMarkdown('not json')).toBeNull();
   });
 });

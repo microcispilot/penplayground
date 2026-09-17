@@ -20,7 +20,14 @@ interface AdapterOptions {
   excludeDomains?: string[];
 }
 
-const DEFAULT_EXCLUDES = ['youtube.com', 'x.com', 'twitter.com', 'facebook.com', 'pinterest.com', 'quora.com'];
+const DEFAULT_EXCLUDES = [
+  'youtube.com',
+  'x.com',
+  'twitter.com',
+  'facebook.com',
+  'pinterest.com',
+  'quora.com',
+];
 
 async function postJson(
   fetchImpl: typeof fetch,
@@ -87,7 +94,12 @@ export class TavilySearch implements SearchProvider {
     if (status < 200 || status >= 300) throw new SearchError(this.name, status, text.slice(0, 200));
     const parsed = TavilyResponse.safeParse(json);
     if (!parsed.success) throw new SearchError(this.name, status, 'unexpected response shape');
-    return parsed.data.results.map((r) => ({ url: r.url, title: r.title, snippet: r.content, score: r.score }));
+    return parsed.data.results.map((r) => ({
+      url: r.url,
+      title: r.title,
+      snippet: r.content,
+      score: r.score,
+    }));
   }
 }
 
@@ -129,7 +141,12 @@ export class ExaSearch implements SearchProvider {
     if (status < 200 || status >= 300) throw new SearchError(this.name, status, text.slice(0, 200));
     const parsed = ExaResponse.safeParse(json);
     if (!parsed.success) throw new SearchError(this.name, status, 'unexpected response shape');
-    return parsed.data.results.map((r) => ({ url: r.url, title: r.title ?? '', snippet: r.text ?? '', score: r.score }));
+    return parsed.data.results.map((r) => ({
+      url: r.url,
+      title: r.title ?? '',
+      snippet: r.text ?? '',
+      score: r.score,
+    }));
   }
 }
 
@@ -149,9 +166,13 @@ export function chooseSearchProvider(
 ): SearchProvider {
   const fetchImpl = opts.fetchImpl;
   const tavily = env.TAVILY_API_KEY?.trim();
-  if (tavily) return new TavilySearch(fetchImpl ? { apiKey: tavily, fetchImpl } : { apiKey: tavily });
+  if (tavily)
+    return new TavilySearch(fetchImpl ? { apiKey: tavily, fetchImpl } : { apiKey: tavily });
   const exa = env.EXA_API_KEY?.trim();
   if (exa) return new ExaSearch(fetchImpl ? { apiKey: exa, fetchImpl } : { apiKey: exa });
-  opts.observer?.event('knowledge.search_provider', { provider: 'none', reason: 'no TAVILY_API_KEY or EXA_API_KEY' });
+  opts.observer?.event('knowledge.search_provider', {
+    provider: 'none',
+    reason: 'no TAVILY_API_KEY or EXA_API_KEY',
+  });
   return new NoSearch();
 }

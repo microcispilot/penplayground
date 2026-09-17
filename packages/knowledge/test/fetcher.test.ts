@@ -4,12 +4,33 @@ import { RobotsGate } from '../src/robots.js';
 import { SILENT_KNOWLEDGE_OBSERVER } from '../src/types.js';
 import { fakeFetch, recordingObserver } from './helpers.js';
 
-function fetcherWith(fetchImpl: typeof fetch, opts: { gapMs?: number; maxPages?: number; maxPageBytes?: number; signal?: AbortSignal } = {}) {
+function fetcherWith(
+  fetchImpl: typeof fetch,
+  opts: { gapMs?: number; maxPages?: number; maxPageBytes?: number; signal?: AbortSignal } = {},
+) {
   const signal = opts.signal ?? new AbortController().signal;
   const observer = recordingObserver();
   const throttle = new HostThrottle(opts.gapMs ?? 0);
-  const robots = new RobotsGate({ fetchImpl, userAgent: 'PenAcademyBot/0.1', productToken: 'PenAcademyBot', timeoutMs: 500, observer: SILENT_KNOWLEDGE_OBSERVER });
-  const fetcher = new Fetcher({ fetchImpl, userAgent: 'PenAcademyBot/0.1', robots, throttle, budget: { maxPages: opts.maxPages ?? 10, timeoutMs: 500, maxPageBytes: opts.maxPageBytes ?? 1_000_000 }, observer, signal });
+  const robots = new RobotsGate({
+    fetchImpl,
+    userAgent: 'PenAcademyBot/0.1',
+    productToken: 'PenAcademyBot',
+    timeoutMs: 500,
+    observer: SILENT_KNOWLEDGE_OBSERVER,
+  });
+  const fetcher = new Fetcher({
+    fetchImpl,
+    userAgent: 'PenAcademyBot/0.1',
+    robots,
+    throttle,
+    budget: {
+      maxPages: opts.maxPages ?? 10,
+      timeoutMs: 500,
+      maxPageBytes: opts.maxPageBytes ?? 1_000_000,
+    },
+    observer,
+    signal,
+  });
   return { fetcher, throttle, observer, signal };
 }
 
@@ -46,9 +67,12 @@ describe('Fetcher', () => {
     for (const url of Object.keys(routes)) queue.push({ url, priority: 0 });
     queue.close();
     await queue.done;
-    const same = log.filter((l) => l.url.startsWith('https://same.example.org/')).sort((a, b) => a.at - b.at);
+    const same = log
+      .filter((l) => l.url.startsWith('https://same.example.org/') && !l.url.endsWith('robots.txt'))
+      .sort((a, b) => a.at - b.at);
     expect(same).toHaveLength(3);
-    for (let i = 1; i < same.length; i++) expect((same[i]?.at ?? 0) - (same[i - 1]?.at ?? 0)).toBeGreaterThanOrEqual(35);
+    for (let i = 1; i < same.length; i++)
+      expect((same[i]?.at ?? 0) - (same[i - 1]?.at ?? 0)).toBeGreaterThanOrEqual(35);
     const other = log.find((l) => l.url.startsWith('https://other'));
     expect((other?.at ?? 0) - (same[0]?.at ?? 0)).toBeLessThan(30);
   });
@@ -62,35 +86,61 @@ describe('Fetcher', () => {
     };
     const { fetcher } = fetcherWith(fakeFetch(routes), { maxPages: 3, maxPageBytes: 1000 });
     const a = await fetcher.get('https://x.example.org/a.md');
-    expect(a).toMatchObject({ ok: true, page: { status: 200, contentType: 'text/markdown', body: '# A', truncated: false } });
+    expect(a).toMatchObject({
+      ok: true,
+      page: { status: 200, contentType: 'text/markdown', body: '# A', truncated: false },
+    });
     const b = await fetcher.get('https://x.example.org/b.md');
     expect(b.ok && b.page.truncated).toBe(true);
     expect(b.ok && b.page.body.length).toBe(1000);
     expect(await fetcher.get('https://x.example.org/c.png')).toEqual({ ok: false, reason: 'type' });
-    expect(await fetcher.get('https://x.example.org/d.md')).toEqual({ ok: false, reason: 'budget' });
+    expect(await fetcher.get('https://x.example.org/d.md')).toEqual({
+      ok: false,
+      reason: 'budget',
+    });
     expect(fetcher.pagesFetched).toBe(3);
   });
 
   it('reports 4xx/5xx as status skips and includes that do not count toward the budget', async () => {
-    const routes = { 'https://x.example.org/d.md': { body: 'gone', status: 410 }, 'https://x.example.org/inc.rs': 'fn main() {}' };
+    const routes = {
+      'https://x.example.org/d.md': { body: 'gone', status: 410 },
+      'https://x.example.org/inc.rs': 'fn main() {}',
+    };
     const { fetcher } = fetcherWith(fakeFetch(routes), { maxPages: 1 });
-    expect(await fetcher.get('https://x.example.org/inc.rs', { countsTowardBudget: false })).toMatchObject({ ok: true });
-    expect(await fetcher.get('https://x.example.org/d.md')).toEqual({ ok: false, reason: 'status', status: 410 });
+    expect(
+      await fetcher.get('https://x.example.org/inc.rs', { countsTowardBudget: false }),
+    ).toMatchObject({ ok: true });
+    expect(await fetcher.get('https://x.example.org/d.md')).toEqual({
+      ok: false,
+      reason: 'status',
+      status: 410,
+    });
     expect(fetcher.pagesFetched).toBe(1);
   });
 
   it('returns aborted outcomes instead of throwing once the signal fires', async () => {
     const controller = new AbortController();
-    const { fetcher } = fetcherWith(fakeFetch({ 'https://x.example.org/slow.md': { body: '# slow', delayMs: 500 } }), { signal: controller.signal });
+    const { fetcher } = fetcherWith(
+      fakeFetch({ 'https://x.example.org/slow.md': { body: '# slow', delayMs: 500 } }),
+      { signal: controller.signal },
+    );
     const pending = fetcher.get('https://x.example.org/slow.md');
     setTimeout(() => controller.abort(), 20);
     expect(await pending).toEqual({ ok: false, reason: 'aborted' });
-    expect(await fetcher.get('https://x.example.org/slow.md')).toEqual({ ok: false, reason: 'aborted' });
+    expect(await fetcher.get('https://x.example.org/slow.md')).toEqual({
+      ok: false,
+      reason: 'aborted',
+    });
   });
 
   it('times out slow servers and records the event', async () => {
-    const { fetcher, observer } = fetcherWith(fakeFetch({ 'https://x.example.org/slow.md': { body: '# slow', delayMs: 2_000 } }));
-    expect(await fetcher.get('https://x.example.org/slow.md')).toEqual({ ok: false, reason: 'timeout' });
+    const { fetcher, observer } = fetcherWith(
+      fakeFetch({ 'https://x.example.org/slow.md': { body: '# slow', delayMs: 2_000 } }),
+    );
+    expect(await fetcher.get('https://x.example.org/slow.md')).toEqual({
+      ok: false,
+      reason: 'timeout',
+    });
     expect(observer.events.some((e) => e.name === 'knowledge.fetch_timeout')).toBe(true);
   });
 });
@@ -119,7 +169,12 @@ describe('FetchQueue', () => {
     queue.push({ url: 'https://h.example/d', priority: 4 });
     queue.close();
     await queue.done;
-    expect(started).toEqual(['https://h.example/a', 'https://h.example/b', 'https://h.example/c', 'https://h.example/d']);
+    expect(started).toEqual([
+      'https://h.example/a',
+      'https://h.example/b',
+      'https://h.example/c',
+      'https://h.example/d',
+    ]);
     expect(peak).toBe(2);
   });
 

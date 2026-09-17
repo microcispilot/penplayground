@@ -19,7 +19,10 @@ export function titleFromMarkdown(markdown: string): string | null {
 function humanizeDocLink(ref: string): string {
   const anchor = ref.split('#')[1];
   const name = anchor ?? ref;
-  return name.replace(/-/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
+  return name
+    .replace(/-/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim();
 }
 
 /** Remove `@Comment { … }` blocks (brace-balanced). */
@@ -65,9 +68,27 @@ export function cleanDocc(markdown: string): TransformedDocument {
 }
 
 // ── MDN content ──────────────────────────────────────────────────────────────
-const MDN_LINE_MACROS = /^\s*\{\{\s*(?:PreviousMenuNext|PreviousMenu|NextMenu|PreviousNext|Previous|Next|EmbedLiveSample|EmbedGHLiveSample|EmbedInteractiveExample|InteractiveExample|LearnSidebar|jsSidebar|CSSRef|HTMLSidebar|HTTPSidebar|APIRef|DefaultAPISidebar|SeeCompatTable|Deprecated_Header|Non-standard_Header|SecureContext_Header|AvailableInWorkers|Compat|Specifications|QuickLinksWithSubpages|ListSubpages|SubpagesWithSummaries|LandingPageListSubpages|EmbedYouTube|Sidebar|GlossarySidebar|AddonSidebar|MDNSidebar|WebExtAllExamples|WebExtExamples)\b[^}]*\}\}\s*$/gim;
-const MDN_INLINE_MACRO = /\{\{\s*([A-Za-z_]+)\s*(?:\(([^)]*)\))?\s*\}\}/g;
-const MDN_CODE_MACROS = new Set(['htmlelement', 'cssxref', 'jsxref', 'domxref', 'httpheader', 'httpmethod', 'httpstatus', 'svgelement', 'svgattr', 'csp', 'webextapiref', 'event', 'htmlattrxref', 'htmlattrdef', 'apiref', 'rfc']);
+const MDN_LINE_MACROS =
+  /^\s*\{\{\s*(?:PreviousMenuNext|PreviousMenu|NextMenu|PreviousNext|Previous|Next|EmbedLiveSample|EmbedGHLiveSample|EmbedInteractiveExample|InteractiveExample|LearnSidebar|jsSidebar|CSSRef|HTMLSidebar|HTTPSidebar|APIRef|DefaultAPISidebar|SeeCompatTable|Deprecated_Header|Non-standard_Header|SecureContext_Header|AvailableInWorkers|Compat|Specifications|QuickLinksWithSubpages|ListSubpages|SubpagesWithSummaries|LandingPageListSubpages|EmbedYouTube|Sidebar|GlossarySidebar|AddonSidebar|MDNSidebar|WebExtAllExamples|WebExtExamples)\b[^}]*\}\}\s*$/gim;
+const MDN_INLINE_MACRO = /\{\{\s*([A-Za-z_]+)\s*(?:\(((?:"[^"]*"|'[^']*'|[^)])*)\))?\s*\}\}/g;
+const MDN_CODE_MACROS = new Set([
+  'htmlelement',
+  'cssxref',
+  'jsxref',
+  'domxref',
+  'httpheader',
+  'httpmethod',
+  'httpstatus',
+  'svgelement',
+  'svgattr',
+  'csp',
+  'webextapiref',
+  'event',
+  'htmlattrxref',
+  'htmlattrdef',
+  'apiref',
+  'rfc',
+]);
 
 function macroArgs(raw: string | undefined): string[] {
   if (!raw) return [];
@@ -80,7 +101,10 @@ function macroArgs(raw: string | undefined): string[] {
   return out;
 }
 
-export function stripFrontmatter(markdown: string): { front: Record<string, string>; body: string } {
+export function stripFrontmatter(markdown: string): {
+  front: Record<string, string>;
+  body: string;
+} {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(markdown);
   if (!m) return { front: {}, body: markdown };
   const front: Record<string, string> = {};
@@ -115,7 +139,18 @@ export function cleanMdn(markdown: string): TransformedDocument {
 
 // ── mdBook (rust book) ───────────────────────────────────────────────────────
 const MDBOOK_INCLUDE = /\{\{#(rustdoc_include|include)\s+([^}\s:]+)(?::([^}]*))?\}\}/g;
-const LANG_BY_EXT: Record<string, string> = { rs: 'rust', toml: 'toml', txt: 'text', sh: 'console', js: 'javascript', py: 'python', json: 'json', md: 'markdown', html: 'html', c: 'c' };
+const LANG_BY_EXT: Record<string, string> = {
+  rs: 'rust',
+  toml: 'toml',
+  txt: 'text',
+  sh: 'console',
+  js: 'javascript',
+  py: 'python',
+  json: 'json',
+  md: 'markdown',
+  html: 'html',
+  c: 'c',
+};
 
 function sliceInclude(text: string, spec: string | undefined): string {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
@@ -129,9 +164,14 @@ function sliceInclude(text: string, spec: string | undefined): string {
     } else if (/^\d+$/.test(spec)) {
       picked = lines.slice(Number(spec) - 1, Number(spec));
     } else {
-      const startIdx = lines.findIndex((l) => new RegExp(`ANCHOR:\\s*${escapeRegExp(spec)}\\s*$`).test(l));
-      const endIdx = lines.findIndex((l, i) => i > startIdx && new RegExp(`ANCHOR_END:\\s*${escapeRegExp(spec)}\\s*$`).test(l));
-      if (startIdx >= 0) picked = lines.slice(startIdx + 1, endIdx > startIdx ? endIdx : lines.length);
+      const startIdx = lines.findIndex((l) =>
+        new RegExp(`ANCHOR:\\s*${escapeRegExp(spec)}\\s*$`).test(l),
+      );
+      const endIdx = lines.findIndex(
+        (l, i) => i > startIdx && new RegExp(`ANCHOR_END:\\s*${escapeRegExp(spec)}\\s*$`).test(l),
+      );
+      if (startIdx >= 0)
+        picked = lines.slice(startIdx + 1, endIdx > startIdx ? endIdx : lines.length);
     }
   }
   return picked
@@ -151,7 +191,11 @@ export interface MdbookOptions {
 }
 
 /** Resolve `{{#include}}` / `{{#rustdoc_include}}` into fenced code and flatten the book's HTML helpers. */
-export async function resolveMdbook(markdown: string, chapterUrl: string, opts: MdbookOptions): Promise<TransformedDocument> {
+export async function resolveMdbook(
+  markdown: string,
+  chapterUrl: string,
+  opts: MdbookOptions,
+): Promise<TransformedDocument> {
   const maxIncludes = opts.maxIncludes ?? 16;
   const matches = [...markdown.matchAll(MDBOOK_INCLUDE)];
   const unique = new Map<string, Promise<string | null>>();
@@ -174,26 +218,33 @@ export async function resolveMdbook(markdown: string, chapterUrl: string, opts: 
   const texts = new Map<string, string | null>();
   for (const [url, p] of unique) texts.set(url, await p);
 
-  let md = markdown.replace(MDBOOK_INCLUDE, (_, _kind: string, path: string, spec: string | undefined) => {
-    let abs: string;
-    try {
-      abs = new URL(path, chapterUrl).toString();
-    } catch {
-      return '';
-    }
-    const text = texts.get(abs);
-    if (text === undefined || text === null) return '';
-    const ext = /\.([a-z0-9]+)$/i.exec(path)?.[1]?.toLowerCase() ?? '';
-    const lang = /output\.txt$/.test(path) ? 'console' : (LANG_BY_EXT[ext] ?? '');
-    const code = sliceInclude(text, spec);
-    return code ? `\`\`\`${lang}\n${code}\n\`\`\`` : '';
-  });
+  let md = markdown.replace(
+    MDBOOK_INCLUDE,
+    (_, _kind: string, path: string, spec: string | undefined) => {
+      let abs: string;
+      try {
+        abs = new URL(path, chapterUrl).toString();
+      } catch {
+        return '';
+      }
+      const text = texts.get(abs);
+      if (text === undefined || text === null) return '';
+      const ext = /\.([a-z0-9]+)$/i.exec(path)?.[1]?.toLowerCase() ?? '';
+      const lang = /output\.txt$/.test(path) ? 'console' : (LANG_BY_EXT[ext] ?? '');
+      const code = sliceInclude(text, spec);
+      return code ? `\`\`\`${lang}\n${code}\n\`\`\`` : '';
+    },
+  );
   md = md
     .replace(/<Listing\s+([^>]*)>/g, (_, attrs: string) => {
       const num = /number="([^"]*)"/.exec(attrs)?.[1];
       const file = /file-name="([^"]*)"/.exec(attrs)?.[1];
       const caption = /caption="([^"]*)"/.exec(attrs)?.[1];
-      const parts = [num ? `**Listing ${num}**` : '', file ? `(\`${file}\`)` : '', caption ? `: ${caption}` : ''].filter(Boolean);
+      const parts = [
+        num ? `**Listing ${num}**` : '',
+        file ? `(\`${file}\`)` : '',
+        caption ? `: ${caption}` : '',
+      ].filter(Boolean);
       return parts.length ? `${parts.join(' ').replace(' :', ':')}\n` : '';
     })
     .replace(/<\/Listing>/g, '')
@@ -206,7 +257,8 @@ export async function resolveMdbook(markdown: string, chapterUrl: string, opts: 
 }
 
 // ── Wikipedia (Action API extracts) ──────────────────────────────────────────
-const WIKI_TAIL_SECTIONS = /^(see also|references|external links|notes|further reading|bibliography|sources|citations|footnotes|explanatory notes)$/i;
+const WIKI_TAIL_SECTIONS =
+  /^(see also|references|external links|notes|further reading|bibliography|sources|citations|footnotes|explanatory notes)$/i;
 
 /** Plain-text extract → markdown with `## Heading`s; trailing reference sections dropped. */
 export function wikipediaExtractToMarkdown(json: string): TransformedDocument | null {
@@ -216,7 +268,9 @@ export function wikipediaExtractToMarkdown(json: string): TransformedDocument | 
   } catch {
     return null;
   }
-  const pages = (parsed as { query?: { pages?: Array<{ title?: string; extract?: string; missing?: boolean }> } })?.query?.pages;
+  const pages = (
+    parsed as { query?: { pages?: Array<{ title?: string; extract?: string; missing?: boolean }> } }
+  )?.query?.pages;
   const page = pages?.find((p) => typeof p.extract === 'string' && p.extract.length > 0);
   if (!page?.extract || !page.title) return null;
   const lines: string[] = [`# ${page.title}`, ''];
@@ -228,6 +282,9 @@ export function wikipediaExtractToMarkdown(json: string): TransformedDocument | 
       lines.push(`${'#'.repeat(level)} ${h[2]}`);
     } else lines.push(raw);
   }
-  const markdown = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const markdown = lines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return { title: page.title, markdown };
 }
