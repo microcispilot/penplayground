@@ -103,17 +103,19 @@ const Env = z.object({
   PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).default(3),
 
   /**
-   * Synthesis cache (ADR-0017): identical sentences are synthesised once and
-   * replayed from `PEN_DATA_DIR/tts-cache` at the same streaming cadence.
+   * Lesson voice store (ADR-0017): the audio of a lesson's sentences, kept
+   * beside the lesson under `PEN_DATA_DIR/lesson-voice`, so the second learner
+   * of a topic pays for neither the words (the memo) nor the voice. Only the
+   * taught lesson is stored; questions, answers and check-in verdicts are
+   * spoken fresh for every learner and never written down.
    *
-   * Opt-in (0 = off) until the interaction recorded in tasks/todo.md is
-   * resolved: with the cache on, a *second* session on the same topic — where
-   * the lesson also comes from the memo, so nothing waits for the model —
-   * delivers audio far enough ahead of playback that the room and the client
-   * lose step (stale chunks, and a between-segment ad that never opens).
-   * Set `PEN_TTS_CACHE_MB=2048` to enable it; everything it does is tested,
-   * and the money it saves is real, but the voice is the product and it does
-   * not ship on by default with a known way to disturb it.
+   * Opt-in (0 = off) for one reason, recorded in tasks/todo.md: once a topic's
+   * voice is stored, the between-segment ad on the free plan stops opening —
+   * reproducibly, on a warm store, while a cold one is fine. Audio itself is
+   * sound (the server's frames are well formed, playback is in order), so this
+   * is a scheduling race, not a voice defect; but it costs free-plan revenue,
+   * so it does not ship on until it is understood. `PEN_TTS_CACHE_MB=2048`
+   * enables it for a deployment without ads, where the saving is pure win.
    */
   PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(0),
 

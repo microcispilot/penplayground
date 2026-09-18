@@ -173,10 +173,10 @@ export async function buildServices(
   const synthesizer: SpeechSynthesizer = ttsCache ?? engine;
   if (ttsCache)
     logger.info(
-      { evt: 'tts.cache_on', maxMb: cfg.PEN_TTS_CACHE_MB, entries: ttsCache.snapshot().entries },
-      'synthesis cache ready',
+      { evt: 'tts.cache_on', maxMb: cfg.PEN_TTS_CACHE_MB, says: ttsCache.snapshot().says },
+      'lesson voice store ready',
     );
-  else logger.info({ evt: 'tts.cache_off' }, 'synthesis cache disabled (PEN_TTS_CACHE_MB=0)');
+  else logger.info({ evt: 'tts.cache_off' }, 'lesson voice store disabled (PEN_TTS_CACHE_MB=0)');
 
   const spend = new SpendBreaker({
     capUsd: cfg.PEN_DAILY_SPEND_CAP_USD,

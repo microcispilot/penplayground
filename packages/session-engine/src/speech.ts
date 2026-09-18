@@ -1,6 +1,6 @@
 import type { DownstreamAudioHeader, GapKind, SayEvent, TelemetryPort } from '@pen/contracts';
 import { gapMsFor, NULL_TELEMETRY, ttsSpeedFor, ttsUsd } from '@pen/contracts';
-import type { SpeechSynthesizer } from '@pen/voice';
+import type { LessonIdentity, SpeechSynthesizer } from '@pen/voice';
 import type { RoomObserver, RoomTransport } from './transport.js';
 
 export interface SayPipelineOptions {
@@ -13,10 +13,30 @@ export interface SayPipelineOptions {
   /** How many sentences may be synthesised ahead of the last one the room finished hearing. */
   lookahead?: number;
   /**
+   * How much *audio* may be banked ahead of the learner, in ms.
+   *
+   * Counting sentences alone is not enough: three long ones are a minute of
+   * speech, and the client's player bounds its own bank (30 s) and rejects
+   * what will not fit. A rejected chunk means a sentence that never completes,
+   * which means the progress report that would have released the next one
+   * never arrives — the room and the learner deadlock, each waiting for the
+   * other. This is the bound that cannot be exceeded by a fast provider, a
+   * stored lesson or a short sentence count.
+   */
+  maxBankMs?: number;
+  /**
    * The room's teaching pace, read when a sentence starts synthesis (ADR-0010).
    * A change applies from the next sentence; the one in flight keeps its speed.
    */
   pace?: () => number;
+  /**
+   * Which lesson this sentence belongs to, if any (ADR-0017). Returning a
+   * lesson marks the sentence as shared material: the voice is stored beside
+   * the lesson's words and the next learner hears it without paying for it.
+   * Returning null marks it personal — a learner's answer, a check-in verdict,
+   * an honest line about a failure — and personal audio is never stored.
+   */
+  lessonFor?: (say: SayEvent, thread: string) => LessonIdentity | null;
   /**
    * Which beat follows a sentence: a plain sentence gap, the longer wait after a
    * check-in question or a board title, or null for no pause. Asked once the
@@ -71,16 +91,19 @@ export class SayPipeline {
   private readonly queue: Array<{ say: SayEvent; thread: string; take: number; voice: string }> =
     [];
   private readonly lookahead: number;
+  private readonly maxBankMs: number;
+  /** Durations of the sentences sent but not yet heard, oldest first. */
   private readonly telemetry: TelemetryPort;
   private inFlight = 0;
   /** The sentence being synthesised right now (the pipeline speaks one at a time). */
   private current: string | null = null;
   /**
    * Sentences whose synthesis has begun, oldest first — the ones `enqueued`
-   * counts. A re-take has to give their lookahead budget back, or the lesson
-   * would stall waiting for room it already spent on audio it just discarded.
+   * counts, with the audio each of them banked. A re-take has to give their
+   * lookahead budget back, or the lesson would stall waiting for room it
+   * already spent on audio it just discarded.
    */
-  private readonly started: string[] = [];
+  private readonly started: Array<{ sayId: string; ms: number }> = [];
   private heardUpTo = 0;
   private enqueued = 0;
   private controller = new AbortController();
@@ -89,6 +112,9 @@ export class SayPipeline {
 
   constructor(private readonly opts: SayPipelineOptions) {
     this.lookahead = opts.lookahead ?? 3;
+    // Two thirds of the client's 30 s bank: room for a long sentence to land
+    // whole, and never so much that the next one is refused.
+    this.maxBankMs = opts.maxBankMs ?? 20_000;
     this.telemetry = opts.telemetry ?? NULL_TELEMETRY;
   }
 
@@ -103,6 +129,13 @@ export class SayPipeline {
     this.heardUpTo += 1;
     this.started.shift();
     void this.drain();
+  }
+
+  /** Audio sent but not yet reported heard, in ms. */
+  get banked(): number {
+    let total = 0;
+    for (const entry of this.started) total += entry.ms;
+    return total;
   }
 
   /** A thread finished (turn answered, ad over): whatever was synthesised counts as heard. */
@@ -127,7 +160,8 @@ export class SayPipeline {
     // Sentences already synthesised (or being synthesised) are holding budget
     // for audio that is about to be thrown away: give it back, so the room can
     // re-enqueue all of them at once instead of one every time a sentence ends.
-    const keptStarted = this.started.filter((id) => !shouldRetake(id));
+    // Their audio is about to be replaced, so the room they hold goes back too.
+    const keptStarted = this.started.filter((entry) => !shouldRetake(entry.sayId));
     const released = this.started.length - keptStarted.length;
     this.started.splice(0, this.started.length, ...keptStarted);
     this.enqueued = Math.max(this.heardUpTo, this.enqueued - released);
@@ -161,15 +195,22 @@ export class SayPipeline {
     if (this.draining) return;
     this.draining = true;
     try {
-      while (this.queue.length > 0 && this.enqueued - this.heardUpTo < this.lookahead) {
+      while (
+        this.queue.length > 0 &&
+        this.enqueued - this.heardUpTo < this.lookahead &&
+        this.banked < this.maxBankMs
+      ) {
         const item = this.queue.shift();
         if (!item) break;
         this.enqueued += 1;
-        this.started.push(item.say.id);
+        // The entry is an object so `markHeard` and `retake` can shift the
+        // queue underneath while this sentence is still being spoken.
+        const banked = { sayId: item.say.id, ms: 0 };
+        this.started.push(banked);
         this.inFlight += 1;
         this.current = item.say.id;
         const signal = this.controller.signal;
-        await this.speak(item.say, item.thread, item.take, item.voice, signal);
+        banked.ms = await this.speak(item.say, item.thread, item.take, item.voice, signal);
         this.current = null;
         this.inFlight = Math.max(0, this.inFlight - 1);
       }
@@ -178,13 +219,14 @@ export class SayPipeline {
     }
   }
 
+  /** Speaks one sentence and returns the audio it put on the wire, in ms. */
   private async speak(
     say: SayEvent,
     thread: string,
     take: number,
     voice: string,
     signal: AbortSignal,
-  ): Promise<void> {
+  ): Promise<number> {
     const started = performance.now();
     const startedAt = Date.now();
     // The pace is read once per sentence: the voice, the beat after it and the
@@ -248,6 +290,9 @@ export class SayPipeline {
       });
     };
     try {
+      // A lesson sentence is the same for every learner, so it may be stored;
+      // everything else belongs to the person in this room and is spoken fresh.
+      const lesson = this.opts.lessonFor?.(say, thread) ?? null;
       const stream = this.opts.synthesizer.synthesize({
         text,
         voice,
@@ -255,12 +300,13 @@ export class SayPipeline {
         speed: ttsSpeedFor(pace),
         tone: say.tone,
         signal,
+        ...(lesson ? { lesson } : {}),
       });
       let previous: { header: DownstreamAudioHeader; pcm: Uint8Array } | null = null;
       for await (const chunk of stream) {
         if (signal.aborted) {
           finish(true, { cancelled: true });
-          return;
+          return 0;
         }
         if (firstChunkMs < 0) {
           firstChunkMs = Math.round(performance.now() - started);
@@ -292,7 +338,7 @@ export class SayPipeline {
       }
       if (signal.aborted) {
         finish(true, { cancelled: true });
-        return;
+        return 0;
       }
       // The beat after the sentence is audio too: it rides the same clock, the
       // same ledger and the same replay as the words (ADR-0002, ADR-0010).
@@ -301,7 +347,7 @@ export class SayPipeline {
       const gapKind = this.opts.gapAfter ? await this.opts.gapAfter(say, thread) : 'sentence';
       if (signal.aborted) {
         finish(true, { cancelled: true });
-        return;
+        return 0;
       }
       gapMs = gapKind ? gapMsFor(gapKind, pace) : 0;
       if (previous && gapMs === 0) {
@@ -353,15 +399,17 @@ export class SayPipeline {
       this.opts.transport.broadcast({ kind: 'say_complete', sayId: say.id, durationMs });
       finish(true, { cancelled: false });
       this.opts.onComplete?.(say.id, durationMs);
+      return durationMs;
     } catch (error) {
       if (signal.aborted) {
         finish(true, { cancelled: true });
-        return;
+        return 0;
       }
       const ref = this.opts.observer.error('tts', error, { sayId: say.id, engine });
       finish(false, { cancelled: false });
       this.telemetry.error({ code: ttsErrorCode(error), stage: 'tts', ref: ref ?? null });
       this.opts.onFailure?.(say.id, error);
+      return 0;
     }
   }
 }

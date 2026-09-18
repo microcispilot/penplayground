@@ -315,6 +315,20 @@ export class SessionRoom {
       },
       observer: this.observer,
       pace: () => this.state.pace,
+      // Only the taught lesson is shared material (ADR-0017). A question, the
+      // answer to it, a check-in verdict or an honest line about a failure
+      // belongs to the learner who prompted it: spoken fresh, never stored,
+      // never handed to another room. The session's own ledger still records
+      // all of it, which is where observability looks.
+      lessonFor: (say, thread) =>
+        thread === 'lesson' && this.resolution
+          ? {
+              canonicalId: this.resolution.canonicalKnowledgeId,
+              band: this.d.band,
+              expertId: this.d.expert.id,
+              sayId: say.id,
+            }
+          : null,
       gapAfter: (say) => this.gapAfter(say),
       telemetry: this.metrics,
       onComplete: (sayId) => this.onSayComplete(sayId),

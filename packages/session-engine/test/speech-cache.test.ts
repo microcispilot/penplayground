@@ -8,7 +8,7 @@ import type {
 } from '@pen/contracts';
 import { ttsUsd } from '@pen/contracts';
 import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from '@pen/voice';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SayPipeline } from '../src/speech.js';
 import type { RoomObserver, RoomTransport } from '../src/transport.js';
 
@@ -122,5 +122,70 @@ describe('SayPipeline and the synthesis cache', () => {
   it('records exactly one cost line per sentence', async () => {
     const { telemetry } = await speak(true);
     expect(telemetry.costs.filter((l) => l.component === 'tts')).toHaveLength(1);
+  });
+});
+
+/**
+ * The bound that stops the room and the learner deadlocking.
+ *
+ * The client's player banks at most 30 s of audio and rejects what will not
+ * fit; a rejected chunk is a sentence that never completes, and the progress
+ * report that would have released the next one never arrives. Counting
+ * sentences alone does not protect against that — three long ones are a
+ * minute of speech — so the pipeline counts seconds too. A stored lesson
+ * (ADR-0017) is what makes this reachable, but any fast provider can do it.
+ */
+class LongSynthesizer implements SpeechSynthesizer {
+  readonly id = ENGINE;
+  calls = 0;
+  /** Twelve seconds of audio per sentence, delivered instantly. */
+  async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
+    this.calls += 1;
+    const frames = 100; // 100 × 120 ms = 12 s
+    for (let i = 0; i < frames; i += 1)
+      yield {
+        audioChunkId: i,
+        audioClockMs: i * 120,
+        sampleRate: request.sampleRate,
+        durationMs: 120,
+        pcm: new Uint8Array(Math.floor((request.sampleRate * 120) / 1000) * 2),
+        textSpan: null,
+        reused: true,
+      };
+  }
+}
+
+describe('how far ahead the pipeline may run', () => {
+  it('stops at the audio bound, not just the sentence count, and resumes as the learner hears', async () => {
+    const synthesizer = new LongSynthesizer();
+    const pipeline = new SayPipeline({
+      synthesizer,
+      voice: 'voice-en',
+      sampleRate: 44100,
+      transport: new Transport(),
+      observer,
+      gapAfter: () => null,
+      // Four sentences of headroom by count, 20 s by duration: the duration is
+      // what has to bite, at two sentences.
+      lookahead: 4,
+      maxBankMs: 20_000,
+    });
+    for (let i = 0; i < 4; i += 1)
+      pipeline.enqueue(
+        { type: 'say', id: `s${i}`, text: `Sentence ${i}.`, tone: 'warm' },
+        'lesson',
+      );
+
+    await vi.waitFor(() => expect(synthesizer.calls).toBe(2));
+    // A third would put 36 s on a 30 s bank, so it waits.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(synthesizer.calls).toBe(2);
+    expect(pipeline.banked).toBeGreaterThan(20_000 - 12_000);
+
+    // The learner hears one: there is room again, and exactly one more goes out.
+    pipeline.markHeard();
+    await vi.waitFor(() => expect(synthesizer.calls).toBe(3));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(synthesizer.calls).toBe(3);
   });
 });

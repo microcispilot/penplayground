@@ -19,6 +19,25 @@ export interface SpeechChunk {
   reused?: boolean;
 }
 
+/**
+ * Which lesson a sentence belongs to, and which version of it (ADR-0017).
+ *
+ * A sentence is only ever stored as part of a lesson: the voice lives beside
+ * the content it speaks, so the two stay in step and a content change retires
+ * both together. A sentence with no lesson — a learner's answer, a check-in
+ * verdict, an honest line about a failure — is synthesised fresh every time and
+ * never written down, because it belongs to one person's session and to nobody
+ * else's.
+ */
+export interface LessonIdentity {
+  /** `${lang}.${slug}` from the Onten registry: what the lesson teaches. */
+  canonicalId: string;
+  band: string;
+  expertId: string;
+  /** Stable id of the sentence inside the lesson (`L0.s3`). */
+  sayId: string;
+}
+
 export interface SynthesisRequest {
   text: string;
   /** Deployment-resolved voice reference (Fish reference_id or bridge profile id). */
@@ -29,6 +48,11 @@ export interface SynthesisRequest {
   /** Delivery hint the engine may honour ("warm", "curious"). */
   tone?: string;
   signal?: AbortSignal;
+  /**
+   * Present only for the taught lesson. Its absence is what keeps a learner's
+   * own words out of the store; adapters that do not cache ignore it.
+   */
+  lesson?: LessonIdentity;
 }
 
 export interface SpeechSynthesizer {

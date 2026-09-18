@@ -328,7 +328,7 @@ Everything here has a default that is safe to deploy unchanged.
 | `PEN_DAILY_SPEND_PAID_MULTIPLE` | `3` | Paid plans keep going to `cap × this` before anyone is held back. |
 | `PEN_MAX_SESSIONS_PER_IP` | `5` | Live rooms one address may host at once. |
 | `PEN_MAX_BODY_BYTES` | `65536` | Largest JSON body any route accepts (Stripe's signed webhook gets 256 KB). |
-| `PEN_TTS_CACHE_MB` | `0` (off) | Synthesis cache under `PEN_DATA_DIR/tts-cache`. See ADR-0017 before enabling: it is complete and tested, and opt-in until one interaction is understood. |
+| `PEN_TTS_CACHE_MB` | `0` (off) | Lesson voice store under `PEN_DATA_DIR/lesson-voice`: a lesson's audio kept beside the lesson, so a second learner of a topic pays for neither the words nor the voice. Questions and answers are never stored. Opt-in — read "Why it ships off" in ADR-0017 first; on a deployment without ads it is pure win. |
 
 Plan limits themselves (sessions per UTC day, session length, seats) are not
 environment variables — they are product promises, and they live in
@@ -342,6 +342,16 @@ docker compose logs api | grep -E 'spend\.(ready|capacity|threshold)|rooms\.ip_c
 ```
 
 `spend.threshold` is also a Sentry warning, raised once a day at 80 % of the cap.
+
+What the lesson voice store has saved, and how much of it is on disk:
+
+```sh
+curl -s -H "authorization: Bearer <token>" https://DOMAIN/api/admin/costs | jq '.tts'
+du -sh /srv/pen-playground/data/lesson-voice
+```
+
+`personal` in that snapshot counts the sentences it deliberately did **not**
+store: questions, answers and check-in verdicts, which belong to one learner.
 
 ### Security headers and the Content-Security-Policy
 

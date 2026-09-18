@@ -376,6 +376,14 @@ export class Conductor {
       this.o.captions.hint(null);
       if (previous?.mode === 'paused')
         for (const { exec } of this.executions.values()) exec.resume();
+      // A boundary ad whose sentence was cancelled mid-flight (a barge-in, or a
+      // check-in answered before the sentence finished) never gets the say-end
+      // that would have started it — a cancelled say fires no end event. The
+      // lesson coming back is the other honest moment to play it: between
+      // segments, after the answer, never inside the lesson audio.
+      const pending = this.pendingAd;
+      if (!inAd && pending && pending.afterSeq >= 0 && this.lastProgressSeq >= pending.afterSeq)
+        this.startAd();
     }
     if (previous?.mode !== 'checking' && mode !== 'checking') this.o.presence.showCheck(null);
   }
@@ -531,6 +539,9 @@ export class Conductor {
   private startAd(): void {
     const ad = this.pendingAd;
     if (!ad) return;
+    // Never over a learner who has the floor, and never twice. The slot keeps
+    // its place: `applyState` plays it when the lesson comes back.
+    if (this.phase === 'listening' || this.phase === 'ended' || this.phase === 'ad') return;
     this.pendingAd = null;
     this.prepAd = ad.afterSeq < 0;
     this.o.audio.pause();
