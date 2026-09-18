@@ -5,6 +5,11 @@ import { defineConfig, devices } from '@playwright/test';
  * silent synthesizer, so the whole loop (home → room → cues → question → end)
  * is exercised deterministically without keys.
  */
+/**
+ * The suite runs on checkouts with no `.env` (CI, a fresh clone), so every test API is
+ * given its own throwaway signing secret rather than inheriting a real one.
+ */
+const E2E_JWT_SECRET = process.env.PEN_JWT_SECRET ?? 'e2e-only-secret-not-for-production-32+';
 const apiPort = process.env.PEN_API_PORT ?? '4010';
 /** Both ports are overridable so parallel checkouts (worktrees) never reuse each other's servers. */
 const webPort = process.env.PEN_WEB_PORT ?? '5173';
@@ -65,6 +70,7 @@ export default defineConfig({
         PEN_LLM_PROVIDER: 'fake',
         PEN_TTS_PROVIDER: 'silent',
         PEN_DATA_DIR: '.pen-data-e2e',
+        PEN_JWT_SECRET: E2E_JWT_SECRET,
         // Each e2e API gets its own in-memory database: two processes on one PGlite dir abort.
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
@@ -96,6 +102,7 @@ export default defineConfig({
         PEN_LLM_PROVIDER: 'fake',
         PEN_TTS_PROVIDER: 'silent',
         PEN_DATA_DIR: '.pen-data-e2e-rooms',
+        PEN_JWT_SECRET: E2E_JWT_SECRET,
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
         PEN_DEV_PLAN: 'professional',
@@ -125,6 +132,7 @@ export default defineConfig({
         PEN_LLM_PROVIDER: 'fake',
         PEN_TTS_PROVIDER: 'silent',
         PEN_DATA_DIR: '.pen-data-e2e-ui',
+        PEN_JWT_SECRET: E2E_JWT_SECRET,
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
         // The UI specs teach a lesson each and several leave the room live on
