@@ -174,9 +174,10 @@ monitor should be green with a check-in every five minutes.
 
 ## 4. Analytics
 
-PostHog project `615574` (US region; ingestion `https://us.i.posthog.com`, API
-`https://us.posthog.com`). Server events are content-free by design
-(ADR-0011): codes, counts, timings — never a topic, question or transcript.
+PostHog project **Pen Playground** (`615574`, US region; ingestion
+`https://us.i.posthog.com`, API `https://us.posthog.com`). Server events are
+content-free by design (ADR-0011): codes, counts, timings — never a topic,
+question or transcript.
 
 The dashboard is **"Pen Playground — Sessions"**
 (<https://us.posthog.com/project/615574/dashboard/2109533>): sessions per day,
@@ -190,15 +191,13 @@ pnpm --filter @pen/api posthog:dashboard -- --check # run every query, print row
 pnpm --filter @pen/api posthog:dashboard -- --print # the SQL, to paste by hand
 ```
 
-> **Scopes decide which of those three work.** `POSTHOG_PERSONAL_API_KEY`
-> currently has `organization:read`, `project:read`, `dashboard:write` and
-> `insight:write` — enough to create the dashboard, which is done. It does
-> **not** have `query:read`, so anything that runs HogQL from the command line
-> — `posthog:dashboard --check` and `telemetry:pull` — answers
-> `403 … missing required scope 'query:read'`. Add that scope in PostHog →
-> Settings → Personal API keys to turn those back on; the dashboard itself is
-> unaffected, because its tiles run as whoever is looking at them.
-> `--print` always works and needs no key at all.
+> **Scopes decide which of those three work.** `POSTHOG_PERSONAL_API_KEY` has
+> `organization:read`, `project:read`, `dashboard:write`, `insight:write` and
+> `query:read` — enough for all of them, and for `telemetry:pull`. If a command
+> ever answers `403 … missing required scope '<name>'`, that is the whole
+> diagnosis: add the scope in PostHog → Settings → Personal API keys. The
+> dashboard itself never depends on this key — its tiles run as whoever is
+> looking at them — and `--print` needs no key at all.
 
 Every tile filters `properties.app = 'pen-academy-api'` — the project is shared
 with another product, and an unfiltered average silently mixes them. Rows with

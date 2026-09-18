@@ -12,10 +12,10 @@ import { aggregateReuse, computeTelemetry, type ReuseStats } from '../src/teleme
  *   pnpm --filter @pen/api telemetry:pull --all            reuse statistics for every topic
  *
  * PostHog is queried with HogQL through `POST /api/projects/:id/query/`, which
- * needs `query:read` on `POSTHOG_PERSONAL_API_KEY`; without it this answers
- * `403 … missing required scope 'query:read'` and the ledger half still works.
- * Sentry is queried through the organization Discover events endpoint, falling
- * back to the project event list filtered by the `sessionId` tag.
+ * needs `query:read` on `POSTHOG_PERSONAL_API_KEY` (granted); without it the
+ * call answers `403 … missing required scope 'query:read'` and the ledger half
+ * still works. Sentry is queried through the organization Discover events
+ * endpoint, falling back to the project event list filtered by `sessionId`.
  */
 const env = process.env;
 const POSTHOG_HOST = env.POSTHOG_HOST ?? 'https://us.i.posthog.com';

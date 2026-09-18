@@ -8,11 +8,10 @@ import { z } from 'zod';
  *   pnpm --filter @pen/api posthog:dashboard -- --check # run every query, print rows
  *
  * Scopes on `POSTHOG_PERSONAL_API_KEY` decide what runs: creating the
- * dashboard needs `dashboard:write` + `insight:write` (granted), while
- * `--check` runs HogQL and needs `query:read` (not granted today — it answers
- * 403 and says so). Whatever is missing, the script names the exact scope and
- * falls back to printing the SQL for the owner to paste by hand (PostHog →
- * Dashboards → New → Add insight → SQL).
+ * dashboard needs `dashboard:write` + `insight:write`, and `--check` runs
+ * HogQL and needs `query:read`. All three are granted today. If one is ever
+ * revoked the script names the exact missing scope and falls back to printing
+ * the SQL to paste by hand (PostHog → Dashboards → New → Add insight → SQL).
  *
  * Every tile reads the server-side `session_ended` event, whose flat, dotted
  * properties are built by `sessionEndedProperties` (ADR-0011) — so each number
