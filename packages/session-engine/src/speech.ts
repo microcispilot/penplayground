@@ -73,6 +73,8 @@ export class SayPipeline {
   private readonly lookahead: number;
   private readonly telemetry: TelemetryPort;
   private inFlight = 0;
+  /** The sentence being synthesised right now (the pipeline speaks one at a time). */
+  private current: string | null = null;
   private heardUpTo = 0;
   private enqueued = 0;
   private controller = new AbortController();
@@ -102,6 +104,26 @@ export class SayPipeline {
     void this.drain();
   }
 
+  /**
+   * A pace change: drop the sentences `shouldRetake` names so the room can
+   * re-enqueue them at the new speed (ADR-0010). The sentence the learner is
+   * hearing keeps its own speed and is never named, so it is never cut; a
+   * named sentence that is mid-synthesis is aborted, because paying for audio
+   * nobody will hear is the one thing worse than waiting for it.
+   */
+  retake(shouldRetake: (sayId: string) => boolean): void {
+    const kept = this.queue.filter((item) => !shouldRetake(item.say.id));
+    const dropped = this.queue.length - kept.length;
+    this.queue.splice(0, this.queue.length, ...kept);
+    this.enqueued = Math.max(this.heardUpTo, this.enqueued - dropped);
+    if (this.current !== null && shouldRetake(this.current)) {
+      // One controller, one sentence in flight: aborting it touches nothing else.
+      this.controller.abort();
+      this.controller = new AbortController();
+      this.enqueued = Math.max(this.heardUpTo, this.enqueued - 1);
+    }
+  }
+
   /** Barge-in or pause: abort in-flight synthesis and drop everything queued. */
   cancel(): void {
     this.controller.abort();
@@ -129,8 +151,10 @@ export class SayPipeline {
         if (!item) break;
         this.enqueued += 1;
         this.inFlight += 1;
+        this.current = item.say.id;
         const signal = this.controller.signal;
         await this.speak(item.say, item.thread, item.take, item.voice, signal);
+        this.current = null;
         this.inFlight = Math.max(0, this.inFlight - 1);
       }
     } finally {
@@ -159,24 +183,54 @@ export class SayPipeline {
     let gapMs = 0;
     let chunkIndex = 0;
     let firstChunkMs = -1;
-    // No synthesis cache exists yet (ADR-0011): every sentence is generated, so `reused` is always false here.
-    const meta = { sayId: say.id, thread, take, engine, bytes, pace, reused: false };
-    const finish = (ok: boolean, extra: Record<string, string | number | boolean>) =>
+    /**
+     * Whether the audio came from the synthesis cache (ADR-0016). The first
+     * chunk says so; until one arrives we assume the provider was called,
+     * because a request abandoned before its first byte is still a request the
+     * provider may have billed.
+     */
+    let reused = false;
+    const fresh = ttsUsd(engine, bytes);
+    let billed = false;
+    /**
+     * One cost line per sentence, written once the outcome is known. A cached
+     * sentence costs nothing and books what generating it would have cost as
+     * `savedUsd`, which is what `SessionTelemetry.reuse` sums.
+     */
+    const bill = () => {
+      if (billed) return;
+      billed = true;
+      this.telemetry.cost({
+        component: 'tts',
+        unit: 'bytes',
+        units: bytes,
+        usd: reused ? 0 : fresh,
+        meta: { engine, thread, reused, ...(reused ? { savedUsd: fresh } : {}) },
+      });
+    };
+    const finish = (ok: boolean, extra: Record<string, string | number | boolean>) => {
+      bill();
       this.telemetry.sample({
         stage: 'tts',
         ms: performance.now() - started,
         ok,
         startedAt,
-        meta: { ...meta, firstChunkMs, audioMs: speechMs, gapMs, ...extra },
+        meta: {
+          sayId: say.id,
+          thread,
+          take,
+          engine,
+          bytes,
+          pace,
+          reused,
+          savedUsd: reused ? fresh : 0,
+          firstChunkMs,
+          audioMs: speechMs,
+          gapMs,
+          ...extra,
+        },
       });
-    // The provider bills the request's bytes whether or not we play them all (barge-in).
-    this.telemetry.cost({
-      component: 'tts',
-      unit: 'bytes',
-      units: bytes,
-      usd: ttsUsd(engine, bytes),
-      meta: { engine, thread, reused: false },
-    });
+    };
     try {
       const stream = this.opts.synthesizer.synthesize({
         text,
@@ -194,11 +248,13 @@ export class SayPipeline {
         }
         if (firstChunkMs < 0) {
           firstChunkMs = Math.round(performance.now() - started);
+          reused = chunk.reused === true;
           this.opts.observer.event('tts.first_chunk', {
             sayId: say.id,
             ms: firstChunkMs,
             engine,
             pace,
+            reused,
           });
           this.opts.onFirstChunk?.(say.id, thread, take);
         }

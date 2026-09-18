@@ -31,6 +31,14 @@ export const participants = pgTable(
     googleSub: text('google_sub'),
     avatarUrl: text('avatar_url'),
     stripeCustomerId: text('stripe_customer_id'),
+    /**
+     * The learner turned analytics off under "Privacy choices". There is no
+     * consent banner to answer (ADR-0017): analytics are cookieless and
+     * content-free by construction, and this is the switch for anyone who
+     * would rather not be counted at all — honoured on the server as well as
+     * in the browser.
+     */
+    analyticsOptOut: boolean('analytics_opt_out').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },

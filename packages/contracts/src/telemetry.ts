@@ -185,6 +185,9 @@ export const ReuseSummary = z.object({
   /** Onten queries answered by a speculative assembly on the partial transcript. */
   contextSpeculationHits: z.number().int().nonnegative(),
   intakeCacheHit: z.boolean(),
+  /** Sentences played from the synthesis cache vs bought from the engine (ADR-0016). */
+  ttsSentencesReused: z.number().int().nonnegative(),
+  ttsSentencesGenerated: z.number().int().nonnegative(),
   /** What the reused work would have cost to generate fresh (same price tables). */
   savedUsd: z.number().nonnegative(),
   /** cost.totalUsd + savedUsd: the session with zero reuse. */

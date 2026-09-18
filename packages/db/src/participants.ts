@@ -116,6 +116,26 @@ export class ParticipantRepository {
     return rows.length;
   }
 
+  /** The learner's analytics choice (Privacy choices); returns the updated row. */
+  async setAnalyticsOptOut(id: string, optOut: boolean): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ analyticsOptOut: optOut, lastSeenAt: new Date() })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Erase the participant. Their sessions are removed separately (the caller
+   * also has on-disk ledgers, audio, exports and thumbnails to clear), so this
+   * is the last step, after which the bearer identifies nobody.
+   */
+  async remove(id: string): Promise<boolean> {
+    const rows = await this.db.delete(participants).where(eq(participants.id, id)).returning();
+    return rows.length > 0;
+  }
+
   async setPlan(
     id: string,
     plan: ParticipantRow['plan'],

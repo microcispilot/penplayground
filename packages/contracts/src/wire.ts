@@ -172,6 +172,10 @@ export const ServerError = z.object({
     'NOT_HOST',
     'ENTITLEMENT_REQUIRED',
     'RATE_LIMITED',
+    /** The frame did not match the protocol; repeated ones close the socket. */
+    'BAD_MESSAGE',
+    /** The day's spend cap is holding new sessions back (ADR-0015). */
+    'CAPACITY',
     'STT_UNAVAILABLE',
     'TTS_UNAVAILABLE',
     'LLM_UNAVAILABLE',

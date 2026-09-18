@@ -96,6 +96,33 @@ export function captureError(
   return id;
 }
 
+/**
+ * A condition worth a human's attention that is not a failure — the day's
+ * spend crossing its warning line, say. Same content-free rule as
+ * `captureError`: codes, numbers and booleans only.
+ */
+export function captureWarning(
+  area: string,
+  message: string,
+  data: Record<string, unknown> = {},
+): string | null {
+  logger.warn({ area, msg: message, ...data });
+  if (!sentryEnabled) return null;
+  let id: string | null = null;
+  Sentry.withScope((scope) => {
+    scope.setLevel('warning');
+    scope.setTag('area', area);
+    for (const [k, v] of Object.entries(data)) {
+      if (v === null || v === undefined) continue;
+      if (TAG_KEYS.has(k) && (typeof v === 'string' || typeof v === 'number'))
+        scope.setTag(k, String(v).slice(0, 200));
+      else if (typeof v === 'number' || typeof v === 'boolean') scope.setExtra(k, v);
+    }
+    id = Sentry.captureMessage(message, 'warning');
+  });
+  return id;
+}
+
 function breadcrumb(name: string, data: Record<string, unknown>): void {
   if (!sentryEnabled || !BREADCRUMB_EVENTS.has(name)) return;
   const safe: Record<string, string | number | boolean> = {};

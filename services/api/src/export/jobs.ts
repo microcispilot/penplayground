@@ -257,6 +257,20 @@ export class ExportJobs {
     return this.queue.length + (this.active ? 1 : 0);
   }
 
+  /**
+   * Forget a session entirely: a queued job leaves the queue, an active render
+   * is aborted, and the in-memory record goes. Used when the session (or the
+   * account that hosts it) is deleted — the files themselves are removed by
+   * the caller with the rest of the session directory.
+   */
+  forget(sessionId: string): void {
+    const queued = this.queue.indexOf(sessionId);
+    if (queued !== -1) this.queue.splice(queued, 1);
+    if (this.active?.sessionId === sessionId) this.active.abort.abort();
+    this.jobs.delete(sessionId);
+    this.fingerprints.delete(sessionId);
+  }
+
   /** Stop taking work and abort the active render (shutdown). */
   close(): void {
     this.closed = true;

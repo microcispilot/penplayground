@@ -5,7 +5,7 @@ import type {
   SelectionBand,
   ServerMessage,
 } from '@pen/contracts';
-import { encodeAudioFrame, freshEstimateUsd, llmCostLines } from '@pen/contracts';
+import { encodeAudioFrame, freshEstimateUsd, llmCostLines, PLAN_LIMITS } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import {
   newSessionId,
@@ -79,6 +79,9 @@ export class RoomRegistry {
         counter.stageEvents += 1;
         services.analytics.capture(args.host.id, 'stage', stageProperties(sessionId, sample));
       },
+      // The breaker counts the very lines the ledger records, so the cap and
+      // the Insights tab can never disagree about what today cost (ADR-0015).
+      onCost: (line) => services.spend.record(line),
     });
     const modelId = services.modelFor(args.host.plan).id;
     // Intake (language + clean title) and an English resolution run concurrently: most topics are
@@ -379,13 +382,24 @@ export class RoomRegistry {
     setTimeout(() => this.rooms.delete(sessionId), 60_000);
   }
 
-  /** Idle rooms (no seats for 10 minutes) are ended to bound cost. */
+  /**
+   * Rooms nobody is in (10 minutes) and rooms that have run their plan's full
+   * length are ended. The length ceiling is what stops a tab left open
+   * overnight from quietly spending all night (PLAN_LIMITS.maxSessionMinutes).
+   */
   sweep(now = Date.now()): void {
     for (const [id, live] of this.rooms) {
       const state = live.room.getState();
       if (state.phase === 'ended') continue;
       const idle = live.seats.size === 0 && now - live.createdAt > 10 * 60_000;
-      const tooLong = now - live.createdAt > 3 * 60 * 60_000;
+      const ceilingMs = PLAN_LIMITS[live.plan].maxSessionMinutes * 60_000;
+      const tooLong = now - live.createdAt > ceilingMs;
+      if (tooLong)
+        observer.event('room.length_ceiling', {
+          sessionId: id,
+          plan: live.plan,
+          minutes: PLAN_LIMITS[live.plan].maxSessionMinutes,
+        });
       if (idle || tooLong) void this.end(id);
     }
   }
