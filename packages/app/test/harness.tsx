@@ -27,6 +27,7 @@ export const ANONYMOUS: Participant = {
   anonymous: true,
   email: null,
   avatarUrl: null,
+  pace: 1,
 };
 
 export const SIGNED_IN: Participant = {
@@ -36,6 +37,7 @@ export const SIGNED_IN: Participant = {
   anonymous: false,
   email: 'ada@example.com',
   avatarUrl: null,
+  pace: 1,
 };
 
 /** A platform with nothing real behind it: no analytics, no Sentry, no Google. */

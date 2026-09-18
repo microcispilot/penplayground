@@ -127,6 +127,20 @@ export class ParticipantRepository {
   }
 
   /**
+   * The learner's teaching pace (ADR-0010), kept on the account so their next
+   * session starts where the last one left off. Clamped by the caller;
+   * returns the updated row.
+   */
+  async setPace(id: string, pace: number): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ pace, lastSeenAt: new Date() })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
    * Erase the participant. Their sessions are removed separately (the caller
    * also has on-disk ledgers, audio, exports and thumbnails to clear), so this
    * is the last step, after which the bearer identifies nobody.

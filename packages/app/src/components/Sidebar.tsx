@@ -1,12 +1,10 @@
 import type { Expert } from '@pen/contracts';
-import { formatPace, PACE_PRESETS } from '@pen/contracts';
 import { cn, useModalFocus } from '@pen/design';
 import {
   Bookmark,
   ChevronDown,
   Compass,
   Download,
-  Gauge,
   Heart,
   History,
   Moon,
@@ -19,9 +17,7 @@ import {
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
-import { useApp } from '../lib/context.js';
 import { useLists } from '../lib/lists.js';
-import { readPacePreference, writePacePreference } from '../lib/pace-preference.js';
 import { isDarkTheme, useTheme } from '../lib/theme.js';
 import { PenMark } from './AppHeader.js';
 
@@ -144,10 +140,15 @@ function Divider() {
  * learner reaches for it. Learn is for everyone; You is the learner's own
  * shelf — the same rows whether or not they have signed in, because an
  * anonymous participant really does have sessions, saves and likes on this
- * device. Settings are the two preferences that change how a lesson feels.
+ * device.
+ *
+ * It is navigation and nothing else. Identity belongs to the header's account
+ * chip, the one place a learner looks for themselves; pace belongs to the
+ * session being taught, where it is felt, and is kept on the account from
+ * there (ADR-0010). What is left here is Theme — the one preference that is
+ * about the app rather than about a lesson.
  */
 export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
-  const { participant, platform } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const counts = useLists((s) => s.counts);
@@ -156,9 +157,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
   const [topicsOpen, setTopicsOpen] = useState(() =>
     new URLSearchParams(location.search).has('topic'),
   );
-  const [pace, setPace] = useState(() => readPacePreference(platform.storage) ?? 1);
   const activeTopic = new URLSearchParams(location.search).get('topic');
-  const signedIn = participant !== null && !participant.anonymous;
 
   return (
     <nav
@@ -306,7 +305,6 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
           tag="Professional"
           onNavigate={onNavigate}
         />
-        {!signedIn && !rail ? <SignInRow onNavigate={onNavigate} /> : null}
 
         {rail ? null : (
           <>
@@ -326,37 +324,6 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
               <span className="flex-1 text-left text-[14px] font-medium">Theme</span>
               <span className="text-[12px] text-fg-3">{dark ? 'Dark' : 'Light'}</span>
             </button>
-            {/* A native select keeps the keyboard and the screen reader happy; only its chrome is ours. */}
-            <div className="group flex items-center gap-3.5 rounded-[var(--radius-md)] px-3 py-2 text-fg-2 transition-colors duration-[var(--duration-fast)] focus-within:bg-fg/[0.05] hover:bg-fg/[0.05] hover:text-fg">
-              <Gauge size={19} className="shrink-0" />
-              <label htmlFor="sidebar-pace" className="flex-1 text-[14px] font-medium">
-                Pace
-              </label>
-              <span className="relative flex items-center text-[12px] text-fg-3">
-                <select
-                  id="sidebar-pace"
-                  data-testid="sidebar-pace"
-                  value={String(pace)}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    setPace(next);
-                    writePacePreference(platform.storage, next);
-                  }}
-                  className="cursor-pointer appearance-none rounded-[var(--radius-sm)] bg-transparent py-0.5 pr-4 pl-1 text-right text-inherit outline-none"
-                >
-                  {PACE_PRESETS.map((p) => (
-                    <option key={p} value={String(p)}>
-                      {formatPace(p)}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={12}
-                  aria-hidden
-                  className="pointer-events-none absolute right-0"
-                />
-              </span>
-            </div>
           </>
         )}
       </div>
@@ -364,25 +331,6 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
       <span className="flex-1" />
       {rail ? null : <SidebarFooter onNavigate={onNavigate} />}
     </nav>
-  );
-}
-
-/** A quiet invitation, not a wall: one row, the same weight as the others. */
-function SignInRow({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
-  const navigate = useNavigate();
-  return (
-    <button
-      type="button"
-      data-testid="sidebar-signin"
-      onClick={() => {
-        navigate('/', { state: { signIn: true } });
-        onNavigate?.();
-      }}
-      className="mt-1 flex items-center gap-3.5 rounded-[var(--radius-md)] px-3 py-2 text-left text-accent-strong transition-colors duration-[var(--duration-fast)] hover:bg-accent-soft"
-    >
-      <PenMark size={19} className="shrink-0" />
-      <span className="flex-1 text-[14px] font-medium">Sign in</span>
-    </button>
   );
 }
 
@@ -401,7 +349,8 @@ function SidebarFooter({ onNavigate }: { onNavigate?: (() => void) | undefined }
           Privacy
         </NavLink>
       </div>
-      <p className="leading-[1.5]">Experts are AI.</p>
+      {/* The AI line moved to the Terms page, where it is stated in full; the
+          copyright takes the place it had, so the footer keeps its two lines. */}
       <p className="leading-[1.5]">© 2026 Microcis</p>
     </div>
   );
@@ -442,7 +391,7 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         role="dialog"
         aria-modal="true"
         aria-label="Sections"
-        className="animate-rise absolute inset-y-0 left-0 w-[268px] bg-bg-elevated shadow-pop outline-none"
+        className="animate-rise absolute inset-y-0 left-0 w-[268px] bg-chrome shadow-pop outline-none"
       >
         <div className="flex h-16 items-center gap-2 px-5">
           <PenMark />

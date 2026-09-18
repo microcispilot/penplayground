@@ -45,10 +45,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <AppHeader onMenu={() => setDrawer(true)} onToggleSidebar={toggleRail} sidebarRail={rail} />
       <div className="flex w-full flex-1 items-stretch">
+        {/* The sidebar is furniture, not page: its own surface says so before any border does. */}
         <aside
           data-testid="sidebar-aside"
           className={cn(
-            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 border-r border-line/70 lg:block',
+            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 border-r border-line/70 bg-chrome lg:block',
             rail ? 'w-[72px]' : 'w-[240px]',
           )}
         >

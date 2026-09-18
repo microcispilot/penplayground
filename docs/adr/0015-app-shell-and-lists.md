@@ -45,13 +45,20 @@ ones are issued on first visit and own the sessions they start. So saves, likes 
 keyed by participant id and work immediately, on this device, without an account; signing in
 with Google adopts them onto the account exactly as sessions are already adopted.
 
-So the "You" section shows the same live rows to everyone, plus one quiet "Sign in" row. Empty
-shelves carry a single calm line and Google's own button ("Sign in and your history follows you
-to every device") — never a greyed row, a lock, or a warning. Plan-gated rows (Downloads,
-Rooms) carry a small "Standard" / "Professional" tag: what the row belongs to, not what the
-learner is missing. There is no consent banner anywhere, and the AI disclosure stays the one
-quiet line at the bottom of the sidebar ("Experts are AI.") next to the legal links and the
-copyright.
+So the "You" section shows the same live rows to everyone. Empty shelves carry a single calm
+line and Google's own button ("Sign in and your history follows you to every device") — never a
+greyed row, a lock, or a warning. Plan-gated rows (Downloads, Rooms) carry a small "Standard" /
+"Professional" tag: what the row belongs to, not what the learner is missing. There is no
+consent banner anywhere.
+
+**Amended (2026-09-18).** The sidebar no longer carries an identity of its own. It had a "Sign
+in" row while the header had an account chip saying the same thing in a different voice, and two
+places to sign in is one place too many: the chip is now the single answer to "who am I here?" —
+"Sign in" when there is no account, and the learner's picture (or a letter avatar) with their
+first name when there is. The sidebar's footer keeps Terms, Privacy and the copyright; the AI
+disclosure moved out of it, because it is stated in full on the Terms page one link away and a
+line repeated in the furniture of every screen stops being read. The sidebar's Settings section
+lost the pace for the same reason the room gained it: a pace is chosen while listening to it.
 
 ### 3. Lists are (participant, session) pairs
 

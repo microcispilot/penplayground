@@ -25,7 +25,12 @@ export const META_MAX_KEYWORD_CHARS = 32;
 export const SketchInk = z.enum(['ink', 'accent']);
 export type SketchInk = z.infer<typeof SketchInk>;
 
-export const SketchLabelSize = z.enum(['sm', 'md', 'lg']);
+/**
+ * `xl` is the card's headline — the three-or-four-word line a thumbnail is
+ * read by in a grid, at roughly a sixth of the card's height. The other three
+ * are the sketch's own labels.
+ */
+export const SketchLabelSize = z.enum(['xl', 'lg', 'md', 'sm']);
 export type SketchLabelSize = z.infer<typeof SketchLabelSize>;
 
 export const SketchCurve = z.enum(['none', 'up', 'down']);

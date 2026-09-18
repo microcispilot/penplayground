@@ -4,6 +4,7 @@ export * from './billing.js';
 export * from './constants.js';
 export * from './cues.js';
 export * from './expert.js';
+export * from './expert-access.js';
 export * from './ids.js';
 export * from './ledger.js';
 export * from './lists.js';

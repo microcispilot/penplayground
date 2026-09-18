@@ -1,11 +1,18 @@
 import type {
   DownstreamAudioHeader,
+  Expert,
   ParticipantId,
   PlanCode,
   SelectionBand,
   ServerMessage,
 } from '@pen/contracts';
-import { encodeAudioFrame, freshEstimateUsd, llmCostLines, PLAN_LIMITS } from '@pen/contracts';
+import {
+  encodeAudioFrame,
+  freshEstimateUsd,
+  llmCostLines,
+  PLAN_LIMITS,
+  planAllowsExpert,
+} from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import {
   newSessionId,
@@ -64,6 +71,8 @@ export class RoomRegistry {
     visibility: 'public' | 'private';
     /** BCP-47 override; otherwise detected from the topic text. */
     language?: string;
+    /** The host's remembered teaching pace, so the room is born at it (ADR-0010). */
+    pace?: number;
   }): Promise<LiveRoom> {
     const { services } = this;
     const sessionId = newSessionId();
@@ -143,7 +152,7 @@ export class RoomRegistry {
       score: resolution.score,
       timing: true,
     });
-    const allowPremium = args.host.plan !== 'free';
+    const plan = args.host.plan;
     // Zero redundant generation: when nobody was asked for, the persona who already taught this
     // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
     const memoised =
@@ -156,13 +165,17 @@ export class RoomRegistry {
           )
         : null;
     const memoExpert = memoised ? services.experts.get(memoised.expertId) : null;
+    // A persona the plan does not include is never seated, however it was reached:
+    // asked for by id (the API has already answered that request with a 402),
+    // inherited from a memo, or picked for the domain.
+    const included = (e: Expert | null) => (e && planAllowsExpert(plan, e.id) ? e : null);
     const expert =
-      (args.expertId ? services.experts.get(args.expertId) : null) ??
-      (memoExpert && (allowPremium || !memoExpert.premium) ? memoExpert : null) ??
+      included(args.expertId ? services.experts.get(args.expertId) : null) ??
+      included(memoExpert) ??
       services.experts.pickFor(
         resolution.domainBoundary as never,
         resolution.canonicalKnowledgeId,
-        { allowPremium },
+        { plan },
       );
     const seats = new Map<WebSocket, Seat>();
     const transport: RoomTransport = {
@@ -188,6 +201,7 @@ export class RoomRegistry {
       host: args.host,
       expert,
       band: args.band,
+      ...(args.pace === undefined ? {} : { pace: args.pace }),
       language: locale,
       locale,
       resolution,

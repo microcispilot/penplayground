@@ -26,17 +26,26 @@ describe('Sidebar rows', () => {
     expect(screen.queryByText(/sign in/i)).toBeNull();
   });
 
-  it('shows the same rows to someone who has not signed in, plus one quiet Sign in row', async () => {
+  it('shows the same rows to someone who has not signed in, and no identity of its own', async () => {
     renderWithApp(<Sidebar />, { participant: ANONYMOUS });
     for (const label of [...LEARN_ROWS, ...YOU_ROWS])
       expect(await screen.findByText(label)).toBeTruthy();
-    expect(await screen.findByTestId('sidebar-signin')).toBeTruthy();
+    // Identity lives in the header's account chip; the sidebar never asks.
+    expect(screen.queryByTestId('sidebar-signin')).toBeNull();
+    expect(screen.queryByText(/sign in/i)).toBeNull();
     // Nothing is disabled or greyed out: every "You" row is a live link.
     for (const label of YOU_ROWS) {
       const row = screen.getByText(label).closest('a');
       expect(row, label).not.toBeNull();
       expect(row?.getAttribute('aria-disabled')).toBeNull();
     }
+  });
+
+  it('keeps Theme in Settings and nothing else: pace belongs to the session', async () => {
+    renderWithApp(<Sidebar />, { participant: SIGNED_IN });
+    expect(await screen.findByTestId('sidebar-theme')).toBeTruthy();
+    expect(screen.queryByTestId('sidebar-pace')).toBeNull();
+    expect(screen.queryByText('Pace')).toBeNull();
   });
 
   it('marks the active route, and only that one', async () => {
@@ -81,12 +90,13 @@ describe('Sidebar rows', () => {
     expect(screen.queryByTestId('sidebar-theme')).toBeNull();
   });
 
-  it('ends with the legal links, the AI line and the copyright', async () => {
+  it('ends with the legal links and the copyright, and no AI line', async () => {
     renderWithApp(<Sidebar />);
     const footer = await screen.findByTestId('sidebar-footer');
     expect(footer.querySelector('a[href="/terms"]')).toBeTruthy();
     expect(footer.querySelector('a[href="/privacy"]')).toBeTruthy();
-    expect(footer.textContent).toContain('Experts are AI.');
+    // The disclosure is stated in full on Terms, one link away from here.
+    expect(footer.textContent).not.toContain('Experts are AI.');
     expect(footer.textContent).toContain('© 2026 Microcis');
   });
 

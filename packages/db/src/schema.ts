@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -40,6 +41,13 @@ export const participants = pgTable(
      * in the browser.
      */
     analyticsOptOut: boolean('analytics_opt_out').notNull().default(false),
+    /**
+     * How fast this learner likes to be taught (ADR-0010). Chosen in the
+     * session's own settings and kept, the way a video's playback speed is
+     * kept: their next session starts here instead of at 1x. Anonymous rows
+     * carry the default and the device's own preference stands.
+     */
+    pace: doublePrecision('pace').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },

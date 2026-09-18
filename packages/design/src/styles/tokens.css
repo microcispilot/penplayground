@@ -44,7 +44,9 @@
      3.25:1 on --color-surface-2, i.e. below WCAG AA for the small secondary
      text it is used for. 0.52 clears 4.5:1 on every surface it lands on. */
   --color-fg-3: oklch(0.52 0.025 245);
-  --color-accent: var(--color-teal-600);
+  /* The accent family is the brand's, and the brand is switchable: these five
+     are re-declared per family at the bottom of this file. See "brand accent". */
+  --color-accent: oklch(0.597 0.107 218.3); /* #008eaa */
   /* 0.46: the accent wherever it carries or sits under text. At 0.5 it measured
      4.39:1 as a label on --color-accent-soft over --color-surface — under AA for
      the small pill text it is used for. --color-accent itself stays the brand
@@ -53,6 +55,17 @@
   --color-accent-pressed: oklch(0.4 0.095 219);
   --color-accent-soft: oklch(0.597 0.107 218.3 / 14%);
   --color-on-accent: oklch(0.99 0.005 220);
+
+  /*
+   * The shell's own furniture. A page is content; the sidebar, the footer and
+   * a section's header row are the frame around it, and they say so by sitting
+   * one small step off the page rather than by drawing more lines. The step
+   * carries a trace of the accent (4–8 % in oklab), so the frame warms to
+   * whichever brand family is active instead of going grey — which is what
+   * made the platform read as lifeless.
+   */
+  --color-chrome: color-mix(in oklab, var(--color-accent) 4%, var(--color-surface));
+  --color-band: color-mix(in oklab, var(--color-accent) 8%, var(--color-surface));
   --color-warm: var(--color-yellow-500);
   --color-warm-soft: oklch(0.763 0.126 73.7 / 18%);
   --color-success: var(--color-lime-700);
@@ -137,6 +150,18 @@
   --shadow-lift: 0 2px 4px oklch(0.2 0.05 248 / 8%), 0 22px 48px oklch(0.2 0.05 248 / 16%);
   --shadow-pop: 0 2px 6px oklch(0.2 0.05 248 / 12%), 0 18px 44px oklch(0.2 0.05 248 / 22%);
   --shadow-board: 0 0 0 1px var(--color-line-strong), 0 18px 44px oklch(0.2 0.05 248 / 28%);
+  /*
+   * A session thumbnail. The sketch is paper in both themes, so on a light
+   * page it would otherwise float edgeless: a hairline draws the picture's
+   * boundary and a short, soft shadow lifts it off the page — the separation
+   * YouTube gives a video still, at the scale a card is actually read.
+   */
+  --shadow-thumb:
+    0 0 0 1px oklch(0.285 0.062 247.7 / 11%), 0 1px 2px oklch(0.2 0.05 248 / 7%),
+    0 6px 16px oklch(0.2 0.05 248 / 10%);
+  --shadow-thumb-hover:
+    0 0 0 1px oklch(0.285 0.062 247.7 / 14%), 0 2px 4px oklch(0.2 0.05 248 / 9%),
+    0 12px 28px oklch(0.2 0.05 248 / 16%);
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -218,6 +243,10 @@
     --shadow-lift: 0 0 0 1px oklch(1 0 0 / 10%), 0 22px 48px oklch(0 0 0 / 60%);
     --shadow-pop: 0 0 0 1px oklch(1 0 0 / 8%), 0 20px 50px oklch(0 0 0 / 60%);
     --shadow-board: 0 0 0 1px oklch(1 0 0 / 10%), 0 18px 44px oklch(0 0 0 / 50%);
+    --shadow-thumb:
+      0 0 0 1px oklch(1 0 0 / 13%), 0 2px 6px oklch(0 0 0 / 40%), 0 8px 20px oklch(0 0 0 / 34%);
+    --shadow-thumb-hover:
+      0 0 0 1px oklch(1 0 0 / 20%), 0 4px 10px oklch(0 0 0 / 46%), 0 14px 32px oklch(0 0 0 / 42%);
     --color-wash-aqua: oklch(0.6 0.08 200 / 22%);
     --color-wash-yellow: oklch(0.7 0.1 80 / 14%);
     --color-wash-pink: oklch(0.3 0.02 300 / 40%);
@@ -248,7 +277,82 @@
   --shadow-lift: 0 0 0 1px oklch(1 0 0 / 10%), 0 22px 48px oklch(0 0 0 / 60%);
   --shadow-pop: 0 0 0 1px oklch(1 0 0 / 8%), 0 20px 50px oklch(0 0 0 / 60%);
   --shadow-board: 0 0 0 1px oklch(1 0 0 / 10%), 0 18px 44px oklch(0 0 0 / 50%);
+  --shadow-thumb:
+    0 0 0 1px oklch(1 0 0 / 13%), 0 2px 6px oklch(0 0 0 / 40%), 0 8px 20px oklch(0 0 0 / 34%);
+  --shadow-thumb-hover:
+    0 0 0 1px oklch(1 0 0 / 20%), 0 4px 10px oklch(0 0 0 / 46%), 0 14px 32px oklch(0 0 0 / 42%);
   --color-wash-aqua: oklch(0.6 0.08 200 / 22%);
   --color-wash-yellow: oklch(0.7 0.1 80 / 14%);
   --color-wash-pink: oklch(0.3 0.02 300 / 40%);
+}
+
+/* ── brand accent: the one line that changes the platform's colour ────────
+ *
+ * Teal is the default and lives in `@theme` above. Two other brand families
+ * are declared here; switching to one is a single attribute on the document
+ * element — `<html data-brand="green">` — or, to make it the product's
+ * colour for good, one line in the host that renders `PenApp`.
+ *
+ * A family declares the same five roles in light and in dark and nothing
+ * else: every surface that carries colour (the sidebar, a section band, the
+ * hero wash, an active row) is mixed from `--color-accent`, so it follows.
+ * Each family is measured in `packages/design/test/caption-contrast.test.ts`
+ * — a brand nobody can read is not a brand we can ship.
+ *
+ * The board keeps its own ink (`--color-ink-accent`): a session's sketch is
+ * rendered once, server-side, into a file, and it must not change colour
+ * under a reader whose app is on another brand.
+ */
+
+/* green — the brand lime #78BE21. On a light page the readable member of the
+   family is deeper than the logo tone; the logo tone itself carries the soft
+   tint and the dark theme, where it is at its best. */
+:root[data-brand="green"] {
+  --color-accent: oklch(0.6 0.17 132);
+  --color-accent-strong: oklch(0.46 0.13 132);
+  --color-accent-pressed: oklch(0.4 0.125 132);
+  --color-accent-soft: oklch(0.727 0.191 131.9 / 16%);
+  --color-on-accent: oklch(0.99 0.01 130);
+}
+:root[data-brand="green"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-accent: oklch(0.78 0.15 132);
+    --color-accent-strong: oklch(0.86 0.12 132);
+    --color-accent-pressed: oklch(0.72 0.15 132);
+    --color-accent-soft: oklch(0.78 0.15 132 / 18%);
+    --color-on-accent: oklch(0.2 0.05 135);
+  }
+}
+:root[data-brand="green"][data-theme="dark"] {
+  --color-accent: oklch(0.78 0.15 132);
+  --color-accent-strong: oklch(0.86 0.12 132);
+  --color-accent-pressed: oklch(0.72 0.15 132);
+  --color-accent-soft: oklch(0.78 0.15 132 / 18%);
+  --color-on-accent: oklch(0.2 0.05 135);
+}
+
+/* forest — the brand deep green #2D5652, which is `--color-accent-strong`
+   here exactly as it is drawn in the palette. */
+:root[data-brand="forest"] {
+  --color-accent: oklch(0.5 0.058 187.4);
+  --color-accent-strong: oklch(0.422 0.047 187.4);
+  --color-accent-pressed: oklch(0.36 0.042 187.4);
+  --color-accent-soft: oklch(0.5 0.058 187.4 / 16%);
+  --color-on-accent: oklch(0.99 0.005 190);
+}
+:root[data-brand="forest"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-accent: oklch(0.76 0.06 187.4);
+    --color-accent-strong: oklch(0.84 0.05 187.4);
+    --color-accent-pressed: oklch(0.7 0.06 187.4);
+    --color-accent-soft: oklch(0.76 0.06 187.4 / 18%);
+    --color-on-accent: oklch(0.18 0.03 195);
+  }
+}
+:root[data-brand="forest"][data-theme="dark"] {
+  --color-accent: oklch(0.76 0.06 187.4);
+  --color-accent-strong: oklch(0.84 0.05 187.4);
+  --color-accent-pressed: oklch(0.7 0.06 187.4);
+  --color-accent-soft: oklch(0.76 0.06 187.4 / 18%);
+  --color-on-accent: oklch(0.18 0.03 195);
 }

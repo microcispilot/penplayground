@@ -68,7 +68,13 @@ export function SessionThumb({
   const src = failed ? null : api.thumbnailUrl({ thumbnail: path });
   return (
     <div
-      className={cn('overflow-hidden rounded-[var(--radius-md)]', className)}
+      className={cn(
+        // The sketch is paper in both themes, so the picture needs its own
+        // edge: a hairline and a short shadow, the way a video still sits
+        // above the page on YouTube (--shadow-thumb, tokens.css).
+        'overflow-hidden rounded-[var(--radius-md)] shadow-[var(--shadow-thumb)]',
+        className,
+      )}
       data-testid="session-thumb"
       data-ready={loaded}
     >
@@ -204,23 +210,33 @@ export function SessionCard({
       <div className="relative aspect-video">
         <SessionThumb
           session={session}
-          className="absolute inset-0 transition-transform duration-[var(--duration-base)] group-hover:scale-[1.01]"
+          className="absolute inset-0 transition-[transform,box-shadow] duration-[var(--duration-base)] group-hover:scale-[1.01] group-hover:shadow-[var(--shadow-thumb-hover)]"
         />
         <CardActions session={session} />
         <span className="absolute right-2 bottom-2 rounded-[5px] bg-navy-900/85 px-1.5 py-0.5 text-xs text-white tabular">
           {formatDuration(session.durationMs || session.segments * 90_000)}
         </span>
       </div>
+      {/*
+        Three registers, never one paragraph — the separation YouTube gets from
+        title, channel and metadata. The title is the loudest line. The teacher's
+        name comes straight under it as attribution: smaller and tighter than the
+        title, but heavier and darker than the description, which is the lightest,
+        greyest and (deliberately) slightly larger of the three, so nothing about
+        it reads as a heading.
+      */}
       <div className="flex gap-3">
         <Avatar name={expertName} src={portraitUrl} size={36} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[15px] font-medium leading-[1.32] tracking-[-0.01em] text-fg">
+        <div className="flex min-w-0 flex-col gap-[3px]">
+          <span className="line-clamp-2 text-[15.5px] font-medium leading-[1.3] tracking-[-0.014em] text-fg">
             {session.title}
           </span>
-          <span className="line-clamp-2 text-sm leading-[1.42] text-fg-3 text-pretty">
+          <span className="truncate text-[12.5px] font-medium leading-[1.35] text-fg-2">
+            {expertName}
+          </span>
+          <span className="line-clamp-2 text-[13.5px] leading-[1.46] font-normal text-fg-3 text-pretty">
             {session.description || session.promise || session.topic}
           </span>
-          <span className="text-sm text-fg-2">{expertName}</span>
         </div>
       </div>
     </div>

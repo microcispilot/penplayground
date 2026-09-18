@@ -159,6 +159,77 @@ describe('foreground tokens on their surfaces', () => {
   });
 });
 
+/**
+ * The brand is switchable (`data-brand` in tokens.css): teal today, and two
+ * other families the owner may choose. A brand nobody can read is not a brand
+ * we can ship, so every family is measured on the same pairs as the default —
+ * the primary button's label, and the accent pill's label over its own tint.
+ */
+describe('every brand family', () => {
+  const css = readFileSync(
+    fileURLToPath(new URL('../src/styles/tokens.css', import.meta.url)),
+    'utf8',
+  );
+
+  /** The block a family declares for one theme; the default lives in `@theme`. */
+  function block(brand: string, theme: 'light' | 'dark'): string {
+    if (brand === 'teal')
+      return theme === 'light'
+        ? css.slice(0, css.indexOf(':root {'))
+        : css.slice(css.lastIndexOf(':root[data-theme="dark"]'), css.indexOf(':root[data-brand='));
+    const selector =
+      theme === 'light'
+        ? `:root[data-brand="${brand}"] {`
+        : `:root[data-brand="${brand}"][data-theme="dark"] {`;
+    const at = css.indexOf(selector);
+    expect(at, `${brand} ${theme} block`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf('}', at));
+  }
+
+  function read(brand: string, theme: 'light' | 'dark', name: string) {
+    const found = new RegExp(`${name}:\\s*oklch\\(([^)]+)\\)`).exec(block(brand, theme));
+    if (!found?.[1]) throw new Error(`${brand}/${theme} is missing ${name}`);
+    const [values, percent] = found[1].split('/');
+    const [l = 0, c = 0, h = 0] = (values ?? '').trim().split(/\s+/).map(Number);
+    return {
+      rgb: toSrgb(l, c, h),
+      alpha: percent ? Number(percent.trim().replace('%', '')) / 100 : 1,
+    };
+  }
+
+  /** A surface token, read out of the default (teal) blocks; surfaces do not vary by brand. */
+  const surface = (theme: 'light' | 'dark', name: string) => read('teal', theme, name).rgb;
+  const surfaces = {
+    light: { bg: surface('light', '--color-bg'), page: surface('light', '--color-surface') },
+    dark: { bg: surface('dark', '--color-bg'), page: surface('dark', '--color-surface') },
+  } as const;
+
+  it.each([
+    ['teal', 'light'],
+    ['teal', 'dark'],
+    ['green', 'light'],
+    ['green', 'dark'],
+    ['forest', 'light'],
+    ['forest', 'dark'],
+  ] as const)('%s in %s carries text and marks that can be read', (brand, theme) => {
+    const on = read(brand, theme, '--color-on-accent').rgb;
+    const strong = read(brand, theme, '--color-accent-strong').rgb;
+    const pressed = read(brand, theme, '--color-accent-pressed').rgb;
+    const accent = read(brand, theme, '--color-accent').rgb;
+    const soft = read(brand, theme, '--color-accent-soft');
+    // The primary button's label, at rest and pressed.
+    expect(contrast(on, strong)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(on, pressed)).toBeGreaterThanOrEqual(4.5);
+    // A non-text mark (a stroke, a dot, a ring) still has to be seen: 3:1.
+    expect(contrast(accent, surfaces[theme].bg)).toBeGreaterThanOrEqual(3);
+    // The accent pill's label over its own tint, on both surfaces it lands on.
+    for (const under of [surfaces[theme].bg, surfaces[theme].page]) {
+      const tint = over(soft.rgb, under, soft.alpha);
+      expect(contrast(strong, tint)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
 describe('caption contrast on the board', () => {
   it('the caption text clears WCAG AA against its scrim over paper', () => {
     expect(contrast(WHITE, CAPTION_BG)).toBeGreaterThanOrEqual(4.5);

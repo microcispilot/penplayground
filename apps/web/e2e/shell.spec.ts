@@ -114,9 +114,10 @@ test.describe('the app shell', () => {
     await page.getByTestId('sidebar-toggle').click();
     await expect(page.getByTestId('sidebar')).not.toHaveAttribute('data-rail', 'true');
 
-    // The bottom of the sidebar is where Terms and Privacy live.
+    // The bottom of the sidebar is where Terms and Privacy live. The AI line
+    // is stated in full on Terms, one link away, so the footer is two lines.
     const footer = page.getByTestId('sidebar-footer');
-    await expect(footer).toContainText('Experts are AI.');
+    await expect(footer).not.toContainText('Experts are AI.');
     await expect(footer).toContainText('© 2026 Microcis');
     await footer.getByRole('link', { name: 'Terms' }).click();
     await expect(page.getByRole('heading', { name: 'Terms of Use', level: 1 })).toBeVisible();
@@ -244,7 +245,29 @@ test.describe('the app shell', () => {
     await expect(empty).toContainText('Sign in and your history follows you to every device.');
     // Nothing scolds, nothing is locked.
     await expect(page.getByText(/you must sign in|locked|upgrade required/i)).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-signin')).toBeVisible();
+    // Identity is the header's account chip and nowhere else; the sidebar asks nothing.
+    await expect(page.getByTestId('sidebar-signin')).toHaveCount(0);
+    await expect(page.getByTestId('account-chip')).toHaveText('Sign in');
+    await page.getByTestId('account-chip').click();
+    await expect(page.getByLabel('Display name')).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
+  test('the account chip carries the learner once they are signed in', async ({
+    page,
+    request,
+  }) => {
+    const token = await signIn(request, await anonymous(request, 'Visitor'), 'Ada Lovelace');
+    await boot(page, { token });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const chip = page.getByTestId('account-chip');
+    // The first name, and only that — the way every other app shows an account.
+    await expect(chip).toHaveText('Ada');
+    await expect(chip).not.toContainText('Lovelace');
+    await expect(chip).toHaveAttribute('aria-label', /Ada Lovelace/);
+    // No picture from the dev sign-in, so the avatar is the first letter.
+    await expect(chip.getByRole('img', { name: 'Ada Lovelace' })).toHaveText('A');
   });
 });
 

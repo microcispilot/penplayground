@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "pace" double precision DEFAULT 1 NOT NULL;
