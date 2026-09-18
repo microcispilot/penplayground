@@ -24,7 +24,7 @@ import { z } from 'zod';
  */
 const env = process.env;
 const TOKEN = env.SENTRY_AUTH_TOKEN;
-const ORG = env.SENTRY_ORG ?? 'microcis-0s';
+const ORG = env.SENTRY_ORG ?? 'pen-playground';
 const PROJECTS = (env.PEN_SENTRY_PROJECTS ?? 'pen-academy-api,pen-academy-web,pen-academy-desktop')
   .split(',')
   .map((s) => s.trim())

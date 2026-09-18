@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
     mode === 'production' && authToken
       ? [
           sentryVitePlugin({
-            org: process.env.SENTRY_ORG?.trim() || 'microcis-0s',
+            org: process.env.SENTRY_ORG?.trim() || 'pen-playground',
             project: 'pen-academy-web',
             authToken,
             release: { name: releaseName() },

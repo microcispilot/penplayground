@@ -33,7 +33,7 @@ df -h /srv && free -m                             # 5. the two host limits that 
 
 Then read, in this order:
 
-1. **Sentry** — <https://microcis-0s.sentry.io/issues/?project=4512099987161088>.
+1. **Sentry** — <https://pen-playground.sentry.io/issues/?project=4512105492643840>.
    Every server error is here with `sessionId`, `expertId`, `plan` and `area`
    tags and no learner content. Sort by *Last seen*.
 2. **PostHog** — the "Pen Playground — Sessions" dashboard (§ Analytics). Did
@@ -129,8 +129,8 @@ so these are org-scoped **workflows** bound to each project's issue-stream
 
 | alert | fires when | goes to |
 | --- | --- | --- |
-| `Pen Playground — new issue` (workflow 5101143) | any issue is seen for the first time in api/web/desktop | owner's email |
-| `Pen Playground — error rate spike` (workflow 5101158) | one issue passes 20 events in an hour | owner's email |
+| `Pen Playground — new issue` (workflow 5368385) | any issue is seen for the first time in api/web/desktop | owner's email |
+| `Pen Playground — error rate spike` (workflow 5368408) | one issue passes 20 events in an hour | owner's email |
 | `pen-api-heartbeat` (Sentry Cron monitor) | the API stops checking in (5 min interval + 5 min margin) | an issue → the new-issue workflow → email |
 | UptimeRobot / Better Stack | `https://penplayground.com/api/health` fails twice | owner's email (`deploy/uptime.md`) |
 
@@ -152,14 +152,15 @@ Check it after a deploy:
 docker compose logs api | grep 'cron heartbeat'    # "sentry cron heartbeat on"
 ```
 
-and in Sentry: <https://microcis-0s.sentry.io/insights/backend/crons/> — the
+and in Sentry: <https://pen-playground.sentry.io/insights/backend/crons/> — the
 monitor should be green with a check-in every five minutes.
 
-> **Sentry Crons needs one paid seat per monitor.** `pen-api-heartbeat` holds
-> the org's available seat. A *second* monitor (a staging heartbeat, say) is
-> created disabled and silently drops its check-ins until there is pay-as-you-go
-> budget — so if a new monitor never turns green, check its `status` first:
-> `GET /api/0/organizations/microcis-0s/monitors/<slug>/`.
+> **Sentry Crons takes a paid seat per monitor.** A monitor created *by a
+> check-in* (the SDK upserts one) comes up `status: "disabled"` and silently
+> drops every check-in until a seat is available — which is exactly why
+> `sentry:alerts` creates it through the API first, where it comes up `active`.
+> If a monitor never turns green, check its status before suspecting the code:
+> `GET /api/0/organizations/pen-playground/monitors/<slug>/`.
 
 ### When an alert fires
 

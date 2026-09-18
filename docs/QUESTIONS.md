@@ -32,7 +32,7 @@ Round 2 lists what is still needed from you.
    gathered (ends the moment the session is usable), and that card is taken out
    of the session's ad budget (one card every 3 segments); otherwise never an ad
    at the start.
-9. **Sentry.** Created in org `microcis-0s`: `pen-academy-api`, `pen-academy-web`,
+9. **Sentry.** Created in org `pen-playground`: `pen-academy-api`, `pen-academy-web`,
    `pen-academy-desktop`; DSNs are in `.env`. **PostHog:** the Simurgh personal
    key is project-scoped and cannot create projects; analytics code is in place
    behind `POSTHOG_PROJECT_TOKEN` / `VITE_POSTHOG_TOKEN`.

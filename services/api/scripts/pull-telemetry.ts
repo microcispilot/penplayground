@@ -21,7 +21,7 @@ const POSTHOG_HOST = env.POSTHOG_HOST ?? 'https://us.i.posthog.com';
 const POSTHOG_PROJECT_ID = env.POSTHOG_PROJECT_ID;
 const POSTHOG_PERSONAL_API_KEY = env.POSTHOG_PERSONAL_API_KEY;
 const SENTRY_AUTH_TOKEN = env.SENTRY_AUTH_TOKEN;
-const SENTRY_ORG = env.SENTRY_ORG ?? 'microcis-0s';
+const SENTRY_ORG = env.SENTRY_ORG ?? 'pen-playground';
 const SENTRY_PROJECT = env.SENTRY_PROJECT ?? 'pen-academy-api';
 const DATA_DIR = env.PEN_DATA_DIR ?? '.pen-data';
 

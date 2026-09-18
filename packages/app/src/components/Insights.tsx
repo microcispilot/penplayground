@@ -16,7 +16,7 @@ import { formatClock } from '../lib/context.js';
  * fast each part was, what it cost and where, what the learner did, and what
  * went wrong — with a link to the Sentry event for every error.
  */
-export const SENTRY_ISSUES_URL = 'https://microcis-0s.sentry.io/issues/?query=';
+export const SENTRY_ISSUES_URL = 'https://pen-playground.sentry.io/issues/?query=';
 
 /** Stage → semantic colour token. Same hue in light and dark; the legend names them. */
 const STAGE_CLASS: Record<StageName, string> = {

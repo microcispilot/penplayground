@@ -191,8 +191,8 @@ events resolve to TypeScript without any runtime setting:
   `dist/main.js.map` stays beside the bundle for `NODE_OPTIONS=--enable-source-maps`.
 
 Without the token every build is identical minus the upload (`pnpm build` needs nothing).
-Check a release: `https://microcis-0s.sentry.io/releases/<sha>/` or
-`GET /api/0/organizations/microcis-0s/releases/<sha>/` with the token.
+Check a release: `https://pen-playground.sentry.io/releases/<sha>/` or
+`GET /api/0/organizations/pen-playground/releases/<sha>/` with the token.
 
 ## Desktop package
 
