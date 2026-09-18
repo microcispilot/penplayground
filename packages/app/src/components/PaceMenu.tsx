@@ -96,7 +96,10 @@ export function PaceMenu({
 
   const onMenuKey = (e: KeyboardEvent<HTMLFieldSetElement>) => {
     const count = PACE_PRESETS.length;
-    const focused = optionRefs.current.findIndex((el) => el === document.activeElement);
+    // A slot is null only while an option is unmounted; skipping those keeps a
+    // null `activeElement` from matching an empty slot and moving focus nowhere.
+    const active = document.activeElement;
+    const focused = optionRefs.current.findIndex((el) => el !== null && el === active);
     const move = (to: number) => {
       e.preventDefault();
       optionRefs.current[(to + count) % count]?.focus();
@@ -180,7 +183,6 @@ export function PaceMenu({
         </div>
       ) : null}
       {open ? (
-        // biome-ignore lint/a11y/noStaticElementInteractions: keyboard navigation for the option group
         <fieldset
           id={menuId}
           aria-label={label}
