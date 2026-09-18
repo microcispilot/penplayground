@@ -1,9 +1,29 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { GOOGLE_IMA_SAMPLE_TAG } from '@pen/contracts';
 import { expect, test } from '@playwright/test';
 
 /** Repository root: the screenshot lands in the git-ignored `.pen-data/screens/`. */
 const screens = resolve(process.cwd(), '../../.pen-data/screens');
+
+/**
+ * This spec deliberately uses the real network: Google's IMA SDK and a
+ * creative from their public sample tag. On a runner without egress (or when
+ * Google is having a day) that is an environment failure, not ours, so the
+ * spec skips itself rather than going red — the same rule `rooms.spec.ts`
+ * applies to LiveKit.
+ */
+async function adTagReachable(): Promise<boolean> {
+  for (const url of ['https://imasdk.googleapis.com/js/sdkloader/ima3.js', GOOGLE_IMA_SAMPLE_TAG]) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+      if (!res.ok) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * Free-plan video ads (ADR-0014) against Google's public IMA sample tag: the
@@ -18,6 +38,10 @@ test.describe('free plan video ads', () => {
   test('the first boundary shows a real IMA ad, skippable after 5 s, and the lesson resumes', async ({
     page,
   }) => {
+    test.skip(
+      !(await adTagReachable()),
+      'the IMA SDK or the sample ad tag is unreachable from here',
+    );
     const adEvents: string[] = [];
     // The player's analytics go through posthog (disabled here) and the room socket; observe
     // the socket frames instead of the analytics sink.

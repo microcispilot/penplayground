@@ -39,6 +39,16 @@ const record = (id: string, extra: Partial<Parameters<SessionRepository['upsert'
   ...extra,
 });
 
+describe('Connection', () => {
+  it('pings while the database is open and rejects once it is closed', async () => {
+    await expect(conn.ping()).resolves.toBeUndefined();
+    // The readiness probe (`GET /api/ready`) turns exactly this rejection into a 503.
+    const other = await connect('pglite://memory');
+    await other.close();
+    await expect(other.ping()).rejects.toThrow();
+  });
+});
+
 describe('SessionRepository', () => {
   it('upserts, patches, lists public (ended only) and per host, counts today', async () => {
     const repo = new SessionRepository(conn.db);

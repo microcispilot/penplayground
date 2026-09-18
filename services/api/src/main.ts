@@ -4,7 +4,8 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createAcquirer } from './knowledge.js';
 import { logger } from './logger.js';
-import { initSentry, observer } from './observability.js';
+import { initSentry, observer, startCronHeartbeat } from './observability.js';
+import { ReadinessProbe } from './readiness.js';
 import { seedPacks } from './seed-packs.js';
 import { buildServices, DATA_DIR } from './services.js';
 
@@ -31,6 +32,12 @@ injectWebSocket(server);
 
 const sweeper = setInterval(() => rooms.sweep(), 60_000);
 
+// Dead-man's switch: the same readiness the healthcheck asks for, reported to
+// Sentry Crons every few minutes. Silence (a crashed or wedged process) is an
+// issue within two intervals; a failed probe is one immediately.
+const readiness = new ReadinessProbe({ db: services.db, cfg });
+const stopHeartbeat = startCronHeartbeat(cfg, async () => (await readiness.check()).ok);
+
 // The Simurgh STT host is reached over a Tailscale path that costs ~6 s to establish the
 // first time and ~0.3–0.6 s afterwards: warm it at boot and keep it warm.
 const warmer = services.recognizer && 'warm' in services.recognizer ? services.recognizer : null;
@@ -47,6 +54,7 @@ if (warmer) {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
+    stopHeartbeat?.();
     services.exports.close();
     services.meta.close();
     logger.info({ signal }, 'shutting down');

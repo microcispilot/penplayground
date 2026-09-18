@@ -24,6 +24,8 @@ import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
+import { clientKey, RateLimiter } from './rate-limit.js';
+import { ReadinessProbe } from './readiness.js';
 import { RecognizerRouter } from './recognizer-router.js';
 import { type LiveRoom, RoomRegistry } from './rooms.js';
 import { DATA_DIR, type Services } from './services.js';
@@ -73,26 +75,16 @@ function anonymise<T extends { hostId: string; hostName: string }>(record: T): T
   return { ...record, hostId: '', hostName: '' };
 }
 
-/** In-memory token-bucket per key; enough for one node, replaced by Redis behind the same function. */
-function rateLimiter(limit: number, windowMs: number) {
-  const hits = new Map<string, number[]>();
-  return (key: string): boolean => {
-    const now = Date.now();
-    const arr = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-    if (arr.length >= limit) return false;
-    arr.push(now);
-    hits.set(key, arr);
-    return true;
-  };
-}
-
 export function buildApp(services: Services): App {
   const app = new Hono();
   const identity = new Identity(services.cfg.PEN_JWT_SECRET);
   const rooms = new RoomRegistry(services);
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
-  const allowSession = rateLimiter(20, 60_000);
-  const allowAuth = rateLimiter(30, 60_000);
+  const sessionLimiter = new RateLimiter(20, 60_000);
+  const authLimiter = new RateLimiter(30, 60_000);
+  const allowSession = (key: string) => sessionLimiter.allow(key);
+  const allowAuth = (key: string) => authLimiter.allow(key);
+  const readiness = new ReadinessProbe({ db: services.db, cfg: services.cfg });
 
   app.use('*', secureHeaders());
   app.use(
@@ -133,8 +125,21 @@ export function buildApp(services: Services): App {
     }),
   );
 
+  /**
+   * Readiness for machines (compose healthcheck, the edge, the uptime monitor):
+   * 200 only while the database, the data directory and the provider keys a
+   * lesson needs are all usable, 503 otherwise, with which check failed.
+   * `/api/health` stays 200 through a dependency outage on purpose — it is the
+   * "what is this process and how is it configured" answer a human reads.
+   */
+  app.get('/api/ready', async (c) => {
+    const result = await readiness.check();
+    if (!result.ok) observer.event('ready.degraded', { ms: result.ms });
+    return c.json(result, result.ok ? 200 : 503);
+  });
+
   app.post('/api/auth/anonymous', async (c) => {
-    const ip = c.req.header('x-forwarded-for') ?? 'local';
+    const ip = clientKey(c.req);
     if (!allowAuth(ip)) return c.json({ error: 'RATE_LIMITED' }, 429);
     const body = Anonymous.safeParse(await c.req.json().catch(() => ({})));
     const name = safeName(body.success ? body.data.name : undefined);
@@ -161,7 +166,7 @@ export function buildApp(services: Services): App {
    * account's own bearer is returned.
    */
   app.post('/api/identity/google', async (c) => {
-    const ip = c.req.header('x-forwarded-for') ?? 'local';
+    const ip = clientKey(c.req);
     if (!allowAuth(ip)) return c.json({ error: 'RATE_LIMITED' }, 429);
     if (!services.google)
       return c.json(
@@ -410,7 +415,7 @@ export function buildApp(services: Services): App {
       if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
       if (claims.sub !== record.hostId) return c.json({ error: 'NOT_HOST' }, 403);
     }
-    const path = record.thumbnail ? services.thumbnails.file(id, kind) : null;
+    const path = record.thumbnail ? await services.thumbnails.file(id, kind) : null;
     if (!path) return c.json({ error: 'NOT_READY' }, 404);
     const { size, etag } = services.thumbnails.stat(path);
     c.header('ETag', etag);
