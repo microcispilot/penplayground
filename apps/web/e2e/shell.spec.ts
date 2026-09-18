@@ -95,9 +95,11 @@ test.describe('the app shell', () => {
     // Experts: the grid, and picking one lands back on Home with that expert chosen.
     await sidebar.getByText('Experts', { exact: true }).click();
     await expect(page).toHaveURL(/\/experts$/);
-    const tiles = page.getByTestId('expert-tile');
+    // Scoped to the grid and polled, not counted once: Home's row is made of
+    // the same card, and the URL changes a beat before the grid has loaded.
+    const tiles = page.getByTestId('experts-grid').getByTestId('expert-tile');
     await expect(tiles.first()).toBeVisible({ timeout: 20_000 });
-    expect(await tiles.count()).toBeGreaterThan(20);
+    await expect.poll(() => tiles.count(), { timeout: 20_000 }).toBeGreaterThan(20);
     const chosen = (await tiles.first().getAttribute('title')) ?? '';
     await tiles.first().click();
     await expect(page).toHaveURL(new RegExp(`${page.url().split('/').slice(0, 3).join('/')}/?$`));
@@ -388,7 +390,7 @@ test.describe('shell screenshots', () => {
         const row = page.getByTestId('experts-row');
         await expect(row.getByTestId('expert-tile').first()).toBeVisible({ timeout: 20_000 });
         // Twelve faces and one card that leads to the rest — never more.
-        expect(await row.getByTestId('expert-tile').count()).toBe(12);
+        await expect(row.getByTestId('expert-tile')).toHaveCount(12);
         await expect(row.getByTestId('experts-show-more')).toHaveCount(1);
         // Aristotle is the pinned third card: a free learner sees the plan's
         // name on him, a Standard learner sees an ordinary tile. Asserting the

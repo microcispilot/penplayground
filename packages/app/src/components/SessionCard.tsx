@@ -199,9 +199,9 @@ export function SessionCard({
 
       So the card is a plain container, and the thing you press is a real
       button stretched across it, named by the session's title; like and save
-      sit on a layer above it. Three tab stops, no nesting, and the ring still
-      draws around the whole card because it hangs off the container. This is
-      the arrangement YouTube uses for the same shape.
+      sit on a layer above it. Three tab stops and no nesting, and because the
+      button is exactly the container's box its own focus ring still draws
+      around the whole card. This is the arrangement YouTube uses.
     */
     <div className="group relative flex flex-col gap-3 rounded-[var(--radius-lg)] text-left">
       {/*
