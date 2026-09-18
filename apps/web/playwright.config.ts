@@ -32,6 +32,13 @@ const uiWebPort = process.env.PEN_E2E_UI_WEB_PORT ?? '5183';
 /** The production build, served by `vite preview`: where load performance is measured. */
 const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
 
+/**
+ * Specs that play media after a lesson, and so need real Chrome (see the
+ * `projects` note below). Any spec may still be run in either browser
+ * explicitly with `--project=chromium` / `--project=chrome`.
+ */
+const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts'];
+
 export default defineConfig({
   testDir: './e2e',
   /**
@@ -65,8 +72,31 @@ export default defineConfig({
       ],
     },
   },
-  // The full Chromium build: the headless shell crashes on AudioWorklet + fake audio devices.
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chromium' } }],
+  /**
+   * Two browsers, each running the specs it can actually serve.
+   *
+   * Everything runs on the full Chromium build (the headless shell crashes on
+   * AudioWorklet + fake audio devices) — except the specs that must *play*
+   * media after a lesson has been taught. Once a room has been opened, that
+   * Chromium stops rendering media for the rest of the browser: an `<audio>`
+   * element sits at `HAVE_METADATA` and `play()` never settles, on that page
+   * and on any new one. The same build of real Chrome is unaffected, across
+   * repeated runs (bisected and recorded in tasks/todo.md). An ad and a replay
+   * both come after a lesson, so those two specs get real Chrome and the
+   * product's own media path is exercised rather than a browser bug.
+   */
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+      testIgnore: MEDIA_AFTER_LESSON,
+    },
+    {
+      name: 'chrome',
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+      testMatch: MEDIA_AFTER_LESSON,
+    },
+  ],
   webServer: [
     {
       command: 'pnpm --filter @pen/api start',
@@ -81,9 +111,24 @@ export default defineConfig({
         // Each e2e API gets its own in-memory database: two processes on one PGlite dir abort.
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
-        // Free-plan video ads against Google's public IMA sample tag, at the first boundary
-        // (the fake lesson has three segments) — see e2e/ads.spec.ts.
-        PEN_AD_TEST_TAGS: '1',
+        /*
+         * Free-plan video ads at the first boundary (the fake lesson has three
+         * segments). Google's public sample tag is the default and the only
+         * mode that works today.
+         *
+         * `PEN_E2E_AD_FIXTURE=1` points the SDK at the VAST fixture this API
+         * serves itself (`/api/dev/ad/vast.xml`), which would make the creative
+         * deterministic — but it needs the page on **https** first. Measured:
+         * the SDK requests the tag from inside its own frame, that frame
+         * mirrors the page's scheme, and Chrome refuses an insecure public
+         * origin reaching a loopback address at all ("the request client is not
+         * a secure context and the resource is in more-private address space
+         * `loopback`", IMA error 1005 FAILED_TO_REQUEST_ADS). See tasks/todo.md.
+         */
+        ...(process.env.PEN_E2E_AD_FIXTURE === '1'
+          ? { PEN_AD_TAG_URL: `https://localhost:${webPort}/api/dev/ad/vast.xml` }
+          : { PEN_AD_TEST_TAGS: '1' }),
+        PEN_PUBLIC_URL: `http://localhost:${webPort}`,
         PEN_ADS_EVERY_SEGMENTS: '1',
         // Every spec starts its sessions from 127.0.0.1, and some leave the
         // room live on purpose; the production per-IP cap (5) would refuse the

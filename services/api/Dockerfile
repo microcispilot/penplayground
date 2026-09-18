@@ -59,10 +59,14 @@ RUN --mount=type=secret,id=sentry_auth_token \
         export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" SENTRY_RELEASE="$GIT_SHA"; \
       fi; \
       pnpm --filter @pen/api build'
+# `data/dev` holds the VAST fixture the e2e ad path can be pointed at; those
+# routes are never mounted in production, so the creative has no business in
+# the image either.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm --filter @pen/api deploy --legacy --prod --config.node-linker=hoisted \
       --store-dir /pnpm/store /out \
- && rm -rf /out/src /out/scripts /out/test /out/tsconfig.json /out/vitest.config.ts
+ && rm -rf /out/src /out/scripts /out/test /out/tsconfig.json /out/vitest.config.ts \
+      /out/data/dev
 
 # ── runtime bases: plain node (default) or Playwright + ffmpeg (WITH_RENDER=1) ──
 FROM ${NODE_IMAGE} AS runtime-base-0

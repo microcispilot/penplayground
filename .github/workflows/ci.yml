@@ -80,9 +80,12 @@ jobs:
 
       # The specs drive AudioWorklet with fake media devices, which the
       # headless shell crashes on: the config pins `channel: chromium`, so the
-      # full build is what has to be installed.
-      - name: Install Playwright Chromium
-        run: pnpm --filter @pen/web exec playwright install --with-deps chromium
+      # full build is what has to be installed. The two specs that must *play*
+      # media after a lesson run on real Chrome instead, because that Chromium
+      # stops rendering media once a room has been opened (tasks/todo.md).
+      # The CLI only resolves inside a package that depends on it, not at the root.
+      - name: Install Playwright browsers
+        run: pnpm --filter @pen/web exec playwright install --with-deps chromium chrome
 
       - name: Run e2e
         run: pnpm --filter @pen/web e2e

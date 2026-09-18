@@ -1599,6 +1599,15 @@ export class SessionRoom {
   // ── state helpers ──────────────────────────────────────────────────────────
 
   private setMode(mode: LiveMode, floor: ParticipantId | null = null): void {
+    // The learner has the floor, and every client throws its banked audio away
+    // the moment that happens (the conductor cancels playback on `listening`
+    // and `thinking`). The pipeline's own idea of how much is banked ahead has
+    // to go with it: it is the bound that decides whether the next sentence may
+    // be synthesised, and audio nobody will ever hear must not hold the answer
+    // back. Without this a check-in answered while the lesson is well banked —
+    // which a fast engine or a stored lesson makes ordinary — leaves the room
+    // in `answering` with the answer never spoken at all.
+    if (mode === 'listening' || mode === 'thinking') this.pipeline.resetLookahead();
     this.state = { ...this.state, mode, floor };
     this.ledger({ kind: 'mode', t: this.now(), mode, floor });
     this.broadcastState();

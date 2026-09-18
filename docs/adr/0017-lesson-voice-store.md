@@ -1,6 +1,6 @@
 # ADR-0017: The lesson's voice is stored beside the lesson — and a learner's own words never are
 
-Status: accepted (opt-in) · 2026-09-17
+Status: accepted · 2026-09-17 (on by default 2026-09-18)
 
 ## Context
 
@@ -94,27 +94,56 @@ fall in exactly the same place.
    flaw with any fast provider (Fish delivers ≈ 4.5× realtime); a stored lesson
    is simply what made it reachable.
 
-## Why it ships off
+## What it measures
 
-`PEN_TTS_CACHE_MB` defaults to `0`. With a *warm* store, the free plan's
-between-segment ad stops opening — reproducibly: run `apps/web/e2e/ads.spec.ts`
-twice against one server and the first run reaches the ad overlay while the
-second never mounts it.
+Teaching the same topic twice with real Fish (`s2.1-pro-free`), the fake model
+so both tellings speak the identical sentences, and the store on:
 
-What that is *not*: the audio. The server's frames are well formed (no repeated
-chunk ids, nothing after `final`, read back from a session's own ledger), the
-client plays sentences in order with no bank rejections, and the
-`PEN_PLAYBACK_SAY_STALE` warnings are the player correctly discarding audio for
-a sentence it cancelled when the room changed mode mid-sentence — which happens
-without the store too, just less often. It is a scheduling race between a
-pending boundary ad and the sentence whose end is meant to start it.
+| | first telling | second telling |
+| --- | --- | --- |
+| Sentences from the store | 0 of 2 | **2 of 2** |
+| Time to first audio | 107,642 ms | **106 ms** |
+| First chunk, per sentence | 107,496 ms / 42,810 ms | **1 ms / 1 ms** |
+| Bytes synthesised | 146 | 146 (none bought) |
 
-So: the store is complete, correct and covered (hit, miss, lesson scoping,
-supersession by text, voice and pace, eviction, restart, concurrency, cadence,
-truncation, the privacy boundary, the audio bound), and the money it saves is
-real — but it costs free-plan ad revenue in a way that is not yet understood,
-and revenue is not something to lose quietly. `PEN_TTS_CACHE_MB=2048` turns it
-on, and on a deployment without ads it is pure win today.
+The first telling is slow because the free Fish tier queues — fair use, no SLA —
+which is exactly the day a learner should not have to wait through twice.
+
+**It is the same audio, not a re-rendering.** The stored sentence came back
+byte for byte identical (610,294 bytes, 6.919 s at 44.1 kHz, matching the
+duration the room reported), on a contiguous clock: 58 frames, zero
+discontinuities, the final frame flagged. What the second learner hears is what
+the first learner heard.
+
+**And only the lesson is there.** After both tellings the store held exactly
+two files — the two lesson sentences. The learner's question and the answer
+composed for it were never written down, which is the line ADR-0018 draws and
+`packages/session-engine/test/lesson-voice-boundary.test.ts` pins.
+
+Money, at these sizes, is small because the demo lesson is two short sentences:
+146 bytes is $0 on the free model and $0.0022 on `s2.1-pro`. The shape is what
+matters — a real 20-minute session is ≈ 15 KB of text, ≈ $0.22 of voice
+(`docs/COST.md`), and the second learner of that topic pays none of it.
+
+### What had to be fixed first
+
+Turning this on exposed a real deadlock, and it was not in the store. The
+pipeline will not run more than 20 s of audio ahead of the learner, and that
+budget is released only as each sentence is reported heard. A check-in is the
+one turn that neither cancels the lesson nor reports anything heard — so the
+seconds held by sentences the client had *already thrown away* (every conductor
+drops its bank the moment the learner takes the floor) stayed on the room's
+books, and with the budget full the answer could never be synthesised at all.
+
+Measured, on the same warm store, with one line differing:
+
+| | ad shown | lesson progress | ad events |
+| --- | --- | --- | --- |
+| before | no | stalls at the boundary (17) | none |
+| after | yes | 24 of 25 | requested → loaded → started → ended |
+
+The room now tells the pipeline the bank is gone when the learner takes the
+floor, which is exactly what every client has already done.
 
 ## Consequences
 

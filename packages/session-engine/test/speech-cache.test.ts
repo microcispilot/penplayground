@@ -189,3 +189,38 @@ describe('how far ahead the pipeline may run', () => {
     expect(synthesizer.calls).toBe(3);
   });
 });
+
+describe('when the learner takes the floor', () => {
+  it('releases the audio budget, so the answer is never held back by audio nobody will hear', async () => {
+    const synthesizer = new LongSynthesizer();
+    const pipeline = new SayPipeline({
+      synthesizer,
+      voice: 'voice-en',
+      sampleRate: 44100,
+      transport: new Transport(),
+      observer,
+      gapAfter: () => null,
+      lookahead: 4,
+      maxBankMs: 20_000,
+    });
+    for (let i = 0; i < 4; i += 1)
+      pipeline.enqueue(
+        { type: 'say', id: `s${i}`, text: `Sentence ${i}.`, tone: 'warm' },
+        'lesson',
+      );
+    await vi.waitFor(() => expect(synthesizer.calls).toBe(2));
+    expect(pipeline.banked).toBeGreaterThan(20_000 - 12_000);
+
+    // Every conductor throws its banked audio away the moment the learner takes
+    // the floor, so the seconds it was holding are spent on audio nobody will
+    // ever hear. The room says so, and the budget comes back at once — without
+    // this, an answer queued behind a full bank would never be spoken. Measured
+    // on a warm lesson-voice store: the room reached `answering` and sent no
+    // turn audio at all, and the between-segment ad was never shown.
+    pipeline.resetLookahead();
+    expect(pipeline.banked).toBe(0);
+
+    pipeline.enqueue({ type: 'say', id: 'answer', text: 'Good question.', tone: 'warm' }, 't1');
+    await vi.waitFor(() => expect(synthesizer.calls).toBeGreaterThanOrEqual(3));
+  });
+});
