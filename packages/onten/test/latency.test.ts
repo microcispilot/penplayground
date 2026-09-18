@@ -177,10 +177,16 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
 
       let corpusCount = 0;
       const samples: number[] = [];
+      // The runtime's own split, so the printed line says where the budget goes
+      // rather than only whether it was met.
+      const retrieval: number[] = [];
+      const assembly: number[] = [];
       for (let i = 0; i < questions.length; i++) {
         const started = performance.now();
         const result = await runtime.query(ask(questions[i] as string, 'en.corpus-0', i));
         samples.push(performance.now() - started);
+        retrieval.push(result.metrics.retrievalNs / 1e6);
+        assembly.push(result.metrics.assemblyNs / 1e6);
         corpusCount = result.metrics.corpusCount;
         // Nothing here repeats, so nothing may claim a memo hit.
         expect(result.metrics.memoHit).toBe(false);
@@ -195,6 +201,18 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
         p95: Number(percentile(sorted, 0.95).toFixed(2)),
         p99: Number(percentile(sorted, 0.99).toFixed(2)),
         max: Number((sorted[sorted.length - 1] as number).toFixed(2)),
+        retrievalP95: Number(
+          percentile(
+            [...retrieval].sort((a, b) => a - b),
+            0.95,
+          ).toFixed(2),
+        ),
+        assemblyP95: Number(
+          percentile(
+            [...assembly].sort((a, b) => a - b),
+            0.95,
+          ).toFixed(2),
+        ),
       };
       // Printed so a regression is legible in CI output, not only as a red assertion.
       process.stderr.write(`onten cold-path latency: ${JSON.stringify(measured)}\n`);
