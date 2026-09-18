@@ -1,4 +1,5 @@
 import type { LessonEvent } from '@pen/contracts';
+import { JSONParser } from '@streamparser/json';
 import type {
   CompletionRequest,
   EventStream,
@@ -116,6 +117,16 @@ export class FakeLanguageModel implements LanguageModel {
         (x.match === undefined || x.match(request as CompletionRequest<unknown>)),
     );
     if (!c) throw new Error(`FakeLanguageModel: no completion for purpose "${request.purpose}"`);
+    // A caller that asked for values early gets them the same way it would from
+    // a real provider: through the incremental parser, over the scripted answer.
+    if (request.partial) {
+      const parser = new JSONParser({ paths: request.partial.paths, keepStack: false });
+      const onValue = request.partial.onValue;
+      parser.onValue = ({ key, value }) => onValue(key, value);
+      parser.onError = () => undefined;
+      parser.write(JSON.stringify(c.value));
+      parser.end();
+    }
     return {
       value: request.schema.parse(c.value),
       usage: {

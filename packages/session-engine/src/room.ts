@@ -10,6 +10,7 @@ import type {
   LedgerEntry,
   LessonEvent,
   LessonPlan,
+  LessonSegmentPlan,
   LiveMode,
   NoteEvent,
   Participant,
@@ -34,20 +35,21 @@ import {
   prepareFreshEstimateUsd,
   slowerPreset,
 } from '@pen/contracts';
-import type { LanguageModel } from '@pen/llm';
+import type { EventStream, LanguageModel } from '@pen/llm';
 import { withTelemetry } from '@pen/llm';
 import type { LessonMemo, MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
 import { nanoid } from 'nanoid';
 import { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
 import { type Metrics, NullMetrics } from './metrics.js';
-import { planLesson } from './planner.js';
+import { type PlanOpening, streamPlan } from './planner.js';
 import {
   answerMessages,
   gradeMessages,
   intentMessages,
   lessonSystemPrompt,
   recapMessages,
+  type SegmentOutline,
   segmentMessages,
 } from './prompts.js';
 import { GradeOutput, IntentOutput, RecapOutput } from './schemas.js';
@@ -236,8 +238,24 @@ export class SessionRoom {
   private turnStartedAt: number | null = null;
   /** Reports accepted per participant; a runaway client cannot grow the ledger without bound. */
   private readonly reportCounts = new Map<ParticipantId, number>();
+  /**
+   * Segment 1's model call, started while the outline was still being written
+   * and consumed by `generateSegment(0)` once the plan is whole.
+   */
+  private pendingFirstSegment: EventStream | null = null;
+  /**
+   * The session's first audio frame has gone out — or the room ended without
+   * one. Background work that shares the session's provider (the catalogue
+   * card and its sketch, ADR-0013) waits here, so nothing competes with the
+   * first sentence the learner is waiting for.
+   */
+  readonly firstAudio: Promise<void>;
+  private markFirstAudio: () => void = () => undefined;
 
   constructor(deps: SessionRoomDeps) {
+    this.firstAudio = new Promise<void>((resolve) => {
+      this.markFirstAudio = resolve;
+    });
     this.d = deps;
     this.sessionId = deps.sessionId;
     this.observer = deps.observer ?? SILENT_OBSERVER;
@@ -300,6 +318,9 @@ export class SessionRoom {
         broadcast: (m) => deps.transport.broadcast(m),
         send: (p, m) => deps.transport.send(p, m),
         broadcastAudio: (header, pcm) => {
+          // Audio is on the wire: the learner can hear the expert, and work
+          // that was holding back for that moment may go (`firstAudio`).
+          this.markFirstAudio();
           deps.transport.broadcastAudio(header, pcm);
           if (deps.ledger) {
             const audioRef = deps.ledger.storeAudio(
@@ -365,9 +386,10 @@ export class SessionRoom {
     try {
       await this.resolveAndPrepare();
       if (this.abort.signal.aborted) return;
-      await this.makePlan();
+      const plan = await this.openPlan();
       if (this.abort.signal.aborted) return;
-      this.state = { ...this.state, phase: 'live', mode: 'teaching', preparation: null };
+      this.plan = plan;
+      this.state = { ...this.state, plan, phase: 'live', mode: 'teaching', preparation: null };
       this.broadcastState();
       void this.generateLoop().catch((error) => this.fail('room.generate_loop', error, null));
     } catch (error) {
@@ -482,6 +504,8 @@ export class SessionRoom {
     if (this.state.phase === 'ended') return;
     this.abort.abort();
     this.pipeline.close();
+    // Nothing is waiting for a first sentence that will never come now.
+    this.markFirstAudio();
     let recap: string[] = [];
     if (this.plan && this.spoken.length > 0) {
       try {
@@ -662,23 +686,39 @@ export class SessionRoom {
 
   private planUsd = 0;
 
-  private async makePlan(): Promise<void> {
+  /**
+   * The lesson plan — and, while it is still being written, a head start on
+   * segment 1.
+   *
+   * The outline call is the longest thing standing between Start and the first
+   * sentence, and the expert does not need the end of it to begin: the title,
+   * the promise and segment 1 are written first and are final the moment they
+   * land. So segment 1's call goes out against them while the planner is still
+   * writing segments 2..N, and the two run together instead of one after the
+   * other.
+   *
+   * Nothing is broadcast, spoken or recorded until the plan is whole, which is
+   * what keeps the promise the learner cares about: no sentence they hear can
+   * be contradicted by a plan that had not been written yet. The progress dots,
+   * the check-in placement and the ledger see exactly what they saw before — a
+   * complete `RoomState.plan`, at the moment the room goes live.
+   */
+  private async openPlan(): Promise<LessonPlan> {
     const pack = this.packId ? await this.d.onten.registry.getPack(this.packId) : null;
     this.packRevision = pack?.packRevision ?? null;
     this.packQualified = pack?.qualified ?? false;
-    if (this.plan) {
-      this.state = { ...this.state, plan: this.plan };
-      return;
-    }
+    // A memo hit already carries the plan this persona taught before: nothing to write.
+    if (this.plan) return this.plan;
     const unitTitles = pack ? [...new Set(pack.units.map((u) => u.title))] : [];
+    const sources = pack?.sources.length ?? 0;
     this.setPreparation({
       stage: 'outlining',
       fraction: 0.9,
       status: `${this.d.expert.displayName} is planning the session…`,
-      sourcesFound: pack?.sources.length ?? 0,
-      sourcesFetched: pack?.sources.length ?? 0,
+      sourcesFound: sources,
+      sourcesFetched: sources,
     });
-    this.plan = await planLesson(
+    const planning = streamPlan(
       this.model,
       {
         expert: this.d.expert,
@@ -691,8 +731,69 @@ export class SessionRoom {
       },
       this.abort.signal,
     );
-    this.planUsd = this.lastLessonUsd;
-    this.state = { ...this.state, plan: this.plan };
+    // No opening is not a failure of its own: the plan call is the honest
+    // answer, and it is awaited below either way.
+    const opening = await planning.opening.catch(() => null);
+    if (opening && !this.abort.signal.aborted) {
+      this.setPreparation({
+        stage: 'outlining',
+        fraction: 0.96,
+        status: `${this.d.expert.displayName} is starting on “${opening.segment.title}”…`,
+        sourcesFound: sources,
+        sourcesFetched: sources,
+      });
+      await this.beginFirstSegment(opening);
+    }
+    try {
+      const plan = await planning.plan;
+      this.planUsd = this.lastLessonUsd;
+      return plan;
+    } catch (error) {
+      // The head start is worth nothing without a plan to hang it on.
+      this.pendingFirstSegment?.abort();
+      this.pendingFirstSegment = null;
+      throw error;
+    }
+  }
+
+  /** Segment 1's model call, sent while the outline's tail is still arriving. */
+  private async beginFirstSegment(opening: PlanOpening): Promise<void> {
+    try {
+      this.pendingFirstSegment = await this.segmentStream(
+        opening.segment,
+        { title: opening.title, promise: opening.promise, segmentTitles: null },
+        [],
+      );
+    } catch (error) {
+      // Evidence or the provider refused the head start: `generateSegment` will
+      // ask again with the whole plan, the way it always did.
+      this.fail('room.first_segment', error, 'llm', { segment: 0 });
+      this.pendingFirstSegment = null;
+    }
+  }
+
+  /** One segment's model call: its evidence, then the stream of lesson events. */
+  private async segmentStream(
+    segment: LessonSegmentPlan,
+    lesson: SegmentOutline,
+    previousTitles: string[],
+  ): Promise<EventStream> {
+    const context = await this.contextFor(`${segment.title}. ${segment.goal}`, 'lesson-segment:v1');
+    return this.model.streamEvents({
+      messages: segmentMessages({
+        system: this.system,
+        lesson,
+        segment,
+        previousTitles,
+        modelContext: context.modelContext,
+        evidenceTier: this.state.evidenceTier,
+        language: this.language,
+      }),
+      cacheKey: this.cacheKey(),
+      maxOutputTokens: 2200,
+      purpose: 'lesson',
+      signal: this.abort.signal,
+    });
   }
 
   // ── lesson generation loop ─────────────────────────────────────────────────
@@ -788,26 +889,21 @@ export class SessionRoom {
         },
       });
     } else {
-      const context = await this.contextFor(
-        `${segment.title}. ${segment.goal}`,
-        'lesson-segment:v1',
-      );
-      const messages = segmentMessages({
-        system: this.system,
-        plan,
-        segment,
-        previousTitles: plan.segments.slice(0, index).map((s) => s.title),
-        modelContext: context.modelContext,
-        evidenceTier: this.state.evidenceTier,
-        language: this.language,
-      });
-      const stream = this.model.streamEvents({
-        messages,
-        cacheKey: this.cacheKey(),
-        maxOutputTokens: 2200,
-        purpose: 'lesson',
-        signal: this.abort.signal,
-      });
+      // Segment 1 is usually already in flight: it was sent while the planner
+      // was still writing the rest of the outline (`openPlan`).
+      const started = index === 0 ? this.pendingFirstSegment : null;
+      this.pendingFirstSegment = null;
+      const stream =
+        started ??
+        (await this.segmentStream(
+          segment,
+          {
+            title: plan.title,
+            promise: plan.promise,
+            segmentTitles: plan.segments.map((s) => s.title),
+          },
+          plan.segments.slice(0, index).map((s) => s.title),
+        ));
       let count = 0;
       try {
         for await (const event of stream) {
@@ -1614,8 +1710,15 @@ export class SessionRoom {
   }
 
   private setPreparation(preparation: PreparationProgress | null): void {
-    this.state = { ...this.state, preparation };
-    if (preparation) this.d.transport.broadcast({ kind: 'prep', progress: preparation });
+    // A status line carries a persona's name and sometimes a segment title, and
+    // the contract caps it at 120: one that overran would be dropped by the
+    // client's validation, and the learner would be left looking at the last
+    // honest line instead of this one.
+    const progress = preparation
+      ? { ...preparation, status: preparation.status.slice(0, 120) }
+      : null;
+    this.state = { ...this.state, preparation: progress };
+    if (progress) this.d.transport.broadcast({ kind: 'prep', progress });
   }
 
   private syncParticipants(): void {

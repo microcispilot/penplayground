@@ -268,14 +268,22 @@ export class RoomRegistry {
         // The room may have switched language with the learner; the saved page follows it.
         language: state.language,
       });
-      // Card copy + sketch in the background (ADR-0013): the first audio never waits for it.
+      // Card copy + sketch in the background (ADR-0013): the first audio never
+      // waits for it — and, just as importantly, it never competes with it.
+      // Both calls go to the same provider over the same connection, so a card
+      // started the moment the plan lands is drawn alongside the one call the
+      // learner is actually waiting for. It waits for the first sentence to be
+      // audible instead; by then nothing is racing it.
+      await room.firstAudio;
+      const settled = room.getState();
+      if (!settled.plan) return;
       services.meta.enqueue({
         sessionId,
         expert,
         band: args.band,
         topic: args.topic,
-        plan: state.plan,
-        language: state.language,
+        plan: settled.plan,
+        language: settled.language,
         // The lesson memo's scope is the card's too: a topic taught before reuses its sketch.
         canonicalId: resolution.canonicalKnowledgeId,
         cacheKey: roomCacheKey(expert.id, args.band),

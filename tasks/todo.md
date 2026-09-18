@@ -105,3 +105,55 @@
       and with the renderer's timings logged, and if contention is confirmed, give it its own project
       rather than a longer timeout.
 
+## First audio on a prepared topic (2026-09-18)
+
+Measured with real keys (`PEN_LLM_PROVIDER=openai`, `PEN_TTS_PROVIDER=fish-cloud`,
+`s2.1-pro-free`), the seeded Transformers pack, a cleared data directory per run,
+three cold sessions before and three after. Before: **7947 / 5778 / 5396 ms** to
+first audio. After: **4924 / 4036 / 4683 ms**.
+
+- [x] The expert starts composing segment 1 while the planner is still writing
+      (ADR-0019). `streamPlan` hands back the title, the promise and segment 1 as
+      soon as the model has written them — at 38–54 % of the plan call — and the
+      segment-1 call goes out against them. Nothing is broadcast until the plan is
+      whole, so the learner can never hear a sentence the final plan contradicts.
+      The lesson call's first token is now entirely hidden: the first cue is
+      emitted 1–3 ms after the plan lands (it was 1.0–1.6 s after, before).
+- [x] The catalogue card no longer competes with the first sentence. It started at
+      t = 4813 / 3919 / 3541 ms, alongside the lesson call on the same connection;
+      it now starts at t = 4918 / 4029 / 4677 ms, 1 ms after the first audio frame
+      (`SessionRoom.firstAudio`).
+- [x] Fish free tier measured, twice, ten sentences each: first chunk min 392 ms,
+      p50 439–611 ms, max 716 ms on an idle machine; 456–1773 ms under real session
+      load. **Sentence length does not move it** (short opening lines 604 / 448 ms
+      mean, lesson-length 515 / 467 ms), so the prompts were left alone rather than
+      asking the expert for a short opening line that would have bought nothing.
+      `SayPipeline` was already free of batching: a sentence is synthesised the
+      instant the parser emits it.
+- [x] `pnpm --filter @pen/api packs:prewarm` teaches every seeded pack once over the
+      ordinary room protocol, so the memo and the lesson voice store are warm before
+      the first real learner. Measured: 114 sentences in 305 s, after which a
+      first-ever learner reached first audio in **108 ms** with plan, segments, card
+      and voice all reused. Warm sessions on the new code: 131 / 120 / 120 ms.
+- [ ] The honest floor for a *cold* prepared topic is now the plan call plus one
+      voice first-chunk — 4.0–4.9 s here, almost all of it the plan call — and no
+      further pipeline work will close it: there is nothing left to overlap. The
+      levers left are a smaller `PEN_LLM_OUTLINE_MODEL` for the plan (it is the
+      session model today), `PEN_LLM_SERVICE_TIER=priority`, paid Fish capacity, or
+      arriving warm. `complete()` also still sends neither `verbosity: 'low'` nor
+      `service_tier`, while `streamEvents()` sends both — untested, deliberately left.
+- [x] `base-path.spec.ts` was running in the main Playwright config despite the
+      top-level `testIgnore` naming it: a project that declares its own `testIgnore`
+      **replaces** the top-level one, and the chromium project does. The spec (and
+      its exclusion) arrived with the base-path merge, after the chromium/chrome
+      split was already in place, so the exclusion has never taken effect at this
+      commit — the spec failed on the prefix it cannot have and left a lesson
+      running on the shared API, exactly as the config's comment warns, and
+      `csp.spec.ts` failed behind it. The chromium project now carries the pattern
+      too (`playwright test --list`: 27 tests in 13 files before, 26 in 12 after,
+      which is the 26 the last recorded control run had).
+- [x] The UI, rooms and preview e2e pairs are addressed by *URL*, not by port
+      (`PEN_E2E_UI_WEB`, `PEN_E2E_ROOMS_WEB`, `PEN_E2E_PREVIEW` in the specs;
+      `…_PORT` in the config). Moving the pairs with only the `…_PORT` variables
+      leaves every `ui-*` spec hitting the default port and failing in ~400 ms.
+      Written down in `playwright.config.ts` next to the ports.
