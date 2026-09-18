@@ -11,8 +11,8 @@ import {
   type SessionRecord,
   SessionRecord as SessionRecordSchema,
 } from '../api/client.js';
-import { AppHeader } from '../components/AppHeader.js';
 import { Insights } from '../components/Insights.js';
+import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
@@ -342,24 +342,20 @@ export function SessionPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AppHeader />
-        <main className="grid flex-1 place-items-center px-7">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <p className="text-md">{error}</p>
-            <Button variant="primary" onClick={() => navigate('/')}>
-              Back to Explore
-            </Button>
-          </div>
-        </main>
+      <div className="grid flex-1 place-items-center px-7 py-24">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <p className="text-md">{error}</p>
+          <Button variant="primary" onClick={() => navigate('/')}>
+            Back to Explore
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader />
-      <main className="flex-1 px-7 pt-8 pb-20">
+    <div className="flex flex-1 flex-col">
+      <div className="flex-1 px-6 pt-8 pb-20 sm:px-8">
         <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
           <div>
             {s ? (
@@ -396,6 +392,8 @@ export function SessionPage() {
                     Replay
                   </Button>
                 )}
+                {s ? <LikeButton session={s} /> : null}
+                {s ? <SaveButton session={s} withLabel /> : null}
                 <Button
                   variant="secondary"
                   leading={<Share2 size={14} />}
@@ -557,7 +555,7 @@ export function SessionPage() {
             ) : null}
           </aside>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

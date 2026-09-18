@@ -46,7 +46,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': { target: api, changeOrigin: true },
-        '/experts': { target: api, changeOrigin: true },
+        // Only the portraits are the API's; `/experts` itself is a screen in the app.
+        '/experts/portraits': { target: api, changeOrigin: true },
         '/ws': { target: ws, ws: true },
       },
     },

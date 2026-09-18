@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PlanCode } from '@pen/contracts';
-import { type Connection, connect, ParticipantRepository, SessionRepository } from '@pen/db';
+import {
+  type Connection,
+  connect,
+  ListRepository,
+  ParticipantRepository,
+  SessionRepository,
+} from '@pen/db';
 import {
   type CostMeter,
   FakeLanguageModel,
@@ -47,6 +53,8 @@ export interface Services {
   db: Connection;
   sessions: SessionRepository;
   participants: ParticipantRepository;
+  /** Saved / liked / history per participant (ADR-0015). */
+  lists: ListRepository;
   billing: Billing;
   /** Google sign-in; null until `GOOGLE_CLIENT_ID` is configured. */
   google: GoogleSignIn | null;
@@ -196,12 +204,13 @@ export async function buildServices(
   });
   const sessions = new SessionRepository(db.db);
   const participants = new ParticipantRepository(db.db);
+  const lists = new ListRepository(db.db);
   const billing = new Billing(cfg, participants);
   const googleVerifier =
     opts.googleVerifier ??
     (cfg.GOOGLE_CLIENT_ID ? new GoogleLibraryVerifier(cfg.GOOGLE_CLIENT_ID) : null);
   const google = googleVerifier
-    ? new GoogleSignIn(googleVerifier, participants, cfg.PEN_DEV_PLAN ?? 'free')
+    ? new GoogleSignIn(googleVerifier, participants, lists, cfg.PEN_DEV_PLAN ?? 'free')
     : null;
   if (!google) logger.info('google sign-in disabled: set GOOGLE_CLIENT_ID');
   const analytics = new Analytics(cfg);
@@ -269,6 +278,7 @@ export async function buildServices(
     db,
     sessions,
     participants,
+    lists,
     billing,
     google,
     analytics,

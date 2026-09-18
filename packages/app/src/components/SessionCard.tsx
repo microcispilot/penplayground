@@ -2,6 +2,7 @@ import { Avatar, cn } from '@pen/design';
 import { useEffect, useRef, useState } from 'react';
 import type { SessionRecord } from '../api/client.js';
 import { formatDuration, useApp } from '../lib/context.js';
+import { CardActions } from './ListControls.js';
 
 /** Poll schedule while a fresh session's sketch is still being drawn (ADR-0013): ~2 minutes in total. */
 const THUMB_POLL_MS = [3_000, 5_000, 8_000, 13_000, 21_000, 34_000, 40_000];
@@ -183,16 +184,25 @@ export function SessionCard({
   onOpen: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className="group flex cursor-pointer flex-col gap-3 text-left"
+    // biome-ignore lint/a11y/useSemanticElements: the card is a link-like region whose overlay carries its own buttons
+    <div
+      role="button"
+      tabIndex={0}
+      className="group flex cursor-pointer flex-col gap-3 rounded-[var(--radius-lg)] text-left focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4"
       onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
     >
       <div className="relative aspect-video">
         <SessionThumb
           session={session}
           className="absolute inset-0 transition-transform duration-[var(--duration-base)] group-hover:scale-[1.01]"
         />
+        <CardActions session={session} />
         <span className="absolute right-2 bottom-2 rounded-[5px] bg-navy-900/85 px-1.5 py-0.5 text-xs text-white tabular">
           {formatDuration(session.durationMs || session.segments * 90_000)}
         </span>
@@ -209,6 +219,6 @@ export function SessionCard({
           <span className="text-sm text-fg-2">{expertName}</span>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

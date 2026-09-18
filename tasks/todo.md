@@ -43,3 +43,8 @@
 - [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
 - [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
 - [ ] Ads: TCF 2.2 consent (EEA/UK) and child-directed tagging before serving there
+- [x] App shell (ADR-0015): persistent sidebar (240 px / 72 px rail / drawer), Experts screen, Topics filter, History · Learn later · Liked · Downloads · Rooms, like/save on cards and the session page, migration `0004_user_lists`, adoption on Google sign-in
+- [x] Terms of Use and Privacy Policy: ported from Simurgh's structure and entity, rewritten for Pen Playground; linked from the sidebar's bottom and Home's footer
+- [ ] Shelf follow-ups: playlists (the brief's "Playlists" row) once one saved shelf is not enough; "continue where you left off" from `session_visits`; a Rooms screen that lists rooms guests actually joined rather than every hosted session
+- [ ] Language: a session-language preference in the sidebar's Settings (there is no such setting today, so the row is omitted rather than faked)
+- [ ] `apps/web/e2e/rooms.spec.ts` fails in this environment: a LiveKit container answers HTTP on :7880 but the browser's WebSocket never connects, and the spec's reachability probe (HTTP) does not catch it. Fails identically before ADR-0015.

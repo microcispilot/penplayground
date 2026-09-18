@@ -1,4 +1,4 @@
-import type { ParticipantRepository, schema } from '@pen/db';
+import type { ListRepository, ParticipantRepository, schema } from '@pen/db';
 import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
@@ -77,7 +77,11 @@ export interface GoogleSignInResult {
   outcome: GoogleSignInOutcome;
   /** Sessions moved from the anonymous caller onto an account that already existed. */
   adoptedSessions: number;
+  /** Saves, likes and history rows moved the same way (ADR-0015). */
+  adoptedLists: { saved: number; liked: number; history: number };
 }
+
+const NOTHING_ADOPTED = { saved: 0, liked: 0, history: 0 };
 
 /** The display name the row ends up with once Google is attached. */
 const DEFAULT_ANONYMOUS_NAME = 'Learner';
@@ -86,7 +90,7 @@ const DEFAULT_ANONYMOUS_NAME = 'Learner';
  * Google sign-in on the participant row. Three cases, in order:
  *
  * 1. this Google account already has a row → that account, profile refreshed;
- *    an anonymous caller's sessions are moved onto it so nothing is lost;
+ *    an anonymous caller's sessions and lists are moved onto it so nothing is lost;
  * 2. the caller is anonymous → the same row is upgraded in place (same id, so
  *    its sessions and its bearer stay valid);
  * 3. otherwise → a new account row.
@@ -98,6 +102,7 @@ export class GoogleSignIn {
   constructor(
     private readonly verifier: GoogleTokenVerifier,
     private readonly participants: ParticipantRepository,
+    private readonly lists: ListRepository,
     private readonly defaultPlan: ParticipantRow['plan'] = 'free',
   ) {}
 
@@ -116,11 +121,14 @@ export class GoogleSignIn {
         avatarUrl: profile.avatarUrl,
       };
       const refreshed = (await this.participants.linkGoogle(existing.id, link)) ?? existing;
-      const adoptedSessions =
-        caller?.anonymous && caller.id !== existing.id
-          ? await this.participants.adoptSessions(caller.id, existing.id, refreshed.name)
-          : 0;
-      return { participant: refreshed, outcome: 'existing', adoptedSessions };
+      const adopting = caller?.anonymous === true && caller.id !== existing.id;
+      const adoptedSessions = adopting
+        ? await this.participants.adoptSessions(caller.id, existing.id, refreshed.name)
+        : 0;
+      const adoptedLists = adopting
+        ? await this.lists.adopt(caller.id, existing.id)
+        : NOTHING_ADOPTED;
+      return { participant: refreshed, outcome: 'existing', adoptedSessions, adoptedLists };
     }
     if (caller?.anonymous) {
       const link = {
@@ -133,7 +141,13 @@ export class GoogleSignIn {
         avatarUrl: profile.avatarUrl,
       };
       const upgraded = await this.participants.linkGoogle(caller.id, link);
-      if (upgraded) return { participant: upgraded, outcome: 'linked', adoptedSessions: 0 };
+      if (upgraded)
+        return {
+          participant: upgraded,
+          outcome: 'linked',
+          adoptedSessions: 0,
+          adoptedLists: NOTHING_ADOPTED,
+        };
     }
     const created = await this.participants.createGoogle(`p_${nanoid(16)}`, this.defaultPlan, {
       googleSub: profile.sub,
@@ -141,6 +155,11 @@ export class GoogleSignIn {
       name: safeName(profile.name),
       avatarUrl: profile.avatarUrl,
     });
-    return { participant: created, outcome: 'created', adoptedSessions: 0 };
+    return {
+      participant: created,
+      outcome: 'created',
+      adoptedSessions: 0,
+      adoptedLists: NOTHING_ADOPTED,
+    };
   }
 }

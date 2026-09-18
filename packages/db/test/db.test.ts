@@ -36,6 +36,7 @@ const record = (id: string, extra: Partial<Parameters<SessionRepository['upsert'
   canonicalId: null,
   description: '',
   keywords: [],
+  likes: 0,
   ...extra,
 });
 

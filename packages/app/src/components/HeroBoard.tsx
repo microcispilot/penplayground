@@ -68,7 +68,7 @@ export function HeroBoard({
   const name = expert?.displayName.split(' ')[0] ?? 'Ada';
 
   return (
-    <div className={cn('relative', className)} aria-hidden>
+    <div className={cn('relative min-w-0', className)} aria-hidden>
       {/* the board */}
       <div
         className="paper relative aspect-[16/11] w-full overflow-hidden rounded-[var(--radius-xl)] shadow-board"

@@ -4,7 +4,8 @@ import { Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { SessionRecord } from '../api/client.js';
-import { AppHeader } from '../components/AppHeader.js';
+import { ShellPage } from '../components/AppShell.js';
+import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 
@@ -32,92 +33,89 @@ export function Library() {
   }, [api, participant]);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader />
-      <main className="flex-1 px-7 pt-[34px] pb-20">
-        <div className="mx-auto max-w-[1000px]">
-          <h2 className="mb-1.5 tracking-[-0.025em]">Your sessions</h2>
-          <p className="mb-7 text-[15px] text-fg-2">
-            Each one is kept exactly as it was taught, with your questions pinned where you asked
-            them.
-          </p>
-          <div className="flex flex-col gap-3">
-            {sessions === null ? (
-              Array.from({ length: 3 }, (_, i) => `sk-${i}`).map((k) => (
-                <Skeleton key={k} className="h-[136px]" />
-              ))
-            ) : sessions.length === 0 ? (
-              <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] bg-surface p-6 hairline">
-                <p className="text-md">No sessions yet.</p>
-                <p className="text-sm text-fg-2">
-                  Your first one will appear here the moment you start it.
-                </p>
-                <Button variant="primary" onClick={() => navigate('/')}>
-                  Learn something
-                </Button>
-              </div>
-            ) : (
-              sessions.map((s) => {
-                const expert = experts.get(s.expertId);
-                const live = s.endedAt === null;
-                return (
-                  <div
-                    key={s.id}
-                    className="flex gap-[18px] rounded-[var(--radius-lg)] bg-surface p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-line-strong)]"
-                  >
-                    <SessionThumb
-                      session={s}
-                      watch={live}
-                      className="relative h-[106px] w-[188px] shrink-0"
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <span className="text-[17px] font-medium tracking-[-0.012em]">{s.title}</span>
-                      <span className="text-sm text-fg-2">
-                        {relativeDay(s.startedAt)} ·{' '}
-                        {live ? 'live now' : formatDuration(s.durationMs)} ·{' '}
-                        {s.questions === 0
-                          ? 'no questions'
-                          : `${s.questions} question${s.questions === 1 ? '' : 's'}`}{' '}
-                        · {expert?.displayName ?? 'AI expert'}
-                      </span>
-                      {s.recap[0] ? (
-                        <span className="mt-1 border-l-2 border-accent-strong pl-[11px] text-sm leading-[1.5] text-fg-2">
-                          {s.recap[0]}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 flex-col justify-center gap-2">
-                      {live ? (
-                        <Button
-                          variant="primary"
-                          leading={<Play size={14} />}
-                          onClick={() => navigate(`/room/${s.id}`)}
-                        >
-                          Rejoin
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="primary"
-                          leading={<Play size={14} />}
-                          onClick={() => navigate(`/sessions/${s.id}`)}
-                        >
-                          Replay
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        onClick={() => navigate(`/sessions/${s.id}?tab=transcript`)}
-                      >
-                        Transcript
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+    <ShellPage
+      title="Your sessions"
+      intro="Each one is kept exactly as it was taught, with your questions pinned where you asked them."
+    >
+      <div className="flex flex-col gap-3">
+        {sessions === null ? (
+          Array.from({ length: 3 }, (_, i) => `sk-${i}`).map((k) => (
+            <Skeleton key={k} className="h-[136px]" />
+          ))
+        ) : sessions.length === 0 ? (
+          <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] bg-surface p-6 hairline">
+            <p className="text-md">No sessions yet.</p>
+            <p className="text-sm text-fg-2">
+              Your first one will appear here the moment you start it.
+            </p>
+            <Button variant="primary" onClick={() => navigate('/')}>
+              Learn something
+            </Button>
           </div>
-        </div>
-      </main>
-    </div>
+        ) : (
+          sessions.map((s) => {
+            const expert = experts.get(s.expertId);
+            const live = s.endedAt === null;
+            return (
+              <div
+                key={s.id}
+                className="flex gap-[18px] rounded-[var(--radius-lg)] bg-surface p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-line-strong)]"
+              >
+                <SessionThumb
+                  session={s}
+                  watch={live}
+                  className="relative h-[106px] w-[188px] shrink-0"
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="text-[17px] font-medium tracking-[-0.012em]">{s.title}</span>
+                  <span className="text-sm text-fg-2">
+                    {relativeDay(s.startedAt)} · {live ? 'live now' : formatDuration(s.durationMs)}{' '}
+                    ·{' '}
+                    {s.questions === 0
+                      ? 'no questions'
+                      : `${s.questions} question${s.questions === 1 ? '' : 's'}`}{' '}
+                    · {expert?.displayName ?? 'AI expert'}
+                  </span>
+                  {s.recap[0] ? (
+                    <span className="mt-1 border-l-2 border-accent-strong pl-[11px] text-sm leading-[1.5] text-fg-2">
+                      {s.recap[0]}
+                    </span>
+                  ) : null}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <LikeButton session={s} size="sm" />
+                    <SaveButton session={s} size="sm" />
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col justify-center gap-2">
+                  {live ? (
+                    <Button
+                      variant="primary"
+                      leading={<Play size={14} />}
+                      onClick={() => navigate(`/room/${s.id}`)}
+                    >
+                      Rejoin
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      leading={<Play size={14} />}
+                      onClick={() => navigate(`/sessions/${s.id}`)}
+                    >
+                      Replay
+                    </Button>
+                  )}
+                  <Button
+                    variant="secondary"
+                    onClick={() => navigate(`/sessions/${s.id}?tab=transcript`)}
+                  >
+                    Transcript
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </ShellPage>
   );
 }

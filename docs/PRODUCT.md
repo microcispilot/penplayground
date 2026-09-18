@@ -27,19 +27,44 @@ Everything below serves that moment.
 | 5 | Trust engineered visibly | Mic state always visible. "AI expert" disclosure on every persona. Sources shown for every answer. Host-only controls are explicit. | 0 privacy surprises |
 | 6 | One magic moment in the first minute | Start → hear the expert → see the board being written → interrupt with a question → get a grounded answer. All within 60 s. | first-session completion |
 
-## The five screens (from the approved mockup)
+## The app shell (ADR-0015)
+
+Every screen but the live session and the replay sits in one shell: the header,
+and a persistent left sidebar — 240 px, collapsible to a 72 px icon rail that is
+remembered, a drawer under 1024 px. The sidebar is what the platform has:
+
+- **Learn** — Home, Experts, Topics (the domains, which filter Home's grid), Pricing.
+- **You** — History, Learn later, Liked, Your sessions, Downloads (Standard),
+  Rooms (Professional). The same rows whether or not you have signed in: an
+  anonymous participant really does own its sessions, saves and likes on this
+  device, and signing in with Google brings them along. Plan rows carry the
+  plan's name, never a lock.
+- **Settings** — theme, and the pace the next session you host starts at.
+- **Bottom** — Terms · Privacy · "Experts are AI." · © 2026 Microcis.
+
+In the room the board *is* the screen: no shell, nothing else to look at.
+
+## The screens
 
 1. **Home** — "What do you want to learn?" search with a mic; "Most learned"
    grid of public sessions (YouTube feel) with category chips and a filter.
-2. **My sessions** — replay, transcript, share, export.
-3. **Preparing** — expert portrait breathing, topic title, "9 steps · about 14
+2. **Experts** — all 105, filterable by domain and by name; picking one lands
+   back on Home with that expert already in the command bar.
+3. **Your sessions** — replay, transcript, share, export.
+4. **History / Learn later / Liked / Downloads / Rooms** — the learner's own
+   shelves. A heart and a bookmark on every card and on the session page fill
+   them; the like count is public, the shelf is not.
+5. **Preparing** — expert portrait breathing, topic title, "9 steps · about 14
    minutes", one progress bar, honest status lines. Only shown on a knowledge
    miss; a prepared topic skips straight to the room.
-4. **Live session** — the board fills the screen ("You're viewing Ada's
+6. **Live session** — the board fills the screen ("You're viewing Ada's
    screen"), the expert orb bottom-right, captions, pinned "You asked" notes,
    check-in questions, a bottom bar with progress dots, clock, participants,
    pause (host), captions, mic, fullscreen, Leave.
-5. **Recap** — what was covered, your questions, save / learn something else.
+7. **Recap** — what was covered, your questions, save / learn something else.
+8. **Terms of Use · Privacy Policy** — reachable from the bottom of the sidebar
+   and from Home's footer. Plain, current, and true to what the product does:
+   sessions are recorded and public by default with your name never shown.
 
 ## Storyboard: prepared topic, single learner
 

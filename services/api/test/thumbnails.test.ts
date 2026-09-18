@@ -183,6 +183,7 @@ describe('a fake-provider session gets a real thumbnail', () => {
       canonicalId: null,
       description: '',
       keywords: [],
+      likes: 0,
     };
     await services.sessions.upsert(bare);
     const res = await fetchApp('/api/sessions/s_bare_0001/thumb.svg');

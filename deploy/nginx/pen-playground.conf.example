@@ -6,7 +6,7 @@
 # then enable the two TLS blocks. Style follows /etc/nginx/sites-enabled/simurghlabs.conf.
 #
 # Everything is forwarded to the web container (127.0.0.1:4201), which serves the SPA and proxies
-# /api, /experts, /s and the /ws WebSocket to the API container itself. /livekit/ goes straight to
+# /api, /experts/portraits, /s and the /ws WebSocket to the API container itself. /livekit/ goes straight to
 # the LiveKit signalling port (127.0.0.1:7880); media itself flows over 7881/tcp + 7882/udp, not
 # through nginx.
 #

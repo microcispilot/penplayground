@@ -1,11 +1,22 @@
 import { ToastProvider } from '@pen/design';
 import { useEffect } from 'react';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
+import { BrowserRouter, Outlet, Route, Routes, useLocation } from 'react-router';
+import { AppShell } from './components/AppShell.js';
 import { setAnalyticsContext, trackInteraction } from './lib/analytics.js';
 import { AppProvider } from './lib/context.js';
 import type { Platform } from './platform/types.js';
+import { Experts } from './screens/Experts.js';
 import { Home } from './screens/Home.js';
 import { Library } from './screens/Library.js';
+import {
+  DownloadsScreen,
+  HistoryScreen,
+  LikedScreen,
+  RoomsScreen,
+  SavedScreen,
+} from './screens/Lists.js';
+import { Privacy } from './screens/legal/Privacy.js';
+import { Terms } from './screens/legal/Terms.js';
 import { NotFound } from './screens/NotFound.js';
 import { Pricing } from './screens/Pricing.js';
 import { Replay } from './screens/Replay.js';
@@ -20,6 +31,14 @@ function screenOf(pathname: string): string {
   if (pathname.startsWith('/sessions/')) return 'session';
   if (pathname === '/sessions') return 'library';
   if (pathname === '/pricing') return 'pricing';
+  if (pathname === '/experts') return 'experts';
+  if (pathname === '/history') return 'history';
+  if (pathname === '/saved') return 'saved';
+  if (pathname === '/liked') return 'liked';
+  if (pathname === '/downloads') return 'downloads';
+  if (pathname === '/rooms') return 'rooms';
+  if (pathname === '/terms') return 'terms';
+  if (pathname === '/privacy') return 'privacy';
   return 'not-found';
 }
 
@@ -34,6 +53,25 @@ function ScreenTracker() {
   return null;
 }
 
+/** A new screen starts at the top; the room and the replay never scroll. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the new pathname is the event this reacts to
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
+  return null;
+}
+
+/** Everything but the room and the replay lives in the shell (ADR-0015). */
+function ShellLayout() {
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
+}
+
 /** The whole product. Hosts render this once with their Platform. */
 export function PenApp({ platform }: { platform: Platform }) {
   return (
@@ -41,14 +79,26 @@ export function PenApp({ platform }: { platform: Platform }) {
       <ToastProvider>
         <BrowserRouter>
           <ScreenTracker />
+          <ScrollToTop />
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/sessions" element={<Library />} />
-            <Route path="/sessions/:id" element={<SessionPage />} />
+            <Route element={<ShellLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/experts" element={<Experts />} />
+              <Route path="/sessions" element={<Library />} />
+              <Route path="/sessions/:id" element={<SessionPage />} />
+              <Route path="/history" element={<HistoryScreen />} />
+              <Route path="/saved" element={<SavedScreen />} />
+              <Route path="/liked" element={<LikedScreen />} />
+              <Route path="/downloads" element={<DownloadsScreen />} />
+              <Route path="/rooms" element={<RoomsScreen />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+            {/* The board is the whole screen here: no shell, no sidebar. */}
             <Route path="/room/:id" element={<Room />} />
             <Route path="/replay/:id" element={<Replay />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>
