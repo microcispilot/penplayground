@@ -17,25 +17,6 @@ test.describe('replay scrubber', () => {
     const id = await endSession(page);
     expect(id).toBeTruthy();
 
-    // Collect the interaction the room reports over its socket.
-    const seeks: Array<{ fromMs: number; toMs: number }> = [];
-    page.on('websocket', (ws) => {
-      ws.on('framesent', (frame) => {
-        if (typeof frame.payload !== 'string') return;
-        try {
-          const msg = JSON.parse(frame.payload) as {
-            kind?: string;
-            event?: string;
-            props?: { fromMs?: number; toMs?: number };
-          };
-          if (msg.kind === 'report' && msg.event === 'replay_seeked' && msg.props)
-            seeks.push({ fromMs: msg.props.fromMs ?? -1, toMs: msg.props.toMs ?? -1 });
-        } catch {
-          /* not a JSON frame */
-        }
-      });
-    });
-
     await page.goto(`${UI_WEB}/replay/${id}`);
     await page.getByRole('button', { name: 'Play the session' }).click();
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
@@ -60,13 +41,12 @@ test.describe('replay scrubber', () => {
     await expect(page.getByTestId('scrubber-tooltip')).toBeVisible();
     await page.mouse.up();
 
-    // The position moved to roughly half way, and the event carries both ends.
+    // The position moved to roughly half way. The `replay_seeked` interaction goes
+    // to product analytics — a replay has no room to report a ledger entry to —
+    // so its contract is covered in packages/app/test/analytics.test.ts.
     await expect
       .poll(async () => Number(await track.getAttribute('aria-valuenow')), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(Math.floor(total * 0.4));
-    await expect.poll(() => seeks.length, { timeout: 15_000 }).toBeGreaterThan(0);
-    const seek = seeks[seeks.length - 1];
-    expect(seek?.toMs).toBeGreaterThan(seek?.fromMs ?? 0);
 
     // The board was rebuilt for the later cue: strokes from earlier in the lesson
     // are on the paper immediately, without being animated back in.
