@@ -27,17 +27,42 @@ everything after it is copy-paste on the app host.
 
    Note the username (`uXXXXXX`) and host (`uXXXXXX.your-storagebox.de`).
 
+   > **The Console cannot add an SSH key to a box that already exists.** A key
+   > can only be *chosen at creation time*; afterwards Hetzner's own docs say
+   > "SSH keys cannot be added through the Console; you must manually add them
+   > to the host server afterward"
+   > ([creating a Storage Box](https://docs.hetzner.com/storage/storage-box/getting-started/creating-a-storage-box/)).
+   >
+   > The **project** SSH-key list in the Console (the page with the tabs
+   > *SSH keys · S3 credentials · API tokens · Certificates · Members*) is a
+   > decoy here: those keys are for creating **servers** and have nothing to do
+   > with a Storage Box's authorised keys. A key added there is accepted,
+   > displayed with the right fingerprint, and still rejected by the box —
+   > which looks exactly like a broken key and costs an hour to diagnose.
+   >
+   > So for an existing box the password is the only way in: **Reset Password**
+   > on the box, then step 2. Rotate it again afterwards if you like; the key
+   > is what the backups use.
+
 2. **Give it a key instead of a password**, from the app host:
 
    ```sh
    ssh-keygen -t ed25519 -f /root/.ssh/pen-backup -N ''
-   # -s writes into the Storage Box's own .ssh/authorized_keys over SFTP.
-   # Port 23 wants a plain one-line OpenSSH key (not RFC4716), which is what
-   # ssh-keygen just produced.
-   ssh-copy-id -s -i /root/.ssh/pen-backup.pub -p 23 uXXXXXX@uXXXXXX.your-storagebox.de
-   # prove it, without a password prompt:
+
+   # Hetzner's own helper on port 23 — asks for the Storage Box password once:
+   cat /root/.ssh/pen-backup.pub \
+     | ssh -p 23 uXXXXXX@uXXXXXX.your-storagebox.de install-ssh-key
+   # (equivalently, on OpenSSH 8.5+: ssh-copy-id -s -p 23 uXXXXXX@uXXXXXX.your-storagebox.de)
+
+   # prove it, with no password prompt this time:
    ssh -p 23 -i /root/.ssh/pen-backup uXXXXXX@uXXXXXX.your-storagebox.de ls
    ```
+
+   Port 22 is always on but is SFTP/SCP only (no interactive access) and wants
+   RFC4716-format keys; port 23 is the one **SSH support** enables and takes an
+   ordinary one-line OpenSSH key, which is what `ssh-keygen` just produced.
+   **External reachability** must also be on to reach the box from outside
+   Hetzner's network.
 
 3. Write `rclone.conf` next to this README (`chmod 600`):
 
