@@ -57,7 +57,11 @@ describe('the room conversation', () => {
   });
 
   it('does not let a flapping socket write the same system line twice in a row', () => {
-    let list = systemSaid(EMPTY, { id: 's1', text: 'The connection dropped — reconnecting.', at: 1 });
+    let list = systemSaid(EMPTY, {
+      id: 's1',
+      text: 'The connection dropped — reconnecting.',
+      at: 1,
+    });
     list = systemSaid(list, { id: 's2', text: 'The connection dropped — reconnecting.', at: 2 });
     expect(list).toHaveLength(1);
     list = systemSaid(list, { id: 's3', text: 'Back.', at: 3 });

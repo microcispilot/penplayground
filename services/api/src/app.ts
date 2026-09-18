@@ -116,6 +116,13 @@ const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
   control: { limit: 60, windowMs: 60_000 },
   set_pace: { limit: 60, windowMs: 60_000 },
   interrupt: { limit: 90, windowMs: 60_000 },
+  /**
+   * The room already drops anything faster than one per 600 ms, in silence
+   * (`reactions.ts`). This is the flood behind that: a hundred a minute is the
+   * most the product's own rule can produce, so reaching this is a client that
+   * has stopped behaving like one.
+   */
+  reaction: { limit: 120, windowMs: 60_000 },
 };
 /** Frames that fail Zod before the socket is closed. One is a bug; ten is a client to stop talking to. */
 const MAX_BAD_FRAMES = 10;

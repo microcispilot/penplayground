@@ -1,4 +1,4 @@
-import type { CheckEvent, RoomState } from '@pen/contracts';
+import type { CheckEvent, Reaction, RoomState } from '@pen/contracts';
 import {
   Avatar,
   Button,
@@ -29,6 +29,7 @@ import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import type { RoomConnectionStatus } from '../room/RoomClient.js';
 import type { CaptionLine } from '../room/store.js';
 import { PaceMenu } from './PaceMenu.js';
+import { ReactionPicker } from './Reactions.js';
 
 // ── honest status ─────────────────────────────────────────────────────────────
 
@@ -209,6 +210,11 @@ export interface BottomBarProps {
   panelOpen?: boolean;
   onTogglePanel?: () => void;
   /**
+   * Say something without taking the floor (`reactions.ts`). Absent while the
+   * room is not live; off, with the rest of the inputs, behind an ad.
+   */
+  onReact?: (emoji: Reaction) => void;
+  /**
    * An ad is on the board (free plan, ADR-0014): the microphone is not
    * capturing and the composer is off for its duration. Said once, quietly —
    * this is an ordinary state, not a fault.
@@ -356,6 +362,13 @@ export function BottomBar(p: BottomBarProps) {
             </>
           ) : null}
         </IconButton>
+        {p.onReact ? (
+          <ReactionPicker
+            disabled={p.inputsPaused ?? false}
+            disabledReason="Reactions are back when the ad ends"
+            onReact={p.onReact}
+          />
+        ) : null}
         {p.onTogglePanel ? (
           <IconButton
             label={p.panelOpen ? 'Hide the session panel' : 'Show the session panel'}

@@ -10,6 +10,7 @@ export * from './lists.js';
 export * from './onten.js';
 export * from './pace.js';
 export * from './pricing.js';
+export * from './reactions.js';
 export * from './session.js';
 export * from './telemetry.js';
 export * from './thumbnail.js';

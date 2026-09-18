@@ -16,9 +16,11 @@ import {
   readSessionPanelPreference,
   writeSessionPanelPreference,
 } from '../lib/session-panel-preference.js';
+import { useNow } from '../lib/use-now.js';
 import type { KeyValueStorage } from '../platform/types.js';
 import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import type { ConversationMessage } from '../room/conversation.js';
+import type { LiveReaction } from '../room/reactions.js';
 import { ParticipantRoster } from './Participants.js';
 
 /**
@@ -46,17 +48,6 @@ export function useSessionPanel(storage: KeyValueStorage): {
 export const SESSION_PANEL_RAIL = 34;
 /** How many lines are drawn at once; the store keeps more than the eye scrolls back to. */
 export const CONVERSATION_WINDOW = 80;
-
-// ── the clock behind "42s ago" ────────────────────────────────────────────────
-
-function useNow(everyMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), everyMs);
-    return () => clearInterval(t);
-  }, [everyMs]);
-  return now;
-}
 
 /**
  * The conversation follows the newest line, unless the learner has scrolled up
@@ -316,6 +307,8 @@ export interface SessionPanelProps {
   onToggleMic: () => void;
   onMute: ((participantId?: string) => void) | null;
   conversation: ConversationMessage[];
+  /** Reactions still on screen; they float over the participant cards. */
+  reactions: LiveReaction[];
   /** An ad holds the floor: the composer is off for its duration, calmly. */
   adPaused: boolean;
   onAsk: (text: string) => void;
@@ -347,6 +340,7 @@ function PanelBody(p: SessionPanelProps & { bodyId: string }) {
         micLevel={p.micLevel}
         onToggleMic={p.onToggleMic}
         onMute={p.onMute}
+        reactions={p.reactions}
         sectionOpen={rosterOpen}
         onToggleSection={() => setRosterOpen((v) => !v)}
       />

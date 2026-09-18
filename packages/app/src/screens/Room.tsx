@@ -242,6 +242,7 @@ export function Room() {
           .catch(() => toast('Could not mute — try again', 'danger'))
       }
       conversation={ui.conversation}
+      reactions={ui.reactions}
       adPaused={adShowing}
       onAsk={(text) => session?.ask(text)}
     />
@@ -350,6 +351,7 @@ export function Room() {
         panelOpen={panelShowing}
         onTogglePanel={togglePanel}
         inputsPaused={adShowing}
+        onReact={(emoji) => session?.react(emoji)}
         onFullscreen={() => {
           trackInteraction('fullscreen');
           void shellRef.current?.requestFullscreen?.();

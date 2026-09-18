@@ -37,7 +37,7 @@ const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
  * `projects` note below). Any spec may still be run in either browser
  * explicitly with `--project=chromium` / `--project=chrome`.
  */
-const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts'];
+const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts', '**/timeline.spec.ts'];
 
 export default defineConfig({
   testDir: './e2e',

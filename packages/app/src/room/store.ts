@@ -11,6 +11,7 @@ import { create } from 'zustand';
 import type { RoomAudioUi } from './audio/RoomAudio.js';
 import type { ConversationMessage } from './conversation.js';
 import type { RoomConnectionStatus } from './RoomClient.js';
+import type { LiveReaction } from './reactions.js';
 
 export interface CaptionLine {
   who: 'expert' | 'learner';
@@ -62,6 +63,11 @@ export interface RoomUiState {
    * shows only the last line of it.
    */
   conversation: ConversationMessage[];
+  /**
+   * Reactions still on screen (`room/reactions.ts`): expression from the
+   * people in the room that never takes the floor from the expert.
+   */
+  reactions: LiveReaction[];
   learnerHeard: string;
   /** Pinned "You asked" notes, in order. */
   notes: NoteEvent[];
@@ -95,6 +101,7 @@ const initial: RoomUiState = {
   micLevel: 0,
   captionsOn: true,
   conversation: [],
+  reactions: [],
   learnerHeard: '',
   notes: [],
   clockMs: 0,

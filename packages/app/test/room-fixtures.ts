@@ -31,7 +31,9 @@ export function roomState(people: number, over: Partial<RoomState> = {}): RoomSt
       title: 'How Transformers work',
       promise: 'Read an attention diagram without flinching.',
       band: 'intermediate',
-      segments: [{ index: 0, title: 'Attention', goal: 'weighted average', seconds: 300, hasCheck: true }],
+      segments: [
+        { index: 0, title: 'Attention', goal: 'weighted average', seconds: 300, hasCheck: true },
+      ],
       seconds: 300,
     },
     segment: 0,

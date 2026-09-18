@@ -6,7 +6,14 @@ import {
   estimateSpeechMs,
   type PresencePort,
 } from '@pen/conductor';
-import type { AdEndReason, AdEventName, AdSlot, CheckEvent, RoomState } from '@pen/contracts';
+import type {
+  AdEndReason,
+  AdEventName,
+  AdSlot,
+  CheckEvent,
+  Reaction,
+  RoomState,
+} from '@pen/contracts';
 import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
@@ -25,6 +32,7 @@ import { RoomAudio } from './audio/RoomAudio.js';
 import { appendMessage, expertSaid, learnerSaid, systemSaid } from './conversation.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
+import { pushReaction } from './reactions.js';
 import { useRoomStore } from './store.js';
 
 export interface RoomSessionOptions {
@@ -344,6 +352,7 @@ export class RoomSession {
             else if (m.state.participantAudio) void this.audio.connect();
           }
           if (m.kind === 'prep') set({ preparation: m.progress });
+          if (m.kind === 'reaction') this.showReaction(m.participantId, m.emoji, m.at);
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
           if (m.kind === 'cue' && m.cue.event.type === 'say') this.currentThread = m.cue.thread;
@@ -375,6 +384,39 @@ export class RoomSession {
       },
       o.displayName,
     );
+  }
+
+  /**
+   * Somebody reacted. A pill with their face and their emoji floats over the
+   * participants and fades; nothing about the lesson changes, which is the
+   * point — this is how a room of twelve agrees, laughs or admits it is lost
+   * without taking the floor from the expert.
+   */
+  private showReaction(participantId: string, emoji: Reaction, at: number): void {
+    const store = useRoomStore.getState();
+    const from = store.state?.participants.find((x) => x.id === participantId);
+    store.set({
+      reactions: pushReaction(store.reactions, {
+        id: `r${++this.lineCounter}`,
+        participantId,
+        name: from?.name ?? 'Someone',
+        hue: from?.hue ?? 218,
+        emoji,
+        at,
+      }),
+    });
+  }
+
+  /**
+   * Send one. Refused behind an ad through the same gate that holds the
+   * microphone and the composer, and refused once the room has ended; the
+   * room's own 600 ms rule does the rest, silently.
+   */
+  react(emoji: Reaction): void {
+    if (this.adGate.refuses()) return;
+    if (useRoomStore.getState().state?.phase === 'ended') return;
+    trackInteraction('reaction_sent', { emoji });
+    this.client.send({ kind: 'reaction', emoji });
   }
 
   /** One quiet centred line in the conversation: the room talking about itself. */

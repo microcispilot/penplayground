@@ -9,8 +9,8 @@ import {
 } from '../src/components/SessionPanel.js';
 import { SESSION_PANEL_PREFERENCE_KEY } from '../src/lib/session-panel-preference.js';
 import type { ConversationMessage } from '../src/room/conversation.js';
-import { audioUi, EXPERT, HOST_ID, roomState } from './room-fixtures.js';
 import { memoryStorage } from './harness.js';
+import { audioUi, EXPERT, HOST_ID, roomState } from './room-fixtures.js';
 
 afterEach(cleanup);
 
@@ -33,6 +33,7 @@ function panelProps(over: Partial<SessionPanelProps> = {}): SessionPanelProps {
     onToggleMic: () => undefined,
     onMute: null,
     conversation: [],
+    reactions: [],
     adPaused: false,
     onAsk: () => undefined,
     ...over,
@@ -158,10 +159,28 @@ describe('the conversation', () => {
         {...panelProps({
           conversation: [
             line({ id: 'a', text: 'Attention is a weighted average.' }),
-            line({ id: 'b', role: 'learner', speaker: 'You', text: 'Why divide by √d?', kind: 'question' }),
+            line({
+              id: 'b',
+              role: 'learner',
+              speaker: 'You',
+              text: 'Why divide by √d?',
+              kind: 'question',
+            }),
             line({ id: 'c', text: 'Because the dot products grow.', kind: 'answer' }),
-            line({ id: 'd', role: 'learner', speaker: 'You', text: 'A query from "sat"', kind: 'check' }),
-            line({ id: 'e', role: 'system', speaker: '', text: 'Session ended — it is saved.', kind: 'system' }),
+            line({
+              id: 'd',
+              role: 'learner',
+              speaker: 'You',
+              text: 'A query from "sat"',
+              kind: 'check',
+            }),
+            line({
+              id: 'e',
+              role: 'system',
+              speaker: '',
+              text: 'Session ended — it is saved.',
+              kind: 'system',
+            }),
           ],
         })}
       />,
@@ -182,7 +201,16 @@ describe('the conversation', () => {
     const { rerender } = render(
       <SessionPanel
         {...panelProps({
-          conversation: [line({ id: 'x', role: 'learner', speaker: 'You', text: 'why do we', live: true, kind: 'question' })],
+          conversation: [
+            line({
+              id: 'x',
+              role: 'learner',
+              speaker: 'You',
+              text: 'why do we',
+              live: true,
+              kind: 'question',
+            }),
+          ],
         })}
       />,
     );
@@ -194,7 +222,16 @@ describe('the conversation', () => {
     rerender(
       <SessionPanel
         {...panelProps({
-          conversation: [line({ id: 'x', role: 'learner', speaker: 'You', text: 'why do we divide?', live: false, kind: 'question' })],
+          conversation: [
+            line({
+              id: 'x',
+              role: 'learner',
+              speaker: 'You',
+              text: 'why do we divide?',
+              live: false,
+              kind: 'question',
+            }),
+          ],
         })}
       />,
     );
@@ -291,7 +328,13 @@ describe("the bottom bar's microphone during an ad", () => {
   it('is disabled and honestly labelled, and comes straight back', () => {
     const onToggleMic = vi.fn();
     const { rerender } = render(
-      <BottomBar {...barProps} onToggleMic={onToggleMic} inputsPaused panelOpen onTogglePanel={() => undefined} />,
+      <BottomBar
+        {...barProps}
+        onToggleMic={onToggleMic}
+        inputsPaused
+        panelOpen
+        onTogglePanel={() => undefined}
+      />,
     );
     const mic = screen.getByTestId('mic-toggle') as HTMLButtonElement;
     expect(mic.disabled).toBe(true);

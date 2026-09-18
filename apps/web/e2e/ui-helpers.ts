@@ -46,6 +46,11 @@ export async function startLesson(
   // The board is a lazy chunk: wait for the paper, not just the route.
   await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
+  // Headless Chromium holds the AudioContext until the page is touched, and
+  // the lesson clock *is* the audio clock: without this the expert writes but
+  // never speaks, so no caption and no conversation ever appear. Tap once,
+  // where a learner would ("Tap anywhere to enable sound").
+  await page.mouse.click(40, 40);
 }
 
 /** Wait until the expert has actually written something on the board. */

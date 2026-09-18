@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  expertPresence,
-  participantPresence,
-  SELF_SPEAKING_RMS,
-} from '../src/room/presence.js';
+import { expertPresence, participantPresence, SELF_SPEAKING_RMS } from '../src/room/presence.js';
 import { audioUi, HOST_ID, participant, roomState } from './room-fixtures.js';
 
 const quiet = {
@@ -14,7 +10,10 @@ const quiet = {
 describe('who the panel may animate', () => {
   it('rings the participant the media server says is audible, and nobody else', () => {
     const state = roomState(3);
-    const audio = audioUi({ speaking: ['p_guest_000001'], participants: { p_guest_000001: { muted: false }, p_guest_000002: { muted: false } } });
+    const audio = audioUi({
+      speaking: ['p_guest_000001'],
+      participants: { p_guest_000001: { muted: false }, p_guest_000002: { muted: false } },
+    });
     const of = (id: string) =>
       participantPresence({
         participant: state.participants.find((p) => p.id === id) ?? participant(9),

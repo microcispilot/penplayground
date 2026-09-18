@@ -9,6 +9,8 @@ import {
   participantPresence,
   presenceLabel,
 } from '../room/presence.js';
+import type { LiveReaction } from '../room/reactions.js';
+import { ReactionPills } from './Reactions.js';
 
 /** The media server's view of one voice: what `data-voice` reports and the popover lists. */
 export type VoiceState = 'speaking' | 'muted' | 'on' | 'off';
@@ -102,6 +104,8 @@ export interface ParticipantRosterProps {
   onToggleMic: () => void;
   /** Host only; `undefined` mutes everyone but the host. */
   onMute: ((participantId?: string) => void) | null;
+  /** Reactions still on screen; they float over the cards and fade. */
+  reactions: LiveReaction[];
   /** The section's own fold, driven by the chevron at the end of its heading. */
   sectionOpen: boolean;
   onToggleSection: () => void;
@@ -160,15 +164,48 @@ function ringFor(presence: ParticipantPresence): string {
  * keeps the name (which is what a face needs) and the control's label carries
  * the rest.
  */
-function NamePill({ name, note, compact }: { name: string; note: string; compact: boolean }) {
+/** Three little bars that move only while this person is actually audible. */
+function SpeakingGlyph() {
+  return (
+    <span className="pen-bars flex h-3 shrink-0 items-end gap-[1.5px]" aria-hidden>
+      <i />
+      <i />
+      <i />
+      <style>{`
+        .pen-bars i { width: 2px; border-radius: 1px; background: var(--color-presence); animation: pen-bar 900ms var(--ease-in-out) infinite; }
+        .pen-bars i:nth-child(1) { height: 5px; animation-delay: 0ms; }
+        .pen-bars i:nth-child(2) { height: 10px; animation-delay: 140ms; }
+        .pen-bars i:nth-child(3) { height: 7px; animation-delay: 280ms; }
+        @keyframes pen-bar { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+        @media (prefers-reduced-motion: reduce) { .pen-bars i { animation: none; transform: scaleY(0.8); } }
+      `}</style>
+    </span>
+  );
+}
+
+function NamePill({
+  name,
+  note,
+  compact,
+  speaking,
+}: {
+  name: string;
+  note: string;
+  compact: boolean;
+  speaking: boolean;
+}) {
   if (compact)
     return (
-      <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 truncate rounded-full bg-bg-elevated/88 px-2 py-0.5 text-center text-[10.5px] font-medium text-fg backdrop-blur-[6px] hairline">
-        <span dir="auto">{name}</span>
+      <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-center justify-center gap-1 rounded-full bg-bg-elevated/88 px-2 py-0.5 text-[10.5px] font-medium text-fg backdrop-blur-[6px] hairline">
+        {speaking ? <SpeakingGlyph /> : null}
+        <span className="min-w-0 truncate" dir="auto">
+          {name}
+        </span>
       </span>
     );
   return (
-    <span className="pointer-events-none absolute end-11 bottom-2 start-2 flex min-w-0 items-baseline gap-1 rounded-full bg-bg-elevated/88 px-2.5 py-1 text-[11.5px] text-fg backdrop-blur-[6px] hairline">
+    <span className="pointer-events-none absolute end-11 bottom-2 start-2 flex min-w-0 items-center gap-1.5 rounded-full bg-bg-elevated/88 px-2.5 py-1 text-[11.5px] text-fg backdrop-blur-[6px] hairline">
+      {speaking ? <SpeakingGlyph /> : null}
       <span className="min-w-0 truncate font-medium" dir="auto">
         {name}
       </span>
@@ -248,7 +285,7 @@ function ExpertCard({
       style={{ minHeight: size + 40 }}
     >
       <ExpertOrb name={name} portraitUrl={portraitUrl} presence={presence} size={size} />
-      <NamePill name={name} note="AI expert" compact={compact} />
+      <NamePill name={name} note="AI expert" compact={compact} speaking={talking} />
       <CardControl
         label={soundBlocked ? `Tap to hear ${name}` : `${name} · ${expertPresenceLabel(presence)}`}
         tone={soundBlocked ? 'warn' : talking ? 'live' : 'quiet'}
@@ -327,7 +364,7 @@ function PersonCard({
       style={{ minHeight: size + 40 }}
     >
       <Avatar name={p.name} hue={p.hue} size={size} />
-      <NamePill name={p.name} note={note} compact={compact} />
+      <NamePill name={p.name} note={note} compact={compact} speaking={presence === 'speaking'} />
       <CardControl label={control.label} tone={control.tone} onClick={control.onClick}>
         {control.icon}
       </CardControl>
@@ -373,7 +410,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
         <h2
           id={`${listId}-heading`}
-          className="text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase"
+          className="shrink-0 whitespace-nowrap text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase"
         >
           On the call
         </h2>
@@ -403,35 +440,39 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
 
       {!p.sectionOpen ? null : (
         <div id={`${listId}-body`}>
-          <div
-            className={cn('grid px-3', compact ? 'grid-cols-3 gap-2' : 'gap-2.5')}
-            data-testid="roster-cards"
-          >
-            <ExpertCard
-              expert={p.expert}
-              presence={p.expertPresence}
-              portraitUrl={p.expertPortraitUrl}
-              size={size}
-              compact={compact}
-              soundBlocked={p.soundBlocked}
-              onEnableSound={p.onEnableSound}
-            />
-            {shownPeople.map((person) => (
-              <PersonCard
-                key={person.id}
-                p={person}
-                presence={presenceOf(person)}
-                voice={voiceOf(person, p.selfId, p.audio)}
+          {/* The cards are the reactions' stage: pills rise over the faces. */}
+          <div className="relative">
+            <div
+              className={cn('grid px-3', compact ? 'grid-cols-3 gap-2' : 'gap-2.5')}
+              data-testid="roster-cards"
+            >
+              <ExpertCard
+                expert={p.expert}
+                presence={p.expertPresence}
+                portraitUrl={p.expertPortraitUrl}
                 size={size}
                 compact={compact}
-                isSelf={person.id === p.selfId}
-                isHostSeat={person.id === p.state.hostId}
-                onToggleMic={p.onToggleMic}
-                onMute={
-                  canMute && person.id !== p.state.hostId ? () => p.onMute?.(person.id) : null
-                }
+                soundBlocked={p.soundBlocked}
+                onEnableSound={p.onEnableSound}
               />
-            ))}
+              {shownPeople.map((person) => (
+                <PersonCard
+                  key={person.id}
+                  p={person}
+                  presence={presenceOf(person)}
+                  voice={voiceOf(person, p.selfId, p.audio)}
+                  size={size}
+                  compact={compact}
+                  isSelf={person.id === p.selfId}
+                  isHostSeat={person.id === p.state.hostId}
+                  onToggleMic={p.onToggleMic}
+                  onMute={
+                    canMute && person.id !== p.state.hostId ? () => p.onMute?.(person.id) : null
+                  }
+                />
+              ))}
+            </div>
+            <ReactionPills reactions={p.reactions} />
           </div>
 
           {/* The rest of the room: the overflow chip every call UI settles on. */}

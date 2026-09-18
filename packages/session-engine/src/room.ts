@@ -17,6 +17,7 @@ import type {
   PlanCode,
   PreparationProgress,
   QueryInput,
+  Reaction,
   RoomState,
   SayEvent,
   SelectionBand,
@@ -33,6 +34,7 @@ import {
   PACE_DEFAULT,
   PLAN_LIMITS,
   prepareFreshEstimateUsd,
+  REACTION_MIN_INTERVAL_MS,
   slowerPreset,
 } from '@pen/contracts';
 import type { LanguageModel } from '@pen/llm';
@@ -258,6 +260,8 @@ export class SessionRoom {
   private turnStartedAt: number | null = null;
   /** Reports accepted per participant; a runaway client cannot grow the ledger without bound. */
   private readonly reportCounts = new Map<ParticipantId, number>();
+  /** When each participant last reacted, for the one-per-600-ms rule (`reactions.ts`). */
+  private readonly lastReactionAt = new Map<ParticipantId, number>();
 
   constructor(deps: SessionRoomDeps) {
     this.d = deps;
@@ -490,6 +494,9 @@ export class SessionRoom {
         break;
       case 'utterance_end':
         p.micOn = false;
+        break;
+      case 'reaction':
+        this.reaction(p, message.emoji);
         break;
       case 'ad_event':
         this.adEvent(p, message);
@@ -893,6 +900,28 @@ export class SessionRoom {
       slot,
     });
     this.observer.event('room.ad', { adId, slot, afterSeq });
+  }
+
+  /**
+   * Somebody reacted (`reactions.ts`). A reaction is expression, not an
+   * interrupt: it touches no lesson state, takes no floor, and reaches every
+   * client as its own small broadcast.
+   *
+   * Two rules, both silent. A held-down key is not an error, so anything
+   * inside `REACTION_MIN_INTERVAL_MS` of this participant's last one is
+   * dropped without a word; and an ad on the board disables reactions for the
+   * same reason it disables voice and chat, through the same window.
+   */
+  private reaction(p: Participant, emoji: Reaction): void {
+    if (this.state.phase === 'ended') return;
+    if (this.adShowing()) return;
+    const now = this.now();
+    const last = this.lastReactionAt.get(p.id) ?? Number.NEGATIVE_INFINITY;
+    if (now - last < REACTION_MIN_INTERVAL_MS) return;
+    this.lastReactionAt.set(p.id, now);
+    this.d.transport.broadcast({ kind: 'reaction', participantId: p.id, emoji, at: now });
+    this.metrics.interaction(p.id, 'reaction_sent', { emoji });
+    this.observer.event('room.reaction', { participantId: p.id, emoji });
   }
 
   /** The ceiling the conductor resumes the lesson at, plus the beat after it. */
