@@ -216,6 +216,41 @@ rsync -rltz -e "$RSYNC_SSH" \
   deploy/backup/rclone/README.md \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/backup/rclone/"
 remote "chmod 0755 '$PEN_DEPLOY_ROOT'/backup/*.sh"
+
+# ── backup key: install it on a host that has none ───────────────────────────
+# The Storage Box trusts one public key. Keeping its private half only on the
+# host means a rebuilt host needs a human to mint a new key and authorise it in
+# the Hetzner Console; keeping it in the workstation's .env means a fresh host
+# is wired up by the next deploy instead. Base64 so the PEM is one line.
+# A host that already has the key is never overwritten — rotation is deliberate
+# (docs/RUNBOOK.md → "Backups"), not a side effect of deploying.
+if [ -n "${PEN_BACKUP_SSH_KEY_B64:-}" ]; then
+  log "backup key"
+  remote "set -e
+    mkdir -p /root/.ssh '$PEN_DEPLOY_ROOT/backup/rclone'
+    chmod 700 /root/.ssh '$PEN_DEPLOY_ROOT/backup/rclone'
+    if [ -s /root/.ssh/pen-backup ]; then
+      echo '  key already on the host, left alone'
+    else
+      printf '%s' '$PEN_BACKUP_SSH_KEY_B64' | base64 -d > /root/.ssh/pen-backup
+      chmod 600 /root/.ssh/pen-backup
+      ssh-keygen -y -f /root/.ssh/pen-backup > /root/.ssh/pen-backup.pub
+      echo '  installed /root/.ssh/pen-backup'
+    fi
+    cp -f /root/.ssh/pen-backup '$PEN_DEPLOY_ROOT/backup/rclone/pen-backup'
+    chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/pen-backup'
+    printf '[hetzner]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = /rclone/pen-backup\nshell_type = unix\n' \
+      '${PEN_BACKUP_REMOTE_HOST:-}' '${PEN_BACKUP_REMOTE_USER:-}' '${PEN_BACKUP_REMOTE_PORT:-23}' \
+      > '$PEN_DEPLOY_ROOT/backup/rclone/rclone.conf'
+    chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/rclone.conf'"
+  # The remote the sidecar copies to; empty means local-only backups.
+  remote "cd '$PEN_DEPLOY_ROOT'
+    grep -v '^PEN_BACKUP_RCLONE_REMOTE=' .env > .env.next 2>/dev/null || true
+    printf 'PEN_BACKUP_RCLONE_REMOTE=%s\n' '${PEN_BACKUP_RCLONE_REMOTE:-}' >> .env.next
+    chmod 600 .env.next && mv .env.next .env"
+else
+  log "backup key: PEN_BACKUP_SSH_KEY_B64 unset, leaving the host's own (if any)"
+fi
 # The TURN certificate lives here (cert-sync.sh fills it); without it the container refuses to
 # start, so an empty directory is created on every deploy and the hook is left executable.
 remote "mkdir -p '$PEN_DEPLOY_ROOT/livekit/certs' && chmod 0750 '$PEN_DEPLOY_ROOT/livekit/certs' \

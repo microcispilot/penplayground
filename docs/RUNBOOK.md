@@ -232,12 +232,53 @@ cat backups/$(date -u +%F)/manifest.txt                         # sizes and dura
 
 ### Off-host copy
 
-Local-only backups die with the disk. Set `PEN_BACKUP_RCLONE_REMOTE` (e.g.
-`hetzner:pen-playground`) in `/srv/pen-playground/.env` and put an
-`rclone.conf` in `backup/rclone/` — full instructions, including the Hetzner
-Storage Box setup, are in `deploy/backup/rclone/README.md`. The nightly run
-copies there and mirrors the 14-day rotation. When it is unset the script says
-so in its log every night.
+Local-only backups die with the disk. The remote is a **Hetzner Storage Box**
+(`penplayground-storage`, BX11, Helsinki), reached over SFTP on **port 23** as
+`u672371@u672371.your-storagebox.de`, and the nightly run copies there and
+mirrors the 14-day rotation. Full setup: `deploy/backup/rclone/README.md`.
+When `PEN_BACKUP_RCLONE_REMOTE` is unset the script says so in its log every
+night, and the backups stay on the host's own disk — which is not a backup.
+
+### The backup key, and why it lives in `.env`
+
+The Storage Box trusts exactly one public key. If its private half existed only
+on prod-app-01, losing that host would also lose the way in to the backups —
+the one moment you actually need them. So the pair is kept in the workstation's
+git-ignored `.env`:
+
+| variable | what it is |
+| --- | --- |
+| `PEN_BACKUP_SSH_KEY_B64` | the private key, base64 so the PEM survives as one line |
+| `PEN_BACKUP_SSH_PUBLIC_KEY` | the half already authorised on the box |
+| `PEN_BACKUP_REMOTE_USER` / `_HOST` / `_PORT` | `u672371` / `u672371.your-storagebox.de` / `23` |
+| `PEN_BACKUP_RCLONE_REMOTE` | `hetzner:pen-playground` |
+
+`deploy/deploy.sh` installs it on any host that does not already have one:
+decodes it to `/root/.ssh/pen-backup` (0600), derives the `.pub`, copies it to
+`backup/rclone/pen-backup` for the container, writes `rclone.conf` from the
+host/user/port, and sets `PEN_BACKUP_RCLONE_REMOTE` in the stack's `.env`. A
+host that already has the key is **left alone** — rotation is a deliberate act,
+not a side effect of deploying.
+
+**Recovering access when prod-app-01 is gone**, with nothing but `.env`:
+
+```sh
+# from the repo root, on any machine
+mkdir -p ~/.ssh && umask 077
+grep '^PEN_BACKUP_SSH_KEY_B64=' .env | cut -d= -f2- | base64 -d > ~/.ssh/pen-backup
+chmod 600 ~/.ssh/pen-backup
+ssh -p 23 -i ~/.ssh/pen-backup u672371@u672371.your-storagebox.de ls      # the backups
+```
+
+then pull a night down and restore it per "Getting the data back when the host
+is gone" in `deploy/backup/rclone/README.md`. If `.env` is lost *as well*, the
+only way back is the Hetzner Console: add a new public key to the Storage Box
+by hand, which is the manual step these variables exist to avoid.
+
+To rotate the key deliberately: generate a new pair, add the public half in the
+Console, update the two `PEN_BACKUP_SSH_*` values in `.env`, delete
+`/root/.ssh/pen-backup` on the host, redeploy (which installs the new one), and
+only then remove the old key from the Console.
 
 ### Restore
 
