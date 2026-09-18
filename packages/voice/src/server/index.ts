@@ -2,8 +2,8 @@ export { type AssemblyAIOptions, AssemblyAIRecognizer } from './assemblyai.js';
 export {
   type CacheStats,
   CachingSynthesizer,
-  cacheKey,
   type SynthesisCacheOptions,
+  sayTake,
 } from './cache.js';
 export { type DeepgramOptions, DeepgramRecognizer } from './deepgram.js';
 export { FishBridgeSynthesizer } from './fish-bridge.js';

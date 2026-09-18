@@ -47,8 +47,13 @@ generating fresh would have cost, from the same table):
   the memo), else the representative estimate (`FRESH_ESTIMATE_TOKENS`).
 - **Onten speculation hit** (`context`): counted; saved $0 (Onten is free).
 - **Intake translation cache** (`intake`): saved = one translation call.
-- **TTS**: never reused today — there is no synthesis cache — so every voice
-  line is `reused: false`.
+- **TTS**: the lesson's own sentences are stored beside the lesson (ADR-0017),
+  so a second learner of a topic hears them for $0 and the line reads
+  `reused: true` with `savedUsd` = what buying them again would have cost. A
+  learner's questions and the answers to them are never stored — different for
+  every learner, and theirs — so those lines stay `reused: false`. The store is
+  opt-in (`PEN_TTS_CACHE_MB`); with it off, every voice line is `reused: false`
+  as before.
 
 `SessionTelemetry.reuse` sums it (`savedUsd`, `freshEquivalentUsd = cost + saved`);
 `GET /api/stats/reuse` and `pnpm --filter @pen/api telemetry:pull --topic <canonicalId>`

@@ -302,3 +302,44 @@ describe('an ad whose boundary has already gone by', () => {
     expect(c.getPhase()).not.toBe('ad');
   });
 });
+
+describe('an ad whose sentence was cancelled', () => {
+  it('plays when the lesson comes back, because a cancelled say fires no end', () => {
+    const { c } = setup();
+    c.handleServer({ kind: 'cue', cue: sayCue(0, 'L0.s1', 'First sentence.') });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    c.audioEvents.onSayEnd('L0.s1@0', 1200);
+    c.handleServer({
+      kind: 'ad',
+      adId: 'ad-3',
+      afterSeq: 0,
+      skippableAfterMs: 5_000,
+      durationMs: 30_000,
+      format: 'video',
+      tagUrl: 'https://ads.test/vast',
+      slot: 'boundary',
+    });
+    // It started here, so end it the way the learner would and re-arm a later one.
+    expect(c.getPhase()).toBe('ad');
+    c.skipAd();
+
+    // A second ad arrives while the learner has the floor: nothing plays over them.
+    c.handleServer({ kind: 'state', state: roomState('listening') });
+    c.handleServer({
+      kind: 'ad',
+      adId: 'ad-4',
+      afterSeq: 0,
+      skippableAfterMs: 5_000,
+      durationMs: 30_000,
+      format: 'video',
+      tagUrl: 'https://ads.test/vast',
+      slot: 'boundary',
+    });
+    expect(c.getPhase()).toBe('listening');
+
+    // The answer is over and the lesson resumes: now it plays.
+    c.handleServer({ kind: 'state', state: roomState('teaching') });
+    expect(c.getPhase()).toBe('ad');
+  });
+});
