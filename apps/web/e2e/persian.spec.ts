@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { unlockAudio } from './ui-helpers.js';
 
 /**
  * A lesson in Persian, end to end: the topic is typed in Persian, the fake
@@ -32,6 +33,7 @@ test.describe('a session taught in Persian', () => {
     // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
+    await unlockAudio(page);
     // The lesson's own words now live in the session panel's conversation
     // (ADR-0019); the board keeps its caption for when the panel is folded
     // away, and that is asserted from the same element either way.

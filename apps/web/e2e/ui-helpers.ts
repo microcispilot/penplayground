@@ -46,12 +46,20 @@ export async function startLesson(
   // The board is a lazy chunk: wait for the paper, not just the route.
   await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
-  // Headless Chromium holds the AudioContext until the page is touched, and
-  // the lesson clock *is* the audio clock: without this the expert writes but
-  // never speaks, so no caption and no conversation ever appear. Tap once,
-  // where a learner would ("Tap anywhere to enable sound").
-  await page.mouse.click(40, 40);
-  // …and give the focus back, so the next Tab is still the skip link.
+  await unlockAudio(page);
+}
+
+/**
+ * Headless Chromium holds the AudioContext until the page is touched, and the
+ * lesson clock *is* the audio clock: without a gesture the expert writes but
+ * never speaks, so no caption and no conversation ever appear. Tap once, the
+ * way a learner would ("Tap anywhere to enable sound") — down in the bottom
+ * bar's own padding, because a tap on the board hands focus to tldraw's canvas
+ * and the next Tab would no longer be the skip link.
+ */
+export async function unlockAudio(page: Page): Promise<void> {
+  const size = page.viewportSize() ?? { width: 1280, height: 720 };
+  await page.mouse.click(6, size.height - 6);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 }
 

@@ -100,7 +100,10 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
-      testIgnore: MEDIA_AFTER_LESSON,
+      // A project's own testIgnore *replaces* the top-level one, so the
+      // base-path spec has to be excluded here too or it runs against servers
+      // with no prefix and fails exactly as its own note predicts.
+      testIgnore: [...MEDIA_AFTER_LESSON, '**/base-path.spec.ts'],
     },
     {
       name: 'chrome',
