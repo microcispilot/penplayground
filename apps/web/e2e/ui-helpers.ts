@@ -57,12 +57,11 @@ export async function waitForInk(page: Page): Promise<void> {
 
 export async function shot(page: Page, name: string): Promise<void> {
   mkdirSync(SCREENS, { recursive: true });
-  // Sheets and pills rise in; a screenshot taken on the first frame of that is a
-  // picture of nothing. Wait for the animations to settle before capturing.
-  await page
-    .evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))))
-    .catch(() => undefined);
-  await page.waitForTimeout(150);
+  // Sheets and pills rise in; a screenshot on the first frame of that is a picture
+  // of nothing. Waiting on `getAnimations()` is not the way — the room is full of
+  // deliberately infinite ones (the live dot, the orb's ring) whose `finished`
+  // never resolves. The longest entrance in the design system is --duration-scene.
+  await page.waitForTimeout(700);
   await page.screenshot({ path: join(SCREENS, `${name}.png`) });
 }
 
