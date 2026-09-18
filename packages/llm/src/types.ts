@@ -36,6 +36,28 @@ export interface EventStream extends AsyncIterable<LessonEvent> {
   abort(): void;
 }
 
+/**
+ * Early access to parts of a structured output while the rest is still being
+ * written. A completion is one object, but its fields land in order, and a
+ * caller that only needs the first of them should not wait for the last: the
+ * lesson planner starts teaching segment 1 as soon as segment 1 exists,
+ * seconds before the outline is finished.
+ *
+ * The values handed over are complete and final — each one is emitted when its
+ * own closing token lands, never half-parsed — so nothing built on them can be
+ * contradicted by the object that arrives afterwards.
+ */
+export interface PartialValues {
+  /**
+   * Which values to hand over early, as the subset of JSONPath the incremental
+   * parser understands: `$.title` for a field, `$.segments.*` for each element
+   * of an array.
+   */
+  paths: string[];
+  /** One matched value. `key` is the property name, or the index within an array. */
+  onValue: (key: string | number | undefined, value: unknown) => void;
+}
+
 export interface CompletionRequest<T> {
   messages: Message[];
   schema: ZodType<T>;
@@ -44,6 +66,12 @@ export interface CompletionRequest<T> {
   maxOutputTokens: number;
   purpose: string;
   signal?: AbortSignal;
+  /**
+   * Hand parts of the answer over as they are written. Present = the call is
+   * streamed (and `usage.firstTokenMs` is measured); absent = one request, one
+   * parsed answer, exactly as before.
+   */
+  partial?: PartialValues;
 }
 
 export interface LanguageModel {

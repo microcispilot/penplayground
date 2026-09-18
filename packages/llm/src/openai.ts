@@ -1,6 +1,8 @@
 import type { LessonEvent } from '@pen/contracts';
+import { JSONParser } from '@streamparser/json';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
+import type { ParsedResponse } from 'openai/resources/responses/responses';
 import type { ZodType } from 'zod';
 import { LessonEventParser } from './event-parser.js';
 import { ModelEnvelope } from './model-schema.js';
@@ -152,18 +154,44 @@ export class OpenAILanguageModel implements LanguageModel {
 
   async complete<T>(request: CompletionRequest<T>): Promise<{ value: T; usage: Usage }> {
     const started = performance.now();
-    const response = await this.client.responses.parse(
-      {
-        model: this.opts.model,
-        input: request.messages.map((m) => ({ role: m.role, content: m.content })),
-        reasoning: { effort: this.opts.reasoningEffort ?? 'none' },
-        text: { format: zodTextFormat(request.schema as ZodType, request.schemaName) },
-        max_output_tokens: request.maxOutputTokens,
-        prompt_cache_key: request.cacheKey,
-        store: false,
-      },
-      { signal: request.signal },
-    );
+    const body = {
+      model: this.opts.model,
+      input: request.messages.map((m) => ({ role: m.role, content: m.content })),
+      reasoning: { effort: this.opts.reasoningEffort ?? 'none' },
+      text: { format: zodTextFormat(request.schema as ZodType, request.schemaName) },
+      max_output_tokens: request.maxOutputTokens,
+      prompt_cache_key: request.cacheKey,
+      store: false,
+    } as const;
+    // One parser over the raw deltas: each selected value reaches the caller the
+    // moment its own closing token lands, while the rest of the object is still
+    // being written. Without a `partial` this is one request and one answer,
+    // exactly as before.
+    const partial = request.partial;
+    let firstTokenMs: number | null = null;
+    // The answer is validated with Zod below, so the provider's own parse is
+    // only ever read as `unknown` — either route returns the same shape.
+    let response: ParsedResponse<unknown>;
+    if (partial) {
+      const parser = new JSONParser({ paths: partial.paths, keepStack: false });
+      parser.onValue = ({ key, value }) => partial.onValue(key, value);
+      // A malformed tail is the final parse's problem, not this one's: what was
+      // already emitted was well-formed JSON and is still good.
+      parser.onError = () => undefined;
+      const stream = this.client.responses.stream(body, { signal: request.signal });
+      stream.on('response.output_text.delta', (ev) => {
+        if (firstTokenMs === null) firstTokenMs = Math.round(performance.now() - started);
+        parser.write(ev.delta);
+      });
+      response = await stream.finalResponse();
+      try {
+        parser.end();
+      } catch {
+        /* truncated tail: the values already handed over stand */
+      }
+    } else {
+      response = await this.client.responses.parse(body, { signal: request.signal });
+    }
     const inputTokens = response.usage?.input_tokens ?? 0;
     const cachedTokens = response.usage?.input_tokens_details?.cached_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
@@ -173,7 +201,7 @@ export class OpenAILanguageModel implements LanguageModel {
       cachedTokens,
       outputTokens,
       usd: priceUsd(this.opts.model, inputTokens, cachedTokens, outputTokens),
-      firstTokenMs: null,
+      firstTokenMs,
       totalMs: Math.round(performance.now() - started),
     };
     this.meter.record({ ...usage, purpose: request.purpose });

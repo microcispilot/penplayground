@@ -12,6 +12,7 @@ Use these words exactly, in code, docs and UI copy.
 - **Guest** — any other participant. Can listen, watch, interrupt and ask.
 - **Lesson** — the ordered list of **segments** the expert intends to teach for this session. Produced by the planner from the pack (or reused via the memo).
 - **Segment** — one teaching beat (≈ 30–120 s): a goal, speech, board work, optionally a check-in. Progress dots in the bottom bar are segments.
+- **Plan opening** — the title, the promise and segment 1: the part of a lesson plan the model writes first, and everything segment 1's call needs. The room takes it while the rest of the outline is still being written and sends segment 1 against it, so the two calls overlap; nothing is spoken until the whole plan has landed (ADR-0019).
 - **Cue** — the atomic unit of the live stream. Kinds: `say` (a sentence for the voice), `board` (one board op anchored to a `say`), `caption`, `check` (a question to the learner), `state` (room state change), `note` (pinned "You asked"). Cues are deterministic; every client renders the same cue the same way.
 - **Anchor** — the relationship between a board op and speech: `with:<sayId>` (start when that sentence starts, finish by its end), `after:<sayId>` (start when it ends), `now`.
 - **Conductor** — the client engine that plays cues in sync. Audio clock is the master clock. Owns pause/resume/barge-in locally.

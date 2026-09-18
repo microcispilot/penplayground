@@ -1,17 +1,23 @@
 import { z } from 'zod';
 
 /** Model-facing structured-output schemas (strict: every field required). */
+export const PlanSegmentOutput = z.object({
+  title: z.string(),
+  goal: z.string(),
+  minutes: z.number(),
+  hasCheck: z.boolean(),
+});
+export type PlanSegmentOutput = z.infer<typeof PlanSegmentOutput>;
+
+/**
+ * Field order matters here: strict structured output is written in schema
+ * order, and the planner starts the opening as soon as the title, the promise
+ * and the first segment have landed (`streamPlan`).
+ */
 export const PlanOutput = z.object({
   title: z.string(),
   promise: z.string(),
-  segments: z.array(
-    z.object({
-      title: z.string(),
-      goal: z.string(),
-      minutes: z.number(),
-      hasCheck: z.boolean(),
-    }),
-  ),
+  segments: z.array(PlanSegmentOutput),
 });
 export type PlanOutput = z.infer<typeof PlanOutput>;
 

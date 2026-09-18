@@ -539,6 +539,25 @@ du -sh /srv/pen-playground/data/lesson-voice
 `personal` in that snapshot counts the sentences it deliberately did **not**
 store: questions, answers and check-in verdicts, which belong to one learner.
 
+### Arrive warm: pre-warm the seeded packs (ADR-0019)
+
+A prepared topic is only fast the *second* time anybody asks for it. Run this
+once after a deployment with a fresh data directory, and after the seeds under
+`services/api/data/packs/` change, so the first real learner is not the one who
+pays for the plan, the segments and the voice:
+
+```sh
+PEN_API_URL=https://DOMAIN pnpm --filter @pen/api packs:prewarm
+```
+
+It teaches each seeded topic once over the ordinary room protocol, so the words
+land in the Onten memo and the audio in the lesson voice store under exactly the
+keys a learner's session uses. Measured on the seeded Transformers pack: one
+warm-up of 114 sentences took 305 s, after which a first-ever learner reached
+first audio in **108 ms** (against 4.0–4.9 s cold), with the plan, the segments,
+the card and the voice all reused. Costs one session's provider spend per topic;
+it shows in the day's telemetry like any other session.
+
 ### Security headers and the Content-Security-Policy
 
 The API sets its own headers (HSTS only for requests that arrived over TLS,

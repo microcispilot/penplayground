@@ -11,7 +11,15 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const E2E_JWT_SECRET = process.env.PEN_JWT_SECRET ?? 'e2e-only-secret-not-for-production-32+';
 const apiPort = process.env.PEN_API_PORT ?? '4010';
-/** Both ports are overridable so parallel checkouts (worktrees) never reuse each other's servers. */
+/**
+ * Both ports are overridable so parallel checkouts (worktrees) never reuse each other's servers.
+ *
+ * Only the *first* pair is addressed through `baseURL`. The rooms, UI and
+ * preview specs address their own pair by absolute URL, and they read a URL,
+ * not a port: moving those pairs means setting `PEN_E2E_ROOMS_WEB`,
+ * `PEN_E2E_UI_WEB` and `PEN_E2E_PREVIEW` as well as the `…_PORT` variables
+ * below, or every spec that uses them fails instantly against the default port.
+ */
 const webPort = process.env.PEN_WEB_PORT ?? '5173';
 /**
  * A second API/web pair for `rooms.spec.ts`: plan forced to professional (rooms are a
@@ -39,15 +47,24 @@ const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
  */
 const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts'];
 
+/**
+ * `base-path.spec.ts` belongs to `playwright.basepath.config.ts` and only to it:
+ * it needs the bundle built with `PEN_BASE_PATH` and served behind nginx with
+ * the prefix stripped, which none of the servers below do. Run here it would not
+ * merely fail — it would start a lesson on the shared API on its way to failing,
+ * and the specs that follow share that one pipeline.
+ *
+ * It has to be named in *every* project that declares a `testIgnore` of its own,
+ * not only at the top level: a project's `testIgnore` **replaces** the top-level
+ * one rather than adding to it, so the chromium project's list was quietly
+ * letting this spec back in (measured with `playwright test --list`: 27 tests in
+ * 13 files with the pattern only at the top level, 26 in 12 with it here too).
+ */
+const BASE_PATH_ONLY = ['**/base-path.spec.ts'];
+
 export default defineConfig({
   testDir: './e2e',
-  /**
-   * `base-path.spec.ts` belongs to playwright.basepath.config.ts and only to it: it needs the
-   * bundle built with `PEN_BASE_PATH` and served behind nginx with the prefix stripped, which
-   * none of the servers below do. Run here it would not merely fail — it would start a lesson on
-   * the shared API on its way to failing, and the specs that follow share that one pipeline.
-   */
-  testIgnore: ['base-path.spec.ts'],
+  testIgnore: BASE_PATH_ONLY,
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
@@ -89,7 +106,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
-      testIgnore: MEDIA_AFTER_LESSON,
+      testIgnore: [...MEDIA_AFTER_LESSON, ...BASE_PATH_ONLY],
     },
     {
       name: 'chrome',

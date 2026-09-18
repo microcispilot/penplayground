@@ -112,9 +112,24 @@ export function planPrompt(args: {
   ];
 }
 
+/**
+ * What a segment call knows about the session it belongs to.
+ *
+ * The outline is optional because the opening does not wait for it: segment 1
+ * is composed while the planner is still writing segments 2..N, so its call
+ * carries the session's name and promise but not yet the list of what follows
+ * (`streamPlan`). Every later segment has the whole plan.
+ */
+export interface SegmentOutline {
+  title: string;
+  promise: string;
+  /** Every segment title in order, or null while the rest of the plan is still being written. */
+  segmentTitles: string[] | null;
+}
+
 export function segmentMessages(args: {
   system: string;
-  plan: LessonPlan;
+  lesson: SegmentOutline;
   segment: LessonSegmentPlan;
   previousTitles: string[];
   modelContext: string;
@@ -122,22 +137,31 @@ export function segmentMessages(args: {
   language: string;
 }): Message[] {
   const order = args.segment.index + 1;
+  const titles = args.lesson.segmentTitles;
+  const lines = [
+    `SESSION: "${args.lesson.title}" — ${args.lesson.promise}`,
+    titles
+      ? `Segments: ${titles.map((t, i) => `${i + 1}. ${t}`).join(' · ')}`
+      : 'The rest of the outline comes after this segment: cover this segment’s goal only, and leave the rest for later.',
+    args.previousTitles.length
+      ? `Already taught: ${args.previousTitles.join(' · ')}.`
+      : 'This is the opening: greet in one sentence, name the topic, then teach.',
+    '',
+    `NOW TEACH SEGMENT ${order}: "${args.segment.title}"`,
+    `Goal: ${args.segment.goal}`,
+    `Length: about ${Math.round(args.segment.seconds / 60)} minute(s) of speech — ${Math.max(6, Math.round(args.segment.seconds / 7))} to ${Math.min(16, Math.max(8, Math.round(args.segment.seconds / 5)))} sentences, no more. One idea per sentence; cut anything that repeats.`,
+    args.segment.hasCheck
+      ? 'End with ONE short check-in question (a "say" that asks it, then a "check" event with options and the expected answer).'
+      : 'End with a natural handoff to the next segment.',
+    titles && order === titles.length
+      ? 'This is the last segment: close the session in two warm sentences.'
+      : '',
+    `Evidence tier: ${args.evidenceTier}.`,
+    languageLine(args.language),
+  ];
   return [
     { role: 'system', content: args.system },
-    {
-      role: 'user',
-      content: `SESSION: "${args.plan.title}" — ${args.plan.promise}
-Segments: ${args.plan.segments.map((s) => `${s.index + 1}. ${s.title}`).join(' · ')}
-${args.previousTitles.length ? `Already taught: ${args.previousTitles.join(' · ')}.` : 'This is the opening: greet in one sentence, name the topic, then teach.'}
-
-NOW TEACH SEGMENT ${order}: "${args.segment.title}"
-Goal: ${args.segment.goal}
-Length: about ${Math.round(args.segment.seconds / 60)} minute(s) of speech — ${Math.max(6, Math.round(args.segment.seconds / 7))} to ${Math.min(16, Math.max(8, Math.round(args.segment.seconds / 5)))} sentences, no more. One idea per sentence; cut anything that repeats.
-${args.segment.hasCheck ? 'End with ONE short check-in question (a "say" that asks it, then a "check" event with options and the expected answer).' : 'End with a natural handoff to the next segment.'}
-${order === args.plan.segments.length ? 'This is the last segment: close the session in two warm sentences.' : ''}
-Evidence tier: ${args.evidenceTier}.
-${languageLine(args.language)}`,
-    },
+    { role: 'user', content: lines.join('\n') },
     { role: 'user', content: `EVIDENCE (AnswerContext):\n${args.modelContext}` },
   ];
 }

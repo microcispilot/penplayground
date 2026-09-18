@@ -102,6 +102,13 @@ describe('a fake-provider session gets a real thumbnail', () => {
         e.kind === 'metric' && e.sample.stage === 'llm' && e.sample.meta.purpose === 'session_meta',
     );
     expect(metaSamples).toHaveLength(1);
+    // And it never competes with the first sentence for the provider (ADR-0013):
+    // the card is queued only once the learner can hear the expert, so its call
+    // starts no earlier than the session's first synthesis.
+    const firstAudio = entries.find((e) => e.kind === 'audio');
+    const metaSample = metaSamples[0];
+    expect(firstAudio?.kind).toBe('audio');
+    if (firstAudio && metaSample) expect(metaSample.t).toBeGreaterThanOrEqual(firstAudio.t);
     const metaCosts = entries.filter(
       (e) =>
         e.kind === 'cost' && e.line.component === 'llm' && e.line.meta.purpose === 'session_meta',

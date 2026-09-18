@@ -20,13 +20,20 @@ export {
   type SessionMetricsOptions,
   type StageTimer,
 } from './metrics.js';
-export { planLesson, toLessonPlan } from './planner.js';
+export {
+  type PlanOpening,
+  type PlanRequest,
+  type PlanStream,
+  streamPlan,
+  toLessonPlan,
+} from './planner.js';
 export {
   BOARD_RULES,
   EVIDENCE_RULES,
   FORMAT_RULES,
   lessonSystemPrompt,
   metaMessages,
+  type SegmentOutline,
   SPEECH_RULES,
 } from './prompts.js';
 export {

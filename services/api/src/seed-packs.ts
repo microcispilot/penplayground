@@ -5,7 +5,7 @@ import type { Onten } from '@pen/onten';
 import { canonicalKnowledgeIdFor, inferDomain, titleCase } from '@pen/onten';
 import { logger } from './logger.js';
 
-interface SeedMeta {
+export interface SeedMeta {
   file: string;
   topic: string;
   title: string;
@@ -18,7 +18,7 @@ interface SeedMeta {
  * original markdown written for Pen Playground (CC0). Real topics arrive through
  * the corpus builder; seeds never override a qualified pack of the same id.
  */
-const SEEDS: SeedMeta[] = [
+export const SEEDS: SeedMeta[] = [
   {
     file: 'transformers.md',
     topic: 'How Transformers work in LLMs',
