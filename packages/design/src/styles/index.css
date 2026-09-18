@@ -1,5 +1,4 @@
 @import "@fontsource-variable/inter";
-@import "@fontsource-variable/fraunces";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@fontsource/caveat/400.css";
 @import "@fontsource/caveat/600.css";
@@ -19,22 +18,16 @@
     font-family: var(--font-sans);
     font-size: var(--text-base);
     line-height: 1.5;
-    font-feature-settings:
-      "cv11",
-      "ss01",
-      "tnum" 0;
+    font-feature-settings: "tnum" 0;
   }
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    font-weight: 500;
-    letter-spacing: -0.02em;
-    line-height: 1.08;
+    font-weight: var(--display-weight, 500);
+    letter-spacing: var(--display-tracking, -0.02em);
+    line-height: 1.06;
     margin: 0;
-    font-variation-settings:
-      "opsz" 96,
-      "SOFT" 30;
   }
   h4,
   h5,

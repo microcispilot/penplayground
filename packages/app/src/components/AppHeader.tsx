@@ -55,7 +55,7 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
           aria-label="Pen Playground home"
         >
           <PenMark />
-          <span className="font-display text-[21px] font-medium tracking-[-0.03em]">Pen</span>
+          <span className="font-display text-[21px] font-semibold tracking-[-0.045em]">Pen</span>
         </button>
         <nav className="hidden items-center gap-0.5 sm:flex" aria-label="Primary">
           <NavLink to="/" end className={link}>
