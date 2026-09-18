@@ -57,10 +57,15 @@ In the room the board *is* the screen: no shell, nothing else to look at.
 5. **Preparing** — expert portrait breathing, topic title, "9 steps · about 14
    minutes", one progress bar, honest status lines. Only shown on a knowledge
    miss; a prepared topic skips straight to the room.
-6. **Live session** — the board fills the screen ("You're viewing Ada's
-   screen"), the expert orb bottom-right, captions, pinned "You asked" notes,
-   check-in questions, a bottom bar with progress dots, clock, participants,
-   pause (host), captions, mic, fullscreen, Leave.
+6. **Live session** — the board takes most of the screen, with the session
+   panel beside it (ADR-0019): everyone on the call with the AI human first and
+   whoever is talking ringed, the conversation — the lesson's sentences, your
+   questions, the answers, check-ins, and quiet lines when the room speaks about
+   itself — and a composer. It folds away from a chevron on its own edge and the
+   board takes the width, and then the captions come back over the paper.
+   Pinned "You asked" notes and check-in questions stay on the board. A bottom
+   bar carries progress dots, clock, pause (host), captions, mic, reactions, the
+   panel, fullscreen and Leave.
 7. **Recap** — what was covered, your questions, save / learn something else.
 8. **Terms of Use · Privacy Policy** — reachable from the bottom of the sidebar
    and from Home's footer. Plain, current, and true to what the product does:
@@ -102,6 +107,10 @@ during preparation.
   voice (interrupt) and ask questions. Their question is captioned for the room
   and the expert answers the room.
 - A guest interrupt while the host has paused is queued, not lost.
+- **Reactions** are how a room of twelve says something without taking the floor
+  (ADR-0019): eight emoji, one tap, the sender's face beside their emoji over the
+  participants for a few seconds. They never interrupt the expert, and the one
+  that says "I am lost" is there on purpose.
 - Everyone sees the same cue stream; the board renders identically on every
   client (deterministic cues, not pixel streaming).
 
