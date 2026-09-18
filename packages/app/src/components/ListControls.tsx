@@ -137,7 +137,14 @@ export function SaveButton({
  * the same light paper in both themes — so these two wear the paper skin, not
  * the page one (`ControlSurface`).
  */
-export function CardActions({ session }: { session: Pick<SessionRecord, 'id' | 'likes'> }) {
+export function CardActions({
+  session,
+  className,
+}: {
+  session: Pick<SessionRecord, 'id' | 'likes'>;
+  /** The card stacks these above its own stretched "open" control; see SessionCard. */
+  className?: string;
+}) {
   const marked = useLists((s) => s.likedIds.has(session.id) || s.savedIds.has(session.id));
   return (
     <div
@@ -145,6 +152,7 @@ export function CardActions({ session }: { session: Pick<SessionRecord, 'id' | '
       className={cn(
         'absolute top-2 left-2 flex gap-1.5 transition-opacity duration-[var(--duration-base)]',
         marked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+        className,
       )}
     >
       <LikeButton session={session} size="sm" surface="paper" className="shadow-card" />

@@ -12,6 +12,7 @@ import {
   ParticipantId,
   PLAN_LIMITS,
   PLAN_NAME,
+  PlanCode,
   planAllowsExpert,
   requiredPlanFor,
   type ServerErrorCode,
@@ -70,6 +71,8 @@ const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
 const DevGoogleBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   email: z.string().email().optional(),
+  /** Development only: sign in on a paid plan, so a gated screen can be exercised. */
+  plan: PlanCode.optional(),
 });
 
 /** Everything a participant may change about themselves. Every field is optional; at least one must be present. */
@@ -853,15 +856,12 @@ export function buildApp(services: Services): App {
         avatarUrl: null,
       });
       if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
-      const issued = await identity.issue({
-        sub: row.id,
-        name,
-        plan: claims.plan,
-        anonymous: false,
-      });
+      const plan = body.data.plan ?? claims.plan;
+      if (plan !== claims.plan) await services.participants.setPlan(row.id, plan);
+      const issued = await identity.issue({ sub: row.id, name, plan, anonymous: false });
       return c.json({
         token: issued.token,
-        participant: participantView({ ...row, plan: claims.plan }),
+        participant: participantView({ ...row, plan }),
         outcome: 'linked',
       });
     });

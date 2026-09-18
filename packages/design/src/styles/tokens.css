@@ -75,8 +75,12 @@
   --color-presence: oklch(0.72 0.14 160); /* live / listening green */
   --color-presence-soft: oklch(0.72 0.14 160 / 16%);
   --color-speaking: var(--color-teal-500);
-  /* hero / section washes: brand tints at low opacity so they read on both themes */
-  --color-wash-aqua: oklch(0.824 0.062 188.3 / 55%);
+  /* Hero and section washes: brand tints at low opacity, readable on both
+     themes. The first one is mixed from the accent, so the hero's light is
+     the brand's light whichever family is active; the warm and the neutral
+     stay fixed, because a wash of one hue only reads as a wash next to one
+     that is not. */
+  --color-wash-aqua: color-mix(in srgb, var(--color-accent) 24%, transparent);
   --color-wash-yellow: oklch(0.9 0.07 85 / 30%);
   --color-wash-pink: oklch(0.94 0.008 61.4 / 90%);
 
@@ -247,7 +251,7 @@
       0 0 0 1px oklch(1 0 0 / 13%), 0 2px 6px oklch(0 0 0 / 40%), 0 8px 20px oklch(0 0 0 / 34%);
     --shadow-thumb-hover:
       0 0 0 1px oklch(1 0 0 / 20%), 0 4px 10px oklch(0 0 0 / 46%), 0 14px 32px oklch(0 0 0 / 42%);
-    --color-wash-aqua: oklch(0.6 0.08 200 / 22%);
+    --color-wash-aqua: color-mix(in srgb, var(--color-accent) 17%, transparent);
     --color-wash-yellow: oklch(0.7 0.1 80 / 14%);
     --color-wash-pink: oklch(0.3 0.02 300 / 40%);
   }
@@ -281,7 +285,7 @@
     0 0 0 1px oklch(1 0 0 / 13%), 0 2px 6px oklch(0 0 0 / 40%), 0 8px 20px oklch(0 0 0 / 34%);
   --shadow-thumb-hover:
     0 0 0 1px oklch(1 0 0 / 20%), 0 4px 10px oklch(0 0 0 / 46%), 0 14px 32px oklch(0 0 0 / 42%);
-  --color-wash-aqua: oklch(0.6 0.08 200 / 22%);
+  --color-wash-aqua: color-mix(in srgb, var(--color-accent) 17%, transparent);
   --color-wash-yellow: oklch(0.7 0.1 80 / 14%);
   --color-wash-pink: oklch(0.3 0.02 300 / 40%);
 }

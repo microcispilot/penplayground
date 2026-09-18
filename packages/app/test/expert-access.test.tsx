@@ -1,7 +1,9 @@
 import type { Expert } from '@pen/contracts';
+import { LEGEND_MIN_PLAN, LEGENDS_BY_PLAN } from '@pen/contracts';
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Home } from '../src/screens/Home.js';
+import { Pricing } from '../src/screens/Pricing.js';
 import { ANONYMOUS, renderWithApp, SIGNED_IN } from './harness.js';
 
 afterEach(cleanup);
@@ -140,5 +142,25 @@ describe('a learner whose plan does include them', () => {
     home('anonymous');
     await waitFor(() => expect(tiles().length).toBe(12));
     expect(tiles()[2]?.getAttribute('data-locked')).toBe('true');
+  });
+});
+
+describe('the plans say what they include', () => {
+  it('counts the legends from the map rather than from a typed number', async () => {
+    expect(LEGENDS_BY_PLAN.free).toBe(0);
+    expect(LEGENDS_BY_PLAN.standard).toBe(6);
+    expect(LEGENDS_BY_PLAN.professional).toBe(Object.keys(LEGEND_MIN_PLAN).length);
+
+    renderWithApp(<Pricing />, {
+      routes: { '/api/billing/status': { enabled: false } },
+    });
+    expect(
+      await screen.findByText(/6 legendary teachers, including Socrates and Ada Lovelace/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/All 10 legendary teachers, Newton and Shakespeare among them/),
+    ).toBeTruthy();
+    // Calm: what a plan gives, never what the learner is missing.
+    expect(screen.queryByText(/\blocked\b|upgrade required/i)).toBeNull();
   });
 });

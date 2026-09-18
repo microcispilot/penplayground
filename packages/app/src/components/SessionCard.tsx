@@ -190,29 +190,34 @@ export function SessionCard({
   onOpen: () => void;
 }) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: the card is a link-like region whose overlay carries its own buttons
-    <div
-      role="button"
-      tabIndex={0}
-      className="group flex cursor-pointer flex-col gap-3 rounded-[var(--radius-lg)] text-left focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4"
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        // Only the card itself. Enter and Space on the overlay's like/save
-        // buttons bubble up here, and preventing the default would cancel the
-        // button's own activation and open the session instead of liking it.
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
-    >
+    /*
+      The whole card opens the session, and the card also carries two controls
+      of its own. A control may not contain other controls: a `role="button"`
+      wrapper around the like and save buttons is axe's `nested-interactive`,
+      rated serious — a screen reader does not reliably reach the inner ones
+      and the focus order goes wrong.
+
+      So the card is a plain container, and the thing you press is a real
+      button stretched across it, named by the session's title; like and save
+      sit on a layer above it. Three tab stops, no nesting, and the ring still
+      draws around the whole card because it hangs off the container. This is
+      the arrangement YouTube uses for the same shape.
+    */
+    <div className="group relative flex flex-col gap-3 rounded-[var(--radius-lg)] text-left has-[button:focus-visible]:outline-2 has-[button:focus-visible]:outline-accent has-[button:focus-visible]:outline-offset-4">
+      <button
+        type="button"
+        data-testid="session-card-open"
+        className="absolute inset-0 z-0 cursor-pointer rounded-[var(--radius-lg)] outline-none"
+        onClick={onOpen}
+      >
+        <span className="sr-only">{session.title}</span>
+      </button>
       <div className="relative aspect-video">
         <SessionThumb
           session={session}
           className="absolute inset-0 transition-[transform,box-shadow] duration-[var(--duration-base)] group-hover:scale-[1.01] group-hover:shadow-[var(--shadow-thumb-hover)]"
         />
-        <CardActions session={session} />
+        <CardActions session={session} className="z-10" />
         <span className="absolute right-2 bottom-2 rounded-[5px] bg-navy-900/85 px-1.5 py-0.5 text-xs text-white tabular">
           {formatDuration(session.durationMs || session.segments * 90_000)}
         </span>

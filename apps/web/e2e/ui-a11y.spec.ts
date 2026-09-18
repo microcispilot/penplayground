@@ -31,9 +31,22 @@ async function scan(page: Page, name: string) {
 test.describe('accessibility', () => {
   test.setTimeout(240_000);
 
+  /**
+   * Home has two grids: the starter cards it shows while the catalogue is
+   * empty, and the real session cards once there is something to list. Only
+   * the second carries the like and save buttons, and they are what makes the
+   * card's own "open" control a nesting hazard — so the scan has to happen
+   * with a real card on the page, not the empty state.
+   */
   test('Explore has no serious violations', async ({ page }) => {
+    await startLesson(page);
+    await waitForInk(page);
+    await endSession(page);
     await page.goto(`${UI_WEB}/`);
     await expect(page.getByRole('heading', { name: /What do you want to/ })).toBeVisible();
+    const card = page.getByTestId('session-card-open').first();
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('like-button').first()).toBeAttached();
     await scan(page, 'Home');
   });
 

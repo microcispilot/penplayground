@@ -39,11 +39,26 @@ function card(onOpen: () => void) {
 
 describe('a session card', () => {
   /**
-   * The card is a `role="button"` region with its own buttons inside it, so a
-   * keydown on the heart bubbles to the card. Without a guard the card's
-   * handler calls `preventDefault()` — which cancels the button's own
-   * activation — and navigates instead: the overlay becomes mouse-only.
+   * A control may not contain other controls (axe's `nested-interactive`, rated
+   * serious). The card is a plain container; what you press to open the session
+   * is a real button stretched across it, and the like and save buttons are its
+   * siblings, not its children.
    */
+  it('nests no control inside another', async () => {
+    renderWithApp(card(() => undefined));
+    const open = await screen.findByTestId('session-card-open');
+    expect(open.querySelector('button, a, [tabindex]')).toBeNull();
+    for (const id of ['like-button', 'save-button']) {
+      const control = screen.getByTestId(id);
+      expect(control.closest('[role="button"]')).toBeNull();
+      expect(control.parentElement?.closest('button')).toBeNull();
+    }
+    // Exactly three tab stops: open, like, save.
+    expect(
+      document.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])'),
+    ).toHaveLength(3);
+  });
+
   it('lets Enter and Space reach the like and save buttons instead of opening the session', async () => {
     const onOpen = vi.fn();
     renderWithApp(card(onOpen), {
@@ -61,14 +76,13 @@ describe('a session card', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('still opens the session from the card itself', async () => {
+  it('opens the session from the control that carries its title', async () => {
     const onOpen = vi.fn();
     renderWithApp(card(onOpen));
-    const region = await screen.findByRole('button', { name: /Transformers/ });
-    fireEvent.keyDown(region, { key: 'Enter' });
+    const open = await screen.findByRole('button', { name: /Transformers/ });
+    expect(open.getAttribute('data-testid')).toBe('session-card-open');
+    fireEvent.click(open);
     expect(onOpen).toHaveBeenCalledTimes(1);
-    fireEvent.click(region);
-    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
   /** The overlay floats on the thumbnail, which is paper in both themes (tokens.css). */
