@@ -157,11 +157,25 @@ export const ServerTurnDone = z.object({
   kind: z.literal('turn_done'),
   thread: z.string().max(16),
 });
-/** Tells conductors which take of a say to expect (older audio is discarded). */
+/**
+ * Tells conductors which take of a say to expect (older audio is discarded).
+ *
+ * `reason` says what the client has to do about audio it has *already* banked
+ * for that sentence:
+ *
+ * - `resume` (the default) — the room is re-speaking after a pause, a barge-in
+ *   or an answer, and the client dropped its bank when that began. Nothing to
+ *   undo; the newer take simply plays.
+ * - `pace` — the lesson is still running and the learner is mid-sentence
+ *   (ADR-0010). The sentences behind the one at the speaker were re-cut at a
+ *   new speed, so the client holds the newer audio until that sentence ends
+ *   and swaps the bank in the gap.
+ */
 export const ServerSayTake = z.object({
   kind: z.literal('say_take'),
   sayId: SayId,
   take: z.number().int().nonnegative(),
+  reason: z.enum(['resume', 'pace']).optional(),
 });
 export const ServerError = z.object({
   kind: z.literal('error'),

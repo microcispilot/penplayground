@@ -105,9 +105,17 @@ const Env = z.object({
   /**
    * Synthesis cache (ADR-0016): identical sentences are synthesised once and
    * replayed from `PEN_DATA_DIR/tts-cache` at the same streaming cadence.
-   * 0 disables the cache (every sentence is generated).
+   *
+   * Opt-in (0 = off) until the interaction recorded in tasks/todo.md is
+   * resolved: with the cache on, a *second* session on the same topic — where
+   * the lesson also comes from the memo, so nothing waits for the model —
+   * delivers audio far enough ahead of playback that the room and the client
+   * lose step (stale chunks, and a between-segment ad that never opens).
+   * Set `PEN_TTS_CACHE_MB=2048` to enable it; everything it does is tested,
+   * and the money it saves is real, but the voice is the product and it does
+   * not ship on by default with a known way to disturb it.
    */
-  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(2048),
+  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(0),
 
   /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
   PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().default(5),

@@ -3,6 +3,7 @@ import { sentryVitePlugin } from '@sentry/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { defaultPolicy } from './csp.js';
 
 const api = `http://127.0.0.1:${process.env.PEN_API_PORT ?? '4000'}`;
 const ws = api.replace('http', 'ws');
@@ -44,6 +45,17 @@ export default defineConfig(({ mode }) => {
     envDir: '../..',
     server: {
       port: 5173,
+      // The same policy the web container serves in production, minus the
+      // inline-script hashes Vite's own dev injections cannot satisfy. Serving
+      // it here is what lets the Playwright suite prove that nothing the app
+      // needs is blocked (apps/web/e2e/csp.spec.ts).
+      // `PEN_CSP_REPORT_ONLY=1` reports violations instead of blocking, which is
+      // how the policy is widened safely: run the suite, read what it reports.
+      headers: {
+        [process.env.PEN_CSP_REPORT_ONLY === '1'
+          ? 'Content-Security-Policy-Report-Only'
+          : 'Content-Security-Policy']: defaultPolicy({ dev: true }),
+      },
       proxy: {
         '/api': { target: api, changeOrigin: true },
         '/experts': { target: api, changeOrigin: true },

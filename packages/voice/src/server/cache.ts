@@ -40,11 +40,19 @@ import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from './types.j
 /** Same framing as the Fish adapter, so a hit and a miss are indistinguishable downstream. */
 const FRAME_MS = 120;
 /**
- * How much faster than realtime a cache hit streams. Fish delivers ≈ 4.5×
- * realtime when healthy (see `PLAYBACK_BANK_SECONDS` in the client player), so
- * 6× is "a fast provider", not a burst the bank has to absorb.
+ * How much faster than realtime a cache hit streams.
+ *
+ * A single Fish request arrives at ≈ 4.5× realtime, but a *lesson* does not:
+ * between sentences the pipeline waits for the next request to connect and
+ * produce its first byte, so the rate the client actually sees is close to
+ * realtime. A cache has no such wait, and replaying at the single-request rate
+ * made the whole lesson arrive far ahead of playback — measured, that is what
+ * pushed the room and the player out of step (the sentence at the speaker and
+ * the sentence on the wire stopped being neighbours). The first chunk still
+ * goes out with no delay at all, which is the latency the learner actually
+ * feels; the tail is paced to what a healthy session looks like.
  */
-const DEFAULT_REPLAY_SPEED = 6;
+const DEFAULT_REPLAY_SPEED = 1.25;
 /** Sentences longer than this are not worth an entry (and are not what a lesson says). */
 const MAX_CACHEABLE_BYTES = 8 * 1024 * 1024;
 
@@ -223,6 +231,11 @@ export class CachingSynthesizer implements SpeechSynthesizer {
 
   get enabled(): boolean {
     return this.o.maxBytes > 0;
+  }
+
+  /** How much faster than realtime a hit streams back (1 = exactly realtime). */
+  get replayRate(): number {
+    return this.replaySpeed;
   }
 
   snapshot(): CacheStats {

@@ -37,12 +37,23 @@ export const AD_RULES = {
  * and it is written down in docs/ADS.md.
  */
 export function nonPersonalisedTag(tagUrl: string, opts: { limited?: boolean } = {}): string {
-  // A VAST tag is a URL with query parameters; adding to it keeps any macro
-  // (`correlator=`) the seller put there intact.
-  const url = new URL(tagUrl);
-  url.searchParams.set('npa', '1');
-  if (opts.limited) url.searchParams.set('ltd', '1');
-  return url.toString();
+  const withNpa = setTagParam(tagUrl, 'npa', '1');
+  return opts.limited ? setTagParam(withNpa, 'ltd', '1') : withNpa;
+}
+
+/**
+ * Set one parameter on a VAST tag without touching the rest of it.
+ *
+ * Deliberately textual. `URLSearchParams` re-serialises the whole query, which
+ * percent-encodes the slashes in Ad Manager's own `iu=/NNNN/unit-name`
+ * parameter and produces a tag the ad server does not recognise — an empty
+ * response, and a lesson with a blank slot where the ad should be. The tag
+ * belongs to the seller; we add to it and change nothing else.
+ */
+function setTagParam(tagUrl: string, key: 'npa' | 'ltd', value: string): string {
+  const existing = new RegExp(`([?&])${key}=[^&]*`);
+  if (existing.test(tagUrl)) return tagUrl.replace(existing, `$1${key}=${value}`);
+  return `${tagUrl}${tagUrl.includes('?') ? '&' : '?'}${key}=${value}`;
 }
 
 /**

@@ -1005,7 +1005,7 @@ export class SessionRoom {
     for (const { id, say } of retake) {
       const take = (this.takes.get(id) ?? 0) + 1;
       this.takes.set(id, take);
-      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take });
+      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take, reason: 'pace' });
       this.pipeline.enqueue(say, 'lesson', take, this.voiceForCurrentLanguage());
     }
     this.observer.event('room.pace_retake', {
@@ -1166,7 +1166,7 @@ export class SessionRoom {
       if (!entry) continue;
       const take = (this.takes.get(id) ?? 0) + 1;
       this.takes.set(id, take);
-      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take });
+      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take, reason: 'resume' });
       this.pipeline.enqueue(entry.say, 'lesson', take, this.voiceForCurrentLanguage());
     }
     this.state = { ...this.state, resume: null };

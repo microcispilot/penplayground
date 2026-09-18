@@ -53,6 +53,10 @@ export default defineConfig({
         // (the fake lesson has three segments) — see e2e/ads.spec.ts.
         PEN_AD_TEST_TAGS: '1',
         PEN_ADS_EVERY_SEGMENTS: '1',
+        // Every spec starts its sessions from 127.0.0.1, and some leave the
+        // room live on purpose; the production per-IP cap (5) would refuse the
+        // later ones. The cap itself is covered by services/api/test/limits.test.ts.
+        PEN_MAX_SESSIONS_PER_IP: '50',
       },
       timeout: 60_000,
     },
@@ -76,6 +80,7 @@ export default defineConfig({
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
         PEN_DEV_PLAN: 'professional',
+        PEN_MAX_SESSIONS_PER_IP: '50',
         LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
         LIVEKIT_API_KEY: process.env.PEN_E2E_LIVEKIT_API_KEY ?? 'devkey',
         LIVEKIT_API_SECRET: process.env.PEN_E2E_LIVEKIT_API_SECRET ?? 'secret',

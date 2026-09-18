@@ -166,6 +166,11 @@ export class Conductor {
         return;
       case 'say_take': {
         this.expectedTake.set(message.sayId, message.take);
+        // Only a pace re-take happens under a running lesson with a full bank.
+        // A `resume` take follows a pause, a barge-in or an answer, all of
+        // which already emptied the bank — holding audio for one of those
+        // would strand it until the ceiling fires.
+        if (message.reason !== 'pace') return;
         const banked = this.bankedTakes.get(message.sayId);
         // Banked but not yet heard: hold the newer take until the boundary.
         if (banked !== undefined && banked < message.take && !this.startedSays.has(message.sayId))
@@ -194,7 +199,12 @@ export class Conductor {
           skippableAfterMs: message.skippableAfterMs,
         };
         // A preparation-time card runs now and ends as soon as the room goes live (or on skip).
-        if (message.afterSeq < 0) this.startAd();
+        // A boundary card runs now too when its cue has already been played:
+        // the room schedules the slot from the host's progress reports, so on a
+        // fast-arriving lesson (a memo hit, a cached voice, a quick provider)
+        // the message can land after the sentence it was meant to follow. The
+        // alternative is an ad that waits for a sentence that may never come.
+        if (message.afterSeq < 0 || this.lastProgressSeq >= message.afterSeq) this.startAd();
         return;
       case 'prep':
         return;

@@ -55,7 +55,17 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/DOMAIN/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-    add_header Strict-Transport-Security "max-age=31536000" always;
+    # HSTS: a year, subdomains included. Add `preload` only once you are sure
+    # every subdomain will stay on TLS for good.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # The Content-Security-Policy is served by the web container itself
+    # (deploy/web/nginx.conf, generated from apps/web/csp.ts). It is deliberately
+    # NOT repeated here: two copies would drift, and nginx sends both, so a
+    # browser would enforce the intersection and silently break whichever tier
+    # was older. To see what the container serves:
+    #   pnpm --filter @pen/web csp:print
+    # If you ever terminate TLS somewhere that does not proxy to that container,
+    # paste that output here as `add_header Content-Security-Policy "..." always;`.
 
     client_max_body_size 10m;
 

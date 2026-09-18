@@ -318,6 +318,70 @@ Runbook: `docs/ADS.md`. Two things live in the deploy surface:
 
   Check with `curl -s https://DOMAIN/ads.txt`.
 
+## Limits, spend and privacy (ADR-0015, ADR-0016, ADR-0017)
+
+Everything here has a default that is safe to deploy unchanged.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `PEN_DAILY_SPEND_CAP_USD` | `25` | Provider spend one UTC day may cost before new **free** sessions wait (503 `CAPACITY`). Summed from the same cost lines the Insights tab shows, rebuilt from today's ledgers on boot. `0` disables the breaker, and the boot log says so. |
+| `PEN_DAILY_SPEND_PAID_MULTIPLE` | `3` | Paid plans keep going to `cap × this` before anyone is held back. |
+| `PEN_MAX_SESSIONS_PER_IP` | `5` | Live rooms one address may host at once. |
+| `PEN_MAX_BODY_BYTES` | `65536` | Largest JSON body any route accepts (Stripe's signed webhook gets 256 KB). |
+| `PEN_TTS_CACHE_MB` | `0` (off) | Synthesis cache under `PEN_DATA_DIR/tts-cache`. See ADR-0016 before enabling: it is complete and tested, and opt-in until one interaction is understood. |
+
+Plan limits themselves (sessions per UTC day, session length, seats) are not
+environment variables — they are product promises, and they live in
+`PLAN_LIMITS` in `packages/contracts/src/billing.ts`.
+
+Watch them in production:
+
+```sh
+curl -s -H "authorization: Bearer <token>" https://DOMAIN/api/admin/costs | jq '.spend, .tts'
+docker compose logs api | grep -E 'spend\.(ready|capacity|threshold)|rooms\.ip_cap|room\.length_ceiling'
+```
+
+`spend.threshold` is also a Sentry warning, raised once a day at 80 % of the cap.
+
+### Security headers and the Content-Security-Policy
+
+The API sets its own headers (HSTS only for requests that arrived over TLS,
+`Permissions-Policy: microphone=(self)`, `no-referrer`, `X-Frame-Options: DENY`)
+and allows CORS only from `PEN_PUBLIC_URL` / `PEN_API_URL` — plus any loopback
+port outside production, because dev hosts move ports between checkouts.
+
+The page's **CSP is generated from one source**, `apps/web/csp.ts`, and copied
+into `deploy/web/nginx.conf` as `$pen_csp`. Never hand-edit the copy:
+
+```sh
+pnpm --filter @pen/web csp:print          # what the container should serve
+pnpm --filter @pen/web test               # fails if the copy has drifted
+```
+
+Every origin in it was observed in a real session (`apps/web/e2e/csp.spec.ts`
+records them to `.pen-data/csp-origins.json`), and the dev server serves the
+same policy so the whole Playwright suite doubles as proof that nothing the app
+needs is blocked. To widen it safely, run the suite with
+`PEN_CSP_REPORT_ONLY=1` and read what the browser reports before changing a
+directive. The host vhost deliberately does **not** repeat the policy: two
+copies drift, and a browser enforces the intersection of both.
+
+After a deploy, check the header survived the proxy chain:
+
+```sh
+curl -sI https://DOMAIN/ | grep -iE 'content-security-policy|strict-transport|permissions-policy'
+```
+
+### Data rights
+
+`DELETE /api/me` removes the participant, every session they host, and those
+sessions' ledgers, audio, thumbnails and rendered videos. `DELETE /api/sessions/:id`
+does the same for one session, and `PATCH /api/sessions/:id` flips its
+visibility. `GET /api/me/export` hands the caller their own records as JSON.
+Stripe is deliberately untouched by account deletion: a subscription is
+cancelled through the billing portal, and silently dropping the record of one
+would be worse than leaving it.
+
 ## Updates
 
 ```sh

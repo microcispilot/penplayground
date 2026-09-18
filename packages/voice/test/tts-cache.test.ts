@@ -124,6 +124,15 @@ describe('CachingSynthesizer', () => {
     expect(cacheKey('fish-cloud:s1', request('a'))).not.toBe(cacheKey(inner.id, request('a')));
   });
 
+  it('never streams a lesson faster than the client can hear it', () => {
+    // The default has to stay near realtime: a cache that delivers a whole
+    // lesson in seconds puts the room and the player out of step.
+    const inner = new CountingSynthesizer(1);
+    const cache = new CachingSynthesizer({ inner, dir, maxBytes: 1 << 20 });
+    expect(cache.replayRate).toBeGreaterThan(1);
+    expect(cache.replayRate).toBeLessThanOrEqual(2);
+  });
+
   it('streams a hit like a healthy provider: first frame immediately, the rest paced', async () => {
     const inner = new CountingSynthesizer(5);
     const { sleep, waits } = recordingSleep();
