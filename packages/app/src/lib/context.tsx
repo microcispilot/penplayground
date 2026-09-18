@@ -4,6 +4,7 @@ import type { Platform } from '../platform/types.js';
 import { identify, initAnalytics, resetAnalytics, track } from './analytics.js';
 import { bootMode } from './boot.js';
 import { forgetGoogleSelection } from './google.js';
+import { formatDurationMinutes, formatRelativeDay } from './locale.js';
 
 interface AppContextValue {
   platform: Platform;
@@ -98,16 +99,9 @@ export function formatClock(ms: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export function formatDuration(ms: number): string {
-  const min = Math.max(1, Math.round(ms / 60_000));
-  return `${min} min`;
-}
-
-export function relativeDay(ts: number): string {
-  const d = Math.floor((Date.now() - ts) / 86_400_000);
-  if (d <= 0) return 'Today';
-  if (d === 1) return 'Yesterday';
-  if (d < 7) return `${d} days ago`;
-  if (d < 14) return 'Last week';
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
+/**
+ * Durations and dates are the reader's, not the product's: `Intl` writes them
+ * in the browser's own language and numbering system (lib/locale.ts).
+ */
+export const formatDuration = formatDurationMinutes;
+export const relativeDay = formatRelativeDay;

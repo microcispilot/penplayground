@@ -1,0 +1,113 @@
+import { Button } from '@pen/design';
+import { RotateCcw } from 'lucide-react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportClientError } from '../lib/analytics.js';
+import { applySeo } from '../lib/seo.js';
+import { PenMark } from './AppHeader.js';
+
+/**
+ * The last screen between a render crash and a white page. It captures the
+ * failure through the Monitor seam (Sentry in the hosts, content-free as
+ * everywhere else), shows the reference id so a report can be traced to the
+ * issue, and offers the one thing that usually works: try again.
+ *
+ * `onError` is the test seam; the hosts leave it out and the monitor from
+ * `initAnalytics` is used.
+ */
+export interface AppErrorBoundaryProps {
+  children: ReactNode;
+  /** Capture the failure and return the monitor's reference id (or null). */
+  onError?: (error: unknown, info: { componentStack: string }) => string | null;
+}
+
+interface State {
+  failed: boolean;
+  /** Sentry event id; null when no monitor is configured (local development). */
+  ref: string | null;
+  /** Bumped on "Try again" so the subtree remounts from scratch rather than replaying its state. */
+  attempt: number;
+}
+
+export class AppErrorBoundary extends Component<AppErrorBoundaryProps, State> {
+  override state: State = { failed: false, ref: null, attempt: 0 };
+
+  static getDerivedStateFromError(): Pick<State, 'failed'> {
+    return { failed: true };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
+    const capture =
+      this.props.onError ??
+      ((e: unknown, i: { componentStack: string }) =>
+        reportClientError('app.render', e, i.componentStack ? 'render' : undefined));
+    let ref: string | null = null;
+    try {
+      ref = capture(error, { componentStack: info.componentStack ?? '' });
+    } catch {
+      // Reporting must never be the reason the fallback does not render.
+    }
+    this.setState({ ref });
+    applySeo({ title: 'Something went wrong', noindex: true });
+  }
+
+  private retry = (): void => {
+    this.setState((s) => ({ failed: false, ref: null, attempt: s.attempt + 1 }));
+  };
+
+  override render(): ReactNode {
+    if (!this.state.failed) return <div key={this.state.attempt}>{this.props.children}</div>;
+    return <ErrorScreen reference={this.state.ref} onRetry={this.retry} />;
+  }
+}
+
+/** The fallback itself, exported so it can be looked at (and tested) on its own. */
+export function ErrorScreen({
+  reference,
+  onRetry,
+}: {
+  reference: string | null;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="grid min-h-screen place-items-center bg-bg px-6" data-testid="error-screen">
+      <div className="flex w-full max-w-[460px] flex-col items-center text-center">
+        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-[18px] bg-bg-elevated text-fg shadow-float">
+          <PenMark size={28} />
+        </span>
+        <h1 className="animate-rise text-[clamp(1.6rem,3.4vw,2.1rem)] leading-[1.1] tracking-[-0.03em] text-fg text-pretty">
+          This screen stopped drawing
+        </h1>
+        <p className="animate-rise mt-3 max-w-[380px] text-[15.5px] leading-[1.55] text-fg-2 text-pretty">
+          Something in the page gave up halfway. Nothing you did caused it, and your sessions are
+          safe. Try it again — it usually comes back.
+        </p>
+        <div className="animate-rise mt-7 flex items-center gap-2">
+          <Button variant="primary" size="lg" leading={<RotateCcw size={15} />} onClick={onRetry}>
+            Try again
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              // A full load, not a route change: whatever broke is not in the next document.
+              if (typeof window !== 'undefined') window.location.assign('/');
+            }}
+          >
+            Back to Explore
+          </Button>
+        </div>
+        {reference ? (
+          <p className="animate-rise mt-6 text-[12.5px] text-fg-3">
+            If it keeps happening, this is where we look:{' '}
+            <code
+              className="rounded-[var(--radius-sm)] bg-surface-2 px-1.5 py-0.5 font-mono text-[12px] text-fg-2"
+              data-testid="error-reference"
+            >
+              {reference}
+            </code>
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}

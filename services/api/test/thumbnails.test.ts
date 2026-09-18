@@ -147,6 +147,42 @@ describe('a fake-provider session gets a real thumbnail', () => {
     expect(existsSync(og)).toBe(true);
   });
 
+  it('gives the next session on the same lesson the same card for nothing', async () => {
+    const before = services.costs.snapshot().session_meta?.calls ?? 0;
+    const second = await rooms.create({
+      topic: 'How Transformers work in LLMs',
+      host,
+      band: 'beginner',
+      visibility: 'public',
+    });
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline && !(await services.sessions.get(second.record.id))?.thumbnail)
+      await new Promise((r) => setTimeout(r, 50));
+    await services.meta.idle();
+    // Zero model calls: the card and the sketch came off the cache next to the lesson memo.
+    expect(services.costs.snapshot().session_meta?.calls ?? 0).toBe(before);
+    const stored = services.thumbnails.meta(second.record.id);
+    expect(stored?.reused).toBe(true);
+    expect(stored?.savedUsd).toBeGreaterThanOrEqual(0);
+    expect(stored?.meta.description).toBe(services.thumbnails.meta(sessionId)?.meta.description);
+    const record = await services.sessions.get(second.record.id);
+    expect(record?.thumbnail).toBe(thumbnailPath(second.record.id));
+    expect(record?.description).toMatch(/attention/i);
+    // Its own sketch on disk, drawn with its own seed — and its ledger says it was reused.
+    expect(existsSync(join(dataDir, 'sessions', second.record.id, THUMB_FILES.svg))).toBe(true);
+    const sample = services.ledger
+      .read(second.record.id)
+      .find(
+        (e) =>
+          e.kind === 'metric' &&
+          e.sample.stage === 'llm' &&
+          e.sample.meta.purpose === 'session_meta',
+      );
+    expect(sample?.kind === 'metric' && sample.sample.meta.reused).toBe(true);
+    expect(sample?.kind === 'metric' && (sample.sample.meta.savedUsd as number) >= 0).toBe(true);
+    await rooms.end(second.record.id);
+  }, 30_000);
+
   it('the share page advertises the Open Graph PNG and the description', async () => {
     const res = await fetchApp(`/s/${sessionId}`);
     const html = await res.text();
@@ -164,6 +200,7 @@ describe('a fake-provider session gets a real thumbnail', () => {
     const bare: SessionRecord = {
       id: 's_bare_0001',
       topic: 't',
+      language: 'en-US',
       title: 'Bare',
       promise: '',
       expertId: 'ada',

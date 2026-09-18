@@ -63,6 +63,8 @@ export const sessions = pgTable(
     thumbnail: text('thumbnail'),
     /** `${lang}.${slug}` from the Onten registry: groups same-intent sessions for reuse statistics. */
     canonicalId: text('canonical_id'),
+    /** BCP-47 language the session was taught in; drives `<html lang>`, caption direction and dates. */
+    language: text('language').notNull().default('en-US'),
     /** Card / Open Graph copy from the same call; empty until then. */
     description: text('description').notNull().default(''),
     keywords: jsonb('keywords').$type<string[]>().notNull().default([]),

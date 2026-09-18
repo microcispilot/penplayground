@@ -1,8 +1,10 @@
 import { ToastProvider } from '@pen/design';
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
+import { AppErrorBoundary } from './components/AppErrorBoundary.js';
 import { setAnalyticsContext, trackInteraction } from './lib/analytics.js';
 import { AppProvider } from './lib/context.js';
+import { RouteHead } from './lib/seo.js';
 import type { Platform } from './platform/types.js';
 import { Home } from './screens/Home.js';
 import { Library } from './screens/Library.js';
@@ -37,21 +39,25 @@ function ScreenTracker() {
 /** The whole product. Hosts render this once with their Platform. */
 export function PenApp({ platform }: { platform: Platform }) {
   return (
-    <AppProvider platform={platform}>
-      <ToastProvider>
-        <BrowserRouter>
-          <ScreenTracker />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/sessions" element={<Library />} />
-            <Route path="/sessions/:id" element={<SessionPage />} />
-            <Route path="/room/:id" element={<Room />} />
-            <Route path="/replay/:id" element={<Replay />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </ToastProvider>
-    </AppProvider>
+    // Outermost: a crash inside a provider still lands on a screen, not a white page.
+    <AppErrorBoundary>
+      <AppProvider platform={platform}>
+        <ToastProvider>
+          <BrowserRouter>
+            <ScreenTracker />
+            <RouteHead />
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/sessions" element={<Library />} />
+              <Route path="/sessions/:id" element={<SessionPage />} />
+              <Route path="/room/:id" element={<Room />} />
+              <Route path="/replay/:id" element={<Replay />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </ToastProvider>
+      </AppProvider>
+    </AppErrorBoundary>
   );
 }

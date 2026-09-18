@@ -159,8 +159,12 @@ rsync -rltz -e "$RSYNC_SSH" \
   deploy/nginx/pen-playground.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 rsync -rltz -e "$RSYNC_SSH" \
-  deploy/livekit/livekit.yaml \
+  deploy/livekit/livekit.yaml deploy/livekit/cert-sync.sh \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/livekit/"
+# The TURN certificate lives here (cert-sync.sh fills it); without it the container refuses to
+# start, so an empty directory is created on every deploy and the hook is left executable.
+remote "mkdir -p '$PEN_DEPLOY_ROOT/livekit/certs' && chmod 0750 '$PEN_DEPLOY_ROOT/livekit/certs' \
+  && chmod 0750 '$PEN_DEPLOY_ROOT/livekit/cert-sync.sh'"
 # openrsync (macOS) has no --chmod; normalise modes on the host instead.
 remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '*.example' -o -name '*.md' \\) -exec chmod 0644 {} +"
 # The vhost with DOMAIN filled in, ready to copy into /etc/nginx/sites-available.

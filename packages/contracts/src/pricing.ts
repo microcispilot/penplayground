@@ -80,6 +80,8 @@ export const FRESH_ESTIMATE_TOKENS = {
   /** Topic miss: outline + evalset calls; searches are priced separately. */
   prepareOutline: { input: 1_500, output: 1_200 },
   prepareEvalset: { input: 2_500, output: 800 },
+  /** Card copy + thumbnail sketch, one structured-output call (ADR-0013). */
+  sessionMeta: { input: 1_400, output: 600 },
 } as const;
 /** Searches a typical preparation runs (DEFAULT_BUDGET allows 50; outlines ask for ~10). */
 export const FRESH_ESTIMATE_SEARCHES = 10;

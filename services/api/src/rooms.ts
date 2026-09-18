@@ -145,7 +145,12 @@ export class RoomRegistry {
     // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
     const memoised =
       !args.expertId && resolution.packId
-        ? await services.onten.memo.find(resolution.canonicalKnowledgeId, args.band)
+        ? await services.onten.memo.find(
+            resolution.canonicalKnowledgeId,
+            args.band,
+            undefined,
+            locale,
+          )
         : null;
     const memoExpert = memoised ? services.experts.get(memoised.expertId) : null;
     const expert =
@@ -213,6 +218,7 @@ export class RoomRegistry {
       band: args.band,
       domain: resolution.domainBoundary,
       visibility: args.visibility,
+      language: locale,
       startedAt: Date.now(),
       endedAt: null,
       durationMs: 0,
@@ -253,6 +259,8 @@ export class RoomRegistry {
         title: state.plan.title,
         promise: state.plan.promise,
         segments: state.plan.segments.length,
+        // The room may have switched language with the learner; the saved page follows it.
+        language: state.language,
       });
       // Card copy + sketch in the background (ADR-0013): the first audio never waits for it.
       services.meta.enqueue({
@@ -262,6 +270,8 @@ export class RoomRegistry {
         topic: args.topic,
         plan: state.plan,
         language: state.language,
+        // The lesson memo's scope is the card's too: a topic taught before reuses its sketch.
+        canonicalId: resolution.canonicalKnowledgeId,
         cacheKey: roomCacheKey(expert.id, args.band),
         telemetry: metrics,
       });

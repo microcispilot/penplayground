@@ -152,7 +152,8 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
       if (g.char === ' ') continue;
       const start = g.index;
       if (revealed <= start) continue;
-      const frac = Math.min(1, revealed - start);
+      // A right-to-left run reveals over its whole length; a glyph over its own width.
+      const frac = Math.min(1, (revealed - start) / (g.kind === 'run' ? (g.chars ?? 1) : 1));
       const partial = frac < 1 && clipId !== null;
       const transform = g.rotation
         ? `rotate(${g.rotation.toFixed(2)} ${g.x.toFixed(2)} ${g.y.toFixed(2)})`
@@ -161,6 +162,43 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
       // Last line of defence: nothing non-finite reaches the DOM.
       const d = hasNonFinite(g.d) ? sanitisePathData(g.d).d : g.d;
       let el: ReactElement;
+      if (g.kind === 'run') {
+        // The browser shapes and joins the run; the pen only decides how much of it shows.
+        const id = clipId ? `${clipId}-run-${g.index}` : null;
+        const visible = (
+          <text
+            key={key}
+            x={g.x}
+            y={g.y}
+            fill={color}
+            fontFamily="var(--font-hand)"
+            fontSize={props.fontSize}
+            direction="rtl"
+            textAnchor="start"
+            style={{ userSelect: 'none', unicodeBidi: 'plaintext' }}
+          >
+            {g.char}
+          </text>
+        );
+        if (frac < 1 && id) {
+          nodes.push(
+            <g key={`${key}-clip`} clipPath={`url(#${id})`}>
+              <clipPath id={id}>
+                {/* The hand moves right to left: the window opens from the right edge. */}
+                <rect
+                  x={g.x - g.advance * frac}
+                  y={0}
+                  width={Math.max(0, g.advance * frac)}
+                  height={props.h + props.fontSize}
+                />
+              </clipPath>
+              {visible}
+            </g>,
+          );
+          nib = { x: g.x - g.advance * frac, y: g.y - props.fontSize * 0.28 };
+        } else nodes.push(visible);
+        continue;
+      }
       if (g.kind === 'outline') {
         el = (
           <path

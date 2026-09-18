@@ -47,6 +47,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': { target: api, changeOrigin: true },
         '/experts': { target: api, changeOrigin: true },
+        // Share pages and the sitemap are rendered by the API; nginx does the same in production.
+        '/s/': { target: api, changeOrigin: true },
+        '/sitemap.xml': { target: api, changeOrigin: true },
         '/ws': { target: ws, ws: true },
       },
     },

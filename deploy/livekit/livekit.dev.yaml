@@ -1,0 +1,51 @@
+# LiveKit for local development, with TURN switched on — the configuration
+# `apps/web/e2e/rooms-turn.spec.ts` proves the relay path against:
+#
+#   docker run --rm --name pen-livekit-turn \
+#     -p 7880:7880 -p 7881:7881 -p 7882:7882/udp -p 3478:3478/udp -p 30000-30010:30000-30010/udp \
+#     -v "$PWD/deploy/livekit/livekit.dev.yaml:/etc/livekit.yaml:ro" \
+#     livekit/livekit-server:v1.9.12 --config /etc/livekit.yaml --node-ip 127.0.0.1
+#
+# Differences from production (deploy/livekit/livekit.yaml):
+#   - the development key pair is in the file, and is not a secret;
+#   - TURN/UDP only: TURN/TLS needs a certificate a browser trusts, which localhost has not, so
+#     the relay proof runs over `turn:` (the code path a client takes is the same — it is the
+#     server's relay allocation, not the transport to it, that the forced-relay test exercises);
+#   - a tiny relay range, so the Docker port mapping stays small;
+#   - `use_external_ip: false`: on a workstation STUN discovers the router's address and the
+#     browser can never reach it.
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+# LiveKit refuses a secret shorter than 32 characters, so the development pair is this
+# (the e2e passes the same one to the API: PEN_E2E_LIVEKIT_API_SECRET in playwright.config.ts).
+keys:
+  devkey: pen-local-development-secret-0123456789
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+  # The TURN/UDP URL handed to clients is built from this address
+  # (`iceServersForParticipant` in livekit/pkg/service/roommanager.go), so it has to be
+  # in the config file, not only on the command line.
+  node_ip: 127.0.0.1
+
+turn:
+  enabled: true
+  domain: localhost
+  udp_port: 3478
+  external_tls: false
+  relay_range_start: 30000
+  relay_range_end: 30010
+
+room:
+  auto_create: true
+  empty_timeout: 300
+  max_participants: 12
+  enable_remote_unmute: false
+
+logging:
+  level: info
+  json: false

@@ -51,8 +51,29 @@ tokens on the critical path and the plan call is on the session model).
   the placeholder once loaded; the saved-session page polls the record on a
   slow back-off for fresh sessions only.
 
+- **One card per lesson, not per session.** The card describes the lesson, so
+  it is cached under the lesson memo's own scope — canonical topic + band +
+  persona + language — with a digest of the plan it describes
+  (`FileSessionMetaCache`, `<data>/onten/session-meta-cache.json`, beside
+  `lesson-memo.json`). The second session on a topic reuses the description and
+  the sketch with **zero model calls**, and says so the way every other reuse
+  does (ADR-0011): one `llm` stage sample with `reused: true` and `savedUsd`
+  (the recorded cost of the call it replaces, or the fresh estimate), no cost
+  lines, and `reused` in `meta.json`. A re-planned lesson has a different
+  digest and is drawn again; one scope keeps one card, and the file is capped.
+  The sketch is re-rendered per session (its own seed), so two sessions on a
+  topic look like the same idea drawn twice by the same hand, not a copy.
+- **Backfill.** `pnpm --filter @pen/api thumbnails:backfill [--limit N]
+  [--dry-run]` walks the sessions with no sketch, newest first, and runs them
+  through the same queue (two at a time) and the same cache — one session per
+  lesson first, so the rest cost nothing. A session whose files are already on
+  disk only has its record patched; a session still being taught is left to its
+  own job. The dry run prices the work and writes nothing.
+
 ## Consequences
 ≈ $0.0005–0.001 per session at luna prices (≈ 1.4k input, ≈ 0.6k output
-tokens); render + raster ≈ 120 ms of CPU off the critical path. Sessions
-created before this ADR keep the placeholder (no backfill). Memo-hit sessions
-still get their own call; caching the sketch per lesson memo is a follow-up.
+tokens) — but only for the first session on a lesson; every repeat is free and
+reports what it saved. Render + raster ≈ 120 ms of CPU off the critical path,
+paid per session either way. Sessions created before this ADR have a backfill
+now. The cache is one JSON file on the node's disk: a second node would want it
+in Postgres, which is the same seam (`SessionMetaCachePort`).

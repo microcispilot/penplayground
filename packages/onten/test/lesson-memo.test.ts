@@ -10,6 +10,7 @@ const base = {
   packId: 'pack-1',
   packRevision: 'r1',
   plan: { title: 'T' },
+  language: 'en-US',
 };
 
 describe('lesson memo (incremental, per persona)', () => {
@@ -86,5 +87,41 @@ describe('lesson memo (incremental, per persona)', () => {
     expect(reloaded?.costUsd.segments).toEqual([0, 0, 0.01]);
     expect(reloaded?.timesReused).toBe(4);
     expect(JSON.parse(readFileSync(join(dir, 'lesson-memo.json'), 'utf8'))).toHaveLength(1);
+    // A memo written before the language field is an English lesson, and only that.
+    expect(await again.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'fa-IR')).toBeNull();
+    expect((await again.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'en-GB'))?.id).toBe(
+      'old1',
+    );
+  });
+
+  it('never replays a lesson in the language it was not taught in', async () => {
+    const memo = new MemoryLessonMemo();
+    await memo.put({
+      ...base,
+      expertId: 'ada',
+      cuesBySegment: [[{ type: 'say', id: 'en' }]],
+      costUsd: { plan: 0, segments: [0] },
+    });
+    await memo.put({
+      ...base,
+      language: 'fa-IR',
+      expertId: 'ada',
+      cuesBySegment: [[{ type: 'say', id: 'fa' }]],
+      costUsd: { plan: 0, segments: [0] },
+    });
+    const english = await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'en-US');
+    const persian = await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'fa-IR');
+    expect(english?.cuesBySegment[0]).toEqual([{ type: 'say', id: 'en' }]);
+    expect(persian?.cuesBySegment[0]).toEqual([{ type: 'say', id: 'fa' }]);
+    // The region is not part of the key: Persian is Persian.
+    expect((await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'fa'))?.id).toBe(
+      persian?.id,
+    );
+    // A language nobody taught in has nothing to replay.
+    expect(await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'de-DE')).toBeNull();
+    // The default is English, which is what every call before this field meant.
+    expect(
+      (await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada'))?.cuesBySegment[0],
+    ).toEqual([{ type: 'say', id: 'en' }]);
   });
 });

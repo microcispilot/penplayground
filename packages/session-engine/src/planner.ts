@@ -10,6 +10,12 @@ export interface PlanRequest {
   unitTitles: string[];
   targetMinutes: number;
   cacheKey: string;
+  /**
+   * BCP-47 language of the session. The plan is read by the learner — the card
+   * title, the promise, the segment names on the recap — so it is written in
+   * their language, not in the language the material happens to be in.
+   */
+  language: string;
 }
 
 /** Turns a topic + available material into a LessonPlan (structured output, validated). */

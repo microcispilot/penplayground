@@ -14,6 +14,7 @@ import {
 import { VideoAd } from '../components/VideoAd.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
+import { dirOf, useDocumentLanguage } from '../lib/locale.js';
 import { RoomSession } from '../room/RoomSession.js';
 import { useRoomStore } from '../room/store.js';
 
@@ -32,6 +33,9 @@ export function Room() {
   const [typed, setTyped] = useState('');
   const shellRef = useRef<HTMLDivElement>(null);
   const ui = useRoomStore();
+  // The page speaks the session's language: screen readers, hyphenation, and the lang attribute
+  // a crawler reads. Direction stays per-text (lib/locale.ts) so the chrome never flips mid-lesson.
+  useDocumentLanguage(ui.state?.language);
 
   // Expert + session record for the chrome.
   useEffect(() => {
@@ -161,11 +165,17 @@ export function Room() {
                 size={88}
               />
             </div>
-            <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
+            <CaptionOverlay
+              line={ui.caption}
+              hint={ui.hint}
+              on={ui.captionsOn}
+              language={state.language}
+            />
             {ui.check && session ? (
               <CheckCard
                 check={ui.check}
                 question={checkQuestion}
+                language={state.language}
                 onAnswer={(t) => session.answerCheck(ui.check?.id ?? '', t)}
               />
             ) : null}
@@ -237,6 +247,9 @@ export function Room() {
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 aria-label="Ask a question"
+                lang={state.language}
+                // The learner writes in the lesson's language; what they type reads in its direction.
+                dir={dirOf(state.language)}
               />
               <Button
                 variant="secondary"

@@ -185,6 +185,12 @@ export interface LessonMemoEntry {
   id: string;
   canonicalKnowledgeId: string;
   band: SelectionBand;
+  /**
+   * BCP-47 language the lesson was taught in. A memo is a script of spoken
+   * sentences and board text, so it can only be replayed for a learner in the
+   * same language; entries written before this field are English.
+   */
+  language: string;
   packId: string;
   packRevision: string;
   expertId: string;
@@ -203,11 +209,17 @@ export interface LessonMemoEntry {
 }
 
 export interface LessonMemo {
-  /** The latest memo for the scope and band; for one persona when `expertId` is given (scripts carry the persona's voice). */
+  /**
+   * The latest memo for the scope, band and language; for one persona when
+   * `expertId` is given (scripts carry the persona's voice). `language` is
+   * matched on its subtag (`fa-IR` replays an `fa` memo) and defaults to
+   * English, which is what entries written before the field hold.
+   */
   find(
     canonicalKnowledgeId: string,
     band: SelectionBand,
     expertId?: string,
+    language?: string,
   ): Promise<LessonMemoEntry | null>;
   put(entry: Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>): Promise<LessonMemoEntry>;
   /** Fill segments a later session generated (never overwrites a segment already memoised). */
