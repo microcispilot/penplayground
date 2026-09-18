@@ -276,8 +276,11 @@ export function Home() {
               {withExpert ? (
                 <span className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent-soft py-0.5 pr-1.5 pl-1 text-[13px] font-medium text-accent-strong">
                   <img
-                    src={api.portraitUrl(withExpert.portrait?.src) ?? undefined}
+                    src={api.portraitUrl(withExpert.portrait?.src, 192) ?? undefined}
                     alt=""
+                    width={24}
+                    height={24}
+                    decoding="async"
                     className="size-6 rounded-full object-cover"
                   />
                   with {withExpert.displayName.split(' ')[0]}
@@ -393,7 +396,7 @@ export function Home() {
                   <ExpertCard
                     key={e.id}
                     expert={e}
-                    portraitUrl={api.portraitUrl(e.portrait?.src)}
+                    portraitUrl={api.portraitUrl(e.portrait?.src, 192)}
                     selected={withExpert?.id === e.id}
                     onChoose={() => chooseExpert(e)}
                   />
@@ -459,7 +462,7 @@ export function Home() {
                         key={s.id}
                         session={s}
                         expertName={expert?.displayName ?? 'AI expert'}
-                        portraitUrl={api.portraitUrl(expert?.portrait?.src)}
+                        portraitUrl={api.portraitUrl(expert?.portrait?.src, 192)}
                         onOpen={() => navigate(`/sessions/${s.id}`)}
                       />
                     );
@@ -519,6 +522,9 @@ function ExpertCard({
           src={portraitUrl}
           alt={expert.portrait?.alt ?? expert.displayName}
           loading="lazy"
+          decoding="async"
+          width={196}
+          height={245}
           className="absolute inset-0 size-full object-cover transition-transform duration-[600ms] ease-[var(--ease-out)] group-hover:scale-[1.04]"
         />
       ) : null}

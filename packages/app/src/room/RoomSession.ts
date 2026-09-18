@@ -92,7 +92,7 @@ export class RoomSession {
         console.warn('[playback]', code, detail);
         reportClientError(code, detail, 'tts');
         if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED') {
-          set({ notice: { text: 'Tap anywhere to enable sound.', tone: 'neutral' } });
+          set({ soundBlocked: true });
           this.armSoundGesture();
         }
       },
@@ -235,6 +235,7 @@ export class RoomSession {
           durationMs: ad.durationMs,
         });
       },
+      setWaiting: (waiting) => set({ waiting }),
       notice: (text, tone) => set({ notice: text ? { text, tone } : null }),
     };
 
@@ -328,26 +329,34 @@ export class RoomSession {
     if (typeof document === 'undefined' || this.gestureArmed) return;
     this.gestureArmed = true;
     const onTap = () => {
-      this.gestureArmed = false;
-      void this.player
-        .prime(AUDIO.ttsSampleRate)
-        .then(() => useRoomStore.getState().set({ notice: null }));
+      void this.enableSound();
     };
     document.addEventListener('pointerdown', onTap, { once: true, capture: true });
   }
 
-  /** Remote voices need a gesture too when the page was opened cold: the next tap starts them. */
+  /** Remote voices need a gesture too when the page was opened cold: the same one control starts them. */
   private armRoomPlaybackGesture(): void {
     if (typeof document === 'undefined') return;
-    useRoomStore
-      .getState()
-      .set({ notice: { text: 'Tap anywhere to hear the room.', tone: 'neutral' } });
-    document.addEventListener(
-      'pointerdown',
-      () =>
-        void this.audio.resumePlayback().then(() => useRoomStore.getState().set({ notice: null })),
-      { once: true, capture: true },
-    );
+    useRoomStore.getState().set({ soundBlocked: true });
+    this.armSoundGesture();
+  }
+
+  /**
+   * Turn the sound on from a real user gesture. Unlocks the expert's playback
+   * context and any remote voices in one go, then clears the state — the
+   * learner pressed one control and everything they should hear is audible.
+   */
+  async enableSound(): Promise<void> {
+    this.gestureArmed = false;
+    await this.player.prime(AUDIO.ttsSampleRate);
+    if (useRoomStore.getState().audio.playbackBlocked)
+      await this.audio.resumePlayback().catch(() => undefined);
+    useRoomStore.getState().set({ soundBlocked: false, notice: null });
+  }
+
+  /** The learner asked to reconnect after the automatic attempts gave up. */
+  retryConnection(): void {
+    this.client.retry();
   }
 
   /** The segmenter raises its bar while any voice plays through the speakers: the expert's or another participant's. */

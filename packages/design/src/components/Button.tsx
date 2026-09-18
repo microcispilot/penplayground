@@ -15,8 +15,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const base =
   'inline-flex items-center justify-center gap-2 whitespace-nowrap select-none rounded-[var(--radius-md)] font-medium transition-[background-color,color,box-shadow,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)] disabled:opacity-45 disabled:cursor-not-allowed active:scale-[0.985]';
 const variants: Record<ButtonVariant, string> = {
+  // Not --color-accent: that tone under --color-on-accent measures 3.75:1, which
+  // is fine for a stroke and below AA for the product's main call to action.
   primary:
-    'bg-accent text-on-accent hover:bg-accent-strong shadow-[0_1px_0_oklch(1_0_0/12%)_inset]',
+    'bg-accent-strong text-on-accent hover:bg-accent-pressed shadow-[0_1px_0_oklch(1_0_0/12%)_inset]',
   secondary: 'bg-transparent text-fg hairline hover:bg-surface-2',
   ghost: 'bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg',
   danger: 'bg-danger text-white hover:brightness-110',

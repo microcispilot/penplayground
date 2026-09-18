@@ -136,7 +136,10 @@ export function ParticipantsControl({
           id={panelId}
           role="dialog"
           aria-label="Participants"
-          className="absolute right-0 bottom-[calc(100%+10px)] z-[20] w-[300px] animate-rise rounded-[var(--radius-lg)] bg-bg-elevated p-2 shadow-pop hairline"
+          // Anchored to the control on a wide screen; pinned to the viewport on a
+          // phone, where a 300 px panel hung off a control near the middle of the
+          // bar would have run off one edge or the other.
+          className="fixed inset-x-3 bottom-[68px] z-[20] w-auto animate-rise rounded-[var(--radius-lg)] bg-bg-elevated p-2 shadow-pop hairline sm:absolute sm:inset-x-auto sm:right-0 sm:bottom-[calc(100%+10px)] sm:w-[300px]"
         >
           <div className="flex items-center justify-between px-2 pt-1 pb-2">
             <span className="text-xs font-medium tracking-[0.08em] text-fg-3 uppercase">

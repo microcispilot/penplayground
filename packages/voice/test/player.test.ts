@@ -588,3 +588,63 @@ describe('PcmPlayer', () => {
     expect(h.errors.at(-1)?.code).toBe('PEN_PLAYBACK_AUDIO_CONTEXT_FAILED');
   });
 });
+
+describe('PcmPlayer: the tap that turns the sound on', () => {
+  /**
+   * The room's "Tap to hear …" control calls `prime()` from a real user
+   * gesture. This is the proof that the tap is what makes audio audible: the
+   * context is suspended by autoplay policy, reports itself once, and is
+   * running after the tap — with no further complaint.
+   */
+  it('a suspended context starts running after prime(), and stops reporting itself', async () => {
+    const errors: string[] = [];
+    /** Autoplay policy: resume() only takes effect once a gesture has happened. */
+    let gestured = false;
+    let context: ReturnType<typeof fakeContext> | undefined;
+    const player = new PcmPlayer({
+      onError: (code) => errors.push(code),
+      createAudioContext: (rate) => {
+        const ctx = fakeContext(rate, 'suspended');
+        ctx.resume = async () => {
+          if (gestured) ctx.state = 'running';
+        };
+        context = ctx;
+        return ctx;
+      },
+      setInterval: () => 'i',
+      clearInterval: () => undefined,
+    });
+
+    player.enqueue(chunk('s1', 0, 0, 120));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errors.filter((c) => c === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED')).toHaveLength(1);
+    expect(context?.state).toBe('suspended');
+
+    // The learner taps the pill.
+    const before = errors.length;
+    gestured = true;
+    await player.prime(44100);
+    expect(context?.state).toBe('running');
+    // Nothing new to say: the learner fixed it.
+    expect(errors).toHaveLength(before);
+    player.dispose();
+  });
+});
+
+describe('PcmPlayer: a disposed player says nothing', () => {
+  it('does not report a closed context as an autoplay block', async () => {
+    const errors: string[] = [];
+    const player = new PcmPlayer({
+      onError: (code) => errors.push(code),
+      createAudioContext: (rate) => fakeContext(rate, 'suspended'),
+      setInterval: () => 'i',
+      clearInterval: () => undefined,
+    });
+    // React StrictMode: the first instance is torn down while prime() is in flight.
+    const primed = player.prime(44100);
+    player.dispose();
+    await primed;
+    expect(errors).toHaveLength(0);
+  });
+});

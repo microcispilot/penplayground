@@ -1,5 +1,5 @@
 import type { InteractionName, InteractionProps } from '@pen/contracts';
-import posthog from 'posthog-js';
+import type { PostHog } from 'posthog-js';
 import type { Monitor, Platform } from '../platform/types.js';
 
 /**
@@ -22,35 +22,68 @@ let monitor: Monitor | null = null;
 /** When the learner clicked Start on Home (ms epoch); the room measures time-to-first-audio from it. */
 let startClickedAt: number | null = null;
 
+/**
+ * posthog-js is ~200 kB that nothing on the first screen needs, so it is
+ * fetched after the app has booted instead of inside the entry bundle. Until
+ * it lands (or when it never does — a blocked host, an offline launch) the
+ * calls below stay synchronous and simply queue: analytics must never be on
+ * the critical path of a lesson, and must never throw into a screen.
+ */
+let client: PostHog | null = null;
+const pending: Array<(ph: PostHog) => void> = [];
+/** Bounded: a session that never loads the SDK must not grow a queue forever. */
+const PENDING_LIMIT = 200;
+
+function withClient(fn: (ph: PostHog) => void): void {
+  if (client) {
+    fn(client);
+    return;
+  }
+  if (pending.length < PENDING_LIMIT) pending.push(fn);
+}
+
 export function initAnalytics(platform: Platform): void {
   monitor = platform.monitor ?? null;
-  if (!platform.analytics) return;
-  posthog.init(platform.analytics.token, {
-    api_host: platform.analytics.host,
-    autocapture: false,
-    capture_pageview: true,
-    capture_pageleave: true,
-    disable_session_recording: true,
-    persistence: 'localStorage',
-    person_profiles: 'identified_only',
-  });
-  posthog.register({ app: `pen-academy-${platform.name}` });
+  const analytics = platform.analytics;
+  if (!analytics) return;
+  void import('posthog-js')
+    .then(({ default: posthog }) => {
+      posthog.init(analytics.token, {
+        api_host: analytics.host,
+        autocapture: false,
+        capture_pageview: true,
+        capture_pageleave: true,
+        disable_session_recording: true,
+        persistence: 'localStorage',
+        person_profiles: 'identified_only',
+      });
+      posthog.register({ app: `pen-academy-${platform.name}` });
+      client = posthog;
+      for (const fn of pending.splice(0)) fn(posthog);
+    })
+    .catch((error: unknown) => {
+      // Never a user-visible failure: the product works without product analytics.
+      pending.length = 0;
+      monitor?.breadcrumb('analytics_unavailable', {
+        code: error instanceof Error ? error.name : 'unknown',
+      });
+    });
 }
 
 export function track(
   event: string,
   properties: Record<string, string | number | boolean> = {},
 ): void {
-  if (posthog.__loaded) posthog.capture(event, properties);
+  withClient((ph) => ph.capture(event, properties));
 }
 
 export function identify(id: string): void {
-  if (posthog.__loaded) posthog.identify(id);
+  withClient((ph) => ph.identify(id));
 }
 
 /** Sign-out: the next participant must not inherit this person's PostHog identity. */
 export function resetAnalytics(): void {
-  if (posthog.__loaded) posthog.reset();
+  withClient((ph) => ph.reset());
 }
 
 /** The room (or a screen) tells analytics where the learner is; Sentry gets the same as tags. */
@@ -119,4 +152,6 @@ export function resetAnalyticsForTests(): void {
   reporter = null;
   monitor = null;
   startClickedAt = null;
+  client = null;
+  pending.length = 0;
 }

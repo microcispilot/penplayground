@@ -1,21 +1,42 @@
 import type { Expert } from '@pen/contracts';
 import { Button, ExpertOrb, Pill, useToast } from '@pen/design';
-import { MonitorUp, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { BoardSurface } from '../components/BoardSurface.js';
+import { BoardSurface, preloadBoard } from '../components/BoardSurface.js';
 import {
+  AskSheet,
   BottomBar,
   CaptionOverlay,
   CheckCard,
   PreparingView,
   RecapPanel,
+  RoomStatus,
 } from '../components/RoomChrome.js';
 import { VideoAd } from '../components/VideoAd.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { RoomSession } from '../room/RoomSession.js';
 import { useRoomStore } from '../room/store.js';
+
+/** The orb is presence, not a portrait: it gives the board back its room on a small screen. */
+function orbSizeFor(width: number): number {
+  if (width < 640) return 52;
+  if (width < 1024) return 68;
+  return 88;
+}
+
+function useOrbSize(): number {
+  const [size, setSize] = useState(() =>
+    orbSizeFor(typeof window === 'undefined' ? 1280 : window.innerWidth),
+  );
+  useEffect(() => {
+    const onResize = () => setSize(orbSizeFor(window.innerWidth));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
+}
 
 /**
  * The live classroom. One RoomSession owns the socket, audio, mic and
@@ -30,8 +51,17 @@ export function Room() {
   const [expert, setExpert] = useState<Expert | null>(null);
   const [needsGesture, setNeedsGesture] = useState(false);
   const [typed, setTyped] = useState('');
+  const [askOpen, setAskOpen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLElement>(null);
   const ui = useRoomStore();
+  const orbSize = useOrbSize();
+
+  // The board chunk is lazy (it carries tldraw); fetch it while the room is still
+  // preparing so the paper is mounted before the first cue, not downloading on it.
+  useEffect(() => {
+    preloadBoard();
+  }, []);
 
   // Expert + session record for the chrome.
   useEffect(() => {
@@ -77,7 +107,7 @@ export function Room() {
 
   const isHost = ui.state?.hostId === participant?.id;
   const firstName = expert?.displayName.split(' ')[0] ?? 'Expert';
-  const portrait = api.portraitUrl(expert?.portrait?.src);
+  const portrait = api.portraitUrl(expert?.portrait?.src, 192);
   const presence =
     ui.state?.phase !== 'live'
       ? 'idle'
@@ -98,6 +128,16 @@ export function Room() {
     () => ui.notes.map((n) => ({ q: n.question, a: `${n.headline} — ${n.detail}` })),
     [ui.notes],
   );
+
+  const toggleMic = () => {
+    if (ui.micState === 'listening') {
+      session?.disableMic();
+      platform.storage.set('pen.mic', 'off');
+    } else {
+      platform.storage.set('pen.mic', 'on');
+      void session?.enableMic();
+    }
+  };
 
   if (ui.errorText) {
     return (
@@ -143,24 +183,47 @@ export function Room() {
 
   const state = ui.state;
   return (
-    <div ref={shellRef} className="flex h-screen flex-col overflow-hidden bg-bg">
+    <div ref={shellRef} className="flex h-dvh flex-col overflow-hidden bg-bg">
+      {/* The board is the content; a keyboard user should not have to walk the bar to reach it. */}
+      <a
+        href="#room-board"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[30] focus:rounded-[var(--radius-md)] focus:bg-bg-elevated focus:px-3 focus:py-2 focus:text-sm focus:shadow-pop"
+      >
+        Skip to the board
+      </a>
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col p-4">
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-[6px] shadow-board">
+        <div className="flex min-w-0 flex-1 flex-col p-2 sm:p-3 lg:p-4">
+          {/*
+            A named landmark so the skip link lands somewhere a screen reader can
+            announce. What is written on the paper reaches assistive technology
+            through the captions, which are the live region — announcing the
+            board's own strokes as well would say everything twice.
+          */}
+          <section
+            id="room-board"
+            ref={boardRef}
+            tabIndex={-1}
+            aria-label={`${firstName}'s board`}
+            className="relative min-h-0 flex-1 overflow-hidden rounded-[6px] shadow-board outline-none"
+          >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
-            <div
-              className={`absolute top-0 left-1/2 z-[3] flex -translate-x-1/2 items-center gap-1.5 rounded-b-[6px] bg-success-soft px-2.5 py-0.5 text-[9px] font-medium text-success transition-opacity ${state.mode === 'teaching' ? 'opacity-100' : 'opacity-0'}`}
-            >
-              <MonitorUp size={10} /> You're viewing {firstName}'s screen
-            </div>
-            <div className="absolute right-3 bottom-3 z-[6]">
+            <div className="absolute right-2 bottom-2 z-[6] sm:right-3 sm:bottom-3">
               <ExpertOrb
                 name={expert?.displayName ?? 'Expert'}
                 portraitUrl={portrait}
                 presence={presence}
-                size={88}
+                size={orbSize}
               />
             </div>
+            <RoomStatus
+              connection={ui.connection}
+              soundBlocked={ui.soundBlocked}
+              waiting={ui.waiting}
+              notice={ui.notice}
+              expertFirstName={firstName}
+              onEnableSound={() => void session?.enableSound()}
+              onRetry={() => session?.retryConnection()}
+            />
             <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
             {ui.check && session ? (
               <CheckCard
@@ -176,13 +239,6 @@ export function Room() {
                 onEvent={(name, props) => session.adEvent(name, props)}
                 onEnd={(reason) => session.skipAd(reason)}
               />
-            ) : null}
-            {ui.notice ? (
-              <div className="absolute top-3 left-3 z-[6]">
-                <Pill tone={ui.notice.tone === 'danger' ? 'danger' : 'neutral'}>
-                  {ui.notice.text}
-                </Pill>
-              </div>
             ) : null}
             {state.preparation && state.evidenceTier === 'unverified_live_source' ? (
               <div className="absolute top-3 right-3 z-[6]">
@@ -219,10 +275,11 @@ export function Room() {
                 onLearnMore={() => navigate('/')}
               />
             ) : null}
-          </div>
+          </section>
+          {/* Wide screens keep the question row in the page; a phone gets it as a sheet. */}
           {state.phase === 'live' ? (
             <form
-              className="mt-2 flex items-center gap-2"
+              className="mt-2 hidden items-center gap-2 md:flex"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (typed.trim() && session) {
@@ -261,27 +318,20 @@ export function Room() {
         onTogglePlay={() => session?.control(state.mode === 'paused' ? 'resume' : 'pause')}
         onSetPace={(pace) => session?.setPace(pace)}
         onToggleCaptions={() => session?.toggleCaptions()}
-        onToggleMic={() => {
-          if (ui.micState === 'listening') {
-            session?.disableMic();
-            platform.storage.set('pen.mic', 'off');
-          } else {
-            platform.storage.set('pen.mic', 'on');
-            void session?.enableMic();
-          }
-        }}
+        onToggleMic={toggleMic}
+        {...(state.phase === 'live' ? { onOpenAsk: () => setAskOpen(true) } : {})}
         onFullscreen={() => {
           trackInteraction('fullscreen');
           void shellRef.current?.requestFullscreen?.();
         }}
         audio={ui.audio}
         selfId={participant?.id ?? ''}
-        onMuteParticipant={(id) =>
+        onMuteParticipant={(pid) =>
           void session
-            ?.muteParticipant(id)
+            ?.muteParticipant(pid)
             .then((muted) =>
               toast(
-                id
+                pid
                   ? 'Muted'
                   : muted.length === 0
                     ? 'Nobody else is on voice'
@@ -299,6 +349,15 @@ export function Room() {
             navigate('/');
           }
         }}
+      />
+      <AskSheet
+        open={askOpen}
+        onClose={() => setAskOpen(false)}
+        expertFirstName={firstName}
+        micState={ui.micState}
+        micLive={ui.micState === 'listening' && !ui.audio.mutedByHost}
+        onToggleMic={toggleMic}
+        onAsk={(t) => session?.ask(t)}
       />
     </div>
   );

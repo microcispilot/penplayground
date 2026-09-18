@@ -10,6 +10,7 @@ export * from './components/IconButton.js';
 export * from './components/Kbd.js';
 export * from './components/Pill.js';
 export * from './components/Progress.js';
+export * from './components/Sheet.js';
 export * from './components/Skeleton.js';
 export * from './components/TextField.js';
 export * from './components/Toast.js';
