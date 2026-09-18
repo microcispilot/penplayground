@@ -129,6 +129,23 @@ export function Room() {
     [ui.notes],
   );
 
+  /**
+   * One control for "I cannot hear anything". Either the browser is holding the
+   * audio context (the usual case) or `start()` never got its gesture at all,
+   * and the learner should not have to know the difference.
+   */
+  const enableSound = () => {
+    if (needsGesture) {
+      setNeedsGesture(false);
+      session
+        ?.start()
+        .then(() => session.enableMic())
+        .catch(() => toast('Audio could not start', 'danger'));
+      return;
+    }
+    void session?.enableSound();
+  };
+
   const toggleMic = () => {
     if (ui.micState === 'listening') {
       session?.disableMic();
@@ -217,11 +234,11 @@ export function Room() {
             </div>
             <RoomStatus
               connection={ui.connection}
-              soundBlocked={ui.soundBlocked}
+              soundBlocked={ui.soundBlocked || needsGesture}
               waiting={ui.waiting}
               notice={ui.notice}
               expertFirstName={firstName}
-              onEnableSound={() => void session?.enableSound()}
+              onEnableSound={enableSound}
               onRetry={() => session?.retryConnection()}
             />
             <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
@@ -247,23 +264,6 @@ export function Room() {
                   {Math.max(state.preparation.sourcesFound, state.preparation.sourcesFetched)}{' '}
                   sources
                 </Pill>
-              </div>
-            ) : null}
-            {needsGesture ? (
-              <div className="absolute inset-0 z-[9] grid place-items-center bg-navy-900/60">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={() => {
-                    setNeedsGesture(false);
-                    session
-                      ?.start()
-                      .then(() => session.enableMic())
-                      .catch(() => toast('Audio could not start', 'danger'));
-                  }}
-                >
-                  Join with sound
-                </Button>
               </div>
             ) : null}
             {state.phase === 'ended' ? (

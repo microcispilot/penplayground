@@ -85,7 +85,7 @@ describe('foreground tokens on their surfaces', () => {
     return toSrgb(t.l, t.c, t.h);
   };
   /** The dark theme redefines the same names; read the `[data-theme="dark"]` block. */
-  const dark = (name: string) => {
+  const darkToken = (name: string) => {
     const css = readFileSync(
       fileURLToPath(new URL('../src/styles/tokens.css', import.meta.url)),
       'utf8',
@@ -93,8 +93,13 @@ describe('foreground tokens on their surfaces', () => {
     const block = css.slice(css.lastIndexOf(':root[data-theme="dark"]'));
     const found = new RegExp(`${name}:\\s*oklch\\(([^)]+)\\)`).exec(block);
     if (!found?.[1]) throw new Error(`dark token ${name} not found`);
-    const [l = 0, c = 0, h = 0] = found[1].trim().split(/\s+/).map(Number);
-    return toSrgb(l, c, h);
+    const [values, percent] = found[1].split('/');
+    const [l = 0, c = 0, h = 0] = (values ?? '').trim().split(/\s+/).map(Number);
+    return { l, c, h, alpha: percent ? Number(percent.trim().replace('%', '')) / 100 : 1 };
+  };
+  const dark = (name: string) => {
+    const t = darkToken(name);
+    return toSrgb(t.l, t.c, t.h);
   };
 
   it.each([
@@ -130,6 +135,23 @@ describe('foreground tokens on their surfaces', () => {
     ['--color-accent-pressed', 'hover'],
   ])('dark: the primary button label clears WCAG AA at %s (%s)', (bg) => {
     expect(contrast(dark('--color-on-accent'), dark(bg))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // The accent pill ("AI expert", "Complete", "Replay"): a tint over whichever
+  // surface it lands on, with the strong accent as its label.
+  it.each([['--color-bg'], ['--color-surface'], ['--color-bg-elevated']])(
+    'light: an accent pill on %s clears WCAG AA',
+    (surface) => {
+      const soft = token('--color-accent-soft');
+      const tint = over(toSrgb(soft.l, soft.c, soft.h), light(surface), soft.alpha);
+      expect(contrast(light('--color-accent-strong'), tint)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it('dark: an accent pill on the page background clears WCAG AA', () => {
+    const soft = darkToken('--color-accent-soft');
+    const tint = over(toSrgb(soft.l, soft.c, soft.h), dark('--color-bg'), soft.alpha);
+    expect(contrast(dark('--color-accent-strong'), tint)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('knows the tone that failed: --color-accent under a label is below AA', () => {
