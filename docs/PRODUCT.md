@@ -24,7 +24,7 @@ Everything below serves that moment.
 | 2 | Latency is the product | Prepared topic: expert speaks < 1.5 s after Start. Question: first audible reply ≤ 800 ms after the learner's last word (ceiling 1200 ms). | time-to-first-audio p50/p95 |
 | 3 | The voice is the brand | Fish Audio S2.1 Pro at native 44.1 kHz, sentence-streamed, barge-in fade ≤ 150 ms. | barge-in latency, MOS spot checks |
 | 4 | Generality | Any topic. A miss is a *preparing* state, never a "not supported". | topic-miss recovery rate |
-| 5 | Trust engineered visibly | Mic state always visible. "AI expert" disclosure on every persona. Sources shown for every answer. Host-only controls are explicit. | 0 privacy surprises |
+| 5 | Trust engineered visibly | Mic state always visible. The "AI expert" disclosure where it is read — the pill on a saved session, what every expert says when asked, and the Terms page in full — rather than a line in the furniture of every screen. Sources shown for every answer. Host-only controls are explicit. | 0 privacy surprises |
 | 6 | One magic moment in the first minute | Start → hear the expert → see the board being written → interrupt with a question → get a grounded answer. All within 60 s. | first-session completion |
 
 ## The app shell (ADR-0015)
@@ -39,8 +39,14 @@ remembered, a drawer under 1024 px. The sidebar is what the platform has:
   anonymous participant really does own its sessions, saves and likes on this
   device, and signing in with Google brings them along. Plan rows carry the
   plan's name, never a lock.
-- **Settings** — theme, and the pace the next session you host starts at.
-- **Bottom** — Terms · Privacy · "Experts are AI." · © 2026 Microcis.
+- **Settings** — theme. The pace lives in the session it is felt in, and is
+  kept on the account from there (ADR-0010), the way a video's playback speed
+  is: a signed-in learner's next session opens at it on any device.
+- **Bottom** — Terms · Privacy · © 2026 Microcis.
+
+Identity is the header's account chip and nowhere else. Signed out it reads
+"Sign in"; signed in it is the learner's picture — or a letter avatar — and
+their first name, which is how every other app says "this is you".
 
 In the room the board *is* the screen: no shell, nothing else to look at.
 
@@ -49,7 +55,11 @@ In the room the board *is* the screen: no shell, nothing else to look at.
 1. **Home** — "What do you want to learn?" search with a mic; "Most learned"
    grid of public sessions (YouTube feel) with category chips and a filter.
 2. **Experts** — all 105, filterable by domain and by name; picking one lands
-   back on Home with that expert already in the command bar.
+   back on Home with that expert already in the command bar. Home shows twelve
+   of them in a row and ends it with one more card that leads here. The ten
+   historical recreations are part of a plan (ADR-0020): six with Standard, all
+   ten with Professional. A learner without that plan still sees the face and
+   the name, with the plan's name on the card — never a lock, never a warning.
 3. **Your sessions** — replay, transcript, share, export.
 4. **History / Learn later / Liked / Downloads / Rooms** — the learner's own
    shelves. A heart and a bookmark on every card and on the session page fill
@@ -125,9 +135,9 @@ SDK, behind one swappable tag (ADR-0014, `docs/ADS.md`).
 
 The caps above are enforced on the server — `PLAN_LIMITS` in
 `packages/contracts/src/billing.ts` is the only table — and they are *explained*
-rather than sprung. Home shows "2 of 3 sessions left today" before anyone
-clicks Start, and when they are gone it says so in one sentence with a link to
-Pricing. There is no red box, no lock icon and no warning tone anywhere in the
+rather than sprung. Home says nothing at all while there is allowance left, and
+when it is gone it says so in one sentence with a link to Pricing: a running
+count is a meter, and a meter is a kind of pressure. There is no red box, no lock icon and no warning tone anywhere in the
 product: a limit is a fact about a plan, not a fault.
 
 On a day when the whole service has spent its budget (`PEN_DAILY_SPEND_CAP_USD`,

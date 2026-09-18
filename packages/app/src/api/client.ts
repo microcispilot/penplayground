@@ -1,7 +1,9 @@
 import {
+  clampPace,
   Expert,
   LikeResult,
   ListSummary,
+  PACE_DEFAULT,
   PlanUsage,
   RoomState,
   SaveResult,
@@ -22,6 +24,8 @@ export const Participant = z.object({
   anonymous: z.boolean().default(true),
   email: z.string().nullable().default(null),
   avatarUrl: z.string().nullable().default(null),
+  /** The teaching pace kept on the account (ADR-0010); defaulted so an older server still parses. */
+  pace: z.number().default(PACE_DEFAULT),
 });
 
 export { PlanUsage } from '@pen/contracts';
@@ -107,6 +111,16 @@ export class ApiError extends Error {
 /** Typed REST client; every response is validated with Zod before it reaches the UI. */
 export class ApiClient {
   private token: string | null;
+  /**
+   * The participant this client last saw. Only `rememberPace` reads it — it
+   * has to know whether there is an account to remember anything on — and
+   * every method that receives a participant keeps it current.
+   */
+  private account: Participant | null = null;
+  /** The pace the account has been asked for, whether or not the write has landed. */
+  private paceWanted: number | null = null;
+  /** Serialises `rememberPace`'s writes so they cannot land out of order. */
+  private paceWrite: Promise<void> = Promise.resolve();
   constructor(
     readonly baseUrl: string,
     private readonly storage: KeyValueStorage,
@@ -155,6 +169,7 @@ export class ApiClient {
     if (this.token) {
       try {
         const me = await this.request('/api/me', z.object({ participant: Participant }));
+        this.account = me.participant;
         return me.participant;
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 401) throw error;
@@ -172,6 +187,7 @@ export class ApiClient {
     this.token = res.token;
     this.storage.set(TOKEN_KEY, res.token);
     this.storage.set(NAME_KEY, res.participant.name);
+    this.account = res.participant;
     return res.participant;
   }
 
@@ -192,6 +208,7 @@ export class ApiClient {
     this.token = res.token;
     this.storage.set(TOKEN_KEY, res.token);
     this.storage.set(NAME_KEY, res.participant.name);
+    this.account = res.participant;
     return { participant: res.participant, outcome: res.outcome };
   }
 
@@ -202,6 +219,43 @@ export class ApiClient {
       body: JSON.stringify({ name }),
     });
     this.storage.set(NAME_KEY, res.participant.name);
+    this.account = res.participant;
+    return res.participant;
+  }
+
+  /**
+   * Keep this learner's teaching pace on their account, so their next session
+   * starts there on any device. Signed-out learners keep the device's own
+   * preference, which is already written before this is called, so there is
+   * nothing here for them to do and nothing to report if it fails.
+   */
+  rememberPace(pace: number): void {
+    const account = this.account;
+    if (account === null || account.anonymous) return;
+    const clean = clampPace(pace);
+    // Against what has already been asked for, not against what has landed:
+    // otherwise a second change during the first request writes twice.
+    if (Math.abs((this.paceWanted ?? account.pace) - clean) < 1e-6) return;
+    this.paceWanted = clean;
+    // One write at a time, in order. Two quick changes must not land out of
+    // order and leave the account on a pace nobody chose; and a failed write
+    // clears the guard, so the next change tries again instead of believing
+    // the account already agrees.
+    this.paceWrite = this.paceWrite
+      .then(() => (this.paceWanted === clean ? this.setPace(clean) : undefined))
+      .catch(() => {
+        this.paceWanted = null;
+      })
+      .then(() => undefined);
+  }
+
+  /** Set the account's teaching pace and return the updated participant. */
+  async setPace(pace: number): Promise<Participant> {
+    const res = await this.request('/api/me', z.object({ participant: Participant }), {
+      method: 'PATCH',
+      body: JSON.stringify({ pace: clampPace(pace) }),
+    });
+    this.account = res.participant;
     return res.participant;
   }
 
@@ -211,6 +265,7 @@ export class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ analyticsOptOut: optOut }),
     });
+    this.account = res.participant;
     return res.participant;
   }
 
@@ -254,6 +309,8 @@ export class ApiClient {
   /** Forget the bearer; the next `ensureParticipant()` mints a fresh anonymous one. */
   signOut(): void {
     this.token = null;
+    this.account = null;
+    this.paceWanted = null;
     this.storage.remove(TOKEN_KEY);
     this.storage.remove(NAME_KEY);
   }

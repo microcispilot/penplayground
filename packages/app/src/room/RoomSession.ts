@@ -627,17 +627,28 @@ export class RoomSession {
    */
   setPace(pace: number): void {
     const clean = clampPace(pace);
-    writePacePreference(this.o.platform.storage, clean);
+    this.keepPace(clean);
     this.client.send({ kind: 'set_pace', pace: clean });
   }
 
   private rememberedPace: number | null = null;
 
+  /**
+   * Where a chosen pace is kept: on the device always, and on the account when
+   * there is one, so the learner's next session starts here on any device
+   * (ADR-0010). The account write is a courtesy — it never blocks the room and
+   * never surfaces a failure, because the device's own preference already holds.
+   */
+  private keepPace(pace: number): void {
+    writePacePreference(this.o.platform.storage, pace);
+    this.o.api.rememberPace(pace);
+  }
+
   /** The host's room pace is their preference, however it was set (menu or a spoken "slower"). */
   private rememberHostPace(state: RoomState): void {
     if (state.hostId !== this.o.participantId || state.pace === this.rememberedPace) return;
     this.rememberedPace = state.pace;
-    writePacePreference(this.o.platform.storage, state.pace);
+    this.keepPace(state.pace);
   }
 
   /** Right after join: a host's remembered pace becomes the room's pace before the first sentence. */

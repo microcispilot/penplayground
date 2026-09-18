@@ -1,3 +1,4 @@
+import { LEGENDS_BY_PLAN } from '@pen/contracts';
 import { Button, cn, Pill, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -12,7 +13,7 @@ const PLANS = [
     annual: 0,
     blurb: 'Learn anything, with a short ad between segments.',
     features: [
-      'Solo sessions with any expert',
+      'Solo sessions with every modern expert',
       'Replay your own sessions',
       '3 sessions a day',
       'Standard voices',
@@ -30,7 +31,8 @@ const PLANS = [
       'Unlimited sessions',
       'Export sessions as video',
       'Share to YouTube and social',
-      'Premium voices and legends',
+      `${LEGENDS_BY_PLAN.standard} legendary teachers, including Socrates and Ada Lovelace`,
+      'Premium voices',
       'Priority preparation on new topics',
     ],
     highlight: true,
@@ -43,6 +45,7 @@ const PLANS = [
     blurb: 'Host rooms with up to 12 people, like a class over a call.',
     features: [
       'Everything in Standard',
+      `All ${LEGENDS_BY_PLAN.professional} legendary teachers, Newton and Shakespeare among them`,
       'Rooms with up to 12 participants',
       'Guests ask questions by voice',
       'Shared replays and transcripts',

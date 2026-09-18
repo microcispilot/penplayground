@@ -8,6 +8,12 @@ export interface AvatarProps {
   size?: number;
   className?: string;
   ring?: boolean;
+  /**
+   * What to draw when there is no picture, instead of the initials derived
+   * from `name`. The account chip uses it for the single first letter other
+   * apps show beside a first name; `name` stays the accessible label.
+   */
+  initials?: string;
 }
 
 export function initialsOf(name: string): string {
@@ -24,6 +30,7 @@ export function Avatar({
   size = 36,
   className,
   ring = false,
+  initials,
 }: AvatarProps) {
   const style = {
     width: size,
@@ -52,7 +59,7 @@ export function Avatar({
           className="size-full object-cover"
         />
       ) : (
-        initialsOf(name)
+        (initials ?? initialsOf(name))
       )}
     </span>
   );

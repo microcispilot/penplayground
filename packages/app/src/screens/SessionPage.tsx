@@ -464,8 +464,10 @@ export function SessionPage() {
             ) : (
               <Skeleton className="aspect-video w-full" />
             )}
-            <div className="mt-5 flex items-start justify-between gap-4">
-              <div>
+            {/* Phone width: the actions wrap under the title rather than
+                running off the side of the page. */}
+            <div className="mt-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+              <div className="min-w-0 flex-1">
                 <h2 className="tracking-[-0.025em]" lang={lang} dir={dir}>
                   {s?.title ?? <Skeleton className="h-7 w-72" />}
                 </h2>
@@ -475,7 +477,7 @@ export function SessionPage() {
                     : ''}
                 </p>
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex flex-wrap items-start gap-2">
                 {live ? (
                   <Button
                     variant="primary"

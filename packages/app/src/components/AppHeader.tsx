@@ -48,14 +48,18 @@ export function AppHeader({
   onToggleSidebar,
   sidebarRail = false,
 }: AppHeaderProps) {
-  const { participant, api } = useApp();
+  const { participant } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useTheme();
   const [naming, setNaming] = useState(false);
   const dark = isDarkTheme(theme);
+  // Identity lives in one place: this chip. Anonymous is signed out — the row
+  // the sidebar used to carry is gone, and a learner with a name but no Google
+  // account still reaches the same sheet through "Sign in".
+  const signedIn = participant !== null && !participant.anonymous;
 
-  // The sidebar's "Sign in" row asks for the account sheet; opening it is this header's job.
+  // Anything that asks for the account sheet (a deep link, a screen) routes through here.
   const wantsSignIn = (location.state as { signIn?: boolean } | null)?.signIn === true;
   useEffect(() => {
     if (wantsSignIn) setNaming(true);
@@ -127,33 +131,47 @@ export function AppHeader({
         >
           {dark ? <Sun size={17} /> : <Moon size={17} />}
         </button>
-        <button
-          type="button"
-          className="ml-1 flex h-9 items-center gap-2 rounded-full py-1 pr-3 pl-1 text-[14px] font-medium text-fg transition-colors hover:bg-fg/[0.06]"
-          onClick={() => setNaming(true)}
-          aria-label={
-            participant
-              ? participant.anonymous
-                ? `Account: ${participant.name} (not signed in)`
-                : `Account: ${participant.name}`
-              : 'Account'
-          }
-          data-testid="account-chip"
-        >
-          <Avatar
-            name={participant?.name ?? '?'}
-            hue={participant ? hueOf(participant.id) : 218}
-            src={participant?.avatarUrl ?? api.portraitUrl(null)}
-            size={28}
-          />
-          <span className="max-w-[140px] truncate">
-            {participant ? participant.name : 'Sign in'}
-          </span>
-        </button>
+        {signedIn && participant ? (
+          <button
+            type="button"
+            className="ml-1 flex h-9 items-center gap-2 rounded-full py-1 pr-3 pl-1 text-[14px] font-medium text-fg transition-colors hover:bg-fg/[0.06]"
+            onClick={() => setNaming(true)}
+            aria-label={`Your account, ${participant.name}`}
+            data-testid="account-chip"
+          >
+            <Avatar
+              name={participant.name}
+              hue={hueOf(participant.id)}
+              src={participant.avatarUrl}
+              initials={firstLetterOf(participant.name)}
+              size={28}
+            />
+            <span className="max-w-[120px] truncate">{firstNameOf(participant.name)}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="ml-1 flex h-9 items-center rounded-full bg-accent-soft px-3.5 text-[14px] font-medium text-accent-strong transition-colors hover:bg-accent/25"
+            onClick={() => setNaming(true)}
+            data-testid="account-chip"
+          >
+            Sign in
+          </button>
+        )}
         <NameDialog open={naming} onClose={() => setNaming(false)} />
       </div>
     </header>
   );
+}
+
+/** The name other apps show beside the avatar: the first word of it, and only that. */
+export function firstNameOf(name: string): string {
+  return name.trim().split(/\s+/)[0] || name.trim();
+}
+
+/** The letter a picture-less avatar carries: the first of the first name, upper case. */
+export function firstLetterOf(name: string): string {
+  return (firstNameOf(name)[0] ?? '?').toUpperCase();
 }
 
 function hueOf(id: string): number {

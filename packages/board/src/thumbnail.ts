@@ -68,11 +68,20 @@ export const THUMB_COLOURS = {
   },
 } as const;
 
-/** Thumbnail typography (page units). Larger than the board's, since cards show the page at ⅕ scale. */
-export const THUMB_TYPE: Record<SketchLabelSize, number> = { lg: 92, md: 62, sm: 44 };
+/**
+ * Thumbnail typography (page units). Larger than the board's, since cards show
+ * the page at ⅕ scale. `xl` is the headline: 150 of the page's 900 units, so
+ * three or four words fill the card's width and survive a 320 px grid — the
+ * size a thumbnail is actually read at.
+ */
+export const THUMB_TYPE: Record<SketchLabelSize, number> = { xl: 150, lg: 92, md: 62, sm: 44 };
 const BOX_TEXT_SIZES = [62, 52, 44, 36, 30];
-/** A heavier pen than the board's 3.2 so strokes survive the card scale. */
-const PEN = 7;
+/**
+ * A heavier pen than the board's 3.2 so strokes survive the card scale. 8.5,
+ * not 7: a thumbnail is read at ~320 px, where a 7-unit stroke on a 1600-unit
+ * page lands near one device pixel and the hero shape goes thin and grey.
+ */
+const PEN = 8.5;
 const MARKER = 16;
 const DOT_SPACING = 130;
 const DOT_RADIUS = 3.6;
@@ -579,6 +588,78 @@ function emitFilled(sink: Sink, paths: readonly string[], color: string, extra =
   sink.body.push(`<g fill="${color}"${extra}>${paths.map((d) => `<path d="${d}"/>`).join('')}</g>`);
 }
 
+type SketchLabelElement = Extract<SketchElement, { kind: 'label' }>;
+
+/** Where a label actually lands on the page, and how big it turned out. */
+interface LabelBox {
+  layout: HandTextLayout;
+  x: number;
+  y: number;
+}
+
+/**
+ * Lay a label out exactly as `emitElement` will draw it. The model's `w` is a
+ * hint: a title that fits on one line inside the grid stays on one line.
+ */
+function labelBox(font: ThumbnailFont, el: SketchLabelElement, g: Grid, seed: string): LabelBox {
+  const size = THUMB_TYPE[el.size];
+  const single = measureHandText(font, penText(el.text), size);
+  const room = (SKETCH_GRID.columns - el.x) * g.cx;
+  // Wrapping measures word by word (no kerning across spaces), so allow half an em of slack.
+  const maxWidth = Math.max(
+    el.w * g.cx,
+    single <= room ? single + size * 0.5 : Math.min(room, el.w * g.cx),
+  );
+  return {
+    layout: layoutText(font, el.text, size, maxWidth, seed, 'left'),
+    x: g.ox + el.x * g.cx,
+    y: g.oy + el.y * g.cy + size * 0.08,
+  };
+}
+
+/**
+ * The marker wash behind a headline, fitted to the words rather than to the
+ * width the model guessed.
+ *
+ * Only the renderer knows how wide a handwritten line turned out — the model
+ * cannot measure Caveat, and its guess is wrong far more often than not, which
+ * showed up as a highlight ending halfway through the title. So a highlight
+ * that starts on a label is snapped to that label's laid-out box; a highlight
+ * anywhere else is left exactly as it was asked for.
+ */
+const HIGHLIGHT_SNAP_CELLS = 0.8;
+
+function fittedHighlights(
+  font: ThumbnailFont,
+  elements: readonly SketchElement[],
+  g: Grid,
+  seed: string,
+): Map<number, { x: number; y: number; w: number; h: number }> {
+  const fitted = new Map<number, { x: number; y: number; w: number; h: number }>();
+  const labels = [...elements.entries()].flatMap(([i, el]) =>
+    el.kind === 'label' ? [[i, el] as const] : [],
+  );
+  for (const [i, el] of elements.entries()) {
+    if (el.kind !== 'highlight') continue;
+    const near = labels.find(
+      ([, l]) =>
+        Math.abs(l.x - el.x) <= HIGHLIGHT_SNAP_CELLS &&
+        Math.abs(l.y - el.y) <= HIGHLIGHT_SNAP_CELLS,
+    );
+    if (!near) continue;
+    const box = labelBox(font, near[1], g, `${seed}:${near[0]}`);
+    const padX = THUMB_TYPE[near[1].size] * 0.18;
+    const padY = THUMB_TYPE[near[1].size] * 0.14;
+    fitted.set(i, {
+      x: box.x - padX,
+      y: box.y - padY,
+      w: box.layout.width + padX * 2,
+      h: box.layout.height + padY * 1.6,
+    });
+  }
+  return fitted;
+}
+
 function emitElement(
   sink: Sink,
   font: ThumbnailFont,
@@ -586,24 +667,15 @@ function emitElement(
   i: number,
   g: Grid,
   seed: string,
+  fittedHighlight?: { x: number; y: number; w: number; h: number },
 ): void {
   const s = `${seed}:${i}`;
   const X = (v: number) => g.ox + v * g.cx;
   const Y = (v: number) => g.oy + v * g.cy;
   switch (el.kind) {
     case 'label': {
-      const color = inkHex(el.ink);
-      const size = THUMB_TYPE[el.size];
-      // The model's `w` is a hint: a title that fits on one line inside the grid stays on one line.
-      const single = measureHandText(font, penText(el.text), size);
-      const room = (SKETCH_GRID.columns - el.x) * g.cx;
-      // Wrapping measures word by word (no kerning across spaces), so allow half an em of slack.
-      const maxWidth = Math.max(
-        el.w * g.cx,
-        single <= room ? single + size * 0.5 : Math.min(room, el.w * g.cx),
-      );
-      const layout = layoutText(font, el.text, size, maxWidth, s, 'left');
-      emitText(sink, font, layout, X(el.x), Y(el.y) + size * 0.08, color, s);
+      const box = labelBox(font, el, g, s);
+      emitText(sink, font, box.layout, box.x, box.y, inkHex(el.ink), s);
       return;
     }
     case 'box':
@@ -708,10 +780,10 @@ function emitElement(
       return;
     }
     case 'highlight': {
-      const x = X(el.x) + 6;
-      const y = Y(el.y) + 6;
-      const w = Math.max(20, el.w * g.cx - 12);
-      const h = Math.max(20, el.h * g.cy - 12);
+      const x = fittedHighlight ? fittedHighlight.x : X(el.x) + 6;
+      const y = fittedHighlight ? fittedHighlight.y : Y(el.y) + 6;
+      const w = fittedHighlight ? fittedHighlight.w : Math.max(20, el.w * g.cx - 12);
+      const h = fittedHighlight ? fittedHighlight.h : Math.max(20, el.h * g.cy - 12);
       // Four wobbly edges, no corner overshoot: a marker wash must stay one clean fill.
       const corners: Point[] = [
         { x, y },
@@ -762,11 +834,13 @@ export function renderSketchSvg(
   };
   const sink: Sink = { body: [], glyphs: { ids: new Map(), defs: [] }, unsupported: new Set() };
 
-  // Highlights go under the ink whatever order the model listed them in.
+  // Highlights go under the ink whatever order the model listed them in, and
+  // one that sits on a label is sized to the words rather than to the guess.
+  const fitted = fittedHighlights(font, spec.elements, grid, seed);
   const ordered = [...spec.elements.entries()].sort(
     ([, a], [, b]) => Number(b.kind === 'highlight') - Number(a.kind === 'highlight'),
   );
-  for (const [i, el] of ordered) emitElement(sink, font, el, i, grid, seed);
+  for (const [i, el] of ordered) emitElement(sink, font, el, i, grid, seed, fitted.get(i));
 
   const paper = THUMB_COLOURS.paper.hex;
   const dots = THUMB_COLOURS.grid;

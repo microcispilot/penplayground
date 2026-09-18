@@ -199,6 +199,60 @@ describe('renderSketchSvg', () => {
     expect(highlightAt).toBeLessThan(inkAt);
   });
 
+  /**
+   * The model guesses a highlight's width from a character count and gets it
+   * wrong most of the time — a wash that stops halfway through the headline is
+   * the single worst thing a thumbnail can do. Only the renderer knows how wide
+   * the handwriting turned out, so it fits the wash to the words.
+   */
+  it('fits a highlight behind a headline to the words, not to the width it was given', () => {
+    const headline = {
+      kind: 'label',
+      text: 'Attention, explained',
+      x: 0.5,
+      y: 0.25,
+      w: 10.5,
+      size: 'xl',
+      ink: 'ink',
+    } as const;
+    const wash = (svg: string) => /<path d="([^"]+)" fill="#f6d476"/.exec(svg)?.[1] ?? '';
+    const short = renderSketchSvg(
+      // A wash asked for at a quarter of the headline's width.
+      { elements: [{ kind: 'highlight', x: 0.5, y: 0.25, w: 2.5, h: 1.4 }, headline] },
+      font,
+      { seed: 'golden' },
+    );
+    const asked = renderSketchSvg(
+      { elements: [{ kind: 'highlight', x: 0.5, y: 0.25, w: 10.5, h: 1.4 }, headline] },
+      font,
+      { seed: 'golden' },
+    );
+    // Both end up the same wash: it is the headline that decides, not the guess.
+    expect(wash(short.svg)).not.toBe('');
+    expect(wash(short.svg)).toBe(wash(asked.svg));
+    // And it really does span the words: wider than the quarter-width it asked for.
+    const xs = [...wash(short.svg).matchAll(/[ML](-?\d+) (-?\d+)/g)].map((m) => Number(m[1]));
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(2.5 * ((1600 - 88) / 12));
+  });
+
+  it('leaves a highlight that is not behind a label exactly where it was asked for', () => {
+    const away = renderSketchSvg(
+      {
+        elements: [
+          { kind: 'label', text: 'Read an ECG', x: 0.5, y: 0.25, w: 6, size: 'xl', ink: 'ink' },
+          // Four rows below the headline: its own wash, over the drawing.
+          { kind: 'highlight', x: 1, y: 4, w: 5, h: 2 },
+        ],
+      },
+      font,
+      { seed: 'golden' },
+    );
+    const d = /<path d="([^"]+)" fill="#f6d476"/.exec(away.svg)?.[1] ?? '';
+    const ys = [...d.matchAll(/[ML](-?\d+) (-?\d+)/g)].map((m) => Number(m[2]));
+    // Still down where it was put, not snapped up to the headline.
+    expect(Math.min(...ys)).toBeGreaterThan(44 + 3.5 * ((900 - 88) / 7));
+  });
+
   it('accepts anything the contract accepts', () => {
     const spec = SketchSpecSchema.parse(transformers);
     expect(() => renderSketchSvg(spec, font)).not.toThrow();

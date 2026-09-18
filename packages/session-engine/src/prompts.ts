@@ -262,27 +262,53 @@ export function metaMessages(args: {
 
 ${bandPrompt(args.band)}
 
-You are writing the catalogue card for a session you are about to teach, and sketching its key idea on a small whiteboard thumbnail — the way you would on paper for a learner walking past.
+You are writing the catalogue card for a session you are about to teach, and drawing its thumbnail.
 
 CARD
 - description: one or two plain sentences, at most 160 characters, saying what the learner will be able to do. No "In this session", no hype, no emoji.
 - keywords: 3 to 6 short search terms, lowercase unless proper nouns.
 - category: the one domain that fits best.
 
-THUMBNAIL — a whiteboard sketch on a 12 × 7 grid (x 0–12 left→right, y 0–7 top→bottom, decimals allowed) over a 16:9 card.
-- Draw the ONE key idea, not an agenda. Think like a teacher with a marker: Transformers → three token boxes, arrows into a score circle, a small bar chart of attention weights. An ECG → one trace through the P–QRS–T points, three labels. Supply and demand → two crossing traces, a highlight at the crossing.
-- 4 to 10 elements; never more than 12. Elements:
-  label — short handwritten text (≤ 40 chars; a title is 2–5 words). One "lg" title at the top-left; "md"/"sm" for the rest. A label needs about 1 row (lg), 0.7 row (md), 0.5 row (sm); each character is about 0.3 (lg), 0.2 (md), 0.15 (sm) columns wide — give w accordingly.
-  box / circle — x, y top-left, w, h in cells (≥ 1); optional short text centred inside.
-  arrow — from (x1, y1) to (x2, y2), optional short text beside it. Connect edges of shapes, not centres.
-  line — one straight segment (curve "none") or a gentle arc ("up"/"down"); dashed for baselines and guides.
-  trace — ONE pen line through 3–16 points: a whole ECG, a wave, a curve on a chart. smooth=true for rounded waves, false for spikes (QRS). Always prefer one trace to many lines.
-  bars — a small bar chart: values are heights 0–1, left to right, at most 8.
-  underline — a marker line under a label (y = the row below the label's top). highlight — a marker wash behind one element.
-- Use the whole card: the title on rows 0–1, the drawing spread across rows 2–7 and most of the 12 columns. Big, simple shapes read on a small card; tiny ones do not.
-- Leave air: nothing overlaps except an underline or highlight. Keep everything inside the grid.
-- ink: "ink" (navy) for most; "accent" (teal) for the one thing the learner should notice.
-- Write labels in the session language (Latin and Cyrillic scripts draw best; elsewhere prefer symbols, numbers and short words).`,
+THUMBNAIL — think like a human designer making a YouTube thumbnail for this exact title, then draw it by hand on a whiteboard.
+A thumbnail is not a diagram. It is seen at the size of a playing card, in a grid of twenty others, for about a second. So it has to be understood at a glance:
+- ONE subject. The single image that says what this lesson is. Never an agenda, never the whole lesson, never a flow chart.
+- BOLD AND FEW. Three to six elements in total. Big shapes that reach across the card. A small, busy, tidy drawing is the failure to avoid.
+- VERY LITTLE TEXT. One headline of two to four words (at most 22 characters), size "xl", plus at most TWO tiny labels on the drawing. Nothing else. The headline is not the session title — it is the hook a designer would put on the picture ("Attention, explained", "Read an ECG", "Why a² + b² = c²", "Compound interest").
+- CONTRAST. Exactly one thing is "accent" (teal) — the thing the eye should land on first. Everything else is "ink" (navy). Put a "highlight" (yellow marker) behind the headline, or behind the one shape that matters.
+- It is still our hand-drawn board, not stock art: pen strokes, a marker, paper. No photos, no icons, no logos.
+
+LAYOUT on a 12 × 7 grid (x 0–12 left→right, y 0–7 top→bottom, decimals allowed) over a 16:9 card:
+- The headline sits across the top, roughly x 0.5–11, y 0.3–1.6, size "xl", w about 10.5. A 2–4 word headline needs w ≈ 0.55 columns per character at "xl".
+- The drawing owns the rest, roughly y 2.3 to 6.8, and at least 8 of the 12 columns. Big. If the drawing would be smaller than a third of the card, make it bigger.
+- Two good compositions: the subject centred under the headline, or the subject on one side with its one label on the other. Both are fine; a grid of small boxes is not.
+- Leave air. Nothing overlaps except a highlight or an underline behind text. Keep everything inside the grid.
+
+ELEMENTS
+  label — handwritten text. size "xl" for the headline (exactly one per card), "md"/"sm" for the one or two labels on the drawing; "lg" only if there is no drawing to label. Width per character is about 0.55 columns ("xl"), 0.3 ("lg"), 0.2 ("md"), 0.15 ("sm") — give w accordingly.
+  box / circle — x, y top-left, w, h in cells. Make them big: 2.5 cells or more on a side. Optional short text centred inside. Never leave a big shape empty unless it IS the subject.
+  arrow — from (x1, y1) to (x2, y2), optional short text beside it. Connect the edges of shapes and never cross a third one: to link boxes standing in a row, arc the arrow above or below them, not through them. One or two, never a web.
+  line — one straight segment (curve "none") or a gentle arc ("up"/"down"); dashed for a baseline or a guide.
+  trace — ONE pen line through 3–16 points: an ECG, a wave, a curve, or the outline of a shape. smooth=true for rounded waves, false for spikes and corners. A hero trace must span the card: start at x ≤ 0.5, end at x ≥ 11.5, and use at least three rows of height. This is often the strongest thumbnail there is.
+  bars — a small bar chart: values are heights 0–1, left to right, at most 8. Use few, tall bars.
+  underline — a marker line directly under a label; give it that label's x and w, and y one row below the label's own y. Never an underline with nothing above it.
+  highlight — a marker wash. Behind the headline: give it the headline's own x and y (the wash is sized to the words for you). Otherwise, behind the one shape that matters.
+
+SHAPES YOU DO NOT HAVE A NAME FOR
+There is no triangle, arrow-box or polygon element. Draw any straight-sided shape as ONE "trace" with smooth=false whose last point repeats the first — a triangle is four points, a square five. Draw a right angle the same way. Do not substitute a rectangle for the shape the topic is actually about.
+
+WORKED EXAMPLES (the shape to aim for, not text to copy)
+- "How Transformers work in LLMs" → headline "Attention, explained"; a highlight at the headline's x and y; three big boxes in a row for the tokens; one accent arrow arcing over them from the first to the last. Five or six elements.
+- "Reading an ECG strip" → headline "Read an ECG"; one huge accent trace of two P–QRS–T beats from x 0.3 to x 11.7 across the lower half; the label "QRS" beside the tallest spike. Three elements.
+- "The Pythagorean theorem" → headline "Why a² + b² = c²"; one big ink trace of a right triangle (four points, smooth=false); one accent trace of the square on the hypotenuse; a highlight at the headline. Four elements.
+- "Rumi's poems in the original Persian" → headline "Reading Rumi"; one large accent trace of an opening spiral or a single flowing line; the label "ghazal" beneath it. Three elements.
+
+FINAL CHECKS before you answer
+- Could someone tell what this lesson is from the picture alone, at the size of a stamp? If not, make the subject bigger and drop an element.
+- Is there exactly one "xl" label, and is it 22 characters or fewer?
+- Is there exactly one "accent" element?
+- Does the drawing reach across at least 8 of the 12 columns and 3 of the 7 rows?
+- ink: "ink" (navy) for everything except that one "accent" element.
+- Every character you write must be Latin, Cyrillic, a digit or ordinary punctuation — the pen has no other glyphs and draws them as a scribble. For a lesson in another script, write the headline and the labels in that language's Latin transliteration or in English, and let the drawing carry the subject.`,
     },
     {
       role: 'user',

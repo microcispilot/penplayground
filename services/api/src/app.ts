@@ -4,10 +4,17 @@ import { Readable } from 'node:stream';
 import { createNodeWebSocket } from '@hono/node-ws';
 import {
   ClientMessage,
+  clampPace,
   decodeAudioFrame,
   hasEntitlement,
+  PACE_DEFAULT,
+  Pace,
   ParticipantId,
   PLAN_LIMITS,
+  PLAN_NAME,
+  PlanCode,
+  planAllowsExpert,
+  requiredPlanFor,
   type ServerErrorCode,
   type ServerMessage,
   SessionId,
@@ -64,16 +71,24 @@ const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
 const DevGoogleBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   email: z.string().email().optional(),
+  /** Development only: sign in on a paid plan, so a gated screen can be exercised. */
+  plan: PlanCode.optional(),
 });
 
-/** Everything a participant may change about themselves. Both fields are optional; at least one must be present. */
+/** Everything a participant may change about themselves. Every field is optional; at least one must be present. */
 const UpdateMe = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
     /** Privacy choices: stop counting me, here and on the server (ADR-0018). */
     analyticsOptOut: z.boolean().optional(),
+    /**
+     * How fast this learner likes to be taught (ADR-0010). Set from the
+     * session's own settings; it holds for their next session the way a
+     * playback speed holds for the next video.
+     */
+    pace: Pace.optional(),
   })
-  .refine((v) => v.name !== undefined || v.analyticsOptOut !== undefined, {
+  .refine((v) => v.name !== undefined || v.analyticsOptOut !== undefined || v.pace !== undefined, {
     message: 'nothing to change',
   });
 
@@ -85,6 +100,7 @@ function participantView(row: {
   anonymous: boolean;
   email?: string | null;
   avatarUrl?: string | null;
+  pace?: number | null;
 }) {
   return {
     id: row.id,
@@ -93,6 +109,7 @@ function participantView(row: {
     anonymous: row.anonymous,
     email: row.email ?? null,
     avatarUrl: row.avatarUrl ?? null,
+    pace: clampPace(row.pace ?? PACE_DEFAULT),
   };
 }
 
@@ -377,7 +394,7 @@ export function buildApp(services: Services): App {
     });
   });
 
-  /** Rename, or set the analytics choice, in place: the id, sessions and bearer are untouched. */
+  /** Rename, or set the analytics choice or the teaching pace, in place: the id, sessions and bearer are untouched. */
   app.patch('/api/me', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -392,6 +409,8 @@ export function buildApp(services: Services): App {
       services.analytics.setOptOut(claims.sub, body.data.analyticsOptOut);
       observer.event('privacy.analytics_choice', { optOut: body.data.analyticsOptOut });
     }
+    if (body.data.pace !== undefined)
+      row = await services.participants.setPace(claims.sub, clampPace(body.data.pace));
     if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
     return c.json({ participant: participantView({ ...row, plan: claims.plan }) });
   });
@@ -550,6 +569,22 @@ export function buildApp(services: Services): App {
         503,
       );
     }
+    // A legend recreation is part of a plan (expert-access.ts). The client
+    // already draws the lock from the served `requiredPlan`; this is the answer
+    // that actually decides, and it names the plan rather than refusing blankly.
+    const asked = body.data.expertId;
+    if (asked && !planAllowsExpert(claims.plan, asked)) {
+      const needed = requiredPlanFor(asked);
+      const who = services.experts.get(asked);
+      return c.json(
+        {
+          error: 'ENTITLEMENT_REQUIRED',
+          message: `${who?.displayName ?? 'This expert'} teaches on ${PLAN_NAME[needed ?? 'standard']}. Every other expert is ready now.`,
+          upgrade: 'Pricing',
+        },
+        402,
+      );
+    }
     // One machine may host a handful of rooms at a time, not a farm of them.
     const ip = clientKey(c.req);
     const hosted = liveByIp.get(ip);
@@ -571,6 +606,9 @@ export function buildApp(services: Services): App {
         );
       }
     }
+    // The room is born at the pace this learner last chose, so a signed-in
+    // learner never hears the first sentence at someone else's speed (ADR-0010).
+    const me = await services.participants.get(claims.sub);
     const live = await rooms.create({
       topic: body.data.topic,
       host: { id: claims.sub, name: claims.name, plan: claims.plan },
@@ -578,6 +616,7 @@ export function buildApp(services: Services): App {
       visibility: body.data.visibility,
       ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
       ...(body.data.language ? { language: body.data.language } : {}),
+      ...(me && !me.anonymous ? { pace: clampPace(me.pace) } : {}),
     });
     const hostedByIp = liveByIp.get(ip) ?? new Set<string>();
     hostedByIp.add(live.record.id);
@@ -817,15 +856,12 @@ export function buildApp(services: Services): App {
         avatarUrl: null,
       });
       if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
-      const issued = await identity.issue({
-        sub: row.id,
-        name,
-        plan: claims.plan,
-        anonymous: false,
-      });
+      const plan = body.data.plan ?? claims.plan;
+      if (plan !== claims.plan) await services.participants.setPlan(row.id, plan);
+      const issued = await identity.issue({ sub: row.id, name, plan, anonymous: false });
       return c.json({
         token: issued.token,
-        participant: participantView({ ...row, plan: claims.plan }),
+        participant: participantView({ ...row, plan }),
         outcome: 'linked',
       });
     });

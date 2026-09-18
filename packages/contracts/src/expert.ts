@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PlanCode } from './billing.js';
 import { ExpertId } from './ids.js';
 
 /** Mirrors Simurgh's persona catalog (schema 2.0.0) with Pen Playground voice routing. */
@@ -40,6 +41,13 @@ export const Expert = z.object({
   ]),
   /** Premium voices are a paid entitlement. */
   premium: z.boolean(),
+  /**
+   * The plan that includes this expert, or null when every plan does. The
+   * catalog stamps it from `LEGEND_MIN_PLAN` (expert-access.ts) as it loads,
+   * so it is absent from the catalog files on disk and always present on the
+   * wire — a client reads it and never decides for itself.
+   */
+  requiredPlan: PlanCode.nullable().default(null),
   /** Drives voice selection (same-gender voices). */
   gender: z.enum(['woman', 'man', 'nonbinary']).default('nonbinary'),
 });

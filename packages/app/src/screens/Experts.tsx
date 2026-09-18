@@ -1,9 +1,10 @@
 import type { Expert } from '@pen/contracts';
-import { Chip, cn, Skeleton } from '@pen/design';
-import { ArrowUpRight, Search } from 'lucide-react';
+import { Chip, Skeleton } from '@pen/design';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ShellPage } from '../components/AppShell.js';
+import { ExpertCard } from '../components/ExpertCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
 import { useApp } from '../lib/context.js';
 
@@ -62,7 +63,7 @@ export function Experts() {
       intro={
         experts === null
           ? 'Every expert Pen Playground can teach with.'
-          : `${experts.length} experts across science, code, medicine, law, money and the arts. Pick one and they are ready to teach.`
+          : `${experts.length} experts across science, software, coding, medicine, law, money, arts, and more. They can teach you in your language.`
       }
       actions={
         <label className="flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3.5 hairline">
@@ -98,12 +99,13 @@ export function Experts() {
               <Skeleton key={k} className="aspect-[4/5] rounded-[var(--radius-xl)]" />
             ))
           : visible.map((e) => (
-              <ExpertTile
+              <ExpertCard
                 key={e.id}
                 expert={e}
                 // A tile is ~178–220 px wide: the w192 variant, like every other
                 // portrait in the product. The w384 file is for the hero only.
                 portraitUrl={api.portraitUrl(e.portrait?.src, 192)}
+                domainLabel={DOMAIN_LABEL.get(e.domain) ?? 'Other'}
                 onChoose={() => choose(e)}
               />
             ))}
@@ -116,60 +118,5 @@ export function Experts() {
         </div>
       ) : null}
     </ShellPage>
-  );
-}
-
-function ExpertTile({
-  expert,
-  portraitUrl,
-  onChoose,
-}: {
-  expert: Expert;
-  portraitUrl: string | null;
-  onChoose: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onChoose}
-      data-testid="expert-tile"
-      title={`Learn with ${expert.displayName}`}
-      className={cn(
-        'group relative aspect-[4/5] overflow-hidden rounded-[var(--radius-xl)] bg-surface-2 text-left shadow-card',
-        'transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-lift',
-      )}
-    >
-      {portraitUrl ? (
-        <img
-          src={portraitUrl}
-          alt={expert.portrait?.alt ?? expert.displayName}
-          loading="lazy"
-          decoding="async"
-          width={192}
-          height={240}
-          className="absolute inset-0 size-full object-cover transition-transform duration-[600ms] ease-[var(--ease-out)] group-hover:scale-[1.04]"
-        />
-      ) : null}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-[62%]"
-        style={{
-          background:
-            'linear-gradient(to top, oklch(0.2 0.05 248 / 93%), oklch(0.2 0.05 248 / 0%))',
-        }}
-      />
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-3.5 text-white">
-        <span className="text-[15px] font-medium leading-tight tracking-[-0.01em]">
-          {expert.displayName}
-        </span>
-        <span className="line-clamp-2 text-[12px] leading-snug text-white/75">{expert.role}</span>
-        <span className="mt-1 text-[11px] text-white/60">
-          {DOMAIN_LABEL.get(expert.domain) ?? 'Other'}
-        </span>
-      </div>
-      <span className="absolute top-2.5 right-2.5 grid size-8 place-items-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
-        <ArrowUpRight size={15} />
-      </span>
-    </button>
   );
 }

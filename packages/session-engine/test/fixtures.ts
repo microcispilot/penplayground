@@ -27,6 +27,7 @@ export const expert: Expert = {
   voiceId: 'af_heart',
   domain: 'computing-data',
   premium: false,
+  requiredPlan: null,
   gender: 'woman',
   voices: { en: 'voice-en', es: 'voice-es', fa: 'voice-fa' },
 };

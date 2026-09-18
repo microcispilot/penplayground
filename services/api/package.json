@@ -18,7 +18,8 @@
     "sentry:alerts": "node --env-file=../../.env --import tsx scripts/sentry-alerts.ts",
     "stripe:webhook": "node --env-file=../../.env --import tsx scripts/stripe-webhook.ts",
     "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts",
-    "thumbnails:backfill": "node --env-file=../../.env --import tsx scripts/thumbnails-backfill.ts"
+    "thumbnails:backfill": "node --env-file=../../.env --import tsx scripts/thumbnails-backfill.ts",
+    "thumbnails:probe": "node --env-file=../../.env --import tsx scripts/thumbnail-probe.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",

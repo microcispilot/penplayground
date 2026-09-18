@@ -1,10 +1,19 @@
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { ApiClient, type GoogleSignInOutcome, type Participant } from '../api/client.js';
 import type { Platform } from '../platform/types.js';
 import { applyPrivacyChoice, identify, initAnalytics, resetAnalytics, track } from './analytics.js';
 import { bootMode } from './boot.js';
 import { forgetGoogleSelection } from './google.js';
 import { formatDurationMinutes, formatRelativeDay } from './locale.js';
+import { writePacePreference } from './pace-preference.js';
 import { type PrivacyChoice, readPrivacy, writePrivacy } from './privacy.js';
 
 interface AppContextValue {
@@ -33,6 +42,19 @@ const Ctx = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ platform, children }: { platform: Platform; children: ReactNode }) {
   const api = useMemo(() => new ApiClient(platform.apiUrl, platform.storage), [platform]);
+  /**
+   * A signed-in learner's pace belongs to them, not to the browser they are
+   * in: the account's value replaces whatever this device remembered, so the
+   * room opens at their pace on a machine they have never used (ADR-0010).
+   * An anonymous participant has no account to speak for them and keeps the
+   * device's own preference untouched.
+   */
+  const adoptAccountPace = useCallback(
+    (p: Participant) => {
+      if (!p.anonymous) writePacePreference(platform.storage, p.pace);
+    },
+    [platform.storage],
+  );
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   // Read before anything starts: the choice has to apply to the first network
@@ -62,6 +84,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       .then((p) => {
         if (!cancelled) {
           setParticipant(p);
+          adoptAccountPace(p);
           identify(p.id);
         }
       })
@@ -72,7 +95,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     return () => {
       cancelled = true;
     };
-  }, [api, headless]);
+  }, [api, headless, adoptAccountPace]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -86,6 +109,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       signInWithGoogle: async (idToken: string) => {
         const { participant: p, outcome } = await api.signInWithGoogle(idToken);
         setParticipant(p);
+        adoptAccountPace(p);
         identify(p.id);
         track('sign_in', { provider: 'google', outcome });
         return outcome;
@@ -119,7 +143,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         identify(p.id);
       },
     }),
-    [platform, api, participant, authError, privacy],
+    [platform, api, participant, authError, privacy, adoptAccountPace],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

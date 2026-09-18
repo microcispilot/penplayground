@@ -143,7 +143,9 @@ export function Privacy() {
               thumbnail. Security and diagnostic records are kept for a short, bounded period.
               Content-free analytics and error events are kept under each provider&rsquo;s retention
               settings. Data stored on your device — your participant id, your display name, your
-              theme, sidebar and pace preferences — stays there until you clear it or sign out.
+              theme and sidebar preferences, and the pace you last chose — stays there until you
+              clear it or sign out. If you are signed in, the pace is also kept on your account so
+              your next session starts at it on any device.
             </P>
           ),
         },

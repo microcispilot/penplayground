@@ -86,9 +86,10 @@ export function sessionsRemaining(plan: PlanCode, startedToday: number): number 
 }
 
 /**
- * What `GET /api/me/usage` tells the client: enough for Home to show "2 of 3
- * sessions left today" and to explain, in one friendly sentence, why Start is
- * waiting — never more than the caller's own numbers.
+ * What `GET /api/me/usage` tells the client: enough to explain, in one
+ * friendly sentence, why Start is waiting — never more than the caller's own
+ * numbers. Home says nothing at all while there is allowance left; a running
+ * count is a meter, and a meter is a kind of pressure.
  */
 export const PlanUsage = z.object({
   plan: PlanCode,

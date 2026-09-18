@@ -51,10 +51,15 @@ async function boot(page: Page, opts: { token?: string; theme?: 'light' | 'dark'
  * Upgrade the current bearer to a signed-in account through the development
  * hook (the real path needs Google). Returns the account's bearer.
  */
-async function signIn(request: APIRequestContext, token: string, name: string): Promise<string> {
+async function signIn(
+  request: APIRequestContext,
+  token: string,
+  name: string,
+  plan?: 'free' | 'standard' | 'professional',
+): Promise<string> {
   const res = await request.post(`${API}/api/dev/me/google`, {
     headers: { authorization: `Bearer ${token}` },
-    data: { name },
+    data: plan ? { name, plan } : { name },
   });
   expect(res.ok()).toBe(true);
   return ((await res.json()) as { token: string }).token;
@@ -90,9 +95,11 @@ test.describe('the app shell', () => {
     // Experts: the grid, and picking one lands back on Home with that expert chosen.
     await sidebar.getByText('Experts', { exact: true }).click();
     await expect(page).toHaveURL(/\/experts$/);
-    const tiles = page.getByTestId('expert-tile');
+    // Scoped to the grid and polled, not counted once: Home's row is made of
+    // the same card, and the URL changes a beat before the grid has loaded.
+    const tiles = page.getByTestId('experts-grid').getByTestId('expert-tile');
     await expect(tiles.first()).toBeVisible({ timeout: 20_000 });
-    expect(await tiles.count()).toBeGreaterThan(20);
+    await expect.poll(() => tiles.count(), { timeout: 20_000 }).toBeGreaterThan(20);
     const chosen = (await tiles.first().getAttribute('title')) ?? '';
     await tiles.first().click();
     await expect(page).toHaveURL(new RegExp(`${page.url().split('/').slice(0, 3).join('/')}/?$`));
@@ -114,9 +121,10 @@ test.describe('the app shell', () => {
     await page.getByTestId('sidebar-toggle').click();
     await expect(page.getByTestId('sidebar')).not.toHaveAttribute('data-rail', 'true');
 
-    // The bottom of the sidebar is where Terms and Privacy live.
+    // The bottom of the sidebar is where Terms and Privacy live. The AI line
+    // is stated in full on Terms, one link away, so the footer is two lines.
     const footer = page.getByTestId('sidebar-footer');
-    await expect(footer).toContainText('Experts are AI.');
+    await expect(footer).not.toContainText('Experts are AI.');
     await expect(footer).toContainText('© 2026 Microcis');
     await footer.getByRole('link', { name: 'Terms' }).click();
     await expect(page.getByRole('heading', { name: 'Terms of Use', level: 1 })).toBeVisible();
@@ -244,7 +252,32 @@ test.describe('the app shell', () => {
     await expect(empty).toContainText('Sign in and your history follows you to every device.');
     // Nothing scolds, nothing is locked.
     await expect(page.getByText(/you must sign in|locked|upgrade required/i)).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-signin')).toBeVisible();
+    // Identity is the header's account chip and nowhere else; the sidebar asks nothing.
+    await expect(page.getByTestId('sidebar-signin')).toHaveCount(0);
+    await expect(page.getByTestId('account-chip')).toHaveText('Sign in');
+    await page.getByTestId('account-chip').click();
+    await expect(page.getByLabel('Display name')).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
+  test('the account chip carries the learner once they are signed in', async ({
+    page,
+    request,
+  }) => {
+    const token = await signIn(request, await anonymous(request, 'Visitor'), 'Ada Lovelace');
+    await boot(page, { token });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const chip = page.getByTestId('account-chip');
+    // The first name, and only that — the way every other app shows an account.
+    await expect(chip).toContainText('Ada');
+    await expect(chip).not.toContainText('Lovelace');
+    await expect(chip).toHaveAttribute('aria-label', /Ada Lovelace/);
+    // No picture from the dev sign-in, so the avatar is the first letter,
+    // and the label beside it is the first name: "A" + "Ada", nothing else.
+    const avatar = chip.getByRole('img', { name: 'Ada Lovelace' });
+    await expect(avatar).toHaveText('A');
+    expect((await chip.innerText()).replace(/\s+/g, '')).toBe('AAda');
   });
 });
 
@@ -259,10 +292,12 @@ test.describe('shell screenshots', () => {
   test('capture the shell in light and dark', async ({ browser, request, baseURL }) => {
     mkdirSync(SCREENS_DIR, { recursive: true });
     const anon = await anonymous(request, 'Screenshot');
-    await endedSession(request, anon, 'How Transformers work in LLMs');
+    const saved = await endedSession(request, anon, 'How Transformers work in LLMs');
     const second = await anonymous(request, 'Screenshot Two');
     await endedSession(request, second, 'Swift fundamentals');
     const account = await signIn(request, await anonymous(request, 'Ada'), 'Ada Lovelace');
+    // A shelf with something on it reads very differently from an empty one.
+    await endedSession(request, account, 'Reading an ECG strip');
 
     const viewports = [
       { name: '1440', width: 1440, height: 900 },
@@ -270,11 +305,15 @@ test.describe('shell screenshots', () => {
       { name: '390', width: 390, height: 844 },
     ] as const;
     const shots: { name: string; path: string; token: string; full?: boolean }[] = [
-      { name: 'home-signed-out', path: '/', token: anon },
+      // Full page: Home's two section bands and its footer are below the fold,
+      // and they are half of what the shell pass changed.
+      { name: 'home-signed-out', path: '/', token: anon, full: true },
       { name: 'home-signed-in', path: '/', token: account },
       { name: 'experts', path: '/experts', token: account },
       { name: 'terms', path: '/terms', token: account, full: true },
-      { name: 'history', path: '/history', token: anon },
+      { name: 'shelf', path: '/history', token: account },
+      { name: 'history-empty', path: '/history', token: second },
+      { name: 'session', path: `/sessions/${saved}`, token: anon },
     ];
 
     for (const theme of ['light', 'dark'] as const) {
@@ -306,6 +345,119 @@ test.describe('shell screenshots', () => {
           });
         }
         expect(errors, `${vp.name}/${theme}`).toEqual([]);
+        await context.close();
+      }
+    }
+  });
+
+  /**
+   * Home's expert row as each kind of learner sees it. The six Standard
+   * legends carry the plan's name for a free learner and nothing at all for
+   * one who has it; this is the pair the owner reviews.
+   */
+  test('capture the expert row for a free and for a Standard learner', async ({
+    browser,
+    request,
+    baseURL,
+  }) => {
+    mkdirSync(SCREENS_DIR, { recursive: true });
+    const free = await signIn(request, await anonymous(request, 'Free'), 'Free Learner');
+    const standard = await signIn(
+      request,
+      await anonymous(request, 'Paid'),
+      'Standard Learner',
+      'standard',
+    );
+
+    for (const theme of ['light', 'dark'] as const) {
+      for (const [who, token] of [
+        ['free', free],
+        ['standard', standard],
+      ] as const) {
+        const context = await browser.newContext({
+          viewport: { width: 1440, height: 900 },
+          ...(baseURL ? { baseURL } : {}),
+        });
+        const page = await context.newPage();
+        await page.addInitScript(
+          ([bearer, value]) => {
+            localStorage.setItem('pen.token', bearer);
+            localStorage.setItem('pen.theme', value);
+          },
+          [token, theme] as const,
+        );
+        await page.goto('/');
+        const row = page.getByTestId('experts-row');
+        await expect(row.getByTestId('expert-tile').first()).toBeVisible({ timeout: 20_000 });
+        // Twelve faces and one card that leads to the rest — never more.
+        await expect(row.getByTestId('expert-tile')).toHaveCount(12);
+        await expect(row.getByTestId('experts-show-more')).toHaveCount(1);
+        // Aristotle is the pinned third card: a free learner sees the plan's
+        // name on him, a Standard learner sees an ordinary tile. Asserting the
+        // tile rather than a count keeps this true if the catalogue re-tiers.
+        const aristotle = row.getByTestId('expert-tile').nth(2);
+        await expect(aristotle).toHaveAccessibleName(/Aristotle/);
+        await expect(aristotle.getByTestId('expert-plan-chip')).toHaveCount(who === 'free' ? 1 : 0);
+        if (who === 'standard') await expect(aristotle).toHaveAttribute('title', /Aristotle/);
+        await row.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(600);
+        await row.screenshot({ path: join(SCREENS_DIR, `experts-row-${who}-${theme}.png`) });
+        // And the end of the row, where the card that leads to all of them sits.
+        await row.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+        await page.waitForTimeout(400);
+        await row.screenshot({ path: join(SCREENS_DIR, `experts-row-end-${who}-${theme}.png`) });
+        await context.close();
+      }
+    }
+  });
+
+  /**
+   * The same two screens under each brand family, for the owner to choose
+   * from. `data-brand` is the whole switch (tokens.css): nothing else in the
+   * product changes, which is the point of the comparison.
+   */
+  test('capture Home and a saved session under each brand', async ({
+    browser,
+    request,
+    baseURL,
+  }) => {
+    mkdirSync(SCREENS_DIR, { recursive: true });
+    const anon = await anonymous(request, 'Brand');
+    const saved = await endedSession(request, anon, 'How Transformers work in LLMs');
+    await endedSession(request, await anonymous(request, 'Brand Two'), 'Swift fundamentals');
+
+    for (const brand of ['teal', 'green', 'forest'] as const) {
+      for (const theme of ['light', 'dark'] as const) {
+        const context = await browser.newContext({
+          viewport: { width: 1440, height: 900 },
+          ...(baseURL ? { baseURL } : {}),
+        });
+        const page = await context.newPage();
+        await page.addInitScript(
+          ([token, value]) => {
+            localStorage.setItem('pen.token', token);
+            localStorage.setItem('pen.theme', value);
+          },
+          [anon, theme] as const,
+        );
+        for (const [name, path] of [
+          ['home', '/'],
+          ['session', `/sessions/${saved}`],
+        ] as const) {
+          await page.goto(path);
+          // The whole switch: one attribute, applied to the live document.
+          await page.evaluate(
+            (family) => document.documentElement.setAttribute('data-brand', family),
+            brand,
+          );
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await expect(page.locator('h1, h2').first()).toBeVisible({ timeout: 20_000 });
+          await page.waitForTimeout(600);
+          expect(await page.getAttribute('html', 'data-brand')).toBe(brand);
+          await page.screenshot({
+            path: join(SCREENS_DIR, `brand-${brand}-${name}-${theme}.png`),
+          });
+        }
         await context.close();
       }
     }
