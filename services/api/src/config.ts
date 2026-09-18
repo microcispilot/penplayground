@@ -67,6 +67,14 @@ const Env = z.object({
 
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
+  /**
+   * Sentry Cron Monitor slug the API checks in to every `SENTRY_CRON_INTERVAL_MINUTES`
+   * (`pen-api-heartbeat` in production). Unset = no heartbeat. A process that dies,
+   * hangs, or loses its database stops checking in, and Sentry opens an issue one
+   * interval + margin later — see docs/RUNBOOK.md → "Alerting".
+   */
+  SENTRY_CRON_MONITOR_SLUG: z.string().min(1).max(50).optional(),
+  SENTRY_CRON_INTERVAL_MINUTES: z.coerce.number().int().positive().max(60).default(5),
 
   /** MP4 export: ffmpeg binary (PATH lookup by default) and an optional system Chromium for Playwright. */
   PEN_FFMPEG_PATH: z.string().min(1).default('ffmpeg'),

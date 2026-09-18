@@ -32,7 +32,12 @@ reachable from the internet. `deploy/` holds every file involved:
 | `deploy/livekit/livekit.yaml` | LiveKit server config (ports, room limits; no secrets) |
 | `deploy/web/nginx.conf` | nginx inside the web container (baked into the image) |
 | `deploy/nginx/pen-playground.conf.example` | host vhost template (`DOMAIN` placeholder) |
+| `deploy/backup/` | the nightly backup sidecar: `backup.sh`, `restore.sh`, cron entrypoint, rclone setup |
+| `deploy/uptime.md` | the external uptime check the owner creates |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | the images (build context = repo root) |
+
+Day-to-day operation — deploy, rollback, secrets rotation, backups, incidents,
+scaling — is **`docs/RUNBOOK.md`**.
 
 ## Prerequisites (workstation)
 
@@ -365,6 +370,11 @@ curl -s 'http://127.0.0.1:8080/search?q=test&format=json' | head -c 300   # sear
 Log files rotate (json-file, 20 MB × 5). Errors also go to Sentry with content-free context.
 
 ## Backups
+
+Automated by the `backup` service in the compose stack (profile `backup`,
+nightly at 03:15 UTC, 14 days, optional off-host `rclone` copy). How to run,
+check and restore one: **`docs/RUNBOOK.md` → "Backups"**. What follows is what
+that sidecar does, for when you need to do it by hand.
 
 State lives in two places:
 

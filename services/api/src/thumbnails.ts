@@ -17,7 +17,7 @@ import {
   SessionMetaJobs,
   type SessionMetaResult,
 } from '@pen/session-engine';
-import { Resvg } from '@resvg/resvg-js';
+import { renderAsync } from '@resvg/resvg-js';
 import { z } from 'zod';
 import { safeId } from './ledger.js';
 import { observer } from './observability.js';
@@ -31,8 +31,16 @@ import { observer } from './observability.js';
  *   og.png      1200 × 630 raster for Open Graph (most scrapers ignore SVG)
  *   meta.json   the SessionMeta that produced them, with usage and timings
  *
- * The PNGs are rasterised with resvg in-process (≈ 50 ms each); a session
- * that only has the SVG (older data) gets its PNG on first request.
+ * The PNGs are rasterised with resvg (≈ 50 ms each); a session that only has
+ * the SVG (older data) gets its PNG on first request.
+ *
+ * Rasterising goes through resvg's **async** entry point on purpose. The
+ * synchronous one runs the whole render on the event loop, and a session's
+ * two PNGs are ~120 ms of it — long enough to stall every live room's audio
+ * fan-out at once, which a load run at 50 concurrent sessions showed as
+ * ~160 ms stalls on a trivial request (`services/api/scripts/load.ts`).
+ * `renderAsync` runs on libuv's threadpool, so the loop keeps turning and the
+ * PCM keeps flowing while the picture is drawn.
  */
 
 export type ThumbnailKind = 'svg' | 'card' | 'og';
@@ -123,20 +131,26 @@ export class ThumbnailStore {
     return join(this.sessionsDir, safeId(sessionId));
   }
 
-  /** Render the sketch and write every variant plus `meta.json`. Synchronous: ≈ 120 ms in total. */
-  write(
+  /**
+   * Render the sketch and write every variant plus `meta.json`. The two
+   * rasterisations — the expensive half — happen off the event loop, so a
+   * burst of sessions ending never stalls the rooms that are still speaking.
+   */
+  async write(
     sessionId: string,
     meta: SessionMeta,
     provenance: { usage: StoredSessionMeta['usage']; attempts: number },
-  ): WrittenThumbnail {
+  ): Promise<WrittenThumbnail> {
     const dir = this.dir(sessionId);
     mkdirSync(dir, { recursive: true });
     const t0 = performance.now();
     const card: RenderedThumbnail = renderSketchSvg(meta.thumbnail, this.font, { seed: sessionId });
     const og = renderSketchSvg(meta.thumbnail, this.font, { seed: sessionId, ...THUMB_SIZES.og });
     const t1 = performance.now();
-    const cardPng = rasterise(card.svg, THUMB_SIZES.card.width);
-    const ogPng = rasterise(og.svg, THUMB_SIZES.og.width);
+    const [cardPng, ogPng] = await Promise.all([
+      rasterise(card.svg, THUMB_SIZES.card.width),
+      rasterise(og.svg, THUMB_SIZES.og.width),
+    ]);
     const t2 = performance.now();
     // The SVG last: its presence is what "ready" means, so a crash mid-write never advertises a half set.
     writeFileSync(join(dir, THUMB_FILES.card), cardPng);
@@ -164,7 +178,7 @@ export class ThumbnailStore {
   }
 
   /** Absolute path of an existing variant, or null. PNGs are made on demand from an existing SVG. */
-  file(sessionId: string, kind: ThumbnailKind): string | null {
+  async file(sessionId: string, kind: ThumbnailKind): Promise<string | null> {
     const p = join(this.dir(sessionId), THUMB_FILES[kind]);
     if (existsSync(p)) return p;
     if (kind === 'svg') return null;
@@ -174,7 +188,8 @@ export class ThumbnailStore {
     if (!stored) return null;
     const size = THUMB_SIZES[kind];
     const svg = renderSketchSvg(stored.meta.thumbnail, this.font, { seed: sessionId, ...size });
-    writeFileSync(p, rasterise(svg.svg, size.width));
+    // On the request path, so doubly worth keeping off the loop.
+    writeFileSync(p, await rasterise(svg.svg, size.width));
     observer.event('thumbnail.raster_on_demand', { kind });
     return p;
   }
@@ -197,8 +212,10 @@ export class ThumbnailStore {
   }
 }
 
-function rasterise(svg: string, width: number): Buffer {
-  return new Resvg(svg, { fitTo: { mode: 'width', value: width } }).render().asPng();
+/** resvg on libuv's threadpool: the event loop keeps turning while it draws. */
+async function rasterise(svg: string, width: number): Promise<Buffer> {
+  const rendered = await renderAsync(svg, { fitTo: { mode: 'width', value: width } });
+  return rendered.asPng();
 }
 
 /**
@@ -219,7 +236,7 @@ export function createSessionMetaJobs(deps: {
     observer,
     ...(deps.onUsage ? { onUsage: deps.onUsage } : {}),
     onResult: async (input, result: SessionMetaResult) => {
-      const written = deps.store.write(input.sessionId, result.meta, {
+      const written = await deps.store.write(input.sessionId, result.meta, {
         usage: result.usage,
         attempts: result.attempts,
       });

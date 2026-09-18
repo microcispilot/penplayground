@@ -43,3 +43,10 @@
 - [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
 - [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
 - [ ] Ads: TCF 2.2 consent (EEA/UK) and child-directed tagging before serving there
+- [x] CI on GitHub Actions: `pnpm verify` (ffmpeg + Chromium, no skipped integration tests), e2e with fake providers, both images built for linux/amd64; traces uploaded on failure; badge in README
+- [x] Backups: nightly `pg_dump` + `/data` tarball sidecar (compose profile `backup`, 14 days, checksums, optional rclone off-host), `deploy/backup/restore.sh`; restore proven against a throwaway Postgres
+- [x] Alerting: Sentry workflows (new issue, error-rate spike) + Cron monitor `pen-api-heartbeat` created via API (`pnpm --filter @pen/api sentry:alerts`); API checks in every 5 min behind `SENTRY_CRON_MONITOR_SLUG`
+- [x] `/api/ready` (DB, data dir, providers) used by the compose healthcheck and the edge; `deploy/uptime.md` for the external check
+- [x] Load check `pnpm --filter @pen/api load --sessions N`: 50 concurrent sessions hold first-audio p95 ≈ 320 ms; thumbnail rasterising moved off the event loop (health-ping p95 160 → 7 ms)
+- [x] `docs/RUNBOOK.md`: deploy/rollback, secrets rotation, scaling, incidents, backup/restore, certificates, LiveKit, ads, Google consent screen
+- [ ] Ops follow-ups: PostHog dashboard needs `dashboard:write` + `insight:write` on the personal key (queries validated, `posthog:dashboard --print` meanwhile); owner creates the UptimeRobot check (`deploy/uptime.md`); a second Sentry Cron monitor needs a paid seat; `ExportJobs.jobs`/`fingerprints` grow per exported session (bounded in practice, no eviction)

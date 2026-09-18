@@ -19,6 +19,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@pen/contracts": "workspace:*",
     "@playwright/test": "1.63.0",
     "@sentry/vite-plugin": "5.4.0",
     "@tailwindcss/vite": "4.3.3",

@@ -32,6 +32,13 @@ export function migrationsFolder(env: NodeJS.ProcessEnv = process.env): string {
 export interface Connection {
   db: Database;
   kind: 'pglite' | 'postgres';
+  /**
+   * One round-trip, for readiness probes (`GET /api/ready`): resolves when the
+   * database answers, rejects with the driver's reason when it does not. It
+   * lives here so callers never need SQL — or `drizzle-orm` — to ask whether
+   * the database is alive.
+   */
+  ping(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -121,10 +128,20 @@ export async function connect(
     const client = target === 'memory' || target === '' ? new PGlite() : new PGlite(target);
     const db = drizzlePglite(client, { schema });
     await applyMigrations(db, 'pglite', migrations, opts.log);
-    return { db, kind: 'pglite', close: () => client.close() };
+    return {
+      db,
+      kind: 'pglite',
+      ping: async () => void (await db.execute(sql`select 1`)),
+      close: () => client.close(),
+    };
   }
-  const sql = postgres(url, { max: 10, prepare: false });
-  const db = drizzlePostgres(sql, { schema });
+  const client = postgres(url, { max: 10, prepare: false });
+  const db = drizzlePostgres(client, { schema });
   await applyMigrations(db, 'postgres', migrations, opts.log);
-  return { db, kind: 'postgres', close: () => sql.end({ timeout: 5 }) };
+  return {
+    db,
+    kind: 'postgres',
+    ping: async () => void (await db.execute(sql`select 1`)),
+    close: () => client.end({ timeout: 5 }),
+  };
 }
