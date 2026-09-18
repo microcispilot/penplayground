@@ -9,6 +9,7 @@ import type {
 } from '@pen/contracts';
 import { create } from 'zustand';
 import type { RoomAudioUi } from './audio/RoomAudio.js';
+import type { ConversationMessage } from './conversation.js';
 import type { RoomConnectionStatus } from './RoomClient.js';
 
 export interface CaptionLine {
@@ -54,6 +55,13 @@ export interface RoomUiState {
   micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';
   micLevel: number;
   captionsOn: boolean;
+  /**
+   * Everything said in this room, in order: the lesson's sentences, the
+   * learner's questions, the expert's answers, check answers, and the room's
+   * own system lines. The session panel reads it; the caption over the board
+   * shows only the last line of it.
+   */
+  conversation: ConversationMessage[];
   learnerHeard: string;
   /** Pinned "You asked" notes, in order. */
   notes: NoteEvent[];
@@ -86,6 +94,7 @@ const initial: RoomUiState = {
   micState: 'idle',
   micLevel: 0,
   captionsOn: true,
+  conversation: [],
   learnerHeard: '',
   notes: [],
   clockMs: 0,
@@ -104,3 +113,17 @@ export const useRoomStore = create<RoomUiState & RoomUiActions>((set) => ({
   set: (patch) => set(patch),
   reset: () => set(initial),
 }));
+
+declare global {
+  interface Window {
+    /**
+     * Debug handle for devtools and the screenshot sweep, alongside
+     * `window.__penAudioRoom`: it reads what the room is showing and can put a
+     * roster in front of the panel that would otherwise need twelve browsers.
+     * Read-only as far as the product is concerned — nothing in the app uses it.
+     */
+    __penRoomStore?: typeof useRoomStore;
+  }
+}
+
+if (typeof window !== 'undefined') window.__penRoomStore = useRoomStore;

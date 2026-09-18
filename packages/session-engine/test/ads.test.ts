@@ -3,7 +3,13 @@ import { FakeLanguageModel } from '@pen/llm';
 import { SilentSynthesizer } from '@pen/voice';
 import { describe, expect, it } from 'vitest';
 import { SessionMetrics } from '../src/metrics.js';
-import { type AdOutcome, type AdPolicy, type KnowledgeAcquirer, SessionRoom } from '../src/room.js';
+import {
+  AD_WINDOW_GRACE_MS,
+  type AdOutcome,
+  type AdPolicy,
+  type KnowledgeAcquirer,
+  SessionRoom,
+} from '../src/room.js';
 import {
   CANONICAL_ID,
   expert,
@@ -33,6 +39,9 @@ async function makeRoom(opts: {
   sessionId: string;
   onEvent?: AdPolicy['onEvent'];
   revenuePerCompletionUsd?: number;
+  /** A clock the test drives, for the ceiling a silent client is released on. */
+  now?: () => number;
+  observed?: Array<{ name: string; data: Record<string, unknown> }>;
 }) {
   const { onten, packId } = await preparedPack();
   const transport = new MemoryTransport();
@@ -82,6 +91,15 @@ async function makeRoom(opts: {
     acquirer,
     targetMinutes: 6,
     metrics,
+    ...(opts.now ? { now: opts.now } : {}),
+    ...(opts.observed
+      ? {
+          observer: {
+            event: (name, data) => void opts.observed?.push({ name, data }),
+            error: () => null,
+          },
+        }
+      : {}),
     ads: {
       ...ADS,
       ...(opts.onEvent ? { onEvent: opts.onEvent } : {}),
@@ -307,6 +325,156 @@ describe('SessionRoom ad outcomes (ad_event)', () => {
     ).toEqual([]);
     room.handle(HOST, { kind: 'ad_event', adId, event: 'ad_error', atMs: 1, code: '1009' });
     expect(outcomes.map((o) => [o.event, o.code])).toEqual([['ad_error', '1009']]);
+    await room.end();
+  });
+});
+
+// ── voice and chat are refused for the length of an ad (ADR-0014) ─────────────
+
+/** Teach up to and including `upto`, reporting each segment heard the way the host does. */
+async function teachThrough(
+  room: SessionRoom,
+  transport: MemoryTransport,
+  upto: number,
+): Promise<number[]> {
+  const lastSeq: number[] = [];
+  for (let i = 0; i <= upto; i++) {
+    await until(
+      () => transport.cues().filter((c) => c.thread === 'lesson' && c.segment === i).length >= 2,
+    );
+    const last = Math.max(
+      ...transport
+        .cues()
+        .filter((c) => c.thread === 'lesson' && c.segment === i)
+        .map((c) => c.seq),
+    );
+    lastSeq[i] = last;
+    room.handle(HOST, { kind: 'progress', seq: last, clockMs: 1000 * (i + 1) });
+  }
+  return lastSeq;
+}
+
+/**
+ * The ad the room scheduled at the first boundary, with the host's playback
+ * deliberately still short of it: the room schedules the ad while generating
+ * segment 2, and the conductor holds it until the host reaches `afterSeq`.
+ */
+async function adScheduled(room: SessionRoom, transport: MemoryTransport) {
+  const lastSeq = await teachThrough(room, transport, 1);
+  await until(() => transport.ads().length > 0);
+  const ad = transport.ads()[0];
+  if (!ad) throw new Error('no ad was scheduled');
+  return { ad, lastSeq };
+}
+
+/** Exactly what a learner's voice or keyboard produces: an interrupt, then a final transcript. */
+function askAloud(room: SessionRoom, utteranceId: string, text: string): void {
+  room.handle(HOST, { kind: 'interrupt', atSeq: 1, sayId: null, offsetMs: 0 });
+  room.handle(HOST, { kind: 'transcript', utteranceId, text, final: true });
+}
+
+describe('SessionRoom refuses questions from behind an ad', () => {
+  it('drops the interrupt and the transcript while the ad is up, and takes them the moment it ends', async () => {
+    const observed: Array<{ name: string; data: Record<string, unknown> }> = [];
+    const { room, transport } = await makeRoom({
+      plan: 'free',
+      miss: false,
+      sessionId: 'sess-ad-guard',
+      observed,
+    });
+    await room.start();
+    const { ad } = await adScheduled(room, transport);
+    // The host has played up to the cue the ad hangs on: the overlay is up.
+    room.handle(HOST, { kind: 'progress', seq: ad.afterSeq, clockMs: 9_000 });
+    expect(room.getState().mode).toBe('teaching');
+
+    const captionsBefore = transport.messages.filter((m) => m.kind === 'caption').length;
+    askAloud(room, 'u-behind-the-ad', 'why do we divide by the square root of d?');
+    await sleep(30);
+
+    // Nothing moved: no floor, no caption to the room, no turn.
+    expect(room.getState().mode).toBe('teaching');
+    expect(room.getState().floor).toBeNull();
+    expect(transport.messages.filter((m) => m.kind === 'caption')).toHaveLength(captionsBefore);
+    // Dropped, not swallowed.
+    expect(
+      observed.filter((e) => e.name === 'room.ad_input_refused').map((e) => e.data.kind),
+    ).toEqual(['interrupt', 'transcript']);
+
+    // The player says how it ended; the learner has the room back on the next frame.
+    room.handle(HOST, { kind: 'ad_event', adId: ad.adId, event: 'ad_skipped', atMs: 5_200 });
+    askAloud(room, 'u-after-the-ad', 'why do we divide by the square root of d?');
+    await sleep(30);
+    expect(room.getState().floor).toBe(HOST);
+    expect(transport.messages.filter((m) => m.kind === 'caption').length).toBeGreaterThan(
+      captionsBefore,
+    );
+    await room.end();
+  });
+
+  it('still takes a question at a boundary the host has not reached: a scheduled ad is not an ad', async () => {
+    const { room, transport } = await makeRoom({
+      plan: 'free',
+      miss: false,
+      sessionId: 'sess-ad-pending',
+    });
+    await room.start();
+    const { ad, lastSeq } = await adScheduled(room, transport);
+    // The ad is scheduled after a cue the host is still short of…
+    expect(ad.afterSeq).toBeGreaterThan(lastSeq[1] ?? 0);
+    room.handle(HOST, { kind: 'progress', seq: Math.max(0, ad.afterSeq - 1), clockMs: 8_000 });
+
+    askAloud(room, 'u-before-the-ad', 'why do we divide by the square root of d?');
+    await sleep(30);
+    expect(room.getState().floor).toBe(HOST);
+    await room.end();
+  });
+
+  it("releases the learner on the ad's own ceiling when the client never says how it ended", async () => {
+    let clock = 1_800_000_000_000;
+    const { room, transport } = await makeRoom({
+      plan: 'free',
+      miss: false,
+      sessionId: 'sess-ad-ceiling',
+      now: () => clock,
+    });
+    await room.start();
+    const { ad } = await adScheduled(room, transport);
+    room.handle(HOST, { kind: 'progress', seq: ad.afterSeq, clockMs: 9_000 });
+
+    askAloud(room, 'u-during', 'hello?');
+    await sleep(30);
+    expect(room.getState().floor).toBeNull();
+
+    // Past the ad's own duration plus the grace the report is given to arrive.
+    clock += ADS.durationMs + AD_WINDOW_GRACE_MS + 1;
+    askAloud(room, 'u-after-ceiling', 'hello?');
+    await sleep(30);
+    expect(room.getState().floor).toBe(HOST);
+    await room.end();
+  });
+
+  it("closes the window on the host's own ad_ended report as well", async () => {
+    const { room, transport } = await makeRoom({
+      plan: 'free',
+      miss: false,
+      sessionId: 'sess-ad-report',
+    });
+    await room.start();
+    const { ad } = await adScheduled(room, transport);
+    room.handle(HOST, { kind: 'progress', seq: ad.afterSeq, clockMs: 9_000 });
+    askAloud(room, 'u-1', 'nope');
+    await sleep(30);
+    expect(room.getState().floor).toBeNull();
+
+    room.handle(HOST, {
+      kind: 'report',
+      event: 'ad_ended',
+      props: { adId: ad.adId, ms: 7_000, reason: 'timeout' },
+    });
+    askAloud(room, 'u-2', 'now then');
+    await sleep(30);
+    expect(room.getState().floor).toBe(HOST);
     await room.end();
   });
 });

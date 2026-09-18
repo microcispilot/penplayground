@@ -97,6 +97,9 @@ export const InteractionName = z.enum([
   'mic_on',
   'mic_off',
   'fullscreen',
+  /** The session panel (AI human, the call, the conversation) folded away or came back. */
+  'panel_collapsed',
+  'panel_opened',
   'pace_changed',
   'leave',
   'end',

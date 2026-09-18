@@ -71,8 +71,12 @@ export interface BoardPort {
 }
 
 export interface CaptionPort {
-  /** Show the expert's sentence; `revealMs` paces the typewriter to the audio. */
-  showExpert(text: string, revealMs: number): void;
+  /**
+   * Show the expert's sentence; `revealMs` paces the typewriter to the audio.
+   * `thread` is the cue's conversational thread (`lesson`, or a turn id) so a
+   * transcript can tell a sentence of the lesson from an answer to a question.
+   */
+  showExpert(text: string, revealMs: number, thread?: string): void;
   /** Live learner transcript (partial or final). */
   showLearner(name: string, text: string, final: boolean): void;
   hint(text: string | null): void;
