@@ -11,6 +11,7 @@ import {
 import type { Onten } from '@pen/onten';
 import { SilentSynthesizer } from '@pen/voice';
 import { describe, expect, it } from 'vitest';
+import { MemoryLessonMemo } from '../src/lesson-memo.js';
 import { type PlanRequest, streamPlan } from '../src/planner.js';
 import { SessionRoom } from '../src/room.js';
 import {
@@ -108,7 +109,7 @@ function room(onten: Onten, id: string, model: LanguageModel, transport: MemoryT
     locale: 'en-US',
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo: new MemoryLessonMemo(),
     model,
     synthesizer: new SilentSynthesizer(),
     voice: 'voice-en',
