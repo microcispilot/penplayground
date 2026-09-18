@@ -1138,13 +1138,36 @@ export class SessionRoom {
       this.state.mode === 'answering'
     ) {
       // Someone else has the floor; a second voice is queued by the client UI, not the room.
-      if (this.state.floor !== p.id)
+      if (this.state.floor !== p.id) {
         this.d.transport.send(p.id, {
           kind: 'error',
           code: 'RATE_LIMITED',
           message: `${this.participants.get(this.state.floor ?? '')?.name ?? 'Someone'} has the floor.`,
           spoken: false,
         });
+        return;
+      }
+      // The floor holder cut in again — over the answer they just asked for, or
+      // over the check's feedback. Their conductor has already faded the audio and
+      // frozen the board (ADR-0002: no round-trip on the critical path), so the room
+      // must follow rather than leave the two holding different truths: silently
+      // dropping this left the client muted and the bar reading "Answering you".
+      if (this.state.mode === 'listening') return;
+      this.pipeline.cancel();
+      this.ledger({
+        kind: 'interrupt',
+        t: this.now(),
+        participantId: p.id,
+        atSeq: at.atSeq,
+        offsetMs: at.offsetMs,
+      });
+      // The turn is over: its remaining sentences are never re-spoken, and the
+      // learner is talking now. `pausedBeforeTurn` is left as it was so the lesson
+      // still resumes where the first interrupt stopped it.
+      if (this.turn) this.turn.done = true;
+      this.turn = null;
+      this.pipeline.resetLookahead();
+      this.setMode('listening', p.id);
       return;
     }
     this.pausedBeforeTurn =

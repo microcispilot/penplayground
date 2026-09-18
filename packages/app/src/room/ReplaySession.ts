@@ -12,6 +12,7 @@ import { z } from 'zod';
 import type { ApiClient } from '../api/client.js';
 import { LazyBoard } from './LazyBoard.js';
 import { type PaceTimeline, paceTimeline } from './pace-timeline.js';
+import { buildReplayTimeline, type ReplayTimeline } from './replay-timeline.js';
 import { useRoomStore } from './store.js';
 
 const LedgerResponse = z.object({ entries: z.array(LedgerEntrySchema) });
@@ -167,6 +168,13 @@ export class ReplaySession {
   private audio = new Map<string, AudioRef[]>(); // key: sayId@take
   private sayOrder: string[] = [];
   private fed = 0;
+  private timelineCache: ReplayTimeline | null = null;
+  /** Index into `sayOrder` of the sentence playing (or about to play). */
+  private cursor = 0;
+  /** A seek lands inside a sentence: applied as soon as that sentence starts. */
+  private pendingSeekMs: number | null = null;
+  /** Kept from `start()` so a seek can rebuild the conductor with the same ports. */
+  private ports: { captions: CaptionPort; presence: PresencePort } | null = null;
   private readonly fileCache = new Map<string, Promise<ArrayBuffer>>();
   private disposed = false;
   private paused = false;
@@ -184,8 +192,13 @@ export class ReplaySession {
         ? new MediaSayPlayer({
             onError: (code, detail) => console.warn('[replay]', code, detail),
             onSayStart: (id) => {
+              const at = this.sayOrder.indexOf(id);
+              if (at >= 0) this.cursor = at;
               this.followRecordedPace(id);
               this.conductor?.audioEvents.onSayStart(id);
+              // A seek asked for a position inside this sentence; the element exists now.
+              if (this.pendingSeekMs !== null && this.player?.seekCurrent(this.pendingSeekMs))
+                this.pendingSeekMs = null;
               void this.feedAhead();
             },
             onSayEnd: (id, ms) => this.conductor?.audioEvents.onSayEnd(id, ms),
@@ -233,23 +246,11 @@ export class ReplaySession {
 
   /** Total audio length of each say in play order (ledger truth, or the replay's estimate when a say has no audio). */
   private exportPlan(): ExportSayPlan[] {
-    const text = new Map<string, string>();
-    for (const c of this.cues) if (c.event.type === 'say') text.set(c.event.id, c.event.text);
     return this.sayOrder.map((key) => {
       const at = key.lastIndexOf('@');
       const sayId = key.slice(0, at);
       const take = Number(key.slice(at + 1));
-      const refs = this.audio.get(key) ?? [];
-      const total = refs.reduce(
-        (n, r) => Math.max(n, r.header.audioClockMs + r.header.durationMs),
-        0,
-      );
-      return {
-        key,
-        sayId,
-        take,
-        durationMs: total > 0 ? total : estimateSpeechMs(text.get(sayId) ?? ''),
-      };
+      return { key, sayId, take, durationMs: this.recordedMs(key, sayId) };
     });
   }
 
@@ -303,6 +304,9 @@ export class ReplaySession {
     this.sayOrder = this.cues
       .filter((c) => c.event.type === 'say')
       .map((c) => (c.event.type === 'say' ? `${c.event.id}@${lastTake.get(c.event.id) ?? 0}` : ''));
+    // Everything the timeline needs is known now; anything read before this was
+    // an empty recording, so drop the memo rather than serve it.
+    this.timelineCache = null;
     const state: RoomState = {
       sessionId: this.sessionId,
       topic: '',
@@ -334,15 +338,7 @@ export class ReplaySession {
     const player = this.player;
     let audio: AudioPort;
     if (player) {
-      audio = {
-        enqueue: (chunk) => void player.enqueue(chunk),
-        pause: () => player.pause(),
-        resume: () => player.resume(),
-        cancel: () => player.cancel(),
-        get clock() {
-          return player.clock;
-        },
-      };
+      audio = this.audioPort();
     } else {
       const plan = this.exportPlan();
       const clock = new ExportClock(plan, {
@@ -360,6 +356,7 @@ export class ReplaySession {
       audio = clock;
     }
     this.state = state;
+    this.ports = ports;
     this.conductor = new Conductor({
       audio,
       board: this.board,
@@ -372,16 +369,7 @@ export class ReplaySession {
     if (this.player) this.player.playbackRate = this.playbackRate;
     this.conductor.handleServer({ kind: 'ready', participantId: '__viewer__', state, backlog: [] });
     for (const cue of this.cues) this.conductor.handleServer({ kind: 'cue', cue });
-    for (const [key, refs] of this.audio) {
-      const [sayId, take] = key.split('@');
-      const total = refs.reduce(
-        (n, r) => Math.max(n, r.header.audioClockMs + r.header.durationMs),
-        0,
-      );
-      if (sayId && take !== undefined)
-        this.conductor.handleServer({ kind: 'say_take', sayId, take: Number(take) });
-      if (sayId) this.conductor.handleServer({ kind: 'say_complete', sayId, durationMs: total });
-    }
+    this.announceDurations(this.conductor);
     if (this.mode === 'export') {
       // Says without audio still need a duration for the board pacing.
       for (const say of this.exportPlan())
@@ -406,6 +394,95 @@ export class ReplaySession {
     this.exportClock.start();
   }
 
+  /**
+   * Where every sentence sits on the recording's own clock: what the scrubber
+   * draws, and what a seek is resolved against. Built once the ledger is in.
+   */
+  get timeline(): ReplayTimeline {
+    // Built once the ledger is in, and only then: the screen reads this while it
+    // is still loading, and caching an empty recording would leave the scrubber
+    // reading 0:00 for the whole replay.
+    if (!this.timelineCache)
+      this.timelineCache = buildReplayTimeline({
+        cues: this.cues,
+        sayOrder: this.sayOrder,
+        durationOf: (key, sayId) => this.recordedMs(key, sayId),
+        // The recording ledger stores cues and audio, never the plan, so chapter
+        // ticks are numbered steps. Naming them needs the plan in the ledger.
+        plan: null,
+      });
+    return this.timelineCache;
+  }
+
+  /** Recorded position, on the same clock as the timeline. */
+  get positionMs(): number {
+    const entry = this.timeline.says[this.cursor];
+    if (!entry) return 0;
+    const clock = this.player?.clock;
+    const inside = clock?.sayId === entry.key ? clock.offsetMs : 0;
+    return entry.startMs + Math.min(entry.durationMs, inside);
+  }
+
+  /** How much of the recording has been fetched: the scrubber's buffered fill. */
+  get bufferedMs(): number {
+    const last = this.timeline.says[Math.min(this.fed, this.timeline.says.length) - 1];
+    return last ? last.startMs + last.durationMs : 0;
+  }
+
+  /**
+   * Jump to `toMs` on the recorded clock, like a video scrubber.
+   *
+   * Deterministic by construction: the board is wiped and rebuilt from the cue
+   * stream — every op before the target sentence drawn in its finished state
+   * through the conductor's own catch-up path — and then playback continues at
+   * the recorded pace from that sentence, entered at the right offset. The
+   * audio follows on the same clock (ADR-0002), so the two cannot drift apart.
+   */
+  async seek(toMs: number): Promise<void> {
+    const ports = this.ports;
+    const state = this.state;
+    if (!ports || !state || this.disposed || this.mode !== 'play') return;
+    const timeline = this.timeline;
+    const { index, offsetMs } = timeline.locate(toMs);
+    const target = timeline.says[index];
+
+    this.player?.cancel();
+    // Order matters: the old conductor must let go of its in-flight ops before
+    // the paper is wiped, or a running animation would write onto a blank board.
+    this.conductor?.dispose();
+    this.board.clear();
+
+    const conductor = new Conductor({
+      audio: this.audioPort(),
+      board: this.board,
+      captions: ports.captions,
+      presence: ports.presence,
+      transport: { send: () => undefined },
+      participantId: '__viewer__',
+    });
+    this.conductor = conductor;
+    conductor.setPlaybackRate(this.playbackRate);
+
+    // Everything written before this sentence is history: the `ready` backlog
+    // renders it instantly, exactly as it does for a participant who joins late.
+    const upTo = target?.cueSeq ?? Number.POSITIVE_INFINITY;
+    conductor.handleServer({
+      kind: 'ready',
+      participantId: '__viewer__',
+      state,
+      backlog: this.cues.filter((c) => c.seq < upTo),
+    });
+    for (const cue of this.cues) if (cue.seq >= upTo) conductor.handleServer({ kind: 'cue', cue });
+    this.announceDurations(conductor);
+
+    this.cursor = index;
+    this.fed = index;
+    this.pendingSeekMs = offsetMs > 0 ? offsetMs : null;
+    conductor.startNextSayAt(offsetMs);
+    if (this.paused) this.player?.pause();
+    await this.feedAhead();
+  }
+
   pause(): void {
     this.paused = true;
     this.player?.pause();
@@ -427,6 +504,53 @@ export class ReplaySession {
     this.exportClock?.dispose();
   }
 
+  /**
+   * The conductor's audio port over the replay player. Rebuilt on a seek, which
+   * makes a fresh conductor, so it lives here rather than inline in `start()`.
+   */
+  private audioPort(): AudioPort {
+    const player = this.player;
+    if (!player) throw new Error('audioPort() is play mode only');
+    return {
+      enqueue: (chunk) => void player.enqueue(chunk),
+      pause: () => player.pause(),
+      resume: () => player.resume(),
+      cancel: () => player.cancel(),
+      get clock() {
+        return player.clock;
+      },
+    };
+  }
+
+  /** Tell a conductor which take of each sentence was heard, and how long it ran. */
+  private announceDurations(conductor: Conductor): void {
+    for (const key of this.audio.keys()) {
+      const sep = key.lastIndexOf('@');
+      if (sep < 0) continue;
+      const sayId = key.slice(0, sep);
+      const take = Number(key.slice(sep + 1));
+      if (!sayId || !Number.isFinite(take)) continue;
+      conductor.handleServer({ kind: 'say_take', sayId, take });
+      conductor.handleServer({
+        kind: 'say_complete',
+        sayId,
+        durationMs: this.recordedMs(key, sayId),
+      });
+    }
+  }
+
+  /** Measured audio length of one take; the replay's estimate when it has none. */
+  private recordedMs(key: string, sayId: string): number {
+    const refs = this.audio.get(key) ?? [];
+    const total = refs.reduce(
+      (n, r) => Math.max(n, r.header.audioClockMs + r.header.durationMs),
+      0,
+    );
+    if (total > 0) return total;
+    const cue = this.cueOfSay.get(sayId);
+    return estimateSpeechMs(cue?.event.type === 'say' ? cue.event.text : '');
+  }
+
   /** Keep ~3 sentences of audio ahead of the one playing. */
   private async feedAhead(): Promise<void> {
     while (!this.disposed && this.fed < this.sayOrder.length && this.fed < this.playedIndex() + 3) {
@@ -444,7 +568,7 @@ export class ReplaySession {
   private playedIndex(): number {
     const current = this.player?.clock.sayId ?? null;
     const i = current ? this.sayOrder.indexOf(current) : -1;
-    return i < 0 ? 0 : i;
+    return i < 0 ? this.cursor : i;
   }
 
   private async slice(ref: AudioRef): Promise<Uint8Array> {

@@ -109,6 +109,9 @@ export function ExpertOrb({
           <img
             src={portraitUrl}
             alt=""
+            width={inner}
+            height={inner}
+            decoding="async"
             className="rounded-full object-cover"
             style={{
               width: inner,

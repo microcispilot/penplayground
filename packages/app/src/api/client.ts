@@ -275,8 +275,16 @@ export class ApiClient {
       body: '{}',
     }).then((r) => r.url);
   }
-  portraitUrl(src: string | null | undefined): string | null {
-    return src ? `${this.baseUrl}${src}` : null;
+  /**
+   * A portrait at the size it is actually painted. The catalog stores the w384
+   * variant and the w192 file sits beside it (`docs/…` — the contract says the
+   * UI derives the smaller ones), so a 36–92 px card asks for a quarter of the
+   * pixels instead of a portrait sized for the hero.
+   */
+  portraitUrl(src: string | null | undefined, width: 192 | 384 = 384): string | null {
+    if (!src) return null;
+    const sized = width === 192 ? src.replace(/-w384(\.[a-z0-9]+)$/i, '-w192$1') : src;
+    return `${this.baseUrl}${sized}`;
   }
   /** Absolute URL of a session's sketch (`thumbnail` is API-relative); null until it is ready. */
   thumbnailUrl(session: Pick<SessionRecord, 'thumbnail'>): string | null {

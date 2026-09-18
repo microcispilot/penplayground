@@ -85,6 +85,13 @@ export interface PresencePort {
   setSpeaking(speaking: boolean): void;
   showCheck(check: CheckEvent | null): void;
   showAd(ad: { adId: string; durationMs: number; skippableAfterMs: number } | null): void;
+  /**
+   * Nothing has been audible and nothing has been written for
+   * `WAITING_AFTER_MS`, while the room still owes the learner speech. The
+   * product's launch bar (docs/PRODUCT.md) is that no such moment passes
+   * without an honest line, so the UI must say so rather than show stillness.
+   */
+  setWaiting(waiting: boolean): void;
   /** Honest status when something failed or dead air is detected. */
   notice(text: string | null, tone: 'neutral' | 'danger'): void;
 }

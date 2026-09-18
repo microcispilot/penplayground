@@ -35,7 +35,26 @@ export class RoomClient {
 
   connect(): void {
     this.closedByUser = false;
-    this.open();
+    this.open('connecting');
+  }
+
+  /**
+   * Try again now, after the automatic backoff gave up (`failed`). The rejoin
+   * is the same handshake as a first connect — same participant, same session —
+   * and the server answers with `ready`, whose state and cue backlog bring this
+   * client back in step with the room.
+   */
+  retry(): void {
+    if (this.status === 'open' || this.status === 'connecting') return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.attempts = 0;
+    this.closedByUser = false;
+    this.open('reconnecting');
+  }
+
+  get connectionStatus(): RoomConnectionStatus {
+    return this.status;
   }
 
   send(message: ClientMessage): void {
@@ -54,8 +73,9 @@ export class RoomClient {
     this.setStatus('closed');
   }
 
-  private open(): void {
-    this.setStatus(this.attempts === 0 ? 'connecting' : 'reconnecting');
+  /** `announce` is what the learner is told while the socket is opening. */
+  private open(announce: 'connecting' | 'reconnecting'): void {
+    this.setStatus(announce);
     const socket = new WebSocket(this.url);
     socket.binaryType = 'arraybuffer';
     this.socket = socket;
@@ -108,7 +128,7 @@ export class RoomClient {
       }
       const delay = Math.min(8000, 400 * 2 ** this.attempts);
       this.setStatus('reconnecting');
-      this.timer = setTimeout(() => this.open(), delay);
+      this.timer = setTimeout(() => this.open('reconnecting'), delay);
     };
     socket.onerror = () => {
       /* onclose follows and drives the reconnect policy */

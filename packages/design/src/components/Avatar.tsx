@@ -41,7 +41,19 @@ export function Avatar({
       )}
       style={{ ...style, fontSize: Math.round(size * 0.4) }}
     >
-      {src ? <img src={src} alt="" className="size-full object-cover" /> : initialsOf(name)}
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+        />
+      ) : (
+        initialsOf(name)
+      )}
     </span>
   );
 }

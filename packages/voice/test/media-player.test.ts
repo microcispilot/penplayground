@@ -61,6 +61,11 @@ function chunk(
   };
 }
 
+/** One complete say, ready and playing. */
+function feedSay(player: MediaSayPlayer, sayId: string, durationMs: number): void {
+  player.enqueue(chunk(sayId, 0, 0, durationMs, true));
+}
+
 function setup() {
   const elements: FakeMedia[] = [];
   const urls: string[] = [];
@@ -215,5 +220,31 @@ describe('MediaSayPlayer', () => {
     (elements[0] as FakeMedia).fire('error');
     expect(errors).toEqual(['PEN_MEDIA_CHUNK_REJECTED', 'PEN_MEDIA_DECODE_FAILED']);
     expect(events).toEqual(['start s1@0', 'end s1@0 100', 'start s2@0']);
+  });
+});
+
+describe('MediaSayPlayer seeking', () => {
+  it('moves inside the say that is playing, on its own recorded clock', () => {
+    const { player, elements } = setup();
+    feedSay(player, 's1', 1000);
+    const el = elements[0] as FakeMedia;
+    expect(player.seekCurrent(400)).toBe(true);
+    expect(el.currentTime).toBeCloseTo(0.4, 5);
+    expect(player.clock).toEqual({ sayId: 's1', offsetMs: 400 });
+  });
+
+  it('clamps a seek to the say rather than running past its end', () => {
+    const { player, elements } = setup();
+    feedSay(player, 's1', 1000);
+    const el = elements[0] as FakeMedia;
+    player.seekCurrent(-50);
+    expect(el.currentTime).toBe(0);
+    player.seekCurrent(9_000);
+    expect(el.currentTime).toBeCloseTo(1, 5);
+  });
+
+  it('reports that it could not seek when nothing is playing yet', () => {
+    const { player } = setup();
+    expect(player.seekCurrent(400)).toBe(false);
   });
 });

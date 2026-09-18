@@ -16,18 +16,31 @@ export function Caption({ speaker, text, who, live = false, hint, className }: C
   return (
     <div className={cn('pointer-events-none text-center', className)} aria-live="polite">
       <span
-        className="inline rounded-[2px] px-[0.4em] py-[0.18em] text-[13.5px] leading-[1.5] text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone]"
-        style={{ background: 'oklch(0.12 0 0 / 66%)', textWrap: 'pretty' }}
+        className="inline rounded-[2px] px-[0.4em] py-[0.18em] text-[13px] leading-[1.55] text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:text-[13.5px]"
+        style={{ background: 'var(--color-caption-scrim)', textWrap: 'pretty' }}
       >
         <span
-          style={{ color: who === 'expert' ? 'oklch(0.85 0.06 214)' : 'var(--color-presence)' }}
+          style={{
+            color:
+              who === 'expert' ? 'var(--color-caption-expert)' : 'var(--color-caption-learner)',
+          }}
         >
           {speaker}:
         </span>{' '}
         {text}
         {live ? <span className="animate-caret">|</span> : null}
       </span>
-      {hint ? <div className="mt-1.5 text-[11px] text-white/70 drop-shadow">{hint}</div> : null}
+      {hint ? (
+        <div className="mt-1.5">
+          {/* Its own scrim: the hint lands on paper, where white text would vanish. */}
+          <span
+            className="inline rounded-[2px] px-[0.4em] py-[0.15em] text-[11px] text-white/85"
+            style={{ background: 'var(--color-caption-scrim)' }}
+          >
+            {hint}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

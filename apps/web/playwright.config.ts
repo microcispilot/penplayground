@@ -16,6 +16,16 @@ const webPort = process.env.PEN_WEB_PORT ?? '5173';
  */
 const roomsApiPort = process.env.PEN_E2E_ROOMS_API_PORT ?? '4014';
 const roomsWebPort = process.env.PEN_E2E_ROOMS_WEB_PORT ?? '5174';
+/**
+ * A third pair for the UI specs (`ui-*.spec.ts`): screenshots, the replay
+ * scrubber and the accessibility sweep. Ads are deliberately off here — the ad
+ * pair above exists to exercise them, and an ad overlay in the middle of a
+ * screenshot or an axe run is noise, not coverage.
+ */
+const uiApiPort = process.env.PEN_E2E_UI_API_PORT ?? '4023';
+const uiWebPort = process.env.PEN_E2E_UI_WEB_PORT ?? '5183';
+/** The production build, served by `vite preview`: where load performance is measured. */
+const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
 
 export default defineConfig({
   testDir: './e2e',
@@ -88,6 +98,35 @@ export default defineConfig({
       env: { PEN_API_PORT: roomsApiPort },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
+    },
+    {
+      command: 'pnpm --filter @pen/api start',
+      url: `http://127.0.0.1:${uiApiPort}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        PEN_PORT: uiApiPort,
+        PEN_PUBLIC_URL: `http://localhost:${uiWebPort}`,
+        PEN_LLM_PROVIDER: 'fake',
+        PEN_TTS_PROVIDER: 'silent',
+        PEN_DATA_DIR: '.pen-data-e2e-ui',
+        DATABASE_URL: 'pglite://memory',
+        PEN_LOG_LEVEL: 'warn',
+      },
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm --filter @pen/web exec vite --port ${uiWebPort} --strictPort`,
+      url: `http://localhost:${uiWebPort}`,
+      env: { PEN_API_PORT: uiApiPort },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm --filter @pen/web build && pnpm --filter @pen/web exec vite preview --port ${previewPort} --strictPort`,
+      url: `http://localhost:${previewPort}`,
+      env: { PEN_API_PORT: uiApiPort },
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
     },
   ],
 });

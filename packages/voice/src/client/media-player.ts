@@ -21,7 +21,8 @@ export interface MediaElementLike {
   preload: string;
   playbackRate: number;
   preservesPitch: boolean;
-  readonly currentTime: number;
+  /** Writable: a replay seek lands inside a say (see `MediaSayPlayer.seekCurrent`). */
+  currentTime: number;
   readonly paused: boolean;
   play(): Promise<void>;
   pause(): void;
@@ -178,6 +179,27 @@ export class MediaSayPlayer {
     element.load();
     this.#queue.push({ sayId: say.sayId, durationMs: say.endMs, url, element });
     if (!this.#current && !this.#paused) this.#playNext();
+  }
+
+  /**
+   * Move inside the say that is playing, on its own recorded timeline. The
+   * replay scrubber lands here after it has rebuilt the board for the target
+   * cue: audio and board share one clock, so they must be moved together.
+   * Returns false when nothing is playing yet — the caller should try again
+   * from `onSayStart`.
+   */
+  seekCurrent(offsetMs: number): boolean {
+    const current = this.#current;
+    if (!current || this.#disposed) return false;
+    const clamped = Math.max(0, Math.min(current.durationMs, offsetMs));
+    try {
+      current.element.currentTime = clamped / 1_000;
+    } catch {
+      // A media element that has not loaded its metadata rejects a seek; the
+      // next `canplaythrough` will start from zero rather than throw at the UI.
+      return false;
+    }
+    return true;
   }
 
   pause(): void {

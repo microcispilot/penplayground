@@ -40,6 +40,16 @@ export interface RoomUiState {
     slot: AdSlot;
   } | null;
   notice: { text: string; tone: 'neutral' | 'danger' } | null;
+  /**
+   * The conductor saw the room go quiet with speech still owed: the learner is
+   * owed an honest line rather than stillness (docs/PRODUCT.md).
+   */
+  waiting: boolean;
+  /**
+   * The browser is holding the expert's voice until this page is touched.
+   * A first-class state, not a warning: one calm control resumes it.
+   */
+  soundBlocked: boolean;
   preparation: PreparationProgress | null;
   micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';
   micLevel: number;
@@ -70,6 +80,8 @@ const initial: RoomUiState = {
   check: null,
   ad: null,
   notice: null,
+  waiting: false,
+  soundBlocked: false,
   preparation: null,
   micState: 'idle',
   micLevel: 0,
