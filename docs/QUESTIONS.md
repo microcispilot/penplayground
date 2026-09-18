@@ -33,9 +33,11 @@ Round 2 lists what is still needed from you.
    of the session's ad budget (one card every 3 segments); otherwise never an ad
    at the start.
 9. **Sentry.** Created in org `pen-playground`: `pen-academy-api`, `pen-academy-web`,
-   `pen-academy-desktop`; DSNs are in `.env`. **PostHog:** the Simurgh personal
-   key is project-scoped and cannot create projects; analytics code is in place
-   behind `POSTHOG_PROJECT_TOKEN` / `VITE_POSTHOG_TOKEN`.
+   `pen-academy-desktop`; DSNs are in `.env`. **PostHog:** its own account now,
+   project `615574`, with the "Pen Playground — Sessions" dashboard; keys are in
+   `.env` (`POSTHOG_PROJECT_TOKEN` / `VITE_POSTHOG_TOKEN` for ingestion,
+   `POSTHOG_PERSONAL_API_KEY` for the API). Both products are off the Simurgh
+   accounts entirely.
 10. **Public sessions.** All sessions are public and the creator is never shown
     (host id and name are stripped from public records and ledgers).
 11. **Languages.** Any language, with knowledge kept in English. Language

@@ -174,14 +174,15 @@ monitor should be green with a check-in every five minutes.
 
 ## 4. Analytics
 
-PostHog project `568150`, host `https://us.posthog.com`. Server events are
-content-free by design (ADR-0011): codes, counts, timings — never a topic,
-question or transcript.
+PostHog project `615574` (US region; ingestion `https://us.i.posthog.com`, API
+`https://us.posthog.com`). Server events are content-free by design
+(ADR-0011): codes, counts, timings — never a topic, question or transcript.
 
-The dashboard is **"Pen Playground — Sessions"**: sessions per day, time to
-first audio (p50/p95), question → answer (p50/p95), cost per session, reuse
-rate, ads completed/skipped, errors per session, and session health — each
-split by `plan`.
+The dashboard is **"Pen Playground — Sessions"**
+(<https://us.posthog.com/project/615574/dashboard/2109533>): sessions per day,
+time to first audio (p50/p95), question → answer (p50/p95), cost per session,
+reuse rate, ads completed/skipped, errors per session, and session health —
+each split by `plan`.
 
 ```sh
 pnpm --filter @pen/api posthog:dashboard            # create it (needs write scopes)
@@ -189,10 +190,15 @@ pnpm --filter @pen/api posthog:dashboard -- --check # run every query, print row
 pnpm --filter @pen/api posthog:dashboard -- --print # the SQL, to paste by hand
 ```
 
-> The `POSTHOG_PERSONAL_API_KEY` in `.env` is **query-scoped only**. Creating
-> the dashboard needs `dashboard:write` and `insight:write` (PostHog →
-> Settings → Personal API keys). Until those are granted, `--print` gives the
-> exact SQL for PostHog → Dashboards → New → Add insight → SQL.
+> **Scopes decide which of those three work.** `POSTHOG_PERSONAL_API_KEY`
+> currently has `organization:read`, `project:read`, `dashboard:write` and
+> `insight:write` — enough to create the dashboard, which is done. It does
+> **not** have `query:read`, so anything that runs HogQL from the command line
+> — `posthog:dashboard --check` and `telemetry:pull` — answers
+> `403 … missing required scope 'query:read'`. Add that scope in PostHog →
+> Settings → Personal API keys to turn those back on; the dashboard itself is
+> unaffected, because its tiles run as whoever is looking at them.
+> `--print` always works and needs no key at all.
 
 Every tile filters `properties.app = 'pen-academy-api'` — the project is shared
 with another product, and an unfiltered average silently mixes them. Rows with
