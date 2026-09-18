@@ -21,7 +21,7 @@ import {
  */
 describe('session telemetry (engine)', () => {
   it('records resolve/context/llm/tts/turn/join stages, cost lines, reports and errors in the ledger', async () => {
-    const { onten } = await preparedPack();
+    const { onten, memo } = await preparedPack();
     const transport = new MemoryTransport();
     const entries: LedgerEntry[] = [];
     const samples: StageSample[] = [];
@@ -65,7 +65,7 @@ describe('session telemetry (engine)', () => {
       locale: 'en-US',
       onten,
       runtime: onten.newRuntime(),
-      memo: onten.memo,
+      memo,
       model,
       synthesizer: {
         id: 'fish-cloud:s2.1-pro',

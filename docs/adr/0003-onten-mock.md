@@ -1,6 +1,16 @@
 # ADR-0003: Mock Onten behind the exact ContextClient surface; extend only through sanctioned hooks
 
-Status: accepted · 2026-09-16
+Status: **superseded by [ADR-0019](0019-onten-is-mocked-give-and-retrieve-in-20ms.md)** · 2026-09-16
+
+> ADR-0019 keeps everything below and adds what this one left unsaid: what Onten
+> *is* (give it information; get an answer context back in under 20 ms, without
+> re-thinking), the budget that makes that a test rather than a hope, the
+> Canonical Question Memo this ADR never mocked, the single ingestion path, and
+> the capability-by-capability boundary in `docs/ONTEN-BOUNDARY.md`. Two claims
+> below are now out of date: the memo referred to here is Pen's lesson memo,
+> which has moved out of `packages/onten`, and the "1–5 ms assembly with a p99
+> tail toward 50 ms" simulation was never implemented and is not the target —
+> 20 ms, measured, is.
 
 ## Context
 Onten (sibling repo) is a spec plus a local Rust binary spoken to over JSON

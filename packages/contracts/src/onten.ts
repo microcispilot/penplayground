@@ -147,6 +147,11 @@ export const StageSpan = z.object({
   elapsedNs: z.number().int(),
 });
 
+/**
+ * The run manifest for one `query`. Never part of the AnswerContext: "Keep
+ * measurement in the manifest; the AnswerContext is only what the model reads"
+ * (onten-answercontext-examples/03).
+ */
 export const RuntimeMetrics = z.object({
   processId: z.number().int(),
   assemblyNs: z.number().int(),
@@ -164,6 +169,24 @@ export const RuntimeMetrics = z.object({
   retrievalBackend: z.string(),
   retrievalStrategy: z.string(),
   corpusCount: z.number().int(),
+  /**
+   * Canonical Question Memo hit (CTX-MEMO-01): the selection for this question,
+   * band and pack revision was already known, so retrieval and the selector were
+   * skipped. The memo caches the *selection*, never an answer, and the payload is
+   * the same shape a full run produces.
+   */
+  memoHit: z.boolean(),
+  /**
+   * What this call actually took, end to end, from the host's `query` to the
+   * AnswerContext in its hand — which is what `overBudget` is judged on.
+   * `assemblyNs` is the runtime's own view of assembly and is smaller: on a
+   * speculation hit it is zero, because the work happened on an earlier call.
+   */
+  elapsedMs: z.number(),
+  /** `ONTEN_LATENCY_BUDGET_MS` at the time of the call, so a consumer need not import it. */
+  budgetMs: z.number(),
+  /** True when this single call took longer than `budgetMs` (never silent — the host is told). */
+  overBudget: z.boolean(),
 });
 export type RuntimeMetrics = z.infer<typeof RuntimeMetrics>;
 
@@ -181,6 +204,24 @@ export const ProvisionalSource = z.object({
   validUntil: z.number().int(),
 });
 export type ProvisionalSource = z.infer<typeof ProvisionalSource>;
+
+/**
+ * What one `query` is allowed to take, end to end, from the host's call to the
+ * AnswerContext in its hand.
+ *
+ * This is Onten's own claim, not a target we invented: "The model does not
+ * decide to search — the search already happened, correctly, inside 20 ms"
+ * (`onten-answercontext-examples/01-memo-hit-repeated-question.yaml`). It is the
+ * whole reason the product can afford to hand a small, fast model everything it
+ * needs before the first token: a turn that waited on retrieval would be a turn
+ * the learner hears as a pause.
+ *
+ * Onten is mocked (ADR-0019). The *content* the mock returns is simulated and
+ * that is fine until the real SDK lands. This number is not: it is the contract
+ * the mock is held to, and `packages/onten/test/latency.test.ts` fails the build
+ * when p95 crosses it at a realistic corpus size.
+ */
+export const ONTEN_LATENCY_BUDGET_MS = 20;
 
 /** CTX-BUDGET-01 / performance-targets.yaml CTX-SMALL-MODEL-BUDGET. */
 export const CONTEXT_BUDGET = {

@@ -39,6 +39,15 @@ const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
  */
 const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts'];
 
+/**
+ * Specs that belong to another config entirely (see `testIgnore` below). A
+ * project's own `testIgnore` REPLACES the top-level one rather than adding to
+ * it, so every project has to carry this itself — leaving it out is what let
+ * `base-path.spec.ts` run here, fail, and take a lesson on the shared API with
+ * it on the way out.
+ */
+const BASE_PATH_ONLY = ['**/base-path.spec.ts'];
+
 export default defineConfig({
   testDir: './e2e',
   /**
@@ -47,7 +56,7 @@ export default defineConfig({
    * none of the servers below do. Run here it would not merely fail — it would start a lesson on
    * the shared API on its way to failing, and the specs that follow share that one pipeline.
    */
-  testIgnore: ['base-path.spec.ts'],
+  testIgnore: BASE_PATH_ONLY,
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
@@ -89,7 +98,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
-      testIgnore: MEDIA_AFTER_LESSON,
+      testIgnore: [...BASE_PATH_ONLY, ...MEDIA_AFTER_LESSON],
     },
     {
       name: 'chrome',

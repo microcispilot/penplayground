@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LanguageModel, Usage } from '@pen/llm';
-import { normalizeTopic } from '@pen/onten';
+import { normalizeTopic, titleCase } from '@pen/onten';
 import { getLIDModel } from 'fasttext.wasm.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
@@ -240,35 +240,15 @@ export class TopicIntake {
   }
 }
 
-/** Strip "I want to learn" phrasing (English) and title-case; other languages keep the learner's words. */
+/**
+ * Strip "I want to learn" phrasing (English) and title-case; other languages
+ * keep the learner's words. Both the stripping and the casing are Onten's own —
+ * a second copy here would drift from the id the registry actually keys on.
+ */
 export function cleanTitle(text: string, language: string): string {
   const t = text.trim().replace(/\s+/g, ' ');
   if (language !== 'en') return t.slice(0, 80);
   const cleaned = normalizeTopic(t);
   if (!cleaned) return t.slice(0, 80);
-  return cleaned
-    .split(' ')
-    .map((w, i) =>
-      i > 0 &&
-      [
-        'a',
-        'an',
-        'the',
-        'of',
-        'in',
-        'on',
-        'for',
-        'and',
-        'or',
-        'to',
-        'vs',
-        'with',
-        'at',
-        'by',
-      ].includes(w)
-        ? w
-        : w.charAt(0).toUpperCase() + w.slice(1),
-    )
-    .join(' ')
-    .slice(0, 80);
+  return titleCase(cleaned).slice(0, 80);
 }

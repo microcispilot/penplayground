@@ -17,7 +17,13 @@ import {
   type Usage,
 } from '@pen/llm';
 import { createOnten, type Onten } from '@pen/onten';
-import { ExpertCatalog, type KnowledgeAcquirer, type SessionMetaJobs } from '@pen/session-engine';
+import {
+  ExpertCatalog,
+  FileLessonMemo,
+  type KnowledgeAcquirer,
+  type LessonMemo,
+  type SessionMetaJobs,
+} from '@pen/session-engine';
 import {
   CachingSynthesizer,
   FishBridgeSynthesizer,
@@ -47,6 +53,12 @@ import { ExpertVoices } from './voices.js';
 export interface Services {
   cfg: Config;
   onten: Onten;
+  /**
+   * Lessons this product has already taught, reused by the next learner of the
+   * same topic, band, persona and language. Pen's own cache of Pen's own model
+   * output — not an Onten capability (docs/ONTEN-BOUNDARY.md).
+   */
+  memo: LessonMemo;
   experts: ExpertCatalog;
   synthesizer: SpeechSynthesizer;
   /** The synthesis cache in front of the engine (ADR-0017); null when disabled. */
@@ -144,6 +156,7 @@ export async function buildServices(
   } = {},
 ): Promise<Services> {
   const onten = createOnten({ dataDir: join(cfg.PEN_DATA_DIR, 'onten') });
+  const memo = new FileLessonMemo(join(cfg.PEN_DATA_DIR, 'onten'));
   const experts = ExpertCatalog.fromJson(
     JSON.parse(readFileSync(join(DATA_DIR, 'experts', 'catalog.json'), 'utf8')),
   );
@@ -325,6 +338,7 @@ export async function buildServices(
   const base = {
     cfg,
     onten,
+    memo,
     searchProvider,
     experts,
     synthesizer,

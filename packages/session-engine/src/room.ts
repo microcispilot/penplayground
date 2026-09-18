@@ -36,10 +36,11 @@ import {
 } from '@pen/contracts';
 import type { LanguageModel } from '@pen/llm';
 import { withTelemetry } from '@pen/llm';
-import type { LessonMemo, MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
+import type { MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
 import { nanoid } from 'nanoid';
 import { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
+import type { LessonMemo } from './lesson-memo.js';
 import { type Metrics, NullMetrics } from './metrics.js';
 import { planLesson } from './planner.js';
 import {
@@ -236,6 +237,8 @@ export class SessionRoom {
   private turnStartedAt: number | null = null;
   /** Reports accepted per participant; a runaway client cannot grow the ledger without bound. */
   private readonly reportCounts = new Map<ParticipantId, number>();
+  /** One Sentry issue per session for a slow context, however many turns are slow. */
+  private reportedOverBudget = false;
 
   constructor(deps: SessionRoomDeps) {
     this.d = deps;
@@ -1068,10 +1071,46 @@ export class SessionRoom {
       status: result.context.status,
       spans: result.context.evidenceSpans.length,
       assemblyMs,
+      // The wall time the budget is judged on; `assemblyMs` is the runtime's
+      // own view and is zero on a speculation hit.
+      elapsedMs: result.metrics.elapsedMs,
       speculationHit: result.metrics.speculationHit,
-      reused: result.metrics.speculationHit,
+      memoHit: result.metrics.memoHit,
+      budgetMs: result.metrics.budgetMs,
+      // A speculation hit and a Canonical Question Memo hit are both work this
+      // turn did not have to do.
+      reused: result.metrics.speculationHit || result.metrics.memoHit,
       savedUsd: 0,
     });
+    // Onten promises an AnswerContext inside its latency budget. A call that
+    // crossed it is a real regression the learner hears as a pause, so it is
+    // reported rather than absorbed (CLAUDE.md: errors never disappear).
+    //
+    // Every breach is an event, which is free; only the first of a session
+    // becomes an error. A degraded process crosses the budget on every turn,
+    // and one issue per turn — each with a different float in its message, so
+    // each a different issue to Sentry — would bury the signal it is meant to
+    // raise. The message is therefore fixed text and the numbers ride in the
+    // context, which is what makes them one issue rather than thousands.
+    if (result.metrics.overBudget) {
+      const over = {
+        elapsedMs: result.metrics.elapsedMs,
+        budgetMs: result.metrics.budgetMs,
+        corpusCount: result.metrics.corpusCount,
+        memoHit: result.metrics.memoHit,
+        retrievalStrategy: result.metrics.retrievalStrategy,
+      };
+      this.observer.event('onten.over_budget', over);
+      if (!this.reportedOverBudget) {
+        this.reportedOverBudget = true;
+        this.fail(
+          'onten.over_budget',
+          new Error('CTX-LATENCY-01 context assembly over the Onten latency budget'),
+          'context',
+          over,
+        );
+      }
+    }
     // Onten is amortised across learners (mock today): the request is counted, the price is nil.
     this.metrics.cost({ component: 'onten', unit: 'requests', units: 1, usd: 0, meta: {} });
     this.observer.event('onten.query', {
@@ -1079,6 +1118,8 @@ export class SessionRoom {
       spans: result.context.evidenceSpans.length,
       assemblyMs,
       speculationHit: result.metrics.speculationHit,
+      memoHit: result.metrics.memoHit,
+      overBudget: result.metrics.overBudget,
     });
     return { modelContext: result.context.modelContext, status: result.context.status };
   }

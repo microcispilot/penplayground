@@ -73,8 +73,16 @@ describe('Fetcher', () => {
     expect(same).toHaveLength(3);
     for (let i = 1; i < same.length; i++)
       expect((same[i]?.at ?? 0) - (same[i - 1]?.at ?? 0)).toBeGreaterThanOrEqual(35);
+    // The other host is not serialised behind this one's gap: it goes before
+    // the second request to `same` does. Asserting an absolute "within 30 ms"
+    // instead measured the machine rather than the throttle — under a loaded
+    // box (a full `pnpm test` runs every package at once) the scheduler alone
+    // spends longer than that, and the suite went red for no defect.
     const other = log.find((l) => l.url.startsWith('https://other'));
-    expect((other?.at ?? 0) - (same[0]?.at ?? 0)).toBeLessThan(30);
+    expect(other).toBeDefined();
+    expect(other?.at ?? Number.POSITIVE_INFINITY).toBeLessThan(
+      same[1]?.at ?? Number.POSITIVE_INFINITY,
+    );
   });
 
   it('enforces the page budget, skips non-text types and bad statuses, truncates big bodies', async () => {

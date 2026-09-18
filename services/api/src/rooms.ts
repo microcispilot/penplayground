@@ -148,12 +148,7 @@ export class RoomRegistry {
     // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
     const memoised =
       !args.expertId && resolution.packId
-        ? await services.onten.memo.find(
-            resolution.canonicalKnowledgeId,
-            args.band,
-            undefined,
-            locale,
-          )
+        ? await services.memo.find(resolution.canonicalKnowledgeId, args.band, undefined, locale)
         : null;
     const memoExpert = memoised ? services.experts.get(memoised.expertId) : null;
     const expert =
@@ -193,7 +188,7 @@ export class RoomRegistry {
       resolution,
       onten: services.onten,
       runtime: services.onten.newRuntime(),
-      memo: services.onten.memo,
+      memo: services.memo,
       model: services.modelFor(args.host.plan),
       synthesizer: services.synthesizer,
       voice: services.voices.voiceFor(expert, locale),

@@ -27,7 +27,7 @@ import {
 const HOST = 'host-1234';
 
 async function liveRoom() {
-  const { onten } = await preparedPack();
+  const { onten, memo } = await preparedPack();
   const transport = new MemoryTransport();
   const synthesizer = new SpySynthesizer();
   const room = new SessionRoom({
@@ -40,7 +40,7 @@ async function liveRoom() {
     locale: 'en-US',
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo,
     model: new FakeLanguageModel(
       [segmentScript(1, 2)],
       [planCompletion(1), { purpose: 'recap', value: { points: ['Tokens become vectors'] } }],

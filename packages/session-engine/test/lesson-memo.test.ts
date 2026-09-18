@@ -59,7 +59,7 @@ describe('lesson memo (incremental, per persona)', () => {
     expect((await memo.find(base.canonicalKnowledgeId, 'beginner', 'juno'))?.expertId).toBe('juno');
     expect(await memo.find(base.canonicalKnowledgeId, 'beginner', 'kai')).toBeNull();
     expect(await memo.find(base.canonicalKnowledgeId, 'advanced', 'ada')).toBeNull();
-    // Without a persona the latest memo for the scope wins (the registry's lessonMemoId).
+    // Without a persona the latest memo for the scope wins (what the room looks up when no persona is pinned).
     expect((await memo.find(base.canonicalKnowledgeId, 'beginner'))?.expertId).toBe('juno');
   });
 

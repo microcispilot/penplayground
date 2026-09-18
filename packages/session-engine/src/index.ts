@@ -1,6 +1,12 @@
 export { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
 export { ExpertCatalog } from './experts.js';
 export {
+  FileLessonMemo,
+  type LessonMemo,
+  type LessonMemoEntry,
+  MemoryLessonMemo,
+} from './lesson-memo.js';
+export {
   type CachedSessionMeta,
   META_MAX_OUTPUT_TOKENS,
   META_PURPOSE,

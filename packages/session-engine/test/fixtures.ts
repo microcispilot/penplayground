@@ -9,6 +9,7 @@ import type {
 import type { FakeScript } from '@pen/llm';
 import { createOnten, type Onten } from '@pen/onten';
 import { SilentSynthesizer, type SpeechSynthesizer, type SynthesisRequest } from '@pen/voice';
+import { type LessonMemo, MemoryLessonMemo } from '../src/lesson-memo.js';
 import type { RoomTransport } from '../src/transport.js';
 
 /** A persona with a distinct assigned voice per language, so voice switches are observable. */
@@ -57,12 +58,17 @@ const doc: SourceDocument = {
   text: `# Tokens and vectors\n\nEach token becomes a vector, a list of numbers the model can move around. Position signals are added so order matters.\n\n# Queries keys and values\n\nAttention computes three projections of every vector: a query, a key and a value. The score is the query dotted with the key, scaled by the square root of d, then softmaxed so weights sum to one.\n\n# Why divide by sqrt d\n\nWithout scaling, dot products grow with vector length and softmax saturates into a hard max, so gradients stop flowing. Dividing by the square root of d keeps the scores in a useful range.\n\n# Multi-head attention\n\nSeveral heads run in parallel; each learns its own projection so one may track agreement while another watches punctuation. Their outputs are concatenated.\n`,
 };
 
-/** A fresh Onten with one qualified pack for the transformers topic; returns its pack id too. */
-export async function preparedPack(): Promise<{ onten: Onten; packId: string }> {
+/**
+ * A fresh Onten with one qualified pack for the transformers topic, plus the
+ * room's own lesson memo (Pen's, never Onten's — docs/ONTEN-BOUNDARY.md).
+ */
+export async function preparedPack(): Promise<{
+  onten: Onten;
+  packId: string;
+  memo: LessonMemo;
+}> {
   const onten = createOnten();
-  const c = onten.compiler.startProgressiveCompilation({
-    requestId: 'r',
-    hostId: 'pen',
+  const ref = await onten.learn({
     canonicalKnowledgeId: CANONICAL_ID,
     title: 'How Transformers Work in LLMs',
     scope: {
@@ -71,16 +77,14 @@ export async function preparedPack(): Promise<{ onten: Onten; packId: string }> 
       locale: 'en-US',
       domainBoundary: 'computing-data',
     },
-    policy: onten.policy.expansion,
+    documents: [doc],
+    evaluation: {
+      development: [{ question: 'why divide by sqrt d', expectedUnitIds: [] }],
+      negative: [{ question: 'bread', expectedUnitIds: [] }],
+    },
   });
-  await c.addSource(doc);
-  c.finishSources({
-    development: [{ question: 'why divide by sqrt d', expectedUnitIds: [] }],
-    negative: [{ question: 'bread', expectedUnitIds: [] }],
-  });
-  const ref = await c.background;
   if (!ref) throw new Error('pack did not qualify');
-  return { onten, packId: ref.packId };
+  return { onten, packId: ref.packId, memo: new MemoryLessonMemo() };
 }
 
 export class MemoryTransport implements RoomTransport {

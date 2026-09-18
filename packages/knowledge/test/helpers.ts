@@ -223,7 +223,6 @@ export function resolutionFor(
     domainBoundary: 'computing-data',
     match: 'miss',
     packId: null,
-    lessonMemoId: null,
     score: 0,
   };
 }
