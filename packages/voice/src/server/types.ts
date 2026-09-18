@@ -11,6 +11,12 @@ export interface SpeechChunk {
   durationMs: number;
   pcm: Uint8Array; // s16le mono
   textSpan: string | null;
+  /**
+   * True when this audio came from the synthesis cache rather than the
+   * provider (ADR-0017). The pipeline reads it off the first chunk to record
+   * the `tts` stage as reused and to bill the sentence at $0.
+   */
+  reused?: boolean;
 }
 
 export interface SynthesisRequest {

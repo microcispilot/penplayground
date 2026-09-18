@@ -23,6 +23,19 @@ let monitor: Monitor | null = null;
 let startClickedAt: number | null = null;
 
 /**
+ * Start analytics, cookieless (ADR-0018) and off the critical path (ADR-0011).
+ *
+ * `persistence: 'memory'` is the whole privacy argument in one option: nothing
+ * identifying is written to the device, so there is no cookie or cross-visit
+ * identifier to ask permission for, and therefore no banner in front of a
+ * lesson. The cost is that a returning learner is a new anonymous id each
+ * visit — acceptable, because every question this product asks of its
+ * analytics is about sessions, latencies and cost, not about people.
+ *
+ * A learner who has turned analytics off under Privacy choices is not
+ * initialised at all: the SDK is never even fetched, rather than fetched and
+ * then told to stay quiet.
+ *
  * posthog-js is ~200 kB that nothing on the first screen needs, so it is
  * fetched after the app has booted instead of inside the entry bundle. Until
  * it lands (or when it never does — a blocked host, an offline launch) the
@@ -42,10 +55,10 @@ function withClient(fn: (ph: PostHog) => void): void {
   if (pending.length < PENDING_LIMIT) pending.push(fn);
 }
 
-export function initAnalytics(platform: Platform): void {
+export function initAnalytics(platform: Platform, choice: { analytics: boolean }): void {
   monitor = platform.monitor ?? null;
   const analytics = platform.analytics;
-  if (!analytics) return;
+  if (!analytics || !choice.analytics) return;
   void import('posthog-js')
     .then(({ default: posthog }) => {
       posthog.init(analytics.token, {
@@ -54,7 +67,9 @@ export function initAnalytics(platform: Platform): void {
         capture_pageview: true,
         capture_pageleave: true,
         disable_session_recording: true,
-        persistence: 'localStorage',
+        // No cookies, no localStorage identifier, nothing left behind.
+        persistence: 'memory',
+        cross_subdomain_cookie: false,
         person_profiles: 'identified_only',
       });
       posthog.register({ app: `pen-academy-${platform.name}` });
@@ -68,6 +83,26 @@ export function initAnalytics(platform: Platform): void {
         code: error instanceof Error ? error.name : 'unknown',
       });
     });
+}
+
+/**
+ * Apply a change made in Privacy choices. Turning it off stops capture at
+ * once and forgets the in-memory identity; turning it on takes effect from the
+ * next page load, when `initAnalytics` runs with the new choice.
+ */
+export function applyPrivacyChoice(choice: { analytics: boolean }): void {
+  // Nothing loaded means nothing was ever captured: turning it off is already
+  // true, and turning it on is the next page load's job (see `initAnalytics`).
+  const ph = client;
+  if (!ph) {
+    if (!choice.analytics) pending.length = 0;
+    return;
+  }
+  if (choice.analytics) ph.opt_in_capturing();
+  else {
+    ph.opt_out_capturing();
+    ph.reset();
+  }
 }
 
 export function track(

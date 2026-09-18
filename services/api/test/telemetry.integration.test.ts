@@ -61,10 +61,17 @@ beforeAll(async () => {
   services = await buildServices(cfg);
   await seedPacks(services.onten, join(DATA_DIR, 'packs'));
   // Observe what would go to PostHog without a token.
+  const optedOut = new Set<string>();
   services.analytics = {
     capture: (distinctId: string, event: string, properties: Record<string, unknown> = {}) => {
+      if (optedOut.has(distinctId)) return;
       captured.push({ distinctId, event, properties });
     },
+    setOptOut: (id: string, value: boolean) => {
+      if (value) optedOut.add(id);
+      else optedOut.delete(id);
+    },
+    optedOutOf: (id: string) => optedOut.has(id),
     flush: async () => undefined,
     shutdown: async () => undefined,
   } as unknown as Services['analytics'];
@@ -100,7 +107,7 @@ async function host(name: string) {
 async function play(
   h: Awaited<ReturnType<typeof host>>,
   opts: { says: number; question: boolean },
-): Promise<{ sessionId: string; sayIds: string[] }> {
+): Promise<{ sessionId: string; sayIds: string[]; badFrames: number }> {
   const created = await fetch(`${apiUrl}/api/sessions`, {
     method: 'POST',
     headers: h.headers,
@@ -110,6 +117,8 @@ async function play(
   const { session } = (await created.json()) as { session: { id: string } };
   const sessionId = session.id;
   const sayIds: string[] = [];
+  /** Frames the room refused as malformed; the deliberate one below must be among them. */
+  let badFrames = 0;
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket(`${apiUrl.replace('http', 'ws')}/ws/room`);
     const send = (m: ClientMessage) => ws.send(JSON.stringify(m));
@@ -144,6 +153,10 @@ async function play(
     ws.on('message', (data, isBinary) => {
       if (isBinary) return;
       const msg = JSON.parse(String(data)) as ServerMessage;
+      if (msg.kind === 'error' && msg.code === 'BAD_MESSAGE') {
+        badFrames += 1;
+        return;
+      }
       if (msg.kind === 'error' && msg.code !== 'INTERNAL') {
         clearTimeout(timer);
         reject(new Error(`room error ${msg.code}: ${msg.message}`));
@@ -179,13 +192,15 @@ async function play(
     headers: h.headers,
   });
   expect(ended.status).toBe(200);
-  return { sessionId, sayIds };
+  return { sessionId, sayIds, badFrames };
 }
 
 describe('session telemetry (integration)', () => {
   it('covers every stage, prices the session, keeps the reports, and is host-only', async () => {
     const h = await host('Ada');
-    const { sessionId } = await play(h, { says: 2, question: true });
+    const { sessionId, badFrames } = await play(h, { says: 2, question: true });
+    // The deliberate content-sized `report` was refused at the wire, with a code.
+    expect(badFrames).toBeGreaterThanOrEqual(1);
 
     const res = await fetch(`${apiUrl}/api/sessions/${sessionId}/telemetry`, {
       headers: h.headers,

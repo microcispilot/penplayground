@@ -1,3 +1,4 @@
+import { utcDayStart } from '@pen/contracts';
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { type SessionRow, sessions } from './schema.js';
@@ -63,11 +64,35 @@ export class SessionRepository {
       .orderBy(desc(sessions.startedAt));
   }
 
-  async countToday(hostId: string, now = Date.now()): Promise<number> {
+  /**
+   * Sessions this host started since `since` (ms epoch). The daily quota passes
+   * the current UTC midnight, so "3 a day" resets at one moment everyone can
+   * predict rather than drifting with each learner's last session.
+   */
+  async countSince(hostId: string, since: number): Promise<number> {
     const rows = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(sessions)
-      .where(and(eq(sessions.hostId, hostId), sql`${sessions.startedAt} > ${now - 86_400_000}`));
+      .where(and(eq(sessions.hostId, hostId), sql`${sessions.startedAt} >= ${since}`));
     return rows[0]?.n ?? 0;
+  }
+
+  async countToday(hostId: string, now = Date.now()): Promise<number> {
+    return this.countSince(hostId, utcDayStart(now));
+  }
+
+  /** Remove one session from the index. On-disk artefacts are the caller's to clear. */
+  async remove(id: string): Promise<boolean> {
+    const rows = await this.db.delete(sessions).where(eq(sessions.id, id)).returning();
+    return rows.length > 0;
+  }
+
+  /** Every session this participant hosts, ids only — what an account deletion has to clear. */
+  async idsForHost(hostId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.hostId, hostId));
+    return rows.map((r) => r.id);
   }
 }

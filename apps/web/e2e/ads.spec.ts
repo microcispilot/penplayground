@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { GOOGLE_IMA_SAMPLE_TAG } from '@pen/contracts';
 import { expect, test } from '@playwright/test';
+import { cspViolations, watchCsp } from './csp-guard.js';
 
 /** Repository root: the screenshot lands in the git-ignored `.pen-data/screens/`. */
 const screens = resolve(process.cwd(), '../../.pen-data/screens');
@@ -42,6 +43,9 @@ test.describe('free plan video ads', () => {
       !(await adTagReachable()),
       'the IMA SDK or the sample ad tag is unreachable from here',
     );
+    // The dev server serves the production policy: if it blocks the IMA SDK or
+    // the creative, this run must say so rather than just timing out.
+    const csp = watchCsp(page);
     const adEvents: string[] = [];
     // The player's analytics go through posthog (disabled here) and the room socket; observe
     // the socket frames instead of the analytics sink.
@@ -79,7 +83,10 @@ test.describe('free plan video ads', () => {
 
     // The ad overlay: label, countdown, the creative from the sample tag.
     const overlay = page.getByTestId('video-ad');
-    await expect(overlay).toBeVisible({ timeout: 90_000 });
+    await expect(
+      overlay,
+      `CSP violations: ${(await cspViolations(page, csp)).join(' | ')}`,
+    ).toBeVisible({ timeout: 90_000 });
     await expect(overlay.getByText('Ad · 1 of 1')).toBeVisible();
     await expect(
       overlay.getByRole('link', { name: /Why ads\? Standard removes them/ }),

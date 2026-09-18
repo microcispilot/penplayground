@@ -81,6 +81,8 @@ export function summariseReuse(stages: StageSample[], totalUsd: number): ReuseSu
   const resolve = stages.find((s) => s.stage === 'resolve' && s.meta.timing !== true);
   const intake = stages.find((s) => s.stage === 'intake');
   const lessons = stages.filter((s) => s.stage === 'llm' && s.meta.purpose === 'lesson');
+  // A `tts` sample is one sentence; a cancelled one (barge-in) still counts where it came from.
+  const says = stages.filter((s) => s.stage === 'tts');
   const savedUsd = stages.reduce(
     (n, s) => n + (reused(s) ? (numberMeta(s, 'savedUsd') ?? 0) : 0),
     0,
@@ -91,6 +93,8 @@ export function summariseReuse(stages: StageSample[], totalUsd: number): ReuseSu
     memoSegmentsGenerated: lessons.filter((s) => !reused(s) && s.ok).length,
     contextSpeculationHits: stages.filter((s) => s.stage === 'context' && reused(s)).length,
     intakeCacheHit: intake ? reused(intake) : false,
+    ttsSentencesReused: says.filter(reused).length,
+    ttsSentencesGenerated: says.filter((s) => !reused(s)).length,
     savedUsd,
     freshEquivalentUsd: totalUsd + savedUsd,
   };
@@ -372,6 +376,8 @@ export function sessionEndedProperties(
     'reuse.memoSegmentsGenerated': t.reuse.memoSegmentsGenerated,
     'reuse.contextSpeculationHits': t.reuse.contextSpeculationHits,
     'reuse.intakeCacheHit': t.reuse.intakeCacheHit,
+    'reuse.ttsSentencesReused': t.reuse.ttsSentencesReused,
+    'reuse.ttsSentencesGenerated': t.reuse.ttsSentencesGenerated,
     'reuse.savedUsd': round6(t.reuse.savedUsd),
     'reuse.freshEquivalentUsd': round6(t.reuse.freshEquivalentUsd),
   };

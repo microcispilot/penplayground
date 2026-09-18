@@ -6,6 +6,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -71,6 +72,20 @@ export class FileLedger implements LedgerSink {
     return readdirSync(this.dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && existsSync(join(this.dir, d.name, 'ledger.jsonl')))
       .map((d) => d.name);
+  }
+
+  /**
+   * Erase everything this session left on disk: the ledger, its audio, the
+   * rendered thumbnails and any export, which all live under the one session
+   * directory. Returns false when there was nothing there.
+   */
+  remove(sessionId: string): boolean {
+    const dir = join(this.dir, safeId(sessionId));
+    if (!existsSync(dir)) return false;
+    rmSync(dir, { recursive: true, force: true });
+    for (const key of [...this.offsets.keys()])
+      if (key.startsWith(`${sessionId}|`)) this.offsets.delete(key);
+    return true;
   }
 
   audioPath(sessionId: string, file: string): string | null {

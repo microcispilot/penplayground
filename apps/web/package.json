@@ -9,7 +9,8 @@
     "preview": "vite preview --port 5173",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "csp:print": "tsx scripts/print-csp.ts"
   },
   "dependencies": {
     "@pen/app": "workspace:*",
@@ -30,6 +31,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vite": "8.3.0",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "tsx": "4.23.13"
   }
 }

@@ -18,6 +18,65 @@ export const AD_RULES = {
   requestTimeoutMs: 8_000,
 } as const;
 
+/**
+ * Ads are non-personalised here, always (ADR-0018).
+ *
+ * The product shows a learner one short video between segments; it does not
+ * need to know who they are to do that, and asking would mean a consent wall
+ * in front of a lesson. Google's own parameters express exactly this:
+ *
+ * - `npa=1` — non-personalised ads: no ad-personalisation signals are used.
+ *   Applied to every request, everywhere, so there is nothing to consent to.
+ * - `ltd=1` — limited ads: the request is served without reading or writing
+ *   local identifiers at all. Google documents this as the mode for serving
+ *   in the EEA/UK without TCF consent, so it is applied wherever European
+ *   rules may reach the viewer.
+ *
+ * The trade-off is money: non-personalised inventory earns less than
+ * personalised. That is the price of not interrupting a lesson with a banner,
+ * and it is written down in docs/ADS.md.
+ */
+export function nonPersonalisedTag(tagUrl: string, opts: { limited?: boolean } = {}): string {
+  const withNpa = setTagParam(tagUrl, 'npa', '1');
+  return opts.limited ? setTagParam(withNpa, 'ltd', '1') : withNpa;
+}
+
+/**
+ * Set one parameter on a VAST tag without touching the rest of it.
+ *
+ * Deliberately textual. `URLSearchParams` re-serialises the whole query, which
+ * percent-encodes the slashes in Ad Manager's own `iu=/NNNN/unit-name`
+ * parameter and produces a tag the ad server does not recognise — an empty
+ * response, and a lesson with a blank slot where the ad should be. The tag
+ * belongs to the seller; we add to it and change nothing else.
+ */
+function setTagParam(tagUrl: string, key: 'npa' | 'ltd', value: string): string {
+  const existing = new RegExp(`([?&])${key}=[^&]*`);
+  if (existing.test(tagUrl)) return tagUrl.replace(existing, `$1${key}=${value}`);
+  return `${tagUrl}${tagUrl.includes('?') ? '&' : '?'}${key}=${value}`;
+}
+
+/**
+ * IANA zones where limited ads are used. Europe as a whole is treated as in
+ * scope rather than a precise EEA list: over-including costs a little revenue,
+ * under-including would serve the wrong kind of ad to someone the rules
+ * protect, and only one of those two mistakes matters.
+ */
+const LIMITED_ADS_ZONES = new Set([
+  'Atlantic/Azores',
+  'Atlantic/Canary',
+  'Atlantic/Faeroe',
+  'Atlantic/Faroe',
+  'Atlantic/Madeira',
+  'Atlantic/Reykjavik',
+]);
+
+/** Whether this viewer should get limited ads, from their own clock's timezone. */
+export function limitedAdsForZone(timeZone: string | undefined): boolean {
+  if (!timeZone) return true; // unknown: assume protected
+  return timeZone.startsWith('Europe/') || LIMITED_ADS_ZONES.has(timeZone);
+}
+
 /** Where the ad plays: between two segments, or while a topic miss is being prepared. */
 export const AdSlot = z.enum(['boundary', 'preparation']);
 export type AdSlot = z.infer<typeof AdSlot>;

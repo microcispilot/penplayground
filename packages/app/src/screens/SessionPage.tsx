@@ -239,6 +239,94 @@ function ExportControl({
  * from the recording ledger. Deterministic audio+board replay lands in the
  * replay package; this page is the durable, shareable record.
  */
+/**
+ * What the host, and only the host, may do with a saved session: decide who can
+ * see it, and take it away entirely. Stated plainly — a private session is a
+ * normal choice, not a warning — and deletion asks twice.
+ */
+function OwnerControls({
+  session,
+  onChanged,
+  onDeleted,
+}: {
+  session: SessionRecord;
+  onChanged: (next: SessionRecord) => void;
+  onDeleted: () => void;
+}) {
+  const { api } = useApp();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const isPublic = session.visibility === 'public';
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-lg)] bg-surface-2 px-4 py-3 text-sm">
+      <span className="text-fg-2">
+        {isPublic
+          ? 'Anyone with the link can watch this.'
+          : 'Only you can watch this — it is not listed and the link will not open for anyone else.'}
+      </span>
+      <span className="flex-1" />
+      <Button
+        variant="ghost"
+        size="sm"
+        loading={busy}
+        data-testid="visibility-toggle"
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const next = await api.setVisibility(session.id, isPublic ? 'private' : 'public');
+            onChanged(next);
+            toast(isPublic ? 'Now private' : 'Now public', 'success');
+          } catch (error) {
+            toast(error instanceof Error ? error.message : 'Could not change this', 'danger');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {isPublic ? 'Make private' : 'Make public'}
+      </Button>
+      {confirming ? (
+        <>
+          <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+            Keep it
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            loading={busy}
+            data-testid="confirm-delete-session"
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await api.deleteSession(session.id);
+                toast('Session deleted', 'success');
+                onDeleted();
+              } catch (error) {
+                toast(error instanceof Error ? error.message : 'Could not delete this', 'danger');
+                setBusy(false);
+                setConfirming(false);
+              }
+            }}
+          >
+            Delete, including the recording
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid="delete-session"
+          onClick={() => setConfirming(true)}
+        >
+          Delete
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function SessionPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
@@ -423,6 +511,13 @@ export function SessionPage() {
                 ) : null}
               </div>
             </div>
+            {s && isHost ? (
+              <OwnerControls
+                session={s}
+                onChanged={(next) => setData((d) => (d ? { ...d, session: next } : d))}
+                onDeleted={() => navigate('/sessions')}
+              />
+            ) : null}
             <div className="mt-6 flex gap-1 border-b border-line" role="tablist">
               {(isHost
                 ? (['recap', 'transcript', 'insights'] as const)

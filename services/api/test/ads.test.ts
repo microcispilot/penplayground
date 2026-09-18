@@ -1,4 +1,4 @@
-import { AD_RULES, GOOGLE_IMA_SAMPLE_TAG } from '@pen/contracts';
+import { AD_RULES, GOOGLE_IMA_SAMPLE_TAG, nonPersonalisedTag } from '@pen/contracts';
 import type { AdOutcome } from '@pen/session-engine';
 import { describe, expect, it } from 'vitest';
 import { AdEconomics, resolveAdDemand } from '../src/ads.js';
@@ -69,10 +69,13 @@ describe('AdEconomics', () => {
       everySegments: 3,
       durationMs: AD_RULES.maxDurationMs,
       skippableAfterMs: AD_RULES.skipAfterMs,
-      tagUrl: GOOGLE_IMA_SAMPLE_TAG,
+      tagUrl: nonPersonalisedTag(GOOGLE_IMA_SAMPLE_TAG),
       // Default eCPM $8 → the per-completion line the room writes to the session ledger.
       revenuePerCompletionUsd: 0.008,
     });
+    // Every request leaves here non-personalised, so there is never one that
+    // would have needed a consent banner in front of the lesson (ADR-0018).
+    expect(policy?.tagUrl).toContain('npa=1');
     expect(ads.policyFor('standard', 3)).toBeNull();
     expect(ads.policyFor('professional', 3)).toBeNull();
   });

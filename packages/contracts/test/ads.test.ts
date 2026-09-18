@@ -4,6 +4,8 @@ import {
   AdEventName,
   ClientMessage,
   GOOGLE_IMA_SAMPLE_TAG,
+  limitedAdsForZone,
+  nonPersonalisedTag,
   ServerMessage,
 } from '../src/index.js';
 
@@ -76,5 +78,40 @@ describe('ClientAdEvent', () => {
     expect(
       ClientMessage.safeParse({ kind: 'ad_event', adId: '', event: 'ad_started', atMs: 0 }).success,
     ).toBe(false);
+  });
+});
+
+describe('non-personalised ad tags', () => {
+  it('adds the privacy parameters without disturbing the seller’s own tag', () => {
+    const tag = nonPersonalisedTag(GOOGLE_IMA_SAMPLE_TAG);
+    // Ad Manager's inventory unit is a path, and it must survive verbatim:
+    // re-serialising the query encodes its slashes and the ad server then
+    // answers with nothing at all.
+    expect(tag).toContain('iu=/21775744923/external/single_preroll_skippable');
+    expect(tag.startsWith(GOOGLE_IMA_SAMPLE_TAG)).toBe(true);
+    expect(tag).toContain('npa=1');
+    expect(tag).not.toContain('ltd=');
+  });
+
+  it('adds limited ads on top where European rules may reach the viewer', () => {
+    const tag = nonPersonalisedTag(GOOGLE_IMA_SAMPLE_TAG, { limited: true });
+    expect(tag).toContain('npa=1');
+    expect(tag).toContain('ltd=1');
+    expect(tag).toContain('iu=/21775744923/external/single_preroll_skippable');
+  });
+
+  it('forces the value when a tag already carries one, and is idempotent', () => {
+    expect(nonPersonalisedTag('https://ads.test/vast?npa=0')).toBe('https://ads.test/vast?npa=1');
+    const once = nonPersonalisedTag('https://ads.test/vast', { limited: true });
+    expect(nonPersonalisedTag(once, { limited: true })).toBe(once);
+  });
+
+  it('treats Europe as limited-ads territory, and errs that way when the zone is unknown', () => {
+    expect(limitedAdsForZone('Europe/Berlin')).toBe(true);
+    expect(limitedAdsForZone('Europe/London')).toBe(true);
+    expect(limitedAdsForZone('Atlantic/Reykjavik')).toBe(true);
+    expect(limitedAdsForZone(undefined)).toBe(true);
+    expect(limitedAdsForZone('America/New_York')).toBe(false);
+    expect(limitedAdsForZone('Asia/Tokyo')).toBe(false);
   });
 });

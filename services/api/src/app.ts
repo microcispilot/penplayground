@@ -7,12 +7,16 @@ import {
   decodeAudioFrame,
   hasEntitlement,
   ParticipantId,
+  PLAN_LIMITS,
   type ServerErrorCode,
   type ServerMessage,
   SessionId,
+  sessionsRemaining,
   sttUsd,
+  utcDayStart,
 } from '@pen/contracts';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import type { WSContext } from 'hono/ws';
@@ -56,11 +60,21 @@ const CreateSession = z.object({
 
 const Anonymous = z.object({ name: z.string().max(60).optional() });
 const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
-const Rename = z.object({ name: z.string().trim().min(1).max(60) });
 const DevGoogleBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   email: z.string().email().optional(),
 });
+
+/** Everything a participant may change about themselves. Both fields are optional; at least one must be present. */
+const UpdateMe = z
+  .object({
+    name: z.string().trim().min(1).max(60).optional(),
+    /** Privacy choices: stop counting me, here and on the server (ADR-0018). */
+    analyticsOptOut: z.boolean().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.analyticsOptOut !== undefined, {
+    message: 'nothing to change',
+  });
 
 /** The participant as the client sees it; `anonymous` decides whether the account chip offers sign-in or sign-out. */
 function participantView(row: {
@@ -86,6 +100,29 @@ function anonymise<T extends { hostId: string; hostName: string }>(record: T): T
   return { ...record, hostId: '', hostName: '' };
 }
 
+/**
+ * Per-socket message budgets. A room is chatty by design — board reports, live
+ * transcripts, ad steps — so these are set well above what the product
+ * produces and only catch a client that has stopped behaving like one.
+ */
+const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
+  report: { limit: 240, windowMs: 60_000 },
+  ad_event: { limit: 60, windowMs: 60_000 },
+  /** Interim transcripts stream while someone speaks. */
+  transcript: { limit: 900, windowMs: 60_000 },
+  /** A question or a check-in answer: one per turn, and a turn takes seconds. */
+  question: { limit: 30, windowMs: 60_000 },
+  control: { limit: 60, windowMs: 60_000 },
+  set_pace: { limit: 60, windowMs: 60_000 },
+  interrupt: { limit: 90, windowMs: 60_000 },
+};
+/** Frames that fail Zod before the socket is closed. One is a bug; ten is a client to stop talking to. */
+const MAX_BAD_FRAMES = 10;
+/** Recognised speech one participant may send in a session. Hours of talking; a script hits it, a learner never does. */
+const MAX_TRANSCRIPT_CHARS = 200_000;
+/** Stripe events are bigger than anything the product posts, and are signed. */
+const WEBHOOK_MAX_BYTES = 256 * 1024;
+
 export function buildApp(services: Services): App {
   const app = new Hono();
   const identity = new Identity(services.cfg.PEN_JWT_SECRET);
@@ -96,14 +133,74 @@ export function buildApp(services: Services): App {
   const allowSession = (key: string) => sessionLimiter.allow(key);
   const allowAuth = (key: string) => authLimiter.allow(key);
   const readiness = new ReadinessProbe({ db: services.db, cfg: services.cfg });
+  /** Live sessions hosted from each address, so one machine cannot open rooms without bound. */
+  const liveByIp = new Map<string, Set<string>>();
+  const dev = services.cfg.NODE_ENV !== 'production';
 
-  app.use('*', secureHeaders());
+  app.use(
+    '*',
+    secureHeaders({
+      // TLS terminates at the edge, so HSTS is added below only for requests
+      // that actually arrived over it — announcing it on a plain-HTTP dev
+      // origin would lock `localhost` to https in the developer's browser.
+      strictTransportSecurity: false,
+      // An API that hands out JSON, one share page and media has no reason to
+      // leak the page a caller came from, even to itself.
+      referrerPolicy: 'no-referrer',
+      // The room needs the microphone on this origin and nothing else needs
+      // anything: `microphone=(self)`, the rest denied outright.
+      permissionsPolicy: {
+        microphone: ['self'],
+        camera: [],
+        geolocation: [],
+        payment: [],
+        usb: [],
+        displayCapture: [],
+        browsingTopics: false,
+      },
+      xFrameOptions: 'DENY',
+    }),
+  );
+  app.use('*', async (c, next) => {
+    await next();
+    const https = c.req.header('x-forwarded-proto') === 'https' || c.req.url.startsWith('https://');
+    if (https) c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  });
+
+  /**
+   * Only the origins this deployment actually serves. In development the web
+   * host moves ports between checkouts (`PEN_WEB_PORT`), so any loopback port
+   * is allowed there and nowhere else. A request with no `Origin` (curl, the
+   * desktop shell, a server-to-server call) is left alone: CORS is a browser
+   * rule, and the bearer is what actually guards these routes.
+   */
+  const allowedOrigins = new Set(
+    [services.cfg.PEN_PUBLIC_URL, services.cfg.PEN_API_URL].map((u) => new URL(u).origin),
+  );
+  const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
   app.use(
     '/api/*',
     cors({
-      origin: [services.cfg.PEN_PUBLIC_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: (origin) =>
+        allowedOrigins.has(origin) || (dev && LOOPBACK.test(origin)) ? origin : null,
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['authorization', 'content-type'],
       credentials: false,
+      maxAge: 600,
     }),
+  );
+
+  /**
+   * Nothing this API accepts is large. The one exception is Stripe's signed
+   * webhook, which carries whole event objects.
+   */
+  app.use('/api/*', (c, next) =>
+    bodyLimit({
+      maxSize:
+        c.req.path === '/api/billing/webhook' ? WEBHOOK_MAX_BYTES : services.cfg.PEN_MAX_BODY_BYTES,
+      onError: (ctx) =>
+        ctx.json({ error: 'TOO_LARGE', message: 'That request was too large.' }, 413),
+    })(c, next),
   );
 
   /** Verify the token, then take the plan from the participant row so billing changes apply at once. */
@@ -112,14 +209,45 @@ export function buildApp(services: Services): App {
     const claims = token ? await identity.verify(token) : null;
     if (!claims) return null;
     const row = await services.participants.get(claims.sub);
-    return row
-      ? {
-          ...claims,
-          name: row.name,
-          plan: services.cfg.PEN_DEV_PLAN ?? row.plan,
-          anonymous: row.anonymous,
-        }
-      : claims;
+    // No row, no participant. A token outlives the account it names — 30 days —
+    // so falling back to its own claims would let a deleted account keep
+    // starting sessions on the plan baked into it. The client treats the 401
+    // the way it treats any expired bearer: it mints a fresh anonymous one.
+    if (!row) return null;
+    // The row is the truth about this participant's analytics choice; reading it
+    // here keeps the server-side sink honest without an extra query per capture.
+    services.analytics.setOptOut(row.id, row.analyticsOptOut);
+    return {
+      ...claims,
+      name: row.name,
+      plan: services.cfg.PEN_DEV_PLAN ?? row.plan,
+      anonymous: row.anonymous,
+    };
+  };
+
+  /**
+   * What stands between this participant and a new session right now: their
+   * plan's daily allowance, and the day's spend cap (ADR-0016). Both answers
+   * are numbers the client can show plainly — "1 session left today" — rather
+   * than a refusal it has to guess the reason for.
+   */
+  const usageFor = async (claims: Claims) => {
+    const dayStart = utcDayStart(Date.now());
+    const limits = PLAN_LIMITS[claims.plan];
+    const sessionsToday = await services.sessions.countSince(claims.sub, dayStart);
+    const remaining = sessionsRemaining(claims.plan, sessionsToday);
+    const spend = services.spend.check(claims.plan);
+    const reason = remaining === 0 ? 'daily_limit' : spend.ok ? null : 'capacity';
+    return {
+      plan: claims.plan,
+      sessionsToday,
+      sessionsPerDay: limits.sessionsPerDay,
+      remaining,
+      maxSessionMinutes: limits.maxSessionMinutes,
+      resetsAt: dayStart + 86_400_000,
+      canStart: reason === null,
+      reason,
+    } as const;
   };
 
   app.get('/api/health', (c) =>
@@ -133,6 +261,8 @@ export function buildApp(services: Services): App {
       google: services.google !== null,
       rooms: services.livekit !== null,
       ads: services.ads.demand.source,
+      ttsCache: services.ttsCache !== null,
+      spendCap: services.spend.enabled,
     }),
   );
 
@@ -246,13 +376,21 @@ export function buildApp(services: Services): App {
     });
   });
 
-  /** Rename in place: the id, sessions and bearer are untouched. */
+  /** Rename, or set the analytics choice, in place: the id, sessions and bearer are untouched. */
   app.patch('/api/me', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    const body = Rename.safeParse(await c.req.json().catch(() => null));
+    const body = UpdateMe.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
-    const row = await services.participants.rename(claims.sub, safeName(body.data.name));
+    let row = await services.participants.get(claims.sub);
+    if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (body.data.name !== undefined)
+      row = await services.participants.rename(claims.sub, safeName(body.data.name));
+    if (body.data.analyticsOptOut !== undefined) {
+      row = await services.participants.setAnalyticsOptOut(claims.sub, body.data.analyticsOptOut);
+      services.analytics.setOptOut(claims.sub, body.data.analyticsOptOut);
+      observer.event('privacy.analytics_choice', { optOut: body.data.analyticsOptOut });
+    }
     if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
     return c.json({ participant: participantView({ ...row, plan: claims.plan }) });
   });
@@ -303,6 +441,59 @@ export function buildApp(services: Services): App {
     return c.json({ sessions: downloads });
   });
 
+  // ── data rights (ADR-0018) ───────────────────────────────────────────────
+  /**
+   * Everything this deployment holds about the caller, as JSON: their row, and
+   * the sessions they host with the numbers each one recorded. Audio is left
+   * out on purpose — it is large, and the session pages already play it.
+   */
+  app.get('/api/me/export', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const row = await services.participants.get(claims.sub);
+    const sessions = await services.sessions.listForHost(claims.sub);
+    c.header('Content-Disposition', 'attachment; filename="pen-playground-my-data.json"');
+    c.header('Cache-Control', 'private, no-store');
+    return c.json({
+      exportedAt: new Date().toISOString(),
+      participant: row
+        ? {
+            ...participantView({ ...row, plan: claims.plan }),
+            analyticsOptOut: row.analyticsOptOut,
+            createdAt: row.createdAt,
+            lastSeenAt: row.lastSeenAt,
+            provider: row.provider,
+          }
+        : participantView({
+            id: claims.sub,
+            name: claims.name,
+            plan: claims.plan,
+            anonymous: claims.anonymous,
+          }),
+      sessions,
+      note: 'Recorded audio is not included; open a session to replay it.',
+    });
+  });
+
+  /**
+   * Delete the account. Every session this participant hosts goes with it —
+   * index row, recording ledger, audio, thumbnails and any rendered video —
+   * and the bearer stops identifying anyone, because the row it names is gone.
+   * Stripe is deliberately untouched: a subscription is cancelled through the
+   * billing portal, and silently dropping the record of one would be worse
+   * than leaving it.
+   */
+  app.delete('/api/me', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const ids = await services.sessions.idsForHost(claims.sub);
+    for (const id of ids) await endAndErase(id);
+    const removed = await services.participants.remove(claims.sub);
+    services.analytics.setOptOut(claims.sub, true);
+    observer.event('privacy.account_deleted', { sessions: ids.length, removed });
+    return c.json({ ok: true, sessionsDeleted: ids.length });
+  });
+
   app.get('/api/experts', (c) => c.json({ experts: services.experts.all() }));
   app.get('/api/experts/:id', (c) => {
     const e = services.experts.get(c.req.param('id'));
@@ -333,15 +524,52 @@ export function buildApp(services: Services): App {
     if (!allowSession(claims.sub)) return c.json({ error: 'RATE_LIMITED' }, 429);
     const body = CreateSession.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
-    const today = await services.sessions.countToday(claims.sub);
-    if (claims.plan === 'free' && today >= 3)
+    const usage = await usageFor(claims);
+    if (usage.reason === 'daily_limit')
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
-          message: 'Free plan: 3 sessions a day. Standard is unlimited.',
+          message: `That is your ${usage.sessionsPerDay ?? 0} sessions for today. Standard makes them unlimited.`,
+          usage,
+          upgrade: 'Pricing',
         },
         402,
       );
+    if (usage.reason === 'capacity') {
+      // Honest, not alarming: the lights are on, the day's budget is simply spent.
+      observer.event('spend.capacity', { plan: claims.plan, ...services.spend.snapshot() });
+      return c.json(
+        {
+          error: 'CAPACITY',
+          message:
+            'We have reached today’s limit for free sessions. They are back at midnight UTC — or start one now on any paid plan.',
+          usage,
+          upgrade: 'Pricing',
+        },
+        503,
+      );
+    }
+    // One machine may host a handful of rooms at a time, not a farm of them.
+    const ip = clientKey(c.req);
+    const hosted = liveByIp.get(ip);
+    if (hosted) {
+      // A room lingers in the registry for a minute after it ends so late reads
+      // still work; it stops occupying a slot the moment it is over.
+      for (const id of [...hosted]) {
+        const room = rooms.get(id);
+        if (!room || room.room.getState().phase === 'ended') hosted.delete(id);
+      }
+      if (hosted.size >= services.cfg.PEN_MAX_SESSIONS_PER_IP) {
+        observer.event('rooms.ip_cap', { live: hosted.size });
+        return c.json(
+          {
+            error: 'RATE_LIMITED',
+            message: 'A few sessions are already running here. End one and this will start.',
+          },
+          429,
+        );
+      }
+    }
     const live = await rooms.create({
       topic: body.data.topic,
       host: { id: claims.sub, name: claims.name, plan: claims.plan },
@@ -350,7 +578,17 @@ export function buildApp(services: Services): App {
       ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
       ...(body.data.language ? { language: body.data.language } : {}),
     });
+    const hostedByIp = liveByIp.get(ip) ?? new Set<string>();
+    hostedByIp.add(live.record.id);
+    liveByIp.set(ip, hostedByIp);
     return c.json({ session: live.record, state: live.room.getState() }, 201);
+  });
+
+  /** The caller's own allowance, for the Home screen's "2 sessions left today". */
+  app.get('/api/me/usage', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    return c.json(await usageFor(claims));
   });
   app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
@@ -570,6 +808,58 @@ export function buildApp(services: Services): App {
   app.get('/api/sessions/:id/thumb.svg', (c) => thumbnail(c, 'svg'));
   app.get('/api/sessions/:id/thumb.png', (c) => thumbnail(c, 'card'));
   app.get('/api/sessions/:id/og.png', (c) => thumbnail(c, 'og'));
+
+  /**
+   * Stop a session if it is live and erase everything it left behind: the
+   * index row, and the whole session directory (ledger, audio, thumbnails,
+   * rendered video). Used by both deletion routes, so one session and a whole
+   * account clean up identically.
+   */
+  const endAndErase = async (sessionId: string): Promise<void> => {
+    if (rooms.get(sessionId)) await rooms.end(sessionId);
+    services.exports.forget(sessionId);
+    services.ledger.remove(sessionId);
+    await services.sessions.remove(sessionId);
+  };
+
+  const Visibility = z.object({ visibility: z.enum(['public', 'private']) });
+
+  /**
+   * Public or private. A private session disappears from the catalogue and its
+   * share page and thumbnail stop answering anyone but its host — the checks
+   * that already read `record.visibility` simply start saying no.
+   */
+  app.patch('/api/sessions/:id', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success) return c.json({ error: 'NOT_FOUND' }, 404);
+    const record = await services.sessions.get(id);
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (record.hostId !== claims.sub)
+      return c.json({ error: 'NOT_HOST', message: 'Only the host can change this.' }, 403);
+    const body = Visibility.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const updated = await services.sessions.patch(id, { visibility: body.data.visibility });
+    if (!updated) return c.json({ error: 'NOT_FOUND' }, 404);
+    observer.event('session.visibility', { sessionId: id, visibility: body.data.visibility });
+    return c.json({ session: updated });
+  });
+
+  /** Delete one session and everything it recorded. Host only, live or ended. */
+  app.delete('/api/sessions/:id', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success) return c.json({ error: 'NOT_FOUND' }, 404);
+    const record = await services.sessions.get(id);
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (record.hostId !== claims.sub)
+      return c.json({ error: 'NOT_HOST', message: 'Only the host can delete this session.' }, 403);
+    await endAndErase(id);
+    observer.event('session.deleted', { sessionId: id });
+    return c.json({ ok: true });
+  });
 
   app.post('/api/sessions/:id/end', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
@@ -973,7 +1263,13 @@ export function buildApp(services: Services): App {
   app.get('/api/admin/costs', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    return c.json({ costs: services.costs.snapshot() });
+    return c.json({
+      costs: services.costs.snapshot(),
+      // What the circuit breaker is looking at, and what the synthesis cache
+      // has saved from having to be bought twice.
+      spend: services.spend.snapshot(),
+      tts: services.ttsCache?.snapshot() ?? null,
+    });
   });
 
   // ── room socket ──────────────────────────────────────────────────────────
@@ -983,6 +1279,22 @@ export function buildApp(services: Services): App {
       let claims: Claims | null = null;
       let sessionId: string | null = null;
       let authTimer: NodeJS.Timeout | null = null;
+      /** Frames this socket sent that were not valid protocol. */
+      let badFrames = 0;
+      /** Characters of recognised speech this socket has sent. */
+      let transcriptChars = 0;
+      /** One token bucket per message family, per socket (the socket is one participant). */
+      const buckets = new Map<string, RateLimiter>();
+      const allow = (family: keyof typeof WS_LIMITS | string): boolean => {
+        const rule = WS_LIMITS[family];
+        if (!rule) return true;
+        let bucket = buckets.get(family);
+        if (!bucket) {
+          bucket = new RateLimiter(rule.limit, rule.windowMs);
+          buckets.set(family, bucket);
+        }
+        return bucket.allow(family);
+      };
       // Messages are processed strictly in order per socket (auth before join, join before control).
       let chain: Promise<void> = Promise.resolve();
       /** Server-side STT for this participant; created on their first utterance. */
@@ -1081,10 +1393,35 @@ export function buildApp(services: Services): App {
           }
           const parsed = ClientMessage.safeParse(JSON.parse(evt.data));
           if (!parsed.success) {
-            fail(ws, 'INTERNAL', 'Malformed message.');
+            badFrames += 1;
+            fail(ws, 'BAD_MESSAGE', 'That message did not match the protocol.');
+            if (badFrames >= MAX_BAD_FRAMES) {
+              observer.event('ws.too_many_bad_frames', { frames: badFrames });
+              ws.close(4002, 'bad messages');
+            }
             return;
           }
           const msg = parsed.data;
+          // Chatty by design, but bounded: a client that floods one kind of
+          // message is told to slow down rather than growing the ledger.
+          const family =
+            msg.kind === 'check_answer'
+              ? 'question'
+              : msg.kind === 'transcript' && msg.final
+                ? 'question'
+                : msg.kind;
+          if (!allow(family)) {
+            fail(ws, 'RATE_LIMITED', 'That is a lot at once — give it a second.');
+            return;
+          }
+          if (msg.kind === 'transcript') {
+            transcriptChars += msg.text.length;
+            if (transcriptChars > MAX_TRANSCRIPT_CHARS) {
+              observer.event('ws.transcript_cap', { chars: transcriptChars });
+              fail(ws, 'RATE_LIMITED', 'That is more speech than one session can hold.');
+              return;
+            }
+          }
           if (msg.kind === 'auth') {
             claims = await bearer(`Bearer ${msg.token}`);
             if (!claims) {

@@ -85,6 +85,25 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
   Per session: `session_ended` carries `adsCompleted / adsSkipped / adsErrors /
   adRevenueEstimateUsd`; the cost ledger has a negative `ads` line.
 
+## Personalisation: we do not ask, so we do not get it (ADR-0018)
+
+Every request this product makes carries **`npa=1`** (non-personalised ads), added by the API so
+no tag can leave without it. Where European rules may reach the viewer the client adds **`ltd=1`**
+(limited ads), which Google documents as serving without reading or writing local identifiers —
+the mode that needs no TCF consent. The region signal is the viewer's own timezone: anything under
+`Europe/` counts, and an unknown zone counts too, because over-including costs a little money and
+under-including serves the wrong kind of ad to someone the rules protect.
+
+**The trade-off, plainly:** non-personalised in-stream inventory earns less than personalised —
+commonly quoted at 30–50 % less on the open exchange. `PEN_AD_ECPM_USD` defaults to 8, the low end
+of the 2026 benchmark range (ADR-0014), so the estimate in `docs/COST.md` already assumes the
+lower number rather than the headline one. What it buys is that a learner never meets a consent
+wall between "I want to learn Swift" and the first spoken sentence, and that there is no
+advertising profile of anyone who uses this product.
+
+If personalised ads are ever wanted, that is the day a TCF 2.2 CMP is needed — a deliberate
+decision with revenue attached, not a banner added to be safe.
+
 ## Policy notes
 
 - Ad Manager video policies require the player to be a real video player context and the ad to
@@ -93,4 +112,5 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
 - Children's content: sessions are general-audience learning; if a topic is directed at children
   the request must be tagged for child-directed treatment (`tfcd=1` on the tag). Not wired yet.
 - Consent (EEA/UK): Ad Manager's own consent handling needs a TCF 2.2 CMP before serving
-  personalised ads there; until one exists serve non-personalised (`npa=1` on the tag).
+  *personalised* ads there. We do not serve those at all: `npa=1` everywhere and `ltd=1` in
+  Europe (see above), so no CMP is required.

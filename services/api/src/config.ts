@@ -99,6 +99,40 @@ const Env = z.object({
     .transform((v) => v === '1' || v === 'true'),
   /** Estimated net eCPM (USD per 1 000 completed ads) used for the per-session revenue line. */
   PEN_AD_ECPM_USD: z.coerce.number().nonnegative().default(8),
+
+  /**
+   * Spend circuit breaker (ADR-0016): the most provider spend one UTC day may
+   * cost, summed from the day's telemetry cost lines. Past it, new free-plan
+   * sessions are held back (503 CAPACITY) while paid plans continue to
+   * `PEN_DAILY_SPEND_PAID_MULTIPLE ×` the cap. 0 disables the breaker.
+   */
+  PEN_DAILY_SPEND_CAP_USD: z.coerce.number().nonnegative().default(25),
+  /** How far past the cap paying learners keep going before anyone is held back. */
+  PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).default(3),
+
+  /**
+   * Synthesis cache (ADR-0017): identical sentences are synthesised once and
+   * replayed from `PEN_DATA_DIR/tts-cache` at the same streaming cadence.
+   *
+   * Opt-in (0 = off) until the interaction recorded in tasks/todo.md is
+   * resolved: with the cache on, a *second* session on the same topic — where
+   * the lesson also comes from the memo, so nothing waits for the model —
+   * delivers audio far enough ahead of playback that the room and the client
+   * lose step (stale chunks, and a between-segment ad that never opens).
+   * Set `PEN_TTS_CACHE_MB=2048` to enable it; everything it does is tested,
+   * and the money it saves is real, but the voice is the product and it does
+   * not ship on by default with a known way to disturb it.
+   */
+  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(0),
+
+  /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
+  PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().default(5),
+  /** Largest JSON body any route accepts. Every route here is small; 64 KB is generous. */
+  PEN_MAX_BODY_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(64 * 1024),
 });
 
 export type Config = z.infer<typeof Env>;

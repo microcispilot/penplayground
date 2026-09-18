@@ -30,6 +30,7 @@ import {
   hasEntitlement,
   MAX_PARTICIPANTS,
   PACE_DEFAULT,
+  PLAN_LIMITS,
   prepareFreshEstimateUsd,
   slowerPreset,
 } from '@pen/contracts';
@@ -364,15 +365,22 @@ export class SessionRoom {
     }
   }
 
+  /** Seats in this room, host included: the host's plan decides (PLAN_LIMITS). */
+  get seats(): number {
+    return Math.min(MAX_PARTICIPANTS, PLAN_LIMITS[this.d.host.plan].maxParticipants);
+  }
+
   join(participant: {
     id: ParticipantId;
     name: string;
   }): { ok: true; participant: Participant } | { ok: false; code: ServerErrorCode } {
     const existing = this.participants.get(participant.id);
     if (existing) return { ok: true, participant: existing };
-    if (this.participants.size >= MAX_PARTICIPANTS) return { ok: false, code: 'ROOM_FULL' };
+    // Entitlement first: on a solo plan the honest answer is "rooms are a
+    // Professional feature", not "this room is full" — one seat is not a crowd.
     if (!hasEntitlement(this.d.host.plan, 'rooms'))
       return { ok: false, code: 'ENTITLEMENT_REQUIRED' };
+    if (this.participants.size >= this.seats) return { ok: false, code: 'ROOM_FULL' };
     const p: Participant = {
       id: participant.id,
       name: participant.name,
@@ -969,6 +977,46 @@ export class SessionRoom {
     this.ledger({ kind: 'pace', t: this.now(), pace, participantId: p.id });
     this.observer.event('room.pace', { sessionId: this.sessionId, pace });
     this.broadcastState();
+    // The state (and so the pipeline's `pace()`) is already the new one: everything
+    // re-synthesised from here is at the speed the host just asked for.
+    this.retakeForPace();
+  }
+
+  /**
+   * A pace change is heard now, not in two sentences' time (tasks/todo.md).
+   *
+   * The sentence the learner is hearing keeps its own speed — re-cutting it
+   * would restart it mid-word, which is the "pause that restarts the sentence"
+   * the launch review flags. Everything behind it, whether still queued here or
+   * already banked on the clients, is re-synthesised at the new pace under a
+   * fresh take. Clients learn the new take before its audio arrives, so the
+   * conductor knows the audio it is holding is stale and swaps it at the next
+   * sentence boundary (`ServerSayTake`).
+   */
+  private retakeForPace(): void {
+    if (this.state.phase !== 'live') return;
+    if (this.state.mode !== 'teaching' && this.state.mode !== 'complete') return;
+    const unheard: Array<{ id: string; say: SayEvent }> = [];
+    for (const id of this.lessonOrder) {
+      const entry = this.lessonSays.get(id);
+      if (entry && entry.seq > this.hostProgressSeq) unheard.push({ id, say: entry.say });
+    }
+    // unheard[0] is the sentence at the speaker (or the very next one to start).
+    const retake = unheard.slice(1);
+    if (retake.length === 0) return;
+    const ids = new Set(retake.map((r) => r.id));
+    this.pipeline.retake((sayId) => ids.has(sayId));
+    for (const { id, say } of retake) {
+      const take = (this.takes.get(id) ?? 0) + 1;
+      this.takes.set(id, take);
+      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take, reason: 'pace' });
+      this.pipeline.enqueue(say, 'lesson', take, this.voiceForCurrentLanguage());
+    }
+    this.observer.event('room.pace_retake', {
+      sessionId: this.sessionId,
+      sentences: retake.length,
+      pace: this.state.pace,
+    });
   }
 
   private async contextFor(
@@ -1122,7 +1170,7 @@ export class SessionRoom {
       if (!entry) continue;
       const take = (this.takes.get(id) ?? 0) + 1;
       this.takes.set(id, take);
-      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take });
+      this.d.transport.broadcast({ kind: 'say_take', sayId: id, take, reason: 'resume' });
       this.pipeline.enqueue(entry.say, 'lesson', take, this.voiceForCurrentLanguage());
     }
     this.state = { ...this.state, resume: null };
