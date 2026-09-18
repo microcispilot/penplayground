@@ -19,3 +19,4 @@ blockExoticSubdeps: false
 # is unchanged (apps/desktop ships only its Vite output, never node_modules).
 hoistPattern:
   - '*'
+

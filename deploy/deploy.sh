@@ -11,6 +11,10 @@
 #   deploy/deploy.sh [--tag TAG] [--skip-build] [--skip-ship] [--no-up]
 #
 # Optional: PEN_WITH_RENDER=0 to skip the Playwright+ffmpeg runtime (no MP4 export),
+# PEN_NODE_IMAGE (default node:22-bookworm-slim — the BUILD stage must use the same libc as the
+# runtime, because native modules resolve one binary per platform: an Alpine/musl build stage
+# produced a @resvg/resvg-js the glibc Playwright runtime could not load, and the API died at
+# startup with MODULE_NOT_FOUND),
 # PEN_DEPLOY_ROOT (default /srv/pen-playground), PEN_DEPLOY_EXPECTED_HOSTNAME (default
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /
@@ -138,6 +142,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
     -f services/api/Dockerfile \
     --build-arg "GIT_SHA=$GIT_SHA" \
     --build-arg "WITH_RENDER=${PEN_WITH_RENDER:-1}" \
+    --build-arg "NODE_IMAGE=${PEN_NODE_IMAGE:-node:22-bookworm-slim}" \
     "${sentry_args[@]}" \
     -t "$API_IMAGE" -t pen-playground-api:latest .
 
