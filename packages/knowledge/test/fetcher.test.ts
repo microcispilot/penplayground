@@ -72,17 +72,18 @@ describe('Fetcher', () => {
       .filter((l) => l.url.startsWith('https://same.example.org/') && !l.url.endsWith('robots.txt'))
       .sort((a, b) => a.at - b.at);
     expect(same).toHaveLength(3);
-    // A timer is allowed to fire a little early, and on a shared CI runner it
-    // does: this measured 33.9 ms against a 40 ms gap and failed a 35 ms bound
-    // for no defect. The claim worth holding is that the three requests were
-    // serialised at all — without the throttle they would leave together, four
-    // at a time, microseconds apart — so the bound is a fraction of the gap
-    // rather than a millisecond count filed down to the last run's luck.
-    const TIMER_SLACK = 0.25;
-    for (let i = 1; i < same.length; i++)
-      expect((same[i]?.at ?? 0) - (same[i - 1]?.at ?? 0)).toBeGreaterThanOrEqual(
-        gapMs * (1 - TIMER_SLACK),
-      );
+    // No wall-clock gap is asserted here, and filing the bound down twice was
+    // the wrong instinct: the distance between these two timestamps is not the
+    // throttle's gap. Every job reserves its slot at almost the same instant,
+    // so the second request's deadline is measured from the first's
+    // *reservation* — but the first request is stamped later than that, after
+    // its own robots.txt round trip and promise scheduling. The logged
+    // distance is therefore the gap minus that overhead, and on a loaded
+    // runner the overhead is real: 40 ms configured read as 33.9, then 28.7.
+    // The spacing itself is exact and is proved above in "spaces reservations
+    // per host and leaves other hosts untouched", against an injected clock.
+    // What only this test can show is the part below — that one host's gap
+    // does not hold another host up.
     // The other host is not serialised behind this one's gap: it goes before
     // the second request to `same` does. Asserting an absolute "within 30 ms"
     // instead measured the machine rather than the throttle — under a loaded
