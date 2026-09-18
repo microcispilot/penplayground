@@ -3,6 +3,39 @@
 Read `docs/SPEC.md` for what the product is and how it is built. These are the
 rules for *how work is done here*. They bind every session and every agent.
 
+## Onten is mocked — read this before you touch knowledge, retrieval or context
+
+**We do not have Onten.** `packages/onten` is a mock of it, and the whole project
+proceeds on that assumption. Onten is not a search engine and not a knowledge
+source. It is a **memory**, with exactly two abilities:
+
+1. **Give it information** — `onten.learn({ title, documents, evaluation })`.
+   One documented way in; the corpus builder streams the same documents through
+   `compiler.startProgressiveCompilation` / `addSource` as it finds them.
+2. **Retrieve in under 20 ms** — `runtime.query(input)` returns a schema-faithful
+   `AnswerContext` for *any* question, with no re-thinking, inside
+   `ONTEN_LATENCY_BUDGET_MS = 20` (`packages/contracts/src/onten.ts`). That is
+   Onten's own number, and `packages/onten/test/latency.test.ts` fails the build
+   if p95 crosses it at 20,000 knowledge units.
+
+**Simulated content is acceptable. Its contract is not.** Until the real SDK
+lands, units, scores and packs are approximations and nobody worries about that.
+The wire shapes, the status rules, the ingestion path and the latency budget are
+real, tested, and not negotiable. A question about material Onten was never given
+gets `missing` or `partial` — never an invented `sufficient`.
+
+**Never implement an Onten capability outside `packages/onten`, and never put a
+Pen capability inside it.** If you are about to index, rank, select, score,
+chunk, or decide what evidence answers a question — stop: that is Onten's, and it
+goes behind the interface. If you are about to store something our own model
+generated (a lesson, its audio, a session card) — stop: that is ours, and it goes
+anywhere but there. `packages/onten` depends on `contracts` alone, so it stays
+deletable in one commit the day the SDK arrives.
+
+`docs/ONTEN-BOUNDARY.md` rules on every capability in the system with file and
+line, lists the drift already fixed, and names the mock's known limits.
+ADR-0019 is the decision; it supersedes ADR-0003.
+
 ## Confirm, never assume
 
 Nothing is changed on a belief. Before a change is made, the belief behind it is

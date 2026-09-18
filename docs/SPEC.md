@@ -8,6 +8,31 @@ prepared evidence, and picking the lesson back up. Sessions replay, share and
 export. Free with ads; two paid tiers. Cheap enough to run at scale because
 Onten hands the model everything it needs (`docs/PRODUCT.md`, `docs/COST.md`).
 
+## Onten is mocked (ADR-0019)
+
+Onten is the context runtime the product is built on, and **we do not have it
+yet**. `packages/onten` is a mock of it, and it stands for exactly two abilities:
+
+1. **Give it information.** `onten.learn({ title, documents, evaluation })` — one
+   way in. The corpus builder streams the same documents through
+   `compiler.startProgressiveCompilation` / `addSource` as it finds them.
+2. **Retrieve in under 20 ms.** `runtime.query(input)` returns a schema-faithful
+   `AnswerContext` for any question, with no re-thinking, inside
+   `ONTEN_LATENCY_BUDGET_MS` (`packages/contracts/src/onten.ts`) — Onten's own
+   number, quoted from its worked examples.
+
+**Simulated content is fine. The contract is not.** Units, scores and packs are
+approximations until the real SDK arrives; the wire shapes, the status rules
+(`missing`/`partial` when we were never given the material — never an invented
+`sufficient`), the ingestion path and the latency budget are real and tested
+(`packages/onten/test/{memory,latency}.test.ts`).
+
+**Never implement an Onten capability outside `packages/onten`, and never put a
+Pen capability inside it.** Indexing, ranking, selecting, scoring, chunking or
+deciding what evidence answers a question is Onten's. Anything our own model
+generated — the lesson memo, the lesson voice store, session cards — is ours.
+`docs/ONTEN-BOUNDARY.md` rules on every capability in the system, with citations.
+
 ## Tech stack (pinned 2026-09-16)
 TypeScript 5.9 (strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`),
 pnpm 11 workspaces + Turborepo 2.10, Biome 2.5, Vitest 5, Playwright 1.63.
@@ -39,14 +64,14 @@ services/api        Hono HTTP + WebSocket server, rooms, ledger, identity
 packages/app        THE product: screens, room client, conductor wiring, state
 packages/design     tokens, primitives, orb, captions
 packages/contracts  Zod schemas + types for every boundary (wire, cues, Onten)
-packages/onten      Onten host adapter (mock runtime, registry, compiler, memo)
+packages/onten      Onten host adapter, and nothing else (mock runtime, registry, compiler)
 packages/llm        model gateway (OpenAI adapter, fake, incremental event parser)
 packages/voice      server: TTS adapters · client: mic/VAD/segmenter/player
 packages/session-engine  room state machine, planner, turn loop, TTS pipeline
 packages/conductor  client sync engine (audio clock → board/captions)
 packages/board      tldraw board: ink-text, strokes, code, sketch DSL, executor
 packages/knowledge  corpus builder for topic misses
-docs/               PRODUCT, CAPABILITY-MAP, GLOSSARY, COST, adr/, QUESTIONS
+docs/               PRODUCT, CAPABILITY-MAP, GLOSSARY, ONTEN-BOUNDARY, COST, adr/, QUESTIONS
 tasks/              plan.md, todo.md
 ```
 Tests live in each package's `test/` folder; e2e in `apps/web/e2e`.
@@ -86,10 +111,11 @@ export class SayPipeline {
   a session publicly by default.
 - Never: commit `.env`; log transcripts or spoken text to Sentry; select the
   silent/fake providers in production; auto-promote provisional evidence to
-  a qualified pack.
+  a qualified pack; implement an Onten capability outside `packages/onten`.
 
 ## Success criteria
 - Prepared topic: first expert audio < 1.5 s after Start (p50).
+- Every Onten `query` inside 20 ms (p50 and p95) at 20,000 knowledge units.
 - Interrupt: audio fade ≤ 20 ms; answer's first audible word ≤ 1.2 s after
   the learner's last word (p95) with Fish cloud.
 - Board text appears progressively at ≈ 10 chars/s × pace; never all at once.

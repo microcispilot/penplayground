@@ -2,7 +2,9 @@
 
 - [x] Contracts (cues, wire, audio frames, Onten, billing, ledger) + tests
 - [x] Design tokens + primitives + orb + captions
-- [x] Onten mock: runtime, registry, progressive compiler, lesson memo + tests
+- [x] Onten mock: runtime, registry, progressive compiler + tests
+- [x] **The Onten boundary, written down and enforced (ADR-0019, supersedes 0003; `docs/ONTEN-BOUNDARY.md`).** Onten is mocked and stands for exactly two abilities: give it documents (`onten.learn`, one documented way in, tested by giving a fact and asking for it back), and return an AnswerContext for any question inside `ONTEN_LATENCY_BUDGET_MS = 20`. Measured on a generated 20,000-unit Zipfian corpus with 400 distinct queries: **p50 21.3 → 0.72 ms, p95 41.4 → 2.59 ms, max 78.8 → 14.9 ms** — the fix is selecting on document frequency before scoring, plus the Canonical Question Memo (CTX-MEMO-01, which the mock simply did not have; a repeat now costs 0.09 ms) and a process-shared compiled index (configure 2.3 s cold → 0 ms warm). `packages/onten/test/latency.test.ts` fails the build if p95 crosses the budget; the runtime times every call and the room reports a breach to Sentry.
+- [x] Drift fixed at that boundary: pack seeding no longer mints canonical ids (it asks `resolveTopic` and calls `learn`); `TopicResolution.lessonMemoId` and the registry's dependency on Pen's lesson memo removed (a Pen concept in Onten's contract, and dead); a duplicate `titleCase` in the API deleted; and the **lesson memo moved out of `packages/onten` into `packages/session-engine`** — it caches generated lesson text, which Onten never saw and will never store, and is not CTX-MEMO-01. One drift knowingly retained and recorded with its deletion instructions: cross-language canonical-title resolution in `services/api/src/language.ts`.
 - [x] LLM gateway: OpenAI Responses strict streaming, fake model, parser + tests
 - [x] Session engine: room state machine, planner, turn loop, TTS pipeline + tests
 - [x] API: config, identity, rooms, WS protocol, routes, ledger, seeds; smoke-tested

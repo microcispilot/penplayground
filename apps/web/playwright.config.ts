@@ -64,6 +64,12 @@ const BASE_PATH_ONLY = ['**/base-path.spec.ts'];
 
 export default defineConfig({
   testDir: './e2e',
+  /**
+   * `base-path.spec.ts` belongs to playwright.basepath.config.ts and only to it: it needs the
+   * bundle built with `PEN_BASE_PATH` and served behind nginx with the prefix stripped, which
+   * none of the servers below do. Run here it would not merely fail — it would start a lesson on
+   * the shared API on its way to failing, and the specs that follow share that one pipeline.
+   */
   testIgnore: BASE_PATH_ONLY,
   timeout: 60_000,
   expect: { timeout: 15_000 },

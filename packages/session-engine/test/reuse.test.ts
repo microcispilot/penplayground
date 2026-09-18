@@ -3,6 +3,7 @@ import { FakeLanguageModel } from '@pen/llm';
 import type { Onten } from '@pen/onten';
 import { SilentSynthesizer } from '@pen/voice';
 import { describe, expect, it } from 'vitest';
+import type { LessonMemo } from '../src/lesson-memo.js';
 import { SessionMetrics } from '../src/metrics.js';
 import { SessionRoom } from '../src/room.js';
 import {
@@ -28,7 +29,12 @@ function model() {
   };
 }
 
-async function session(onten: Onten, id: string, opts: { expertId?: string } = {}) {
+async function session(
+  onten: Onten,
+  memo: LessonMemo,
+  id: string,
+  opts: { expertId?: string } = {},
+) {
   const transport = new MemoryTransport();
   const samples: StageSample[] = [];
   const metrics = new SessionMetrics({
@@ -46,7 +52,7 @@ async function session(onten: Onten, id: string, opts: { expertId?: string } = {
     locale: 'en-US',
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo,
     model: model(),
     synthesizer: new SilentSynthesizer(),
     voice: 'v',
@@ -65,21 +71,21 @@ const llm = (samples: StageSample[], purpose: string) =>
 
 describe('lesson reuse across sessions (zero redundant generation)', () => {
   it('a session that ends after one segment memoises it; the next session reuses the plan and that segment and generates only the rest', async () => {
-    const { onten } = await preparedPack();
+    const { onten, memo } = await preparedPack();
 
     // Session 1: generates the plan and segment 0, then ends early (before the host hears segment 1).
-    const a = await session(onten, 'sess-a');
+    const a = await session(onten, memo, 'sess-a');
     await until(() => a.transport.audio.some((h) => h.sayId === 'L0.s2' && h.final));
     await a.room.end();
     expect(llm(a.samples, 'plan')).toHaveLength(1);
     expect(llm(a.samples, 'plan')[0]?.meta.reused).toBe(false);
     expect(llm(a.samples, 'lesson').map((s) => s.meta.reused)).toEqual([false]);
-    const memo = await onten.memo.find(CANONICAL_ID, 'beginner', expert.id);
-    expect(memo?.cuesBySegment.map((c) => c.length)).toEqual([2, 0, 0]);
-    expect(memo?.costUsd.segments).toHaveLength(3);
+    const stored = await memo.find(CANONICAL_ID, 'beginner', expert.id);
+    expect(stored?.cuesBySegment.map((c) => c.length)).toEqual([2, 0, 0]);
+    expect(stored?.costUsd.segments).toHaveLength(3);
 
     // Session 2: same topic, band and persona → the pack is a hit, the plan and segment 0 come from the memo.
-    const b = await session(onten, 'sess-b');
+    const b = await session(onten, memo, 'sess-b');
     await until(() => b.transport.audio.some((h) => h.sayId === 'L0.s2' && h.final));
     expect(b.room.getState().plan?.segments).toHaveLength(3);
     const resolve = b.samples.find((s) => s.stage === 'resolve');
@@ -101,13 +107,13 @@ describe('lesson reuse across sessions (zero redundant generation)', () => {
       llm(b.samples, 'lesson').some((s) => s.meta.segment === undefined && !s.meta.reused),
     );
     await b.room.end();
-    const grown = await onten.memo.find(CANONICAL_ID, 'beginner', expert.id);
-    expect(grown?.id).toBe(memo?.id);
+    const grown = await memo.find(CANONICAL_ID, 'beginner', expert.id);
+    expect(grown?.id).toBe(stored?.id);
     expect(grown?.cuesBySegment.map((c) => c.length)).toEqual([2, 2, 0]);
     expect(grown?.timesReused).toBe(1);
 
     // Session 3 with another persona: nothing of Ada's script is served.
-    const c = await session(onten, 'sess-c', { expertId: 'juno-park' });
+    const c = await session(onten, memo, 'sess-c', { expertId: 'juno-park' });
     expect(llm(c.samples, 'plan')[0]?.meta.reused).toBe(false);
     await c.room.end();
   }, 20_000);

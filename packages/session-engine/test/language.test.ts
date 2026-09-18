@@ -45,7 +45,7 @@ function model(noteLanguage: string | null) {
 }
 
 async function liveRoom(opts: { detected: string | null; noteLanguage: string | null }) {
-  const { onten } = await preparedPack();
+  const { onten, memo } = await preparedPack();
   const transport = new MemoryTransport();
   const synthesizer = new SpySynthesizer();
   const room = new SessionRoom({
@@ -58,7 +58,7 @@ async function liveRoom(opts: { detected: string | null; noteLanguage: string | 
     locale: 'en-US',
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo,
     model: model(opts.noteLanguage),
     synthesizer,
     voice: voiceFor('en'),

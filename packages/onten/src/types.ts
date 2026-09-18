@@ -28,6 +28,17 @@ export interface RuntimeConfiguration {
   packIds: string[];
 }
 
+/** What every `query` on one runtime has cost, against `ONTEN_LATENCY_BUDGET_MS`. */
+export interface LatencyReport {
+  count: number;
+  p50: number;
+  p95: number;
+  max: number;
+  /** Calls that crossed the budget. Must be 0. */
+  overBudget: number;
+  budgetMs: number;
+}
+
 export interface HostContextPolicy {
   policyId: string;
   revision: string;
@@ -114,8 +125,6 @@ export interface TopicResolution {
   domainBoundary: string;
   match: 'hit' | 'partial' | 'miss';
   packId: string | null;
-  /** A previously taught lesson for this scope and band, when one exists (Pen Playground memo extension). */
-  lessonMemoId: string | null;
   /** Similarity score of the best candidate, 0–1. */
   score: number;
 }
@@ -178,54 +187,4 @@ export interface CompileProgress {
 
 export interface OntenCompiler {
   startProgressiveCompilation(request: CompileRequest): ProgressiveCompilation;
-}
-
-// ── lesson memo (Pen Playground extension: session plans keyed by scope + band) ─
-export interface LessonMemoEntry {
-  id: string;
-  canonicalKnowledgeId: string;
-  band: SelectionBand;
-  /**
-   * BCP-47 language the lesson was taught in. A memo is a script of spoken
-   * sentences and board text, so it can only be replayed for a learner in the
-   * same language; entries written before this field are English.
-   */
-  language: string;
-  packId: string;
-  packRevision: string;
-  expertId: string;
-  /** Serialized LessonPlan. */
-  plan: unknown;
-  /**
-   * Serialized lesson cues (the narration + board script), by segment. Grows
-   * as sessions get further into the lesson: an empty slot means "not taught
-   * yet", and the next session generates only that segment.
-   */
-  cuesBySegment: unknown[][];
-  /** What generating the plan and each segment cost (USD), so a reuse can report exactly what it saved. */
-  costUsd: { plan: number; segments: number[] };
-  timesReused: number;
-  createdAt: number;
-}
-
-export interface LessonMemo {
-  /**
-   * The latest memo for the scope, band and language; for one persona when
-   * `expertId` is given (scripts carry the persona's voice). `language` is
-   * matched on its subtag (`fa-IR` replays an `fa` memo) and defaults to
-   * English, which is what entries written before the field hold.
-   */
-  find(
-    canonicalKnowledgeId: string,
-    band: SelectionBand,
-    expertId?: string,
-    language?: string,
-  ): Promise<LessonMemoEntry | null>;
-  put(entry: Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>): Promise<LessonMemoEntry>;
-  /** Fill segments a later session generated (never overwrites a segment already memoised). */
-  extend(
-    id: string,
-    segments: Array<{ index: number; cues: unknown[]; usd: number }>,
-  ): Promise<void>;
-  touch(id: string): Promise<void>;
 }

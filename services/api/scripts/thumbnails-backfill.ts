@@ -1,7 +1,7 @@
 import type { LessonPlan, SelectionBand, SessionMeta } from '@pen/contracts';
 import { freshEstimateUsd, LessonPlan as LessonPlanSchema } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
-import type { LessonMemoEntry } from '@pen/onten';
+import type { LessonMemoEntry } from '@pen/session-engine';
 import { planDigest, sessionMetaScope } from '@pen/session-engine';
 import { loadConfig } from '../src/config.js';
 import { buildServices } from '../src/services.js';
@@ -111,11 +111,7 @@ try {
       continue;
     }
     const memo = record.canonicalId
-      ? await services.onten.memo.find(
-          record.canonicalId,
-          record.band as SelectionBand,
-          record.expertId,
-        )
+      ? await services.memo.find(record.canonicalId, record.band as SelectionBand, record.expertId)
       : null;
     const plan = planOf(record, memo);
     const cached = record.canonicalId

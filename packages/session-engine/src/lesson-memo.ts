@@ -2,15 +2,77 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SelectionBand } from '@pen/contracts';
 import { nanoid } from 'nanoid';
-import type { LessonMemo, LessonMemoEntry } from './types.js';
 
 /**
- * Pen Playground extension of the Canonical Question Memo: reuse a taught lesson
- * (plan + cue script) for the same scope, selection band and persona. Stores no
- * personal state — the band is the only personalisation in the key. Memos are
- * written segment by segment, so a session that ends early still leaves the
- * segments it generated for the next learner, who generates only the rest.
+ * Pen Playground's own cache of the lessons it has already generated: reuse a
+ * taught lesson (plan + cue script) for the same scope, selection band, persona
+ * and language. Stores no personal state — the band is the only personalisation
+ * in the key. Memos are written segment by segment, so a session that ends early
+ * still leaves the segments it generated for the next learner, who generates
+ * only the rest.
+ *
+ * **This is not Onten's Canonical Question Memo, and must never be confused with
+ * it.** Onten's memo (CTX-MEMO-01) caches a *selection* — which knowledge units
+ * answer a question — and lives inside `MockContextRuntime`. This one caches
+ * *generated lesson text*: sentences a language model wrote from the context
+ * Onten supplied. Onten never saw it, never produced it, and will never store
+ * it, whatever SDK is behind the interface. It belongs to the room, so it lives
+ * with the room (ADR-0019, `docs/ONTEN-BOUNDARY.md`).
+ *
+ * Its sibling is the lesson voice store (ADR-0017): the same scope key, the same
+ * ownership, one holding the words and the other the audio of those words.
  */
+
+/** One taught lesson, keyed by scope + band + language (+ persona). */
+export interface LessonMemoEntry {
+  id: string;
+  canonicalKnowledgeId: string;
+  band: SelectionBand;
+  /**
+   * BCP-47 language the lesson was taught in. A memo is a script of spoken
+   * sentences and board text, so it can only be replayed for a learner in the
+   * same language; entries written before this field are English.
+   */
+  language: string;
+  packId: string;
+  packRevision: string;
+  expertId: string;
+  /** Serialized LessonPlan. */
+  plan: unknown;
+  /**
+   * Serialized lesson cues (the narration + board script), by segment. Grows
+   * as sessions get further into the lesson: an empty slot means "not taught
+   * yet", and the next session generates only that segment.
+   */
+  cuesBySegment: unknown[][];
+  /** What generating the plan and each segment cost (USD), so a reuse can report exactly what it saved. */
+  costUsd: { plan: number; segments: number[] };
+  timesReused: number;
+  createdAt: number;
+}
+
+export interface LessonMemo {
+  /**
+   * The latest memo for the scope, band and language; for one persona when
+   * `expertId` is given (scripts carry the persona's voice). `language` is
+   * matched on its subtag (`fa-IR` replays an `fa` memo) and defaults to
+   * English, which is what entries written before the field hold.
+   */
+  find(
+    canonicalKnowledgeId: string,
+    band: SelectionBand,
+    expertId?: string,
+    language?: string,
+  ): Promise<LessonMemoEntry | null>;
+  put(entry: Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>): Promise<LessonMemoEntry>;
+  /** Fill segments a later session generated (never overwrites a segment already memoised). */
+  extend(
+    id: string,
+    segments: Array<{ index: number; cues: unknown[]; usd: number }>,
+  ): Promise<void>;
+  touch(id: string): Promise<void>;
+}
+
 type NewEntry = Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>;
 type Segment = { index: number; cues: unknown[]; usd: number };
 

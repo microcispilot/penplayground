@@ -9,6 +9,7 @@ import { FakeLanguageModel } from '@pen/llm';
 import { createOnten } from '@pen/onten';
 import { SilentSynthesizer } from '@pen/voice';
 import { describe, expect, it } from 'vitest';
+import { MemoryLessonMemo } from '../src/lesson-memo.js';
 import { qualifyIds, SessionRoom } from '../src/room.js';
 import type { RoomTransport } from '../src/transport.js';
 
@@ -162,11 +163,10 @@ function fakeModel() {
   );
 }
 
+/** One qualified pack, given to Onten the one way documents are ever given to it. */
 async function preparedPack() {
   const onten = createOnten();
-  const c = onten.compiler.startProgressiveCompilation({
-    requestId: 'r',
-    hostId: 'pen',
+  await onten.learn({
     canonicalKnowledgeId: 'en.how-transformers-work-in-llms',
     title: 'How Transformers Work in LLMs',
     scope: {
@@ -175,15 +175,14 @@ async function preparedPack() {
       locale: 'en-US',
       domainBoundary: 'computing-data',
     },
-    policy: onten.policy.expansion,
+    documents: [doc],
+    evaluation: {
+      development: [{ question: 'why divide by sqrt d', expectedUnitIds: [] }],
+      negative: [{ question: 'bread', expectedUnitIds: [] }],
+    },
   });
-  await c.addSource(doc);
-  c.finishSources({
-    development: [{ question: 'why divide by sqrt d', expectedUnitIds: [] }],
-    negative: [{ question: 'bread', expectedUnitIds: [] }],
-  });
-  await c.background;
-  return onten;
+  // The taught lesson is Pen's own cache, not Onten's (docs/ONTEN-BOUNDARY.md).
+  return { onten, memo: new MemoryLessonMemo() };
 }
 
 async function until(pred: () => boolean, ms = 4000): Promise<void> {
@@ -207,7 +206,7 @@ describe('qualifyIds', () => {
 
 describe('SessionRoom', () => {
   it('teaches a prepared topic, handles an interrupt with a question, grades a check-in, and ends with a recap', async () => {
-    const onten = await preparedPack();
+    const { onten, memo } = await preparedPack();
     const transport = new MemoryTransport();
     const room = new SessionRoom({
       sessionId: 'sess-1',
@@ -219,7 +218,7 @@ describe('SessionRoom', () => {
       locale: 'en-US',
       onten,
       runtime: onten.newRuntime(),
-      memo: onten.memo,
+      memo,
       model: fakeModel(),
       synthesizer: new SilentSynthesizer(),
       voice: 'v',
@@ -297,12 +296,12 @@ describe('SessionRoom', () => {
       'Attention scores query against key',
     ]);
     // The memo now holds the taught lesson for the next learner of this topic and band.
-    const memo = await onten.memo.find('en.how-transformers-work-in-llms', 'beginner');
-    expect(memo?.cuesBySegment.length).toBe(2);
+    const stored = await memo.find('en.how-transformers-work-in-llms', 'beginner');
+    expect(stored?.cuesBySegment.length).toBe(2);
   });
 
   it("answers a barge-in over its own answer: the turn ends and the floor is the learner's", async () => {
-    const onten = await preparedPack();
+    const { onten, memo } = await preparedPack();
     const transport = new MemoryTransport();
     const room = new SessionRoom({
       sessionId: 'sess-barge',
@@ -314,7 +313,7 @@ describe('SessionRoom', () => {
       locale: 'en-US',
       onten,
       runtime: onten.newRuntime(),
-      memo: onten.memo,
+      memo,
       model: fakeModel(),
       synthesizer: new SilentSynthesizer(),
       voice: 'v',
@@ -355,7 +354,7 @@ describe('SessionRoom', () => {
   });
 
   it('refuses guests on the free plan and enforces host-only controls', async () => {
-    const onten = await preparedPack();
+    const { onten, memo } = await preparedPack();
     const transport = new MemoryTransport();
     const room = new SessionRoom({
       sessionId: 'sess-2',
@@ -367,7 +366,7 @@ describe('SessionRoom', () => {
       locale: 'en-US',
       onten,
       runtime: onten.newRuntime(),
-      memo: onten.memo,
+      memo,
       model: fakeModel(),
       synthesizer: new SilentSynthesizer(),
       voice: 'v',
@@ -389,7 +388,7 @@ describe('SessionRoom', () => {
       locale: 'en-US',
       onten,
       runtime: onten.newRuntime(),
-      memo: onten.memo,
+      memo,
       model: fakeModel(),
       synthesizer: new SilentSynthesizer(),
       voice: 'v',

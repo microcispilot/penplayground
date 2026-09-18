@@ -1,7 +1,7 @@
 import MiniSearch from 'minisearch';
 import type { PackStore } from './pack-store.js';
 import { normalizeTopic, slugify } from './text.js';
-import type { LessonMemo, OntenRegistry, Pack, TopicRequest, TopicResolution } from './types.js';
+import type { OntenRegistry, Pack, TopicRequest, TopicResolution } from './types.js';
 
 const DOMAIN_HINTS: Array<[RegExp, string]> = [
   [
@@ -78,10 +78,7 @@ export function titleCase(text: string): string {
  * tenant's packs are ever visible (no cross-tenant existence disclosure).
  */
 export class MockRegistry implements OntenRegistry {
-  constructor(
-    private readonly store: PackStore,
-    private readonly memo: LessonMemo,
-  ) {}
+  constructor(private readonly store: PackStore) {}
 
   async resolveTopic(request: TopicRequest): Promise<TopicResolution> {
     const normalized = normalizeTopic(request.text);
@@ -115,14 +112,19 @@ export class MockRegistry implements OntenRegistry {
       const top = hits[0];
       if (top) {
         const pack = packs.find((p) => p.packId === String(top.id));
-        // Normalise by the best possible score of the query against itself.
-        const self = index.search(pack ? pack.title : normalized)[0]?.score ?? top.score;
-        if (pack) best = { pack, score: Math.min(1, top.score / Math.max(self, 1e-6)) };
+        if (pack) {
+          // Normalise by what THIS pack scores against its own title — the best
+          // this query could possibly have done. Taking the top hit for that
+          // title instead measured a different pack whenever one outranked it,
+          // and the ratio then clamped to a perfect 1.000: "Work in LLMs" came
+          // back as a certain hit on a transformers pack.
+          const self =
+            index.search(pack.title).find((h) => String(h.id) === pack.packId)?.score ?? top.score;
+          best = { pack, score: Math.min(1, top.score / Math.max(self, 1e-6)) };
+        }
       }
     }
 
-    const memoTopic = best?.pack.canonicalKnowledgeId ?? canonicalKnowledgeId;
-    const memo = await this.memo.find(memoTopic, request.band, undefined, request.language);
     if (best?.pack.qualified && best.score >= 0.72) {
       return {
         canonicalKnowledgeId: best.pack.canonicalKnowledgeId,
@@ -131,7 +133,6 @@ export class MockRegistry implements OntenRegistry {
         domainBoundary: best.pack.scope.domainBoundary,
         match: 'hit',
         packId: best.pack.packId,
-        lessonMemoId: memo?.id ?? null,
         score: best.score,
       };
     }
@@ -143,7 +144,6 @@ export class MockRegistry implements OntenRegistry {
         domainBoundary: best.pack.scope.domainBoundary,
         match: 'partial',
         packId: best.pack.packId,
-        lessonMemoId: memo?.id ?? null,
         score: best.score,
       };
     }
@@ -154,7 +154,6 @@ export class MockRegistry implements OntenRegistry {
       domainBoundary,
       match: 'miss',
       packId: null,
-      lessonMemoId: null,
       score: best?.score ?? 0,
     };
   }

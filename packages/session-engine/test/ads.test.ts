@@ -34,7 +34,7 @@ async function makeRoom(opts: {
   onEvent?: AdPolicy['onEvent'];
   revenuePerCompletionUsd?: number;
 }) {
-  const { onten, packId } = await preparedPack();
+  const { onten, packId, memo } = await preparedPack();
   const transport = new MemoryTransport();
   const hit = await onten.registry.resolveTopic({
     text: 'How Transformers work in LLMs',
@@ -69,11 +69,11 @@ async function makeRoom(opts: {
     language: 'en-US',
     locale: 'en-US',
     resolution: opts.miss
-      ? { ...hit, match: 'miss', packId: null, lessonMemoId: null, score: 0 }
+      ? { ...hit, match: 'miss', packId: null, score: 0 }
       : { ...hit, canonicalKnowledgeId: CANONICAL_ID },
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo,
     model: model(),
     synthesizer: new SilentSynthesizer(),
     voice: 'v',

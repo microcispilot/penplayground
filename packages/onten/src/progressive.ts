@@ -83,6 +83,12 @@ export class MockCompiler implements OntenCompiler {
       resolveBackground = res;
     });
 
+    /**
+     * Never leaves `background` pending. A throw in here — a full disk on the
+     * qualification write is the realistic one — used to hang every caller
+     * awaiting the qualified pack for ever, and to surface as an unhandled
+     * rejection because the caller below is `void`.
+     */
     const maybeQualify = async () => {
       if (!finished || cancelled || phase === 'qualified' || phase === 'qualifying') return;
       phase = 'qualifying';
@@ -112,6 +118,14 @@ export class MockCompiler implements OntenCompiler {
       emit();
       resolveBackground(prepared);
     };
+
+    const qualify = () =>
+      maybeQualify().catch((error) => {
+        phase = 'failed';
+        emit();
+        console.warn('[onten] qualification failed:', error);
+        resolveBackground(null);
+      });
 
     const compilation: ProgressiveCompilation = {
       interactive: interactiveInner.finally(() => clearTimeout(deadline)),
@@ -144,7 +158,7 @@ export class MockCompiler implements OntenCompiler {
             rejectInteractive(new Error('CTX-PROGRESSIVE-01 no usable source'));
           }
         }
-        void maybeQualify();
+        void qualify();
       },
       onProgress: (listener) => {
         listeners.add(listener);

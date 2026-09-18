@@ -37,7 +37,7 @@ function speechMs(text: string, speed: number): number {
 }
 
 async function liveRoom(opts: { scripts?: FakeScript[]; pace?: number } = {}) {
-  const { onten } = await preparedPack();
+  const { onten, memo } = await preparedPack();
   const transport = new MemoryTransport();
   const synthesizer = new SpySynthesizer();
   const ledger = new MemoryLedger();
@@ -51,7 +51,7 @@ async function liveRoom(opts: { scripts?: FakeScript[]; pace?: number } = {}) {
     locale: 'en-US',
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo,
     model: new FakeLanguageModel(opts.scripts ?? [segmentScript(1)], [
       planCompletion(1),
       { purpose: 'recap', value: { points: ['Tokens become vectors'] } },

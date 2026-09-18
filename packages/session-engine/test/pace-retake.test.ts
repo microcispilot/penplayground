@@ -52,7 +52,7 @@ function longSegment(gapMs = 2): FakeScript {
 }
 
 async function liveRoom() {
-  const { onten } = await preparedPack();
+  const { onten, memo } = await preparedPack();
   const transport = new MemoryTransport();
   const synthesizer = new SpySynthesizer();
   const ledger = new MemoryLedger();
@@ -66,7 +66,7 @@ async function liveRoom() {
     locale: 'en-US',
     onten,
     runtime: onten.newRuntime(),
-    memo: onten.memo,
+    memo,
     model: new FakeLanguageModel(
       [longSegment()],
       [planCompletion(1), { purpose: 'recap', value: { points: ['Tokens become vectors'] } }],

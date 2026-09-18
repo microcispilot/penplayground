@@ -5,6 +5,7 @@ import {
   type ContextResult,
   type ContextSpan,
   type ContextStatus,
+  ONTEN_LATENCY_BUDGET_MS,
   type ProvisionalSource,
   type QueryInput,
   type RuntimeMetrics,
@@ -15,6 +16,7 @@ import { digest, estimateTokens } from './text.js';
 import type {
   HostContextPolicy,
   KnowledgeUnit,
+  LatencyReport,
   OntenClient,
   Pack,
   RuntimeConfiguration,
@@ -31,17 +33,105 @@ interface IndexedUnit {
 }
 
 /**
+ * Everything the compiler prepares once so a query does not have to think: the
+ * lexical index, the unit lookup and the document frequency of every term.
+ */
+interface CompiledIndex {
+  index: MiniSearch<IndexedUnit>;
+  byKey: Map<string, IndexedUnit>;
+  /** term → how many units contain it. The selector's only input besides the question. */
+  df: Map<string, number>;
+  units: number;
+}
+
+/**
+ * A remembered *selection* (CTX-MEMO-01). Never an answer, never a payload:
+ * the units this question chose last time and the score each of them earned, so
+ * a hit produces the very shape a full run produces. Re-admitted against the
+ * live index on every hit, because "a stored selection is a candidate set,
+ * never an admitted set".
+ */
+interface MemoEntry {
+  units: Array<{ key: string; score: number }>;
+  primaryKey: string | null;
+  bestScore: number;
+}
+
+/**
+ * Compiled indexes shared by every runtime in the process, keyed by exactly what
+ * decides their content. A session builds a runtime per room; the packs behind
+ * them are the same artifacts, compiled once and reused — which is the whole
+ * "compile once, reuse many" economics, applied to the mock's own index.
+ */
+const INDEX_CACHE = new Map<string, CompiledIndex>();
+const MAX_CACHED_INDEXES = 8;
+
+/**
+ * The Canonical Question Memo, shared by every runtime in the process — which is
+ * the point of it: the 8,432nd learner to ask "what is a variable" is a
+ * different session, and their turn is the one that must cost nothing. Keyed by
+ * the pack signature and a bounded, non-sensitive question key, so a republished
+ * pack is simply a different memory and no learner's state can ever key it.
+ */
+const MEMO = new Map<string, MemoEntry>();
+const MEMO_CAPACITY = 20_000;
+
+function lru<T>(map: Map<string, T>, key: string, value: T, capacity: number): void {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > capacity) {
+    const oldest = map.keys().next();
+    if (oldest.done) break;
+    map.delete(oldest.value);
+  }
+}
+
+/** Test seam: a benchmark must be able to measure a cold build and a cold memo. */
+export function resetRuntimeCaches(): void {
+  INDEX_CACHE.clear();
+  MEMO.clear();
+}
+
+/**
+ * The selector's two bounds. A question is answered from the terms that
+ * actually discriminate: the rarest ones, and never a term so common it matches
+ * most of the corpus while a rarer one is available. This is what keeps the
+ * candidate set — and so the answer — inside the latency budget as the corpus
+ * grows; scoring every unit that happens to share the word "the" is what a
+ * search engine does, and a memory does not.
+ */
+const MAX_QUERY_TERMS = 4;
+const MAX_DF_FRACTION = 0.02;
+const MIN_DF_CEILING = 50;
+
+/** Latency samples kept for `latency()`; a long session is a few hundred queries. */
+const LATENCY_WINDOW = 2_000;
+
+/** How long a speculation stays useful, and how many may wait at once. */
+const SPECULATION_TTL_MS = 10_000;
+const SPECULATION_CAPACITY = 32;
+
+/**
  * Mock Context Runtime. Faithful to the AnswerContext schema and to the status
  * transitions in onten/runtime/context/src/lib.rs: sufficient only when
  * applicable units exist and nothing is unresolved; score forced to 0 otherwise;
  * requiresComplete always downgrades to partial with `complete_coverage_proof`.
+ *
+ * It behaves like memory, not like a search engine: it answers only from what it
+ * was given, it answers a repeated question from the selection it already made,
+ * and it holds `ONTEN_LATENCY_BUDGET_MS` for every call. Ask it about something
+ * it was never given and the honest answer is `missing`, never an invented one.
  */
 export class MockContextRuntime implements OntenClient {
   private configuration: RuntimeConfiguration | null = null;
   private packs: Pack[] = [];
-  private index: MiniSearch<IndexedUnit> | null = null;
-  private byKey = new Map<string, IndexedUnit>();
+  private compiled: CompiledIndex | null = null;
+  private packRefs: AnswerContext['packRefs'] = [];
+  private qualifiedPacks = new Set<string>();
+  private signatureOfPacks = '';
   private speculation = new Map<string, { at: number; result: ContextResult }>();
+  private readonly latencies: number[] = [];
+  private overBudgetCount = 0;
   private readonly processId = process.pid;
   private closed = false;
 
@@ -53,8 +143,25 @@ export class MockContextRuntime implements OntenClient {
     this.packs = (await Promise.all(configuration.packIds.map((id) => this.store.get(id)))).filter(
       (p): p is Pack => p !== null,
     );
-    this.rebuildIndex();
-    return true;
+    this.speculation.clear();
+    // The pack references the payload carries are taken here, once. The store
+    // hands out live objects and the compiler mutates them in place as a
+    // background compile publishes, so reading them per query would put a
+    // revision in `packRefs` that the frozen index behind `evidenceSpans` does
+    // not have — one payload disagreeing with itself.
+    this.packRefs = this.packs.map((p) => ({
+      packId: p.packId,
+      packRevision: p.packRevision,
+      digest: p.digest,
+    }));
+    this.qualifiedPacks = new Set(this.packs.filter((p) => p.qualified).map((p) => p.packId));
+    // A different pack set (or a republished revision) is a different memory:
+    // the signature is part of every memo key, so nothing has to be invalidated.
+    this.signatureOfPacks = this.signature();
+    this.compiled = this.indexFor(this.signatureOfPacks);
+    // False when a requested pack id was not in the store: the session would
+    // answer `missing` to everything, and that must not be silent.
+    return this.packs.length === configuration.packIds.length;
   }
 
   /** Hosts re-activate after a background compile publishes a new revision. */
@@ -62,9 +169,46 @@ export class MockContextRuntime implements OntenClient {
     if (this.configuration) await this.configure(this.configuration);
   }
 
-  private rebuildIndex(): void {
+  /** What every `query` on this runtime has cost so far (p50/p95/max, in ms). */
+  latency(): LatencyReport {
+    const sorted = [...this.latencies].sort((a, b) => a - b);
+    const at = (p: number) =>
+      sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] ?? 0;
+    return {
+      count: sorted.length,
+      p50: sorted.length === 0 ? 0 : at(0.5),
+      p95: sorted.length === 0 ? 0 : at(0.95),
+      max: sorted.length === 0 ? 0 : (sorted[sorted.length - 1] as number),
+      overBudget: this.overBudgetCount,
+      budgetMs: ONTEN_LATENCY_BUDGET_MS,
+    };
+  }
+
+  /**
+   * The signature that decides an index's content: which packs, at which
+   * revision and digest. Hashed, because it prefixes every memo key and a
+   * session with many packs would otherwise carry kilobytes of pack ids into
+   * each one.
+   */
+  private signature(): string {
+    return digest(
+      this.packs
+        .map((p) => `${p.packId}@${p.packRevision}#${p.digest}`)
+        .sort()
+        .join('|'),
+    );
+  }
+
+  private indexFor(signature: string): CompiledIndex {
+    const cached = INDEX_CACHE.get(signature);
+    if (cached) {
+      // Refresh recency so a topic being taught right now is not the one evicted.
+      lru(INDEX_CACHE, signature, cached, MAX_CACHED_INDEXES);
+      return cached;
+    }
     const docs: IndexedUnit[] = [];
-    this.byKey.clear();
+    const byKey = new Map<string, IndexedUnit>();
+    const df = new Map<string, number>();
     for (const pack of this.packs) {
       for (const unit of pack.units) {
         const doc: IndexedUnit = {
@@ -77,10 +221,12 @@ export class MockContextRuntime implements OntenClient {
           intents: unit.intents.join(' '),
         };
         docs.push(doc);
-        this.byKey.set(doc.key, doc);
+        byKey.set(doc.key, doc);
+        for (const term of new Set(tokenize(`${doc.title} ${doc.intents} ${doc.text}`)))
+          df.set(term, (df.get(term) ?? 0) + 1);
       }
     }
-    this.index = new MiniSearch<IndexedUnit>({
+    const index = new MiniSearch<IndexedUnit>({
       idField: 'key',
       fields: ['title', 'text', 'intents'],
       storeFields: ['key'],
@@ -91,30 +237,42 @@ export class MockContextRuntime implements OntenClient {
         combineWith: 'OR',
       },
     });
-    this.index.addAll(docs);
+    index.addAll(docs);
+    const compiled: CompiledIndex = { index, byKey, df, units: docs.length };
+    lru(INDEX_CACHE, signature, compiled, MAX_CACHED_INDEXES);
+    return compiled;
   }
 
   async speculate(input: QueryInput): Promise<boolean> {
     this.assertOpen();
     const result = await this.assemble(input, { speculative: true });
-    this.speculation.set(this.speculationKey(input), { at: Date.now(), result });
+    // One utterance produces a speculation per caption revision, and only the
+    // one the final transcript matches is ever consumed. Without a bound the
+    // rest — each holding five span texts — stay for the life of the room.
+    const now = Date.now();
+    for (const [k, v] of this.speculation)
+      if (now - v.at >= SPECULATION_TTL_MS) this.speculation.delete(k);
+    lru(this.speculation, this.speculationKey(input), { at: now, result }, SPECULATION_CAPACITY);
     return result.context.status === 'sufficient';
   }
 
   async query(input: QueryInput): Promise<ContextResult> {
     this.assertOpen();
+    const t0 = performance.now();
+    const result = await this.answer(input);
+    return this.stamp(result, performance.now() - t0);
+  }
+
+  private async answer(input: QueryInput): Promise<ContextResult> {
     const key = this.speculationKey(input);
     const spec = this.speculation.get(key);
-    if (spec && Date.now() - spec.at < 10_000) {
+    if (spec && Date.now() - spec.at < SPECULATION_TTL_MS) {
       this.speculation.delete(key);
-      const t0 = performance.now();
-      const context = { ...spec.result.context, inputRevision: input.revision };
-      const residualNs = Math.round((performance.now() - t0) * 1e6);
       return {
-        context,
+        context: { ...spec.result.context, inputRevision: input.revision },
         metrics: {
           ...spec.result.metrics,
-          assemblyNs: residualNs,
+          assemblyNs: 0,
           speculationHit: true,
           speculationCandidatePresent: true,
           speculationPreparedNs: spec.result.metrics.assemblyNs,
@@ -122,7 +280,27 @@ export class MockContextRuntime implements OntenClient {
         },
       };
     }
-    return this.assemble(input, { speculative: false, speculationInvalidated: spec !== undefined });
+    return this.assemble(input, {
+      speculative: false,
+      speculationInvalidated: spec !== undefined,
+    });
+  }
+
+  /**
+   * Every call is measured against the budget on the wall clock, which is what
+   * the host paid: `assemblyNs` is the runtime's own view of assembly and is
+   * zero on a speculation hit. `elapsedMs`, `budgetMs` and `overBudget` go into
+   * the run manifest, and the host decides what to do about a breach.
+   */
+  private stamp(result: ContextResult, ms: number): ContextResult {
+    this.latencies.push(ms);
+    if (this.latencies.length > LATENCY_WINDOW) this.latencies.shift();
+    const overBudget = ms > ONTEN_LATENCY_BUDGET_MS;
+    if (overBudget) this.overBudgetCount += 1;
+    return {
+      ...result,
+      metrics: { ...result.metrics, elapsedMs: Number(ms.toFixed(3)), overBudget },
+    };
   }
 
   async provisional(input: QueryInput, source: ProvisionalSource): Promise<AnswerContext> {
@@ -153,8 +331,14 @@ export class MockContextRuntime implements OntenClient {
 
   async close(): Promise<void> {
     this.closed = true;
-    this.index = null;
+    // The compiled index and the memo belong to the process, not to this
+    // runtime: drop the references, never the artifacts another room is
+    // teaching from. Only the speculation buffer is this session's own.
+    this.compiled = null;
     this.packs = [];
+    this.packRefs = [];
+    this.qualifiedPacks.clear();
+    this.speculation.clear();
   }
 
   // ── internals ──────────────────────────────────────────────────────────────
@@ -173,28 +357,118 @@ export class MockContextRuntime implements OntenClient {
     return `${input.principal.principalId}|${input.topic}|${input.text.trim().toLowerCase()}`;
   }
 
+  /**
+   * The shared memo key. Bounded and non-sensitive by construction: the pack
+   * signature, the topic, the selection band (the principal's groups), the
+   * shape the host asked for, and the question — never a principal id, never a
+   * fact, never mastery state. "No student identifier, no mastery score, no
+   * private state ever enters the shared key" (CTX-MEMO-01).
+   *
+   * The question is canonicalised only by case, punctuation and spacing — the
+   * words stay, and they stay in order. A set of words is not a question:
+   * "is the glaze firing hotter than the bisque firing" and the same words the
+   * other way round want different evidence, and so do "should I open the kiln"
+   * and "should I *not* open the kiln". Dropping order or stop words would hand
+   * the second learner the first learner's selection, which is a wrong answer
+   * arriving faster.
+   */
+  private memoKey(input: QueryInput): string {
+    const band = [...input.principal.groups].sort().join('+');
+    return [
+      this.signatureOfPacks,
+      input.topic,
+      band,
+      input.contentInstructions ?? '',
+      input.requiresComplete ? 'complete' : '',
+      input.tokenBudget ?? '',
+      tokenize(input.text).join(' '),
+    ].join('|');
+  }
+
+  /**
+   * The question, reduced to the terms that discriminate.
+   *
+   * A learner speaks; they do not type a search box. "Sorry, one sec — um, why
+   * do we divide by the square root of d?" carries four words the corpus has
+   * never heard and five that answer the question, and the four must not be
+   * what the selector looks for. A word the corpus does not know has a document
+   * frequency of zero, which would make it the *rarest* word of all, so
+   * ranking on frequency alone puts the noise first and evicts the signal: the
+   * question comes back `missing`, which is the one lie this mock must never
+   * tell.
+   *
+   * So: words the corpus knows come first, rarest of those first; words it does
+   * not know are kept only to fill the remaining places, and only when nothing
+   * better is left. Then the ceiling drops anything so common it would drag in
+   * most of the corpus — but never the last term standing. Precomputed document
+   * frequencies make all of this arithmetic rather than a scan, which is what
+   * keeps the answer inside the latency budget.
+   */
+  private selectTerms(text: string, compiled: CompiledIndex): string[] {
+    // A question of nothing but stop words still has its short words: "what
+    // does R do" is about R, and `contentTerms` drops single characters.
+    const terms = contentTerms(text);
+    const usable = terms.length > 0 ? terms : shortTerms(text);
+    if (usable.length === 0) return [];
+    const df = (t: string) => compiled.df.get(t) ?? 0;
+    const known = usable.filter((t) => df(t) > 0).sort((a, b) => df(a) - df(b));
+    const unknown = usable.filter((t) => df(t) === 0);
+    if (known.length === 0) return unknown.slice(0, MAX_QUERY_TERMS);
+    const ceiling = Math.max(MIN_DF_CEILING, Math.floor(compiled.units * MAX_DF_FRACTION));
+    const discriminating = known.filter((t) => df(t) <= ceiling);
+    // Every known term is common: keep the rarest rather than answering from nothing.
+    const chosen = discriminating.length > 0 ? discriminating : known.slice(0, 1);
+    return chosen.slice(0, MAX_QUERY_TERMS);
+  }
+
   private async assemble(
     input: QueryInput,
     opts: { speculative: boolean; speculationInvalidated?: boolean },
   ): Promise<ContextResult> {
     const policy = this.policy();
     const t0 = performance.now();
+    const compiled = this.compiled;
     const spans: ContextSpan[] = [];
     let primary: KnowledgeUnit | null = null;
     let primaryPack: Pack | null = null;
     let bestScore = 0;
-    const packRefs = this.packs.map((p) => ({
-      packId: p.packId,
-      packRevision: p.packRevision,
-      digest: p.digest,
-    }));
+    let memoHit = false;
+    const packRefs = this.packRefs;
 
     const tRetrieval0 = performance.now();
-    if (this.index && this.byKey.size > 0) {
-      const hits = this.index.search(input.text).slice(0, 12);
+    const key = this.memoKey(input);
+    const remembered = MEMO.get(key);
+    // A remembered selection, re-admitted against the live index. Units that are
+    // no longer there simply do not come back; if none do, the memo is stale and
+    // the ordinary ladder runs.
+    if (compiled && remembered) {
+      const admitted = remembered.units
+        .map((u) => ({ doc: compiled.byKey.get(u.key), score: u.score }))
+        .filter((u): u is { doc: IndexedUnit; score: number } => u.doc !== undefined);
+      if (admitted.length > 0) {
+        memoHit = true;
+        lru(MEMO, key, remembered, MEMO_CAPACITY);
+        bestScore = remembered.bestScore;
+        const primaryEntry =
+          admitted.find((u) => u.doc.key === remembered.primaryKey) ??
+          (admitted[0] as { doc: IndexedUnit; score: number });
+        primary = primaryEntry.doc.unit;
+        primaryPack = this.packs.find((p) => p.packId === primaryEntry.doc.packId) ?? null;
+        for (const u of admitted.slice(0, CONTEXT_BUDGET.maxEvidenceSpans))
+          spans.push(spanOf(u.doc, u.score, this.qualifiedPacks.has(u.doc.packId)));
+      } else {
+        MEMO.delete(key);
+      }
+    }
+
+    if (!memoHit && compiled && compiled.byKey.size > 0) {
+      const terms = this.selectTerms(input.text, compiled);
       const queryTerms = contentTerms(input.text);
+      const hits = terms.length === 0 ? [] : compiled.index.search(terms.join(' ')).slice(0, 12);
+      const chosen: Array<{ key: string; score: number }> = [];
+      let primaryKey: string | null = null;
       for (const hit of hits) {
-        const doc = this.byKey.get(String(hit.id));
+        const doc = compiled.byKey.get(String(hit.id));
         if (!doc) continue;
         // Absolute match quality: fraction of the query's content terms this unit matched.
         const matched = new Set(hit.terms.map((t) => t.toLowerCase()));
@@ -210,20 +484,16 @@ export class MockContextRuntime implements OntenClient {
         if (!primary) {
           primary = doc.unit;
           primaryPack = this.packs.find((p) => p.packId === doc.packId) ?? null;
+          primaryKey = doc.key;
           bestScore = norm;
         }
-        spans.push({
-          packRef: `${doc.packId}@${doc.packRevision}`,
-          unitId: doc.unit.id,
-          sourceId: doc.unit.sourceId,
-          revision: doc.unit.revision,
-          contentDigest: doc.unit.contentDigest,
-          text: doc.unit.text,
-          attribution: doc.unit.attribution,
-          evidenceTier: 'reviewed_pack_source',
-          score: Number(norm.toFixed(3)),
-        });
+        chosen.push({ key: doc.key, score: norm });
+        spans.push(spanOf(doc, norm, this.qualifiedPacks.has(doc.packId)));
       }
+      // Remember the selection, not the answer: the next learner asking this
+      // question of this band skips retrieval and the selector entirely.
+      if (chosen.length > 0)
+        lru(MEMO, key, { units: chosen, primaryKey, bestScore }, MEMO_CAPACITY);
     }
     const retrievalNs = Math.round((performance.now() - tRetrieval0) * 1e6);
 
@@ -314,8 +584,13 @@ export class MockContextRuntime implements OntenClient {
       speculationInvalidated: opts.speculationInvalidated ?? false,
       speculationWastedNs: 0,
       retrievalBackend: 'minisearch-mock',
-      retrievalStrategy: 'lexical_bm25',
-      corpusCount: this.byKey.size,
+      retrievalStrategy: memoHit ? 'canonical_question_memo' : 'lexical_bm25_df_pruned',
+      corpusCount: compiled?.byKey.size ?? 0,
+      memoHit,
+      // Filled in by `stamp`, which is the only place that knows the wall time.
+      elapsedMs: 0,
+      budgetMs: ONTEN_LATENCY_BUDGET_MS,
+      overBudget: false,
     };
     return { context, metrics };
   }
@@ -360,7 +635,10 @@ export class MockContextRuntime implements OntenClient {
       primary: null,
       packRefs: [],
       unresolved,
-      constraints: [],
+      // The payload with no evidence in it is the one where "answer only from
+      // admitted evidence" matters most; dropping the constraint here would
+      // leave the model its own judgement precisely when it has nothing.
+      constraints: this.constraintsFor(input, null),
       score: 0,
     });
   }
@@ -426,6 +704,27 @@ export class MockContextRuntime implements OntenClient {
   }
 }
 
+/**
+ * A span from a pack that has not passed its qualification gate is not reviewed
+ * material, whatever it is sitting in — it is what progressive first use served
+ * early, and the contract tiers it accordingly (`03-progressive-first-use.yaml`).
+ * Saying `reviewed_pack_source` there would be the payload claiming a review
+ * that never happened.
+ */
+function spanOf(doc: IndexedUnit, score: number, qualified: boolean): ContextSpan {
+  return {
+    packRef: `${doc.packId}@${doc.packRevision}`,
+    unitId: doc.unit.id,
+    sourceId: doc.unit.sourceId,
+    revision: doc.unit.revision,
+    contentDigest: doc.unit.contentDigest,
+    text: doc.unit.text,
+    attribution: doc.unit.attribution,
+    evidenceTier: qualified ? 'reviewed_pack_source' : 'unverified_live_source',
+    score: Number(score.toFixed(3)),
+  };
+}
+
 const STOP = new Set(
   'a an the of to in on for and or is are was were be been it this that these those what why how when where which who do does did i you we they my your our can could should would will with as at by from into about vs versus if then than so not'.split(
     ' ',
@@ -451,6 +750,14 @@ export function termCoverage(query: string, evidence: string): number {
 
 export function contentTerms(text: string): string[] {
   return [...new Set(tokenize(text).filter((t) => !STOP.has(t) && t.length > 1))];
+}
+
+/**
+ * The same thing without the length floor: a one-letter word is usually noise,
+ * but when it is all the question has ("what is C used for") it is the question.
+ */
+function shortTerms(text: string): string[] {
+  return [...new Set(tokenize(text).filter((t) => !STOP.has(t)))];
 }
 
 function tokenize(text: string): string[] {
