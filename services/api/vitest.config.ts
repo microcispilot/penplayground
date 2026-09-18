@@ -1,2 +1,6 @@
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { include: ['test/**/*.test.ts'] } });
+
+/** Same reasoning as @pen/db: PGlite setup in a hook is slow on a cold runner. */
+export default defineConfig({
+  test: { include: ['test/**/*.test.ts'], hookTimeout: 120_000 },
+});
