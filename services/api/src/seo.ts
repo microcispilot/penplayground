@@ -1,4 +1,5 @@
 import type { SessionRecord } from '@pen/db';
+import { basePathOf, trimTrailingSlash } from './urls.js';
 
 /**
  * What crawlers and social scrapers read (ADR-0013 gave them the picture;
@@ -38,11 +39,12 @@ function lastmod(ms: number): string {
 }
 
 export function sitemapXml(args: {
+  /** The site's public base — an origin, or an origin plus the path the app is served under. */
   publicUrl: string;
   sessions: SessionRecord[];
   now?: number;
 }): string {
-  const base = args.publicUrl.replace(/\/+$/, '');
+  const base = trimTrailingSlash(args.publicUrl);
   const today = lastmod(args.now ?? Date.now());
   const urls = [
     ...STATIC_PAGES.map(
@@ -81,14 +83,18 @@ export const PRIVATE_PAGES: readonly string[] = [
  * learner's shelves are no one else's reading.
  */
 export function robotsTxt(publicUrl: string): string {
-  const base = publicUrl.replace(/\/+$/, '');
+  const base = trimTrailingSlash(publicUrl);
+  // A `Disallow:` line is a path on the host, not a URL: when the app is served
+  // under a prefix, `/room/` is not a path that exists and the rules would
+  // guard nothing. `Allow:` becomes the prefix itself for the same reason.
+  const prefix = basePathOf(publicUrl);
   return [
     'User-agent: *',
-    'Allow: /',
-    'Disallow: /room/',
-    'Disallow: /replay/',
-    'Disallow: /api/',
-    ...PRIVATE_PAGES.map((path) => `Disallow: ${path}`),
+    `Allow: ${prefix}/`,
+    `Disallow: ${prefix}/room/`,
+    `Disallow: ${prefix}/replay/`,
+    `Disallow: ${prefix}/api/`,
+    ...PRIVATE_PAGES.map((path) => `Disallow: ${prefix}${path}`),
     '',
     `Sitemap: ${base}/sitemap.xml`,
     '',
@@ -127,7 +133,7 @@ export function learningResourceJsonLd(args: {
     provider: {
       '@type': 'Organization',
       name: 'Pen Playground',
-      url: args.siteUrl.replace(/\/+$/, ''),
+      url: trimTrailingSlash(args.siteUrl),
     },
     ...(args.expertName ? { author: { '@type': 'Person', name: args.expertName } } : {}),
     ...(args.imageUrl ? { thumbnailUrl: args.imageUrl, image: args.imageUrl } : {}),

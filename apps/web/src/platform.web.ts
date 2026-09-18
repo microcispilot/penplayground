@@ -1,9 +1,10 @@
-import type {
-  Monitor,
-  Platform,
-  SpeechRecognizer,
-  SpeechRecognizerFactory,
-  SpeechRecognizerHandlers,
+import {
+  type Monitor,
+  normalizeBasePath,
+  type Platform,
+  type SpeechRecognizer,
+  type SpeechRecognizerFactory,
+  type SpeechRecognizerHandlers,
 } from '@pen/app';
 import ResamplerWorker from '@pen/voice/resampler-worker?worker&inline';
 import workletSource from '@pen/voice/worklet?raw';
@@ -146,9 +147,25 @@ const sentryMonitor: Monitor = {
   },
 };
 
+/**
+ * Where this bundle is mounted, decided at build time by Vite's `base`
+ * (`PEN_BASE_PATH` in apps/web/vite.config.ts). `import.meta.env.BASE_URL` is
+ * literally that value — `/` for the ordinary deployment, `/testingxyzbdc/`
+ * for one served under a prefix — so the router, the API origin and the asset
+ * URLs can never disagree about it.
+ */
+const BASE_PATH = import.meta.env.BASE_URL;
+
 export const webPlatform: Platform = {
   name: 'web',
-  apiUrl: import.meta.env.VITE_API_URL ?? window.location.origin,
+  basePath: BASE_PATH,
+  /**
+   * No `VITE_API_URL` means the API is on this origin, and under a path prefix
+   * it is at `<prefix>/api` — so the prefix belongs in the base URL the client
+   * concatenates onto (and in the WebSocket URL derived from it).
+   */
+  apiUrl:
+    import.meta.env.VITE_API_URL ?? `${window.location.origin}${normalizeBasePath(BASE_PATH)}`,
   speech,
   mic: { workletSource, createResamplerWorker: () => new ResamplerWorker() },
   storage,

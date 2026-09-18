@@ -2,7 +2,7 @@ import type { Expert, PlanUsage } from '@pen/contracts';
 import { Chip, cn, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, ArrowUpRight, Mic, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
 import { PenMark } from '../components/AppHeader.js';
 import { HeroBoard } from '../components/HeroBoard.js';
@@ -369,12 +369,12 @@ export function Home() {
                 {usage?.reason === 'capacity'
                   ? 'Free sessions are all booked for today — they open again at midnight UTC. '
                   : `That is your ${usage?.sessionsPerDay ?? 3} sessions for today. They are back at midnight UTC. `}
-                <a
-                  href="/pricing"
+                <Link
+                  to="/pricing"
                   className="text-accent-strong underline decoration-line-strong underline-offset-4 hover:decoration-accent"
                 >
                   Standard makes them unlimited
-                </a>
+                </Link>
                 .
               </p>
             ) : null}

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router';
+import { normalizeBasePath, withBasePath } from './base-path.js';
 
 /**
  * What a crawler, a shared link and a browser tab see for the screen that is
@@ -20,6 +21,23 @@ export interface Seo {
   noindex?: boolean;
   /** BCP-47; drives `<html lang>` (and `dir` through `applyDocumentLanguage`). */
   language?: string;
+}
+
+/**
+ * Where the app is mounted on its origin (`Platform.basePath`), for the one
+ * thing here that is a real URL rather than a route: the canonical/`og:url`
+ * pair. `PenApp` sets it before the first render; at the root it is `''` and
+ * every URL below is byte-for-byte what it was before this existed.
+ *
+ * A module-level value rather than a prop because `applySeo` is called from a
+ * class error boundary and from screens that have no reason to know about
+ * deployment shape — the same shape `setAnalyticsContext` already uses.
+ */
+let seoBasePath = '';
+
+/** Called once by `PenApp`. Idempotent. */
+export function setSeoBasePath(configured: string | null | undefined): void {
+  seoBasePath = normalizeBasePath(configured);
 }
 
 export const SITE_NAME = 'Pen Playground';
@@ -86,7 +104,10 @@ export function applySeo(seo: Seo): void {
   // the desktop host has no public address for the page it is showing.
   const loc = typeof window === 'undefined' ? null : window.location;
   if (loc && (loc.protocol === 'http:' || loc.protocol === 'https:')) {
-    const path = seo.canonicalPath ?? loc.pathname;
+    // `canonicalPath` is a route (`/sessions/:id`), so it needs the prefix;
+    // `loc.pathname` is a real URL path and already carries it.
+    const path =
+      seo.canonicalPath !== undefined ? withBasePath(seoBasePath, seo.canonicalPath) : loc.pathname;
     setMeta('property', 'og:url', `${loc.origin}${path}`);
     setCanonical(`${loc.origin}${path}`);
   } else setCanonical(null);

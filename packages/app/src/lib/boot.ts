@@ -1,3 +1,5 @@
+import { stripBasePath } from './base-path.js';
+
 /**
  * How the page was opened decides what the shell may do before any screen
  * renders. The export renderer (services/api export/render.ts) opens
@@ -7,7 +9,17 @@
  */
 export type BootMode = 'app' | 'headless-render';
 
-export function bootMode(location: { pathname: string; search: string }): BootMode {
+export function bootMode(
+  location: { pathname: string; search: string },
+  /**
+   * Where the app is mounted (`Platform.basePath`). The renderer opens the
+   * real public URL, so under a prefix the pathname is
+   * `/testingxyzbdc/replay/:id` and the route has to be read past the prefix —
+   * otherwise the export render mints a participant and starts analytics.
+   */
+  basePath?: string,
+): BootMode {
   const exporting = new URLSearchParams(location.search).get('export') === '1';
-  return exporting && /^\/replay\/[^/]+\/?$/.test(location.pathname) ? 'headless-render' : 'app';
+  const route = stripBasePath(basePath, location.pathname);
+  return exporting && /^\/replay\/[^/]+\/?$/.test(route) ? 'headless-render' : 'app';
 }

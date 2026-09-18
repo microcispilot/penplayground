@@ -657,7 +657,10 @@ export function SessionPage() {
                 <div className="mb-2 text-xs font-medium tracking-[0.08em] text-fg-3 uppercase">
                   Share
                 </div>
-                <code className="block truncate rounded-[var(--radius-sm)] bg-surface-2 px-2 py-1 text-xs">
+                <code
+                  className="block truncate rounded-[var(--radius-sm)] bg-surface-2 px-2 py-1 text-xs"
+                  data-testid="share-url"
+                >
                   {shareUrl}
                 </code>
                 <Button
