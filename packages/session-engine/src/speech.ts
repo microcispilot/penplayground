@@ -75,6 +75,12 @@ export class SayPipeline {
   private inFlight = 0;
   /** The sentence being synthesised right now (the pipeline speaks one at a time). */
   private current: string | null = null;
+  /**
+   * Sentences whose synthesis has begun, oldest first — the ones `enqueued`
+   * counts. A re-take has to give their lookahead budget back, or the lesson
+   * would stall waiting for room it already spent on audio it just discarded.
+   */
+  private readonly started: string[] = [];
   private heardUpTo = 0;
   private enqueued = 0;
   private controller = new AbortController();
@@ -95,12 +101,14 @@ export class SayPipeline {
   /** The room heard sentence #n (client progress); allows more lookahead. */
   markHeard(): void {
     this.heardUpTo += 1;
+    this.started.shift();
     void this.drain();
   }
 
   /** A thread finished (turn answered, ad over): whatever was synthesised counts as heard. */
   resetLookahead(): void {
     this.enqueued = this.heardUpTo;
+    this.started.length = 0;
     void this.drain();
   }
 
@@ -112,15 +120,21 @@ export class SayPipeline {
    * nobody will hear is the one thing worse than waiting for it.
    */
   retake(shouldRetake: (sayId: string) => boolean): void {
-    const kept = this.queue.filter((item) => !shouldRetake(item.say.id));
-    const dropped = this.queue.length - kept.length;
-    this.queue.splice(0, this.queue.length, ...kept);
-    this.enqueued = Math.max(this.heardUpTo, this.enqueued - dropped);
+    // Queued sentences have not been counted against the lookahead yet, so
+    // dropping them changes nothing but the queue.
+    const keptQueue = this.queue.filter((item) => !shouldRetake(item.say.id));
+    this.queue.splice(0, this.queue.length, ...keptQueue);
+    // Sentences already synthesised (or being synthesised) are holding budget
+    // for audio that is about to be thrown away: give it back, so the room can
+    // re-enqueue all of them at once instead of one every time a sentence ends.
+    const keptStarted = this.started.filter((id) => !shouldRetake(id));
+    const released = this.started.length - keptStarted.length;
+    this.started.splice(0, this.started.length, ...keptStarted);
+    this.enqueued = Math.max(this.heardUpTo, this.enqueued - released);
     if (this.current !== null && shouldRetake(this.current)) {
       // One controller, one sentence in flight: aborting it touches nothing else.
       this.controller.abort();
       this.controller = new AbortController();
-      this.enqueued = Math.max(this.heardUpTo, this.enqueued - 1);
     }
   }
 
@@ -129,6 +143,7 @@ export class SayPipeline {
     this.controller.abort();
     this.controller = new AbortController();
     this.queue.length = 0;
+    this.started.length = 0;
     this.inFlight = 0;
     this.enqueued = this.heardUpTo;
   }
@@ -150,6 +165,7 @@ export class SayPipeline {
         const item = this.queue.shift();
         if (!item) break;
         this.enqueued += 1;
+        this.started.push(item.say.id);
         this.inFlight += 1;
         this.current = item.say.id;
         const signal = this.controller.signal;
