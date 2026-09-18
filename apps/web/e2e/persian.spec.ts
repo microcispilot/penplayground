@@ -26,7 +26,12 @@ test.describe('a session taught in Persian', () => {
     await page.getByRole('button', { name: 'Start', exact: true }).click();
 
     // The room opens and the expert starts teaching in Persian.
-    await expect(page.getByText('Live session')).toBeVisible({ timeout: 30_000 });
+    // The room is up when its board and its bottom bar are. The old
+    // "Live session" label is gone: RoomStatus shows a calm, transient pill
+    // instead, so no one string is always on screen. The board is a lazy chunk
+    // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
+    await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
     const caption = page.locator('[aria-live="polite"]').filter({ hasText: PERSIAN }).first();
     await expect(caption).toBeVisible({ timeout: 30_000 });
 

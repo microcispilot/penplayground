@@ -317,7 +317,7 @@ export function BottomBar(p: BottomBarProps) {
           ) : null}
         </IconButton>
         {p.onOpenAsk ? (
-          <IconButton label="Ask a question" onClick={p.onOpenAsk} className="md:hidden">
+          <IconButton label="Open the ask panel" onClick={p.onOpenAsk} className="md:hidden">
             <MessageSquare size={18} />
           </IconButton>
         ) : null}

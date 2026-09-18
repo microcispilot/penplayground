@@ -97,7 +97,12 @@ test.describe('rooms: voice between participants', () => {
     await host.page.goto('/');
     await host.page.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
     await host.page.getByRole('button', { name: 'Start', exact: true }).click();
-    await expect(host.page.getByText('Live session')).toBeVisible({ timeout: 20_000 });
+    // The room is up when its board and its bottom bar are. The old
+    // "Live session" label is gone: RoomStatus shows a calm, transient pill
+    // instead, so no one string is always on screen. The board is a lazy chunk
+    // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
+    await expect(host.page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+    await expect(host.page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
     const roomUrl = host.page.url();
     expect(roomUrl).toMatch(/\/room\//);
 
@@ -111,7 +116,12 @@ test.describe('rooms: voice between participants', () => {
     // A guest joins by link in a second browser context (its own participant).
     const guest = await openGuestSeat();
     await guest.page.goto(roomUrl);
-    await expect(guest.page.getByText('Live session')).toBeVisible({ timeout: 20_000 });
+    // The room is up when its board and its bottom bar are. The old
+    // "Live session" label is gone: RoomStatus shows a calm, transient pill
+    // instead, so no one string is always on screen. The board is a lazy chunk
+    // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
+    await expect(guest.page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+    await expect(guest.page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
     await expect.poll(() => connectionState(guest.page), { timeout: 20_000 }).toBe('connected');
     const guestId = await guest.page.evaluate(
       () => window.__penAudioRoom?.localParticipant.identity ?? '',

@@ -59,7 +59,12 @@ async function joinAsHost(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
-  await expect(page.getByText('Live session')).toBeVisible({ timeout: 30_000 });
+  // The room is up when its board and its bottom bar are. The old
+  // "Live session" label is gone: RoomStatus shows a calm, transient pill
+  // instead, so no one string is always on screen. The board is a lazy chunk
+  // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
+  await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
   await expect
     .poll(() => page.evaluate(() => window.__penAudioRoom?.state ?? 'absent'), { timeout: 30_000 })
     .toBe('connected');

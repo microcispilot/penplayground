@@ -1,8 +1,9 @@
-import { Avatar, applyTheme, cn, readTheme, type Theme } from '@pen/design';
-import { Moon, Sun } from 'lucide-react';
+import { Avatar, cn } from '@pen/design';
+import { Menu, Moon, PanelLeft, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useApp } from '../lib/context.js';
+import { isDarkTheme, useTheme } from '../lib/theme.js';
 import { NameDialog } from './NameDialog.js';
 
 /** The nib: Pen's mark. Ink on the left, a drop of aqua where the stroke lands. */
@@ -32,13 +33,33 @@ const link = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-fg/[0.07] text-fg' : 'text-fg-2 hover:bg-fg/[0.05] hover:text-fg',
   );
 
-export function AppHeader({ sticky = true }: { sticky?: boolean }) {
+export interface AppHeaderProps {
+  sticky?: boolean;
+  /** Opens the small-screen sidebar drawer; absent outside the shell. */
+  onMenu?: () => void;
+  /** Collapses the sidebar to the icon rail (wide screens only). */
+  onToggleSidebar?: () => void;
+  sidebarRail?: boolean;
+}
+
+export function AppHeader({
+  sticky = true,
+  onMenu,
+  onToggleSidebar,
+  sidebarRail = false,
+}: AppHeaderProps) {
   const { participant, api } = useApp();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState<Theme>(() => readTheme());
+  const location = useLocation();
+  const [theme, setTheme] = useTheme();
   const [naming, setNaming] = useState(false);
-  useEffect(() => applyTheme(theme), [theme]);
-  const dark = theme === 'dark';
+  const dark = isDarkTheme(theme);
+
+  // The sidebar's "Sign in" row asks for the account sheet; opening it is this header's job.
+  const wantsSignIn = (location.state as { signIn?: boolean } | null)?.signIn === true;
+  useEffect(() => {
+    if (wantsSignIn) setNaming(true);
+  }, [wantsSignIn]);
 
   return (
     <header
@@ -47,7 +68,31 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
         sticky && 'sticky top-0',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center gap-2 px-6">
+      <div className="flex h-16 w-full items-center gap-2 px-4 sm:px-5">
+        {onMenu ? (
+          <button
+            type="button"
+            aria-label="Open the sidebar"
+            data-testid="sidebar-menu"
+            className="grid size-9 shrink-0 place-items-center rounded-full text-fg-2 transition-colors hover:bg-fg/[0.06] hover:text-fg lg:hidden"
+            onClick={onMenu}
+          >
+            <Menu size={19} />
+          </button>
+        ) : null}
+        {onToggleSidebar ? (
+          <button
+            type="button"
+            aria-label={sidebarRail ? 'Expand the sidebar' : 'Collapse the sidebar'}
+            aria-pressed={sidebarRail}
+            title={sidebarRail ? 'Expand the sidebar' : 'Collapse the sidebar'}
+            data-testid="sidebar-toggle"
+            className="hidden size-9 shrink-0 place-items-center rounded-full text-fg-2 transition-colors hover:bg-fg/[0.06] hover:text-fg lg:grid"
+            onClick={onToggleSidebar}
+          >
+            <PanelLeft size={19} />
+          </button>
+        ) : null}
         <button
           type="button"
           className="mr-3 flex items-center gap-2 rounded-full py-1 pr-2 pl-1 text-fg transition-opacity hover:opacity-80"
@@ -57,7 +102,11 @@ export function AppHeader({ sticky = true }: { sticky?: boolean }) {
           <PenMark />
           <span className="font-display text-[21px] font-semibold tracking-[-0.045em]">Pen</span>
         </button>
-        <nav className="hidden items-center gap-0.5 sm:flex" aria-label="Primary">
+        {/* Inside the shell the sidebar is the navigation; a standalone header keeps its own. */}
+        <nav
+          className={cn('hidden items-center gap-0.5', !onMenu && 'sm:flex')}
+          aria-label="Primary"
+        >
           <NavLink to="/" end className={link}>
             Explore
           </NavLink>

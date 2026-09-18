@@ -60,7 +60,7 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
     await expect(sheet).toBeHidden();
 
     // The ask bar is a sheet, and the mic leads it.
-    await page.getByRole('button', { name: 'Ask a question' }).click();
+    await page.getByRole('button', { name: 'Open the ask panel' }).click();
     await expect(page.getByTestId('ask-sheet')).toBeVisible();
     await expect(page.getByTestId('ask-mic')).toBeVisible();
     await shot(page, `room-${vp.name}-${theme}-ask`);

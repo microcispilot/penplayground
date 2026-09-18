@@ -182,3 +182,40 @@ describe('caption contrast on the board', () => {
     expect(contrast(toSrgb(0.72, 0.14, 160), oldBg)).toBeLessThan(4.5);
   });
 });
+
+/**
+ * A session card's thumbnail is a picture of the board, so it is paper in both
+ * themes. The like/save chips that float on it therefore cannot use the
+ * theme-relative tokens a page control uses: in dark those put light ink on a
+ * permanently light sheet (measured at 1.5–2.5:1). These four are fixed, and
+ * this is where that stays true.
+ */
+describe('controls that float on paper', () => {
+  const CHIP = (() => {
+    const t = token('--color-on-paper-chip');
+    return over(toSrgb(t.l, t.c, t.h), PAPER, t.alpha);
+  })();
+
+  it.each([
+    ['idle', '--color-on-paper'],
+    ['liked', '--color-on-paper-liked'],
+    ['saved', '--color-on-paper-saved'],
+  ])('the %s chip label clears WCAG AA on paper', (_state, name) => {
+    const t = token(name);
+    expect(contrast(toSrgb(t.l, t.c, t.h), CHIP)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('the chip itself is distinguishable from the paper behind it', () => {
+    // Not a text ratio: a control's own boundary needs 3:1 (WCAG 1.4.11). The
+    // chip is nearly white on near-white paper, so the card's shadow carries
+    // the edge — what this pins is that the chip is never *darker* than paper,
+    // which would read as a hole punched in the sketch.
+    expect(luminance(CHIP)).toBeGreaterThanOrEqual(luminance(PAPER));
+  });
+
+  it('knows the theme-relative pair it replaced was failing', () => {
+    // `text-accent-strong` in dark (oklch(0.8 0.08 212)) on the saved chip: the
+    // pairing that shipped before these tokens existed.
+    expect(contrast(toSrgb(0.8, 0.08, 212), CHIP)).toBeLessThan(4.5);
+  });
+});

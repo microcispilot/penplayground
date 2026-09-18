@@ -43,6 +43,7 @@ const record = (id: string, extra: Record<string, unknown> = {}) => ({
   language: 'en-US',
   description: '',
   keywords: [],
+  likes: 0,
   ...extra,
 });
 

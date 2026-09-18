@@ -24,6 +24,10 @@ Use these words exactly, in code, docs and UI copy.
 - **Recording ledger** — the append-only list of timestamped cues, audio chunks and participant events from which replay and export are reconstructed.
 - **Replay** — deterministic re-execution of a recording ledger through the conductor, with scrubbing.
 - **Export** — an MP4 rendered from a replay (board frames + mixed audio) for YouTube or download.
+- **App shell** — the header plus the persistent left sidebar, around every screen except the live session and the replay (ADR-0015). **Rail** — its 72 px collapsed form; **drawer** — its slide-over form under 1024 px.
+- **Shelf** — one of the learner's own lists: **Learn later** (saved), **Liked**, **History**. Keyed by participant id, so an anonymous participant has real shelves on that device; a Google sign-in adopts them onto the account exactly as it adopts sessions.
+- **Save** — putting a session on the Learn later shelf (`session_saves`). **Like** — the public approval of a session (`session_likes`); exactly one per participant, counted on the card by the denormalised `sessions.likes`.
+- **Visit** — a seat taken in a session (`session_visits`): who, which session, `host` or `guest`, first and last join. History is the participant's visits, most recent seat first.
 - **Plan** — a billing tier: `free`, `plus`, `classroom`. **Entitlement** — a capability a plan grants (`rooms`, `export`, `no_ads`, `premium_voices`).
 - **Session meta** — the card copy (description, keywords, category) and the **sketch** for one session, produced by one background structured-output call after the plan exists (ADR-0013). Never on the critical path.
 - **Sketch (SketchSpec)** — the bounded whiteboard-sketch language a session thumbnail is written in: a 12 × 7 grid, ≤ 12 elements (label, box, circle, arrow, line, bars, underline, highlight), two inks. Rendered deterministically to the **thumbnail** (SVG + PNG rasters).

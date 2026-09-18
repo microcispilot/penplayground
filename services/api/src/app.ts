@@ -57,6 +57,10 @@ const CreateSession = z.object({
 const Anonymous = z.object({ name: z.string().max(60).optional() });
 const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
 const Rename = z.object({ name: z.string().trim().min(1).max(60) });
+const DevGoogleBody = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  email: z.string().email().optional(),
+});
 
 /** The participant as the client sees it; `anonymous` decides whether the account chip offers sign-in or sign-out. */
 function participantView(row: {
@@ -196,6 +200,9 @@ export function buildApp(services: Services): App {
       observer.event('identity.google', {
         outcome: result.outcome,
         adoptedSessions: result.adoptedSessions,
+        adoptedSaved: result.adoptedLists.saved,
+        adoptedLiked: result.adoptedLists.liked,
+        adoptedHistory: result.adoptedLists.history,
       });
       services.analytics.capture(result.participant.id, 'signed_in', {
         provider: 'google',
@@ -248,6 +255,52 @@ export function buildApp(services: Services): App {
     const row = await services.participants.rename(claims.sub, safeName(body.data.name));
     if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
     return c.json({ participant: participantView({ ...row, plan: claims.plan }) });
+  });
+
+  // ── the participant's lists (ADR-0015) ───────────────────────────────────
+  /** Membership ids + the counts beside the sidebar rows, in one read. */
+  app.get('/api/me/lists', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    return c.json(await services.lists.summary(claims.sub));
+  });
+  /** Every session this participant sat in (host or guest), most recent seat first. */
+  app.get('/api/me/history', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const history = await services.lists.historyFor(claims.sub);
+    return c.json({
+      sessions: history.map((h) => ({
+        ...(h.session.hostId === claims.sub ? h.session : anonymise(h.session)),
+        visit: { role: h.role, at: h.at },
+      })),
+    });
+  });
+  app.get('/api/me/saved', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const saved = await services.lists.savedFor(claims.sub);
+    return c.json({ sessions: saved.map((r) => (r.hostId === claims.sub ? r : anonymise(r))) });
+  });
+  app.get('/api/me/liked', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const liked = await services.lists.likedFor(claims.sub);
+    return c.json({ sessions: liked.map((r) => (r.hostId === claims.sub ? r : anonymise(r))) });
+  });
+  /** Hosted sessions whose MP4 is rendered and on disk (the Downloads screen). */
+  app.get('/api/me/downloads', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const hosted = await services.sessions.listForHost(claims.sub);
+    const downloads = hosted.flatMap((record) => {
+      if (record.endedAt === null) return [];
+      const job = services.exports.status(record.id);
+      return job && job.status === 'ready'
+        ? [{ ...record, export: { bytes: job.bytes, renderedAt: job.finishedAt } }]
+        : [];
+    });
+    return c.json({ sessions: downloads });
   });
 
   app.get('/api/experts', (c) => c.json({ experts: services.experts.all() }));
@@ -312,6 +365,50 @@ export function buildApp(services: Services): App {
       expert: services.experts.get(record.expertId),
     });
   });
+  /**
+   * Save ("Learn later") and like, as idempotent PUT/DELETE pairs on the session.
+   * Any bearer may use them — an anonymous participant's lists are device-bound
+   * until a Google sign-in adopts them. Likes move the public counter.
+   */
+  const listTarget = async (c: {
+    req: { header(name: string): string | undefined; param(name: string): string };
+  }): Promise<
+    | { ok: true; claims: Claims; id: string }
+    | { ok: false; status: 401 | 404; body: { error: string } }
+  > => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
+    const id = c.req.param('id');
+    if (!SessionId.safeParse(id).success || !(await services.sessions.get(id)))
+      return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
+    return { ok: true, claims, id };
+  };
+  app.put('/api/sessions/:id/save', async (c) => {
+    const t = await listTarget(c);
+    if (!t.ok) return c.json(t.body, t.status);
+    await services.lists.save(t.claims.sub, t.id);
+    services.analytics.capture(t.claims.sub, 'session_saved', { sessionId: t.id });
+    return c.json({ saved: true });
+  });
+  app.delete('/api/sessions/:id/save', async (c) => {
+    const t = await listTarget(c);
+    if (!t.ok) return c.json(t.body, t.status);
+    await services.lists.unsave(t.claims.sub, t.id);
+    return c.json({ saved: false });
+  });
+  app.put('/api/sessions/:id/like', async (c) => {
+    const t = await listTarget(c);
+    if (!t.ok) return c.json(t.body, t.status);
+    const { likes } = await services.lists.like(t.claims.sub, t.id);
+    services.analytics.capture(t.claims.sub, 'session_liked', { sessionId: t.id });
+    return c.json({ liked: true, likes });
+  });
+  app.delete('/api/sessions/:id/like', async (c) => {
+    const t = await listTarget(c);
+    if (!t.ok) return c.json(t.body, t.status);
+    const { likes } = await services.lists.unlike(t.claims.sub, t.id);
+    return c.json({ liked: false, likes });
+  });
   app.get('/api/sessions/:id/ledger', async (c) => {
     const id = c.req.param('id');
     const record = await services.sessions.get(id);
@@ -375,6 +472,38 @@ export function buildApp(services: Services): App {
     return c.json(aggregateReuse(sessions));
   });
 
+  /**
+   * Development only: attach a made-up Google identity to the caller's
+   * anonymous row (same in-place upgrade as the real flow, without Google), so
+   * the signed-in shell can be exercised by e2e and screenshots without a
+   * real account. Never mounted in production.
+   */
+  if (services.cfg.NODE_ENV !== 'production')
+    app.post('/api/dev/me/google', async (c) => {
+      const claims = await bearer(c.req.header('authorization'));
+      if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+      const body = DevGoogleBody.safeParse(await c.req.json().catch(() => ({})));
+      if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+      const name = safeName(body.data.name ?? claims.name);
+      const row = await services.participants.linkGoogle(claims.sub, {
+        googleSub: `dev:${claims.sub}`,
+        email: body.data.email ?? `${claims.sub}@example.test`,
+        name,
+        avatarUrl: null,
+      });
+      if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
+      const issued = await identity.issue({
+        sub: row.id,
+        name,
+        plan: claims.plan,
+        anonymous: false,
+      });
+      return c.json({
+        token: issued.token,
+        participant: participantView({ ...row, plan: claims.plan }),
+        outcome: 'linked',
+      });
+    });
   /**
    * Development only: raise one synthetic error inside a session so the
    * Sentry → ledger link can be verified end to end with real keys. The

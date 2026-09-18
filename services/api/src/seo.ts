@@ -19,7 +19,10 @@ export const STATIC_PAGES: ReadonlyArray<{
   priority: string;
 }> = [
   { path: '/', changefreq: 'daily', priority: '1.0' },
+  { path: '/experts', changefreq: 'weekly', priority: '0.7' },
   { path: '/pricing', changefreq: 'monthly', priority: '0.5' },
+  { path: '/terms', changefreq: 'monthly', priority: '0.3' },
+  { path: '/privacy', changefreq: 'monthly', priority: '0.3' },
 ];
 
 export function xmlEscape(s: string): string {
@@ -58,9 +61,24 @@ export function sitemapXml(args: {
 }
 
 /**
+ * The learner's own shelves (ADR-0015). They are `noindex` in the head too, but
+ * that only arrives after the app has booted; this keeps a crawler off them in
+ * the first place. `/rooms` is listed on its own — `Disallow: /room/` does not
+ * cover it, the prefixes only look alike.
+ */
+export const PRIVATE_PAGES: readonly string[] = [
+  '/history',
+  '/saved',
+  '/liked',
+  '/downloads',
+  '/rooms',
+];
+
+/**
  * Crawlers are welcome everywhere a reader can go. A live room and a replay
  * are a WebSocket and an audio stream, not a page — indexing them wastes a
- * crawl budget on something that is gone by the time anyone clicks.
+ * crawl budget on something that is gone by the time anyone clicks — and one
+ * learner's shelves are no one else's reading.
  */
 export function robotsTxt(publicUrl: string): string {
   const base = publicUrl.replace(/\/+$/, '');
@@ -70,6 +88,7 @@ export function robotsTxt(publicUrl: string): string {
     'Disallow: /room/',
     'Disallow: /replay/',
     'Disallow: /api/',
+    ...PRIVATE_PAGES.map((path) => `Disallow: ${path}`),
     '',
     `Sitemap: ${base}/sitemap.xml`,
     '',

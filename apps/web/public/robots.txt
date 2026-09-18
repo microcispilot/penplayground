@@ -1,13 +1,20 @@
 # Pen Playground — https://penplayground.com
 # Crawlers are welcome on every page a reader can open. A live room and a replay are a
 # WebSocket and an audio stream, not a page: indexing them spends a crawl budget on
-# something that has ended by the time anyone clicks. The sitemap is built by the API
-# from the public catalogue (services/api/src/seo.ts) and cached for an hour.
+# something that has ended by the time anyone clicks, and the shelves below are one
+# learner's own. Keep this list in step with PRIVATE_PAGES in services/api/src/seo.ts —
+# the API serves the same policy at /robots.txt in production. The sitemap is built by
+# the API from the public catalogue and cached for an hour.
 
 User-agent: *
 Allow: /
 Disallow: /room/
 Disallow: /replay/
 Disallow: /api/
+Disallow: /history
+Disallow: /saved
+Disallow: /liked
+Disallow: /downloads
+Disallow: /rooms
 
 Sitemap: https://penplayground.com/sitemap.xml

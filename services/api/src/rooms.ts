@@ -230,8 +230,11 @@ export class RoomRegistry {
       canonicalId: resolution.canonicalKnowledgeId,
       description: '',
       keywords: [],
+      likes: 0,
     };
     await services.sessions.upsert(record);
+    // The host's history row starts with the session (ADR-0015); taking the seat refreshes it.
+    await services.lists.visit(args.host.id, record.id, 'host', record.startedAt);
     services.analytics.capture(args.host.id, 'session_started', {
       intake: intake.via,
       match: resolution.match,
@@ -323,6 +326,11 @@ export class RoomRegistry {
     for (const [s, seat] of live.seats)
       if (seat.participantId === participant.id) live.seats.delete(s);
     live.seats.set(socket, { participantId: participant.id, socket });
+    // History (ADR-0015): the seat is what makes a session "attended". Off the join path;
+    // a failed write costs one history row, never the join.
+    this.services.lists
+      .visit(participant.id, sessionId, participant.id === live.record.hostId ? 'host' : 'guest')
+      .catch((error) => observer.error('lists.visit', error, { sessionId }));
     return { ok: true, live };
   }
 

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Pen Playground web — static Vite build served by nginx, which also proxies /api, /experts, /s
+# Pen Playground web — static Vite build served by nginx, which also proxies /api, /experts/portraits, /s
 # and the /ws WebSocket to the API container (deploy/web/nginx.conf).
 #
 # Build from the repository root:

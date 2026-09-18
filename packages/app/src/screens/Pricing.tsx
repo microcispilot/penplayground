@@ -2,7 +2,6 @@ import { Button, cn, Pill, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { AppHeader } from '../components/AppHeader.js';
 import { useApp } from '../lib/context.js';
 
 const PLANS = [
@@ -90,9 +89,8 @@ export function Pricing() {
     }
   };
   return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader />
-      <main className="flex-1 px-7 pt-14 pb-20">
+    <div className="flex flex-1 flex-col">
+      <div className="flex-1 px-6 pt-14 pb-20 sm:px-8">
         <div className="mx-auto flex max-w-[1100px] flex-col items-center">
           <h1 className="text-center text-2xl tracking-[-0.03em]">
             Free to learn. Pay only for more.
@@ -184,7 +182,7 @@ export function Pricing() {
           </div>
           <p className="mt-8 text-center text-xs text-fg-3">Cancel any time. Prices in USD.</p>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

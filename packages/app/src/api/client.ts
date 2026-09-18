@@ -1,4 +1,12 @@
-import { Expert, RoomState, SessionTelemetry } from '@pen/contracts';
+import {
+  Expert,
+  LikeResult,
+  ListSummary,
+  RoomState,
+  SaveResult,
+  SessionTelemetry,
+  Visit,
+} from '@pen/contracts';
 import { z } from 'zod';
 import type { KeyValueStorage } from '../platform/types.js';
 
@@ -46,8 +54,20 @@ export const SessionRecord = z.object({
   /** Card copy; empty until the same job lands. */
   description: z.string().default(''),
   keywords: z.array(z.string()).default([]),
+  /** Public like count (ADR-0015); absent on records older than the column. */
+  likes: z.number().int().nonnegative().default(0),
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
+
+/** A history row: the record plus how and when this participant was in it. */
+export const HistoryRecord = SessionRecord.extend({ visit: Visit });
+export type HistoryRecord = z.infer<typeof HistoryRecord>;
+
+/** A hosted session with its rendered MP4 (the Downloads screen). */
+export const DownloadRecord = SessionRecord.extend({
+  export: z.object({ bytes: z.number().nullable(), renderedAt: z.number().nullable() }),
+});
+export type DownloadRecord = z.infer<typeof DownloadRecord>;
 
 /** Server-side MP4 render of a session (paid plans). `none` = never requested. */
 export const ExportStatus = z.object({
@@ -198,6 +218,42 @@ export class ApiClient {
     return this.request('/api/sessions/mine', z.object({ sessions: z.array(SessionRecord) })).then(
       (r) => r.sessions,
     );
+  }
+  // ── lists (ADR-0015) ────────────────────────────────────────────────────
+  listSummary() {
+    return this.request('/api/me/lists', ListSummary);
+  }
+  listHistory() {
+    return this.request('/api/me/history', z.object({ sessions: z.array(HistoryRecord) })).then(
+      (r) => r.sessions,
+    );
+  }
+  listSaved() {
+    return this.request('/api/me/saved', z.object({ sessions: z.array(SessionRecord) })).then(
+      (r) => r.sessions,
+    );
+  }
+  listLiked() {
+    return this.request('/api/me/liked', z.object({ sessions: z.array(SessionRecord) })).then(
+      (r) => r.sessions,
+    );
+  }
+  listDownloads() {
+    return this.request('/api/me/downloads', z.object({ sessions: z.array(DownloadRecord) })).then(
+      (r) => r.sessions,
+    );
+  }
+  /** Idempotent: PUT saves, DELETE unsaves. */
+  setSaved(id: string, saved: boolean) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/save`, SaveResult, {
+      method: saved ? 'PUT' : 'DELETE',
+    });
+  }
+  /** Idempotent: PUT likes, DELETE unlikes; the result carries the public count. */
+  setLiked(id: string, liked: boolean) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/like`, LikeResult, {
+      method: liked ? 'PUT' : 'DELETE',
+    });
   }
   listExperts() {
     return this.request('/api/experts', z.object({ experts: z.array(Expert) })).then(

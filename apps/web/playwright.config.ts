@@ -32,6 +32,12 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
+  /**
+   * One worker: every spec drives the same API process, the same in-memory
+   * database and the same room registry, so two specs teaching at once fight
+   * over the one model/voice pipeline and blow each other's latency budgets.
+   */
+  workers: 1,
   use: {
     baseURL: `http://localhost:${webPort}`,
     trace: 'retain-on-failure',

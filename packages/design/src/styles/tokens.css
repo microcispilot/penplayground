@@ -87,6 +87,18 @@
   --color-caption-expert: oklch(0.88 0.07 214);
   --color-caption-learner: oklch(0.86 0.13 160);
 
+  /*
+   * Controls that float on the board. A session card's thumbnail is paper too,
+   * so the like and save chips there cannot follow the theme the way a page
+   * control does: in dark they would put theme-light ink on a permanently
+   * light sheet (measured at 1.5–2.5:1 before these existed). Fixed, and
+   * measured over --color-paper in caption-contrast.test.ts.
+   */
+  --color-on-paper-chip: oklch(1 0 0 / 88%);
+  --color-on-paper: oklch(0.38 0.03 247);
+  --color-on-paper-liked: oklch(0.47 0.173 20.4);
+  --color-on-paper-saved: oklch(0.46 0.1 219);
+
   /* ── type ─────────────────────────────────────────────────────────── */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto,

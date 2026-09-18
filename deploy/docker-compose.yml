@@ -1,6 +1,6 @@
 # Pen Playground on prod-app-01 — lives at /srv/pen-playground/docker-compose.yml (deploy/deploy.sh
 # copies it there). Everything binds to 127.0.0.1; the host nginx terminates TLS and forwards the
-# DOMAIN to the web container, which proxies /api, /experts, /s and /ws to the API internally.
+# DOMAIN to the web container, which proxies /api, /experts/portraits, /s and /ws to the API internally.
 #
 # Files next to this one on the host:
 #   .env           PEN_IMAGE_TAG (written by deploy.sh) and SEARXNG_SECRET

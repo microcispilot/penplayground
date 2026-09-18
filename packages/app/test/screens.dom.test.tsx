@@ -79,9 +79,13 @@ describe('the 404 screen', () => {
     expect(text).toContain('The link may be old, or the session was private.');
     // Nothing that reads as a fault: no "error", no code, no apology.
     expect(text.toLowerCase()).not.toContain('error');
-    expect(text).toContain('Explore sessions');
+    // The same words every other way back uses (the room, the replay, the error
+    // boundary): one label for one destination.
+    expect(text).toContain('Back to Explore');
     expect(text).toContain('My sessions');
     // The Pen mark, and a box that starts a session.
+    // The header is the shell's (ADR-0015); this screen renders only the panel.
+    expect(host.querySelector('header')).toBeNull();
     expect(host.querySelector('svg')).not.toBeNull();
     const field = host.querySelector<HTMLInputElement>(
       'input[aria-label="What do you want to learn?"]',
@@ -185,13 +189,31 @@ describe('page titles', () => {
     expect(pageTitle('A session · Pen Playground')).toBe('A session · Pen Playground');
   });
 
-  it('keep rooms and replays out of search, and leave public pages in', () => {
+  it("keep rooms, replays and the learner's own shelves out of search, and leave public pages in", () => {
     expect(seoForPath('/room/s_1').noindex).toBe(true);
     expect(seoForPath('/replay/s_1').noindex).toBe(true);
     expect(seoForPath('/sessions').noindex).toBe(true);
+    for (const shelf of ['/history', '/saved', '/liked', '/downloads', '/rooms'])
+      expect(seoForPath(shelf).noindex, shelf).toBe(true);
     expect(seoForPath('/').noindex).toBeUndefined();
     expect(seoForPath('/pricing').noindex).toBeUndefined();
     expect(seoForPath('/sessions/s_1').noindex).toBeUndefined();
+    // Every screen in the shell (ADR-0015) names itself; none falls through to the 404 head.
+    for (const [path, title] of [
+      ['/experts', 'Experts'],
+      ['/terms', 'Terms of Use'],
+      ['/privacy', 'Privacy Policy'],
+      ['/history', 'History'],
+      ['/saved', 'Learn later'],
+      ['/liked', 'Liked'],
+      ['/downloads', 'Downloads'],
+      ['/rooms', 'Rooms'],
+    ] as const)
+      expect(seoForPath(path).title, path).toBe(title);
+    // The legal pages are public: they belong in an index.
+    expect(seoForPath('/terms').noindex).toBeUndefined();
+    expect(seoForPath('/privacy').noindex).toBeUndefined();
+    expect(seoForPath('/experts').noindex).toBeUndefined();
   });
 
   it('write one canonical link and one description, however often a screen re-renders', () => {

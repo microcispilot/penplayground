@@ -1,8 +1,9 @@
-import { Avatar, Button, Dialog, readTheme, TextField, useToast } from '@pen/design';
+import { Avatar, Button, Dialog, TextField, useToast } from '@pen/design';
 import { LogOut } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/context.js';
 import { mountGoogleButton } from '../lib/google.js';
+import { isDarkTheme, useTheme } from '../lib/theme.js';
 
 /**
  * The account sheet. Anonymous: pick a display name and, where Google sign-in
@@ -18,6 +19,9 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleProblem, setGoogleProblem] = useState<string | null>(null);
   const googleSlot = useRef<HTMLDivElement>(null);
+  // Through the store, not `readTheme()`: Google's button is painted for one
+  // theme, so a toggle while this sheet is open has to remount it.
+  const [theme] = useTheme();
   const signedIn = participant !== null && !participant.anonymous;
   const googleOffered = platform.googleClientId !== null && !signedIn;
 
@@ -30,13 +34,9 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
     const slot = googleSlot.current;
     if (!open || !googleOffered || !slot || !platform.googleClientId) return;
     setGoogleProblem(null);
-    const theme = readTheme();
-    const dark =
-      theme === 'dark' ||
-      (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
     return mountGoogleButton(slot, {
       clientId: platform.googleClientId,
-      theme: dark ? 'dark' : 'light',
+      theme: isDarkTheme(theme) ? 'dark' : 'light',
       width: Math.min(400, slot.clientWidth || 320),
       onCredential: (idToken) => {
         setGoogleBusy(true);
@@ -54,7 +54,7 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
       },
       onError: (error) => setGoogleProblem(error.message),
     });
-  }, [open, googleOffered, platform.googleClientId, signInWithGoogle, toast, onClose]);
+  }, [open, googleOffered, platform.googleClientId, theme, signInWithGoogle, toast, onClose]);
 
   return (
     <Dialog

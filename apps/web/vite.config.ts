@@ -21,8 +21,15 @@ function releaseName(): string {
   }
 }
 
-/** The two faces the first screen actually paints with: Inter (body) and Fraunces (headings). */
-const ABOVE_THE_FOLD_FONTS = [/inter-latin-wght-normal/, /fraunces-latin-wght-normal/];
+/**
+ * Faces the first screen paints with, by hashed file name. Empty on purpose:
+ * since the type system became one system family (`--font-sans`/`--font-display`
+ * resolve to SF Pro / Segoe UI / Roboto), the first paint uses a face that is
+ * already on the device. Inter is only the last resort before `ui-sans-serif`,
+ * so preloading it would cost every visitor a font download they never render.
+ * Add a pattern back here the day a web face is genuinely above the fold.
+ */
+const ABOVE_THE_FOLD_FONTS: RegExp[] = [];
 
 /**
  * Head hints the browser can only act on if they are in the HTML: preconnect to
@@ -121,7 +128,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': { target: api, changeOrigin: true },
-        '/experts': { target: api, changeOrigin: true },
+        // Only the portraits are the API's; `/experts` itself is a screen in the app.
+        '/experts/portraits': { target: api, changeOrigin: true },
         // Share pages and the sitemap are rendered by the API; nginx does the same in production.
         '/s/': { target: api, changeOrigin: true },
         '/sitemap.xml': { target: api, changeOrigin: true },
@@ -136,7 +144,8 @@ export default defineConfig(({ mode }) => {
       port: 5184,
       proxy: {
         '/api': { target: api, changeOrigin: true },
-        '/experts': { target: api, changeOrigin: true },
+        // Only the portraits are the API's; `/experts` itself is a screen in the app.
+        '/experts/portraits': { target: api, changeOrigin: true },
         '/ws': { target: ws, ws: true },
       },
     },

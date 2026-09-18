@@ -7,6 +7,12 @@ export {
   type ReconciledMigration,
   reconcileMigrationTimestamps,
 } from './client.js';
+export {
+  type HistoryEntry,
+  ListRepository,
+  type ListSummary,
+  type VisitRole,
+} from './lists.js';
 export { type GoogleLink, ParticipantRepository } from './participants.js';
 export * as schema from './schema.js';
 export { type SessionRecord, SessionRepository } from './sessions.js';

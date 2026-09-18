@@ -8,7 +8,7 @@ browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/site
                       │ proxy 127.0.0.1:4201
                       ▼
                 web  (nginx:1.30-alpine, SPA + proxy)   pen-playground-web:<tag>
-                      │ /api /experts /s /ws → api:4000
+                      │ /api /experts/portraits /s /ws → api:4000
                       ▼
                 api  (node:22-alpine, bundled, uid 1000) pen-playground-api:<tag>   /srv/pen-playground/data:/data
                       ├── postgres:18                                             volume pen-postgres

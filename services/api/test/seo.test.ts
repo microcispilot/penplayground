@@ -5,7 +5,13 @@ import type { SessionRecord } from '@pen/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
-import { learningResourceJsonLd, robotsTxt, STATIC_PAGES, sitemapXml } from '../src/seo.js';
+import {
+  learningResourceJsonLd,
+  PRIVATE_PAGES,
+  robotsTxt,
+  STATIC_PAGES,
+  sitemapXml,
+} from '../src/seo.js';
 import { buildServices, type Services } from '../src/services.js';
 
 /**
@@ -39,6 +45,7 @@ const record = (id: string, extra: Partial<SessionRecord> = {}): SessionRecord =
   language: 'en-US',
   description: 'See how attention weighs each earlier token to predict the next one.',
   keywords: ['transformers', 'attention'],
+  likes: 0,
   ...extra,
 });
 
@@ -89,6 +96,12 @@ describe('robots.txt', () => {
     expect(body).toContain('Allow: /');
     expect(body).toContain('Disallow: /room/');
     expect(body).toContain('Disallow: /replay/');
+    // The learner's own shelves (ADR-0015). `Disallow: /room/` does not cover
+    // `/rooms` — the prefixes only look alike, so each one is listed.
+    for (const path of PRIVATE_PAGES) expect(body, path).toContain(`Disallow: ${path}`);
+    expect(PRIVATE_PAGES).toContain('/rooms');
+    // And nothing private leaked into the sitemap.
+    for (const page of STATIC_PAGES) expect(PRIVATE_PAGES).not.toContain(page.path);
     expect(body).toContain('Sitemap: https://penplayground.test/sitemap.xml');
   });
 

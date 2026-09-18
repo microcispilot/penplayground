@@ -99,7 +99,7 @@ async function anonymous(name?: string) {
 }
 
 describe('GoogleSignIn (link/upgrade logic)', () => {
-  const signIn = () => new GoogleSignIn(verifier, services.participants, 'free');
+  const signIn = () => new GoogleSignIn(verifier, services.participants, services.lists, 'free');
 
   it('upgrades an anonymous participant in place: same id, Google profile, no longer anonymous', async () => {
     const anon = await services.participants.ensure({
@@ -163,6 +163,7 @@ describe('GoogleSignIn (link/upgrade logic)', () => {
       canonicalId: null,
       description: '',
       keywords: [],
+      likes: 0,
     });
     const result = await signIn().signIn('ok:ada', other);
     expect(result.outcome).toBe('existing');
@@ -177,10 +178,12 @@ describe('GoogleSignIn (link/upgrade logic)', () => {
     const fresh = new FakeVerifier({
       'ok:new': { ...ada, sub: '1000-new', email: 'new@example.com', name: 'Newcomer' },
     });
-    const result = await new GoogleSignIn(fresh, services.participants, 'free').signIn(
-      'ok:new',
-      null,
-    );
+    const result = await new GoogleSignIn(
+      fresh,
+      services.participants,
+      services.lists,
+      'free',
+    ).signIn('ok:new', null);
     expect(result.outcome).toBe('created');
     expect(result.participant.id).toMatch(/^p_/);
     expect(result.participant.anonymous).toBe(false);
@@ -193,10 +196,12 @@ describe('GoogleSignIn (link/upgrade logic)', () => {
     const other = new FakeVerifier({
       'ok:someone': { ...grace, sub: '1000-someone', emailVerified: true },
     });
-    const result = await new GoogleSignIn(other, services.participants, 'free').signIn(
-      'ok:someone',
-      signed,
-    );
+    const result = await new GoogleSignIn(
+      other,
+      services.participants,
+      services.lists,
+      'free',
+    ).signIn('ok:someone', signed);
     expect(result.outcome).toBe('created');
     expect(result.participant.id).not.toBe(signed.id);
     expect((await services.participants.get(signed.id))?.googleSub).toBe('1000-ada');
@@ -249,7 +254,7 @@ describe('POST /api/identity/google', () => {
     const fresh = new FakeVerifier({
       'ok:route-ada-0123456789': { ...ada, sub: '2000-ada' },
     });
-    services.google = new GoogleSignIn(fresh, services.participants, 'free');
+    services.google = new GoogleSignIn(fresh, services.participants, services.lists, 'free');
     const anon = await anonymous('Sam');
     expect(anon.participant.anonymous).toBe(true);
     const res = await json(

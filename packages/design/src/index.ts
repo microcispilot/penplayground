@@ -14,4 +14,5 @@ export * from './components/Sheet.js';
 export * from './components/Skeleton.js';
 export * from './components/TextField.js';
 export * from './components/Toast.js';
+export { useModalFocus } from './modal-focus.js';
 export * from './theme.js';

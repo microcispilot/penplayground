@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -68,6 +69,8 @@ export const sessions = pgTable(
     /** Card / Open Graph copy from the same call; empty until then. */
     description: text('description').notNull().default(''),
     keywords: jsonb('keywords').$type<string[]>().notNull().default([]),
+    /** Denormalised `count(session_likes)`; moved with each like/unlike in the same transaction (ADR-0015). */
+    likes: integer('likes').notNull().default(0),
   },
   (t) => [
     index('sessions_host_idx').on(t.hostId, t.startedAt),
@@ -76,5 +79,59 @@ export const sessions = pgTable(
   ],
 );
 
+/*
+ * A participant's lists (ADR-0015). Each is a (participant, session) pair, so a
+ * second save or like is a no-op rather than a duplicate, and each is keyed
+ * by participant id — the anonymous row's rows move with it on Google sign-in
+ * exactly like its sessions do.
+ */
+export const sessionSaves = pgTable(
+  'session_saves',
+  {
+    participantId: text('participant_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.participantId, t.sessionId] }),
+    index('session_saves_participant_idx').on(t.participantId, t.createdAt),
+  ],
+);
+
+export const sessionLikes = pgTable(
+  'session_likes',
+  {
+    participantId: text('participant_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.participantId, t.sessionId] }),
+    index('session_likes_participant_idx').on(t.participantId, t.createdAt),
+    index('session_likes_session_idx').on(t.sessionId),
+  ],
+);
+
+/**
+ * History: every session a participant sat in (as host or guest), recorded
+ * when they take a seat in the live room. One row per pair; a rejoin only
+ * moves `last_joined_at`, so "most recent first" is one indexed read.
+ */
+export const sessionVisits = pgTable(
+  'session_visits',
+  {
+    participantId: text('participant_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    role: text('role', { enum: ['host', 'guest'] }).notNull(),
+    firstJoinedAt: bigint('first_joined_at', { mode: 'number' }).notNull(),
+    lastJoinedAt: bigint('last_joined_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.participantId, t.sessionId] }),
+    index('session_visits_participant_idx').on(t.participantId, t.lastJoinedAt),
+  ],
+);
+
 export type SessionRow = typeof sessions.$inferSelect;
 export type ParticipantRow = typeof participants.$inferSelect;
+export type SessionVisitRow = typeof sessionVisits.$inferSelect;

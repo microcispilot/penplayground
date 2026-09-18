@@ -121,6 +121,31 @@ export function seoForPath(pathname: string): Seo {
       description: 'Every session you started, saved to replay.',
       noindex: true,
     };
+  if (pathname === '/experts')
+    return {
+      title: 'Experts',
+      description: 'Every expert who can teach you — pick one and start a session.',
+    };
+  if (pathname === '/terms')
+    return {
+      title: 'Terms of Use',
+      description: 'The terms you agree to when you use Pen Playground.',
+    };
+  if (pathname === '/privacy')
+    return {
+      title: 'Privacy Policy',
+      description: 'What Pen Playground collects, why, and what you can ask us to delete.',
+    };
+  // The shelves are one learner's own: a real title in the tab, never in an index.
+  const SHELVES: Record<string, string> = {
+    '/history': 'History',
+    '/saved': 'Learn later',
+    '/liked': 'Liked',
+    '/downloads': 'Downloads',
+    '/rooms': 'Rooms',
+  };
+  const shelf = SHELVES[pathname];
+  if (shelf) return { title: shelf, description: DEFAULT_DESCRIPTION, noindex: true };
   if (pathname.startsWith('/room/'))
     return { title: 'Live session', description: DEFAULT_DESCRIPTION, noindex: true };
   if (pathname.startsWith('/replay/'))

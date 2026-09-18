@@ -2,24 +2,14 @@ import type { Expert } from '@pen/contracts';
 import { Chip, cn, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, ArrowUpRight, Mic, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
-import { AppHeader, PenMark } from '../components/AppHeader.js';
+import { PenMark } from '../components/AppHeader.js';
 import { HeroBoard } from '../components/HeroBoard.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
+import { TOPIC_DOMAINS } from '../components/Sidebar.js';
 import { markStartClicked } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
-
-const DOMAIN_LABELS: Record<string, string> = {
-  'computing-data': 'Computing',
-  'math-science-engineering': 'Science',
-  'business-finance-career': 'Finance',
-  'health-law-civics': 'Health & Law',
-  'humanities-languages': 'Humanities',
-  'arts-design': 'Design',
-  'life-skills': 'Life skills',
-  'learning-and-careers': 'Learning',
-};
 
 const TRY = [
   'How Transformers work in LLMs',
@@ -83,8 +73,12 @@ export function Home() {
   const [starting, setStarting] = useState(false);
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
   const [experts, setExperts] = useState<Expert[]>([]);
-  const [category, setCategory] = useState('All');
   const [filter, setFilter] = useState('');
+  // The sidebar's Topics links and the chips are the same control: `?topic=<domain>` is the state.
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const category = params.get('topic') ?? 'all';
+  const setCategory = (next: string) => setParams(next === 'all' ? {} : { topic: next });
 
   useEffect(() => {
     let cancelled = false;
@@ -126,15 +120,15 @@ export function Home() {
     return [...first, ...rest].slice(0, 14);
   }, [experts]);
 
-  const categories = useMemo(
-    () => ['All', ...new Set((sessions ?? []).map((s) => DOMAIN_LABELS[s.domain] ?? 'Other'))],
-    [sessions],
-  );
+  const categories = useMemo(() => {
+    const present = new Set((sessions ?? []).map((s) => s.domain));
+    return [{ id: 'all', label: 'All' }, ...TOPIC_DOMAINS.filter((d) => present.has(d.id))];
+  }, [sessions]);
   const visible = useMemo(() => {
     const f = filter.trim().toLowerCase();
     return (sessions ?? []).filter(
       (s) =>
-        (category === 'All' || (DOMAIN_LABELS[s.domain] ?? 'Other') === category) &&
+        (category === 'all' || s.domain === category) &&
         (!f ||
           `${s.title} ${s.topic} ${expertById.get(s.expertId)?.displayName ?? ''}`
             .toLowerCase()
@@ -200,10 +194,21 @@ export function Home() {
     inputRef.current?.focus();
   };
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader />
+  // Arriving from the Experts screen: that expert is already in the command bar.
+  const requestedExpert = (location.state as { expertId?: string } | null)?.expertId ?? null;
+  useEffect(() => {
+    if (!requestedExpert) return;
+    const expert = expertById.get(requestedExpert);
+    if (!expert) return;
+    setWithExpert(expert);
+    setQuery((q) => (q.trim() ? q : (expert.specialties[0] ?? '')));
+    inputRef.current?.focus();
+    // The choice is made; a refresh or a back-navigation should not make it again.
+    window.history.replaceState({}, '');
+  }, [requestedExpert, expertById]);
 
+  return (
+    <div className="flex flex-1 flex-col">
       {/* ── hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div
@@ -215,7 +220,7 @@ export function Home() {
           }}
         />
         <div className="mx-auto grid w-full max-w-[1280px] items-center gap-12 px-6 pt-14 pb-24 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-16 lg:pt-20">
-          <div className="flex max-w-[600px] flex-col">
+          <div className="flex min-w-0 max-w-[600px] flex-col">
             <span className="animate-rise mb-6 inline-flex w-fit items-center gap-2 rounded-full bg-bg-elevated/80 py-1.5 pr-3.5 pl-2 text-[12.5px] font-medium text-fg-2 hairline">
               <span className="relative flex size-2">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-presence opacity-60" />
@@ -364,7 +369,7 @@ export function Home() {
           <HeroBoard
             expert={heroExpert}
             portraitUrl={api.portraitUrl(heroExpert?.portrait?.src)}
-            className="animate-rise mx-auto w-full max-w-[560px] lg:mx-0"
+            className="animate-rise mx-auto w-full min-w-0 max-w-[560px] lg:mx-0"
           />
         </div>
       </section>
@@ -418,8 +423,8 @@ export function Home() {
               <>
                 <div className="flex min-w-0 flex-1 gap-1.5 overflow-auto py-1">
                   {categories.map((c) => (
-                    <Chip key={c} selected={category === c} onClick={() => setCategory(c)}>
-                      {c}
+                    <Chip key={c.id} selected={category === c.id} onClick={() => setCategory(c.id)}>
+                      {c.label}
                     </Chip>
                   ))}
                 </div>
@@ -482,14 +487,21 @@ export function Home() {
           <span className="flex items-center gap-1.5 text-fg-2">
             <PenMark size={16} /> Pen Playground
           </span>
-          <a href="/pricing" className="hover:text-fg">
+          <NavLink to="/pricing" className="hover:text-fg">
             Pricing
-          </a>
-          <a href="/sessions" className="hover:text-fg">
-            My sessions
-          </a>
+          </NavLink>
+          <NavLink to="/sessions" className="hover:text-fg">
+            Your sessions
+          </NavLink>
+          <NavLink to="/terms" className="hover:text-fg">
+            Terms
+          </NavLink>
+          <NavLink to="/privacy" className="hover:text-fg">
+            Privacy
+          </NavLink>
           <span className="flex-1" />
           <span>Experts are AI. They will tell you so.</span>
+          <span>© 2026 Microcis</span>
         </div>
       </footer>
     </div>
