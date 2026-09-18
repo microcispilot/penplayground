@@ -21,6 +21,17 @@ const apiPort = process.env.PEN_API_PORT ?? '4010';
  * below, or every spec that uses them fails instantly against the default port.
  */
 const webPort = process.env.PEN_WEB_PORT ?? '5173';
+
+/**
+ * Vite reads the repo root `.env`, so without this the signed-out experience
+ * differs between a developer's machine (a client id, so "Continue with
+ * Google" and its invitation render) and CI (no `.env`, so neither does). The
+ * suite must see the same product everywhere, so it brings its own id. It is
+ * never exchanged for anything: only the button's own script would use it, and
+ * no spec signs in through Google.
+ */
+const E2E_GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID ?? 'e2e.apps.googleusercontent.com';
+
 /**
  * A second API/web pair for `rooms.spec.ts`: plan forced to professional (rooms are a
  * Professional feature) and LiveKit pointed at a local `livekit-server --dev` (:7880,
@@ -163,7 +174,7 @@ export default defineConfig({
     {
       command: `pnpm --filter @pen/web exec vite --port ${webPort} --strictPort`,
       url: `http://localhost:${webPort}`,
-      env: { PEN_API_PORT: apiPort },
+      env: { PEN_API_PORT: apiPort, VITE_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
@@ -193,7 +204,7 @@ export default defineConfig({
     {
       command: `pnpm --filter @pen/web exec vite --port ${roomsWebPort} --strictPort`,
       url: `http://localhost:${roomsWebPort}`,
-      env: { PEN_API_PORT: roomsApiPort },
+      env: { PEN_API_PORT: roomsApiPort, VITE_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
@@ -222,14 +233,14 @@ export default defineConfig({
     {
       command: `pnpm --filter @pen/web exec vite --port ${uiWebPort} --strictPort`,
       url: `http://localhost:${uiWebPort}`,
-      env: { PEN_API_PORT: uiApiPort },
+      env: { PEN_API_PORT: uiApiPort, VITE_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
     {
       command: `pnpm --filter @pen/web build && pnpm --filter @pen/web exec vite preview --port ${previewPort} --strictPort`,
       url: `http://localhost:${previewPort}`,
-      env: { PEN_API_PORT: uiApiPort },
+      env: { PEN_API_PORT: uiApiPort, VITE_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID },
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,
     },

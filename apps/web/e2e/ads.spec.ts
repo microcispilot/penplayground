@@ -91,6 +91,11 @@ test.describe('free plan video ads', () => {
     const csp = watchCsp(page);
     const adEvents: string[] = [];
     const adErrors: string[] = [];
+    /**
+     * When the creative actually began, so the countdown can be judged against
+     * the clock rather than against however long the poll below took to notice.
+     */
+    let adStartedAt: number | null = null;
     /** The cue the ad was scheduled after, and how far the host has played. */
     let adAfterSeq: number | null = null;
     let progressSeq = -1;
@@ -120,6 +125,7 @@ test.describe('free plan video ads', () => {
             progressSeq = Math.max(progressSeq, msg.seq);
           if (msg.kind !== 'ad_event' || !msg.event) return;
           adEvents.push(msg.event);
+          if (msg.event === 'ad_started' && adStartedAt === null) adStartedAt = Date.now();
           if (msg.event === 'ad_error' && msg.code) adErrors.push(msg.code);
         } catch {
           /* binary or partial frame */
@@ -181,13 +187,22 @@ test.describe('free plan video ads', () => {
     // recovery path below can end the ad before the countdown finishes — which
     // is the whole point of it — and two queries could straddle that moment.
     // The 5 s rule itself is pinned by packages/app/test/ad-player.test.ts.
+    //
+    // Which half of the rule this run can see depends on the clock, not on the
+    // product: the poll above is allowed 40 s to notice `ad_started`, and on a
+    // slow machine it notices late, by which time the countdown has rightly
+    // finished. So the reading is judged against the time since the creative
+    // began — still counting down, or already open, never "whichever we got".
     const skip = overlay.getByTestId('skip-ad');
     const countdown = await skip
       .evaluate((el) => ({ disabled: (el as HTMLButtonElement).disabled, text: el.textContent }))
       .catch(() => null);
-    if (countdown) {
+    const sinceStartMs = adStartedAt === null ? Number.POSITIVE_INFINITY : Date.now() - adStartedAt;
+    if (countdown && sinceStartMs < 4_000) {
       expect(countdown.disabled, 'an ad is never skippable the instant it appears').toBe(true);
       expect(countdown.text).toMatch(/Skip in [1-5]/);
+    } else if (countdown) {
+      expect(countdown.disabled, 'the countdown ends and the skip opens').toBe(false);
     }
 
     // From here the run takes one of the two endings above, and the ad must
