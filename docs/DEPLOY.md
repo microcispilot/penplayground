@@ -488,12 +488,24 @@ pnpm --filter @pen/web test               # fails if the copy has drifted
 ```
 
 Every origin in it was observed in a real session (`apps/web/e2e/csp.spec.ts`
-records them to `.pen-data/csp-origins.json`), and the dev server serves the
-same policy so the whole Playwright suite doubles as proof that nothing the app
-needs is blocked. To widen it safely, run the suite with
-`PEN_CSP_REPORT_ONLY=1` and read what the browser reports before changing a
-directive. The host vhost deliberately does **not** repeat the policy: two
-copies drift, and a browser enforces the intersection of both.
+walks Home, Experts, a shelf, the legal pages, a live room, the saved session
+page and a replay, and records them to `.pen-data/csp-origins.json`; the ad
+path is measured by `apps/web/e2e/ads.spec.ts` under the same header), and the
+dev server serves the same policy so the whole Playwright suite doubles as
+proof that nothing the app needs is blocked. To widen it safely, run the suite
+with `PEN_CSP_REPORT_ONLY=1` and read what the browser reports before changing
+a directive — an enforced policy hides the origins *behind* the first thing it
+blocks, so the report-only pass is the only one that shows the whole chain.
+Dev's policy differs from production in exactly two documented ways. `script-src`
+is relaxed for Vite's inline modules and `eval`. And `frame-src` also allows
+`http://imasdk.googleapis.com`: on the plain-http dev server the IMA SDK was
+observed to frame its own origin over **http**, which the https entry does not
+match, leaving the ad slot empty. Production serves the page over https and
+also sends `upgrade-insecure-requests`, so the shipped policy carries no http
+entry — that half is reasoned from the two, not measured here, and the first
+real https deploy should be checked with the browser console open on an ad.
+The host vhost deliberately does **not** repeat the policy: two copies drift,
+and a browser enforces the intersection of both.
 
 After a deploy, check the header survived the proxy chain:
 

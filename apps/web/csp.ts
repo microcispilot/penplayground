@@ -11,22 +11,41 @@ import { fileURLToPath } from 'node:url';
  * protecting it. `deploy/web/nginx.conf` carries the generated string and
  * `test/csp.test.ts` fails the build if the two ever disagree.
  *
- * Every origin below is one the app was observed to use in a full Playwright
- * session (home → lesson → board → ad → account sheet); the collector lives in
- * `e2e/csp.spec.ts` and writes `.pen-data/csp-origins.json`. Nothing is here
- * "just in case".
+ * Every origin below is one the app was observed to use in a real Playwright
+ * run: `e2e/csp.spec.ts` walks Home, Experts, a shelf, the legal pages, the
+ * account sheet, a live lesson, the saved session page and a replay and writes
+ * what it saw to `.pen-data/csp-origins.json`; `e2e/ads.spec.ts` covers the ad
+ * path under the same header. Nothing is here "just in case", and the way to
+ * add something is to run the suite with `PEN_CSP_REPORT_ONLY=1` and read what
+ * the browser reports — an enforced policy hides everything behind the first
+ * request it blocks.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** Google Ad Manager through the IMA SDK (ADR-0014): the SDK, the tag, the creative. */
+/**
+ * Google Ad Manager through the IMA SDK (ADR-0014): the SDK, the tag, the
+ * creative. Recorded on one sample-tag run: the loader pulls a second script
+ * from `s0.2mdn.net` (`/instream/video/client.js`), `securepubads` and
+ * `pubads.g.doubleclick.net` answer the tag, and `pagead2.googlesyndication.com`
+ * serves both a script and an image. They are patterns rather than names
+ * because each is one shard of a numbered family.
+ */
 const GOOGLE_ADS = [
   'https://imasdk.googleapis.com',
   'https://*.doubleclick.net',
   'https://*.googlesyndication.com',
+  'https://*.2mdn.net',
 ];
-/** Where an ad creative's video actually streams from. */
-const GOOGLE_AD_MEDIA = ['https://*.googlevideo.com', ...GOOGLE_ADS];
+/**
+ * Where an ad creative's video actually streams from: Google's own media edges.
+ * The recorded run fetched media from `redirector.gvt1.com` and then from the
+ * `r<N>---sn-<pop>.gvt1.com` host it handed back, so the family is a pattern —
+ * naming one shard would work until the next request picked another.
+ */
+const GOOGLE_AD_MEDIA = ['https://*.googlevideo.com', 'https://*.gvt1.com', ...GOOGLE_ADS];
+/** The IMA SDK's own latency beacon (`csi?v=2&s=ima…`), sent while an ad is rendering. */
+const GOOGLE_AD_MEASUREMENT = ['https://csi.gstatic.com'];
 /** Google Identity Services: the button, its stylesheet, its iframe. */
 const GOOGLE_SIGN_IN = ['https://accounts.google.com'];
 /** tldraw fetches its icons, translations and fonts from its own CDN. */
@@ -140,10 +159,26 @@ export function contentSecurityPolicy(options: CspOptions): string {
         ...sentry,
         ...GOOGLE_SIGN_IN,
         ...GOOGLE_ADS,
+        ...GOOGLE_AD_MEASUREMENT,
         'https://*.google.com',
       ],
     ],
-    ['frame-src', [...GOOGLE_ADS, ...GOOGLE_SIGN_IN]],
+    [
+      'frame-src',
+      [
+        ...GOOGLE_ADS,
+        ...GOOGLE_SIGN_IN,
+        // Measured, not guessed: on the plain-http dev server the IMA SDK
+        // frames `http://imasdk.googleapis.com/`, which this policy's https
+        // entry does not match, and the ad slot stays empty. Production serves
+        // the page over https and carries `upgrade-insecure-requests` below, so
+        // the shipped policy is left strict rather than given an http entry it
+        // would only need on a scheme it never runs on. That half is reasoned,
+        // not measured here: check it on the first real https deploy with the
+        // console open on an ad (docs/DEPLOY.md says the same).
+        ...(options.dev ? ['http://imasdk.googleapis.com'] : []),
+      ],
+    ],
     // The microphone capture AudioWorklet is loaded from a blob: URL.
     ['worker-src', ["'self'", 'blob:']],
     ['child-src', ['blob:', ...GOOGLE_ADS]],

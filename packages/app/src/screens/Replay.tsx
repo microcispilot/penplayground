@@ -6,7 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { BoardSurface } from '../components/BoardSurface.js';
 import { describeReplayRate, PaceMenu } from '../components/PaceMenu.js';
 import { ARROW_STEP_MS, JL_STEP_MS, ReplayScrubber } from '../components/ReplayScrubber.js';
-import { CaptionOverlay } from '../components/RoomChrome.js';
+import { CaptionOverlay, ReplayNotice } from '../components/RoomChrome.js';
 import { setAnalyticsContext, trackInteraction } from '../lib/analytics.js';
 import { formatClock, useApp } from '../lib/context.js';
 import {
@@ -308,6 +308,7 @@ export function Replay() {
         />
       </div>
       <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
+      {exportMode ? null : <ReplayNotice notice={ui.notice} />}
       {!started && !exportMode ? (
         <div className="absolute inset-0 z-[9] grid place-items-center bg-navy-900/60">
           <Button

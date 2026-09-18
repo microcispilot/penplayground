@@ -26,6 +26,17 @@ describe('ServerAd (video)', () => {
     expect(parsed).toEqual(ad);
     expect(AD_RULES.skipAfterMs).toBe(5_000);
     expect(AD_RULES.maxDurationMs).toBeGreaterThan(AD_RULES.skipAfterMs);
+    // Every deadline has to land inside the conductor's ceiling, or the ceiling
+    // is what the learner experiences: a paused lesson and a dead overlay.
+    for (const ms of [
+      AD_RULES.sdkLoadTimeoutMs,
+      AD_RULES.requestTimeoutMs,
+      AD_RULES.progressTimeoutMs,
+    ])
+      expect(ms).toBeLessThan(AD_RULES.maxDurationMs);
+    // A started creative gets less rope than an unanswered request: by then the
+    // learner is already looking at an ad slot.
+    expect(AD_RULES.progressTimeoutMs).toBeLessThan(AD_RULES.requestTimeoutMs);
   });
 
   it('rejects a tag that is not a URL, an unknown format and an unknown slot', () => {

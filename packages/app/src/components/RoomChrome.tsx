@@ -160,6 +160,31 @@ function StatusButton({
   );
 }
 
+/**
+ * The same one calm line, on a screen that has no room status of its own.
+ *
+ * A replay has no socket to lose and no floor to wait for, so it does not want
+ * `RoomStatus`; it wants the one case it can still hit — a sentence whose audio
+ * the browser refused to play, which the player recovers from by timing it off
+ * the wall clock (`MEDIA_STALL_TIMEOUT_MS`). Saying so beats a viewer wondering
+ * why the expert went quiet.
+ */
+export function ReplayNotice({
+  notice,
+}: {
+  notice: { text: string; tone: 'neutral' | 'danger' } | null;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 top-2.5 z-[8] flex justify-center px-3"
+      aria-live="polite"
+      data-status={notice ? 'status-notice' : 'none'}
+    >
+      {notice ? <StatusPill testid="status-notice" text={notice.text} /> : null}
+    </div>
+  );
+}
+
 // ── bottom bar ────────────────────────────────────────────────────────────────
 export interface BottomBarProps {
   state: RoomState;

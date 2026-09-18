@@ -16,6 +16,18 @@ export const AD_RULES = {
   sdkLoadTimeoutMs: 2_000,
   /** A tag that has not produced a playable ad by then is treated as no fill. */
   requestTimeoutMs: 8_000,
+  /**
+   * A creative that has started must make progress. `STARTED` fires when the
+   * SDK hands the slot to the creative, before a single frame has been played,
+   * so "started" is not "playing" — and there is no event for "started and then
+   * nothing". A network that dies mid-roll, a blocker that kills the media
+   * request after the SDK has begun, or a media pipeline that simply never
+   * feeds the element all end the same way: an overlay sitting there while the
+   * lesson stays paused behind it, until the conductor's 30 s ceiling. If no
+   * `AD_PROGRESS`, quartile or media `timeupdate` arrives within this, the ad
+   * is over and the lesson resumes.
+   */
+  progressTimeoutMs: 4_000,
 } as const;
 
 /**

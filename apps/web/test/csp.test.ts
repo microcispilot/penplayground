@@ -94,11 +94,33 @@ describe('content security policy', () => {
       'https://us-assets.i.posthog.com', // and its bundles
       'https://imasdk.googleapis.com', // the ad SDK (ADR-0014)
       'https://*.doubleclick.net', // the ad tag and its pixels
+      'https://*.2mdn.net', // the SDK's own video client script
+      'https://csi.gstatic.com', // the SDK's latency beacon
       'https://*.googlevideo.com', // the creative's video
+      'https://*.gvt1.com', // and the edge `redirector.gvt1.com` sends it to
     ])
       expect(policy, origin).toContain(origin);
     // Sentry's ingest subdomain is per-organisation, so it is matched by pattern.
     expect(policy).toContain('https://*.ingest.us.sentry.io');
+  });
+
+  it('lets the ad creative reach the hosts it is actually served from', () => {
+    const policy = defaultPolicy();
+    // Measured on the ad path with the sample tag: the SDK pulls a second
+    // script, beacons its own timings, and the creative streams from a gvt1
+    // edge a redirector picks per request. Missing any one of them and the ad
+    // starts and then plays nothing (see AD_RULES.progressTimeoutMs).
+    expect(/script-src [^;]*https:\/\/\*\.2mdn\.net/.test(policy)).toBe(true);
+    expect(/connect-src [^;]*https:\/\/csi\.gstatic\.com/.test(policy)).toBe(true);
+    expect(/media-src [^;]*https:\/\/\*\.gvt1\.com/.test(policy)).toBe(true);
+  });
+
+  it('allows the SDK its own frame over http in dev only, never in production', () => {
+    // The IMA SDK frames its own origin on the page's scheme, and the dev
+    // server is plain http. Production is https (and upgrades anyway), so the
+    // shipped policy must not carry the downgrade.
+    expect(defaultPolicy()).not.toContain('http://imasdk.googleapis.com');
+    expect(defaultPolicy({ dev: true })).toContain('http://imasdk.googleapis.com');
   });
 
   it('lets the room capture audio and play it back', () => {

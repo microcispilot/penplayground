@@ -127,6 +127,12 @@ export default defineConfig({
         PEN_DATA_DIR: '.pen-data-e2e-ui',
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
+        // The UI specs teach a lesson each and several leave the room live on
+        // purpose (a dropped connection, a screenshot mid-sentence), so they
+        // run past the production cap of 5 live rooms per address and every
+        // later spec gets `RATE_LIMITED` instead of a board. The cap itself is
+        // covered by services/api/test/limits.test.ts.
+        PEN_MAX_SESSIONS_PER_IP: '50',
       },
       timeout: 60_000,
     },

@@ -84,6 +84,7 @@ export interface ImaAdDisplayContainer {
 export type ImaAdEventType =
   | 'LOADED'
   | 'STARTED'
+  | 'AD_PROGRESS'
   | 'FIRST_QUARTILE'
   | 'MIDPOINT'
   | 'THIRD_QUARTILE'

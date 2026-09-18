@@ -66,13 +66,25 @@ function feedSay(player: MediaSayPlayer, sayId: string, durationMs: number): voi
   player.enqueue(chunk(sayId, 0, 0, durationMs, true));
 }
 
-function setup() {
+/** A long say, fed as a run of chunks so no single frame is over the wire limit. */
+function feedLongSay(player: MediaSayPlayer, sayId: string, durationMs: number, step = 500): void {
+  for (let at = 0, id = 0; at < durationMs; at += step, id += 1) {
+    const ms = Math.min(step, durationMs - at);
+    player.enqueue(chunk(sayId, id, at, ms, at + ms >= durationMs));
+  }
+}
+
+function setup(opts: { stallTimeoutMs?: number; refusePlay?: boolean } = {}) {
   const elements: FakeMedia[] = [];
   const urls: string[] = [];
   const revoked: string[] = [];
   const events: string[] = [];
   const errors: string[] = [];
   const timers: Array<() => void> = [];
+  /** A wall clock the test moves by hand, with the player's timers hung off it. */
+  const wall = { ms: 0 };
+  const scheduled = new Map<number, { fn: () => void; at: number }>();
+  let handles = 0;
   const player = new MediaSayPlayer({
     onSayStart: (id) => events.push(`start ${id}`),
     onSayEnd: (id, ms) => events.push(`end ${id} ${ms}`),
@@ -80,6 +92,11 @@ function setup() {
     onError: (code) => errors.push(code),
     createElement: () => {
       const el = new FakeMedia();
+      if (opts.refusePlay)
+        el.play = () => {
+          el.paused = true;
+          return Promise.reject(new Error('NotAllowedError'));
+        };
       elements.push(el);
       return el;
     },
@@ -94,8 +111,30 @@ function setup() {
       return timers.length;
     },
     clearInterval: () => undefined,
+    now: () => wall.ms,
+    setTimeout: (cb, ms) => {
+      handles += 1;
+      scheduled.set(handles, { fn: cb, at: wall.ms + ms });
+      return handles;
+    },
+    clearTimeout: (handle) => void scheduled.delete(handle as number),
+    ...(opts.stallTimeoutMs !== undefined ? { stallTimeoutMs: opts.stallTimeoutMs } : {}),
   });
-  return { player, elements, urls, revoked, events, errors, timers };
+  /** Move the wall clock, firing whatever the player scheduled along the way. */
+  const advance = (ms: number) => {
+    const target = wall.ms + ms;
+    for (;;) {
+      const due = [...scheduled.entries()]
+        .filter(([, t]) => t.at <= target)
+        .sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      scheduled.delete(due[0]);
+      wall.ms = due[1].at;
+      due[1].fn();
+    }
+    wall.ms = target;
+  };
+  return { player, elements, urls, revoked, events, errors, timers, advance, wall };
 }
 
 describe('pcmToWav', () => {
@@ -220,6 +259,123 @@ describe('MediaSayPlayer', () => {
     (elements[0] as FakeMedia).fire('error');
     expect(errors).toEqual(['PEN_MEDIA_CHUNK_REJECTED', 'PEN_MEDIA_DECODE_FAILED']);
     expect(events).toEqual(['start s1@0', 'end s1@0 100', 'start s2@0']);
+  });
+});
+
+/**
+ * The failure a replay cannot survive without help: an element that accepts
+ * `play()`, reports no error, and never moves. Chromium does this — a `stalled`
+ * event, `readyState` stuck at HAVE_METADATA — and without a watchdog the
+ * replay freezes on one sentence: no sound, no clock, no board (see
+ * `MEDIA_STALL_TIMEOUT_MS`).
+ */
+describe('MediaSayPlayer stall recovery', () => {
+  it('times a say that never starts off the wall clock, and says so', () => {
+    const { player, elements, events, errors, advance, timers } = setup({ stallTimeoutMs: 4_000 });
+    feedSay(player, 's1@0', 1_000);
+    player.enqueue(chunk('s2@0', 0, 0, 500, true));
+    const el = elements[0] as FakeMedia;
+    expect(el.plays).toBe(1);
+    expect(events).toEqual(['start s1@0']);
+
+    // Three seconds of nothing: still the element's own business.
+    advance(3_000);
+    expect(errors).toEqual([]);
+    expect(player.clock).toEqual({ sayId: 's1@0', offsetMs: 0 });
+
+    // Past the deadline the player stops believing it.
+    advance(1_000);
+    expect(errors).toEqual(['PEN_MEDIA_STALLED']);
+    // Nothing is coming out of it, so it is silenced rather than left to wake up later.
+    expect(el.paused).toBe(true);
+
+    // The clock now runs on wall time, and progress ticks report it.
+    advance(400);
+    expect(player.clock).toEqual({ sayId: 's1@0', offsetMs: 400 });
+    timers[0]?.();
+    expect(events.at(-1)).toBe('progress s1@0 400');
+
+    // And the say ends at its recorded length, so the next one gets its turn.
+    advance(600);
+    expect(events).toEqual(['start s1@0', 'progress s1@0 400', 'end s1@0 1000', 'start s2@0']);
+    expect(elements[1]?.plays).toBe(1);
+  });
+
+  it('leaves an element that is actually playing alone', () => {
+    const { player, elements, errors, advance } = setup({ stallTimeoutMs: 4_000 });
+    feedLongSay(player, 's1@0', 20_000);
+    const el = elements[0] as FakeMedia;
+    for (let i = 1; i <= 4; i += 1) {
+      el.currentTime = i * 3;
+      advance(3_000);
+    }
+    expect(errors).toEqual([]);
+    expect(player.clock).toEqual({ sayId: 's1@0', offsetMs: 12_000 });
+  });
+
+  it('a refused play() is recovered the same way rather than left hanging', async () => {
+    const { player, events, errors, advance } = setup({ stallTimeoutMs: 2_000, refusePlay: true });
+    feedSay(player, 's1@0', 1_000);
+    player.enqueue(chunk('s2@0', 0, 0, 500, true));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errors).toEqual(['PEN_MEDIA_PLAY_FAILED']);
+    // Reporting it is not enough: the sentence still has to end, or the replay
+    // waits on a say that will never finish.
+    advance(2_000);
+    expect(errors).toEqual(['PEN_MEDIA_PLAY_FAILED', 'PEN_MEDIA_STALLED']);
+    advance(1_000);
+    expect(events).toEqual(['start s1@0', 'end s1@0 1000', 'start s2@0']);
+  });
+
+  it('a paused replay does not run the wall clock on without it', () => {
+    const { player, elements, events, advance } = setup({ stallTimeoutMs: 1_000 });
+    feedLongSay(player, 's1@0', 5_000);
+    void elements;
+    advance(1_000); // stalls, and the wall clock takes over
+    advance(500);
+    expect(player.clock.offsetMs).toBe(500);
+    player.pause();
+    advance(3_000);
+    expect(player.clock.offsetMs).toBe(500);
+    expect(events).toEqual(['start s1@0']);
+    player.resume();
+    advance(1_000);
+    expect(player.clock.offsetMs).toBe(1_500);
+    // The remainder still ends at the recorded length, not early.
+    advance(3_500);
+    expect(events.at(-1)).toBe('end s1@0 5000');
+  });
+
+  it('a seek on a stalled say moves the clock and re-times what is left', () => {
+    const { player, events, advance } = setup({ stallTimeoutMs: 1_000 });
+    feedLongSay(player, 's1@0', 10_000);
+    advance(1_000);
+    expect(player.seekCurrent(8_000)).toBe(true);
+    expect(player.clock).toEqual({ sayId: 's1@0', offsetMs: 8_000 });
+    advance(1_000);
+    expect(player.clock).toEqual({ sayId: 's1@0', offsetMs: 9_000 });
+    advance(1_000);
+    expect(events.at(-1)).toBe('end s1@0 10000');
+  });
+
+  it('a faster replay runs the wall clock faster too', () => {
+    const { player, advance } = setup({ stallTimeoutMs: 1_000 });
+    feedLongSay(player, 's1@0', 10_000);
+    advance(1_000);
+    player.playbackRate = 2;
+    advance(1_000);
+    // Two seconds of the recording per second of wall time.
+    expect(player.clock).toEqual({ sayId: 's1@0', offsetMs: 2_000 });
+  });
+
+  it('cancelling a stalled say stops its wall clock with it', () => {
+    const { player, events, advance } = setup({ stallTimeoutMs: 1_000 });
+    feedLongSay(player, 's1@0', 10_000);
+    advance(1_500);
+    expect(player.cancel()).toEqual({ sayId: 's1@0', offsetMs: 500 });
+    advance(20_000);
+    expect(events).toEqual(['start s1@0']);
   });
 });
 

@@ -74,11 +74,30 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
 
 - **Ad blockers**: the SDK has 2 s to appear, the tag 8 s to produce a playable ad; otherwise
   the lesson resumes (event `ad_error` with `SDK_TIMEOUT` / `PEN_AD_SDK_BLOCKED` / `TIMEOUT`).
+- **A creative that starts and then shows nothing**: `STARTED` means the SDK handed the slot over,
+  not that a frame was decoded. If nothing follows it — no `AD_PROGRESS`, no quartile, no
+  `timeupdate`, no falling remaining time — within 4 s (`AD_RULES.progressTimeoutMs`) the ad is
+  over and the lesson resumes, reported as `ad_error` with `STALLED`. A blocker that kills the
+  media request mid-roll, a dead CDN edge and a wedged media pipeline all look like this from the
+  outside, and it is why `apps/web/e2e/ads.spec.ts` passes on a runner where the sample creative
+  starts and then plays nothing. On this runner that is not the tag and not the codec: the same tag
+  on a bare page plays through (29 `AD_PROGRESS` events, clock at 7.5 s), and the identical run in
+  the same browser *after* a room has been opened reaches `start` and stops (0 `AD_PROGRESS`,
+  clock 0.00). Opening a room stops Chromium's out-of-process audio service rendering for the rest
+  of that browser — the same thing that freezes a replay's audio, and an ad always comes after a
+  lesson. That is an open defect in its own right (tasks/todo.md, "Chromium's audio service stops
+  rendering"); the watchdog is what keeps the lesson moving until it is fixed.
 - **Autoplay**: with sound after any gesture on the page; otherwise muted with "Tap to unmute";
   one muted retry on IMA error 1205.
 - **Ceiling**: 30 s, enforced by the conductor even if the creative misbehaves (`ad_error CEILING`).
 - **Desktop**: the Electron renderer's CSP (`apps/desktop/index.html`) allows
   `imasdk.googleapis.com`, `*.doubleclick.net`, `*.googlesyndication.com` and `https:` media.
+- **The web CSP** has to carry more than the obvious three: the SDK pulls a second script from
+  `*.2mdn.net`, beacons its timings to `csi.gstatic.com`, and the creative streams from a
+  `*.gvt1.com` edge that `redirector.gvt1.com` picks per request. Without `*.2mdn.net` the SDK's
+  own video client is blocked outright and the tag times out at 8 s (`ad_error TIMEOUT`, observed);
+  the other two were reported as violations on the same run. They are in `apps/web/csp.ts` and
+  re-derived by running the suite with `PEN_CSP_REPORT_ONLY=1` (docs/DEPLOY.md).
 - **Measurement**: `ad_requested, ad_loaded, ad_started, ad_first_quartile, ad_midpoint,
   ad_third_quartile, ad_completed, ad_skipped {atMs}, ad_error {code}, ad_clicked` — PostHog
   (client, `VITE_POSTHOG_TOKEN`) and the room socket (`ad_event`, host only, once per step).

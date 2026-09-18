@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 /**
  * The Content-Security-Policy is derived from what the app actually asks the
@@ -8,24 +8,24 @@ import { expect, test } from '@playwright/test';
  * that: it records every origin a full session touches, and it fails if the
  * policy the web tier serves would have blocked any of them.
  *
- * Run against the dev servers with the fake providers and the IMA sample tag,
- * exactly as `ads.spec.ts` does, so the ad path is real network traffic.
+ * It walks the whole product, because the policy has to hold on every screen
+ * and every lazily-fetched chunk: Home, Experts, a shelf, the legal pages, a
+ * live room (board, mic, captions), the saved session page and a replay. The
+ * ad path is the one part left to `ads.spec.ts`, which runs under this same
+ * header and asserts the same emptiness — an ad is slow enough that measuring
+ * it twice in one suite buys nothing.
+ *
+ * Run against the dev servers with the fake providers, so the network traffic
+ * is real even though the model and the voice are not.
  */
 
 const OUT = resolve(process.cwd(), '../../.pen-data/csp-origins.json');
 
-/** Directives a browser reports as violated, mapped to the origin that tripped them. */
-interface Violation {
-  directive: string;
-  blockedURI: string;
-}
-
 test.describe('content security policy', () => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
 
-  test('a whole session touches only the origins the policy allows', async ({ page }) => {
+  test('every screen and every chunk stays inside the policy', async ({ page }) => {
     const origins = new Set<string>();
-    const violations: Violation[] = [];
     const consoleErrors: string[] = [];
 
     page.on('request', (r) => {
@@ -50,9 +50,8 @@ test.describe('content security policy', () => {
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
       const text = msg.text();
-      consoleErrors.push(text);
       if (/Content Security Policy|Refused to (load|connect|execute|apply)/i.test(text))
-        violations.push({ directive: 'console', blockedURI: text });
+        consoleErrors.push(text);
     });
     await page.addInitScript(() => {
       document.addEventListener('securitypolicyviolation', (e) => {
@@ -62,51 +61,94 @@ test.describe('content security policy', () => {
       });
     });
 
-    await page.goto('/');
-    await page.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await expect(page.getByText('Live session')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Let's start with a sentence", { exact: false })).toBeVisible({
-      timeout: 20_000,
+    const recorded: string[] = [];
+    const seen = async (): Promise<string[]> =>
+      page
+        .evaluate(() => (window as unknown as { __cspViolations?: string[] }).__cspViolations ?? [])
+        .catch(() => [] as string[]);
+    /** Each navigation drops the page's own list, so it is collected as we go. */
+    const step = async (name: string, fn: (p: Page) => Promise<void>) => {
+      await fn(page);
+      const violations = await seen();
+      expect(violations, `${name} was blocked:\n${violations.join('\n')}`).toEqual([]);
+      recorded.push(...violations);
+    };
+
+    // ── the shell and its lazy routes ────────────────────────────────────────
+    await step('home', async (p) => {
+      await p.goto('/');
+      await expect(p.getByLabel('What do you want to learn?')).toBeVisible({ timeout: 20_000 });
+      await p.waitForTimeout(2_000); // analytics and the error sink make their first calls
     });
-    // The lesson clock is the audio clock; headless Chromium needs a gesture.
-    await page.mouse.click(40, 40);
+    await step('experts', async (p) => {
+      await p.goto('/experts');
+      await expect(p.getByRole('heading', { name: 'Experts' })).toBeVisible({ timeout: 20_000 });
+    });
+    await step('a shelf', async (p) => {
+      await p.goto('/history');
+      await expect(p.getByTestId('sidebar-aside')).toBeVisible({ timeout: 20_000 });
+    });
+    await step('the legal pages (their own chunk)', async (p) => {
+      await p.goto('/terms');
+      await expect(p.getByRole('heading', { name: /Terms/ }).first()).toBeVisible({
+        timeout: 20_000,
+      });
+      await p.goto('/privacy');
+      await expect(p.getByRole('heading', { name: /Privacy/ }).first()).toBeVisible({
+        timeout: 20_000,
+      });
+    });
+    await step('google identity services behind the account sheet', async (p) => {
+      await p.goto('/');
+      await p.getByTestId('account-chip').click();
+      await expect(p.getByTestId('google-signin')).toBeVisible({ timeout: 20_000 });
+      await p.waitForTimeout(3_000);
+      await p.keyboard.press('Escape');
+    });
 
-    // The three places the app reaches beyond its own origin: the board's
-    // assets while it writes, the ad slot at the first segment boundary, and
-    // Google Identity Services behind the account sheet.
-    // Long enough for the board to write, the lesson to stream and the analytics
-    // and error sinks to make their first calls.
-    await page.waitForTimeout(45_000);
+    // ── a live room: the board chunk, the mic worklet, the room socket ───────
+    await step('a live lesson', async (p) => {
+      await p.goto('/');
+      await p.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
+      await p.getByRole('button', { name: 'Start', exact: true }).click();
+      await expect(p.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+      await expect(p.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
+      // The lesson clock is the audio clock; headless Chromium needs a gesture.
+      await p.mouse.click(40, 40);
+      // Long enough for the board to write and the lesson to stream.
+      await expect(p.locator('.pen-board .tl-shape').first()).toBeAttached({ timeout: 60_000 });
+      await p.waitForTimeout(8_000);
+    });
 
-    // Google Identity Services loads behind the account sheet, and nowhere else.
-    // (The ad path runs under this same header in ads.spec.ts, so a policy that
-    // blocked the IMA SDK or its creative would fail there.)
-    await page.goto('/');
-    await page.getByTestId('account-chip').click();
-    await expect(page.getByTestId('google-signin')).toBeVisible({ timeout: 20_000 });
-    await page.waitForTimeout(3_000);
-
-    const pageViolations = await page.evaluate(
-      () => (window as unknown as { __cspViolations?: string[] }).__cspViolations ?? [],
-    );
+    let id = '';
+    await step('the saved session page', async (p) => {
+      await p.getByRole('button', { name: 'End' }).click();
+      await expect(p.getByText('Session saved')).toBeVisible({ timeout: 40_000 });
+      await p.getByRole('button', { name: 'Open the saved session' }).click();
+      await p.waitForURL(/\/sessions\//, { timeout: 20_000 });
+      id = new URL(p.url()).pathname.split('/').pop() ?? '';
+      await p.waitForTimeout(3_000);
+    });
+    await step('a replay (its own chunk, blob audio, blob worker)', async (p) => {
+      await p.goto(`/replay/${id}`);
+      await p.getByRole('button', { name: 'Play the session' }).click();
+      await expect(p.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+      await p.waitForTimeout(12_000);
+    });
 
     mkdirSync(dirname(OUT), { recursive: true });
     writeFileSync(
       OUT,
       JSON.stringify(
-        { origins: [...origins].sort(), violations: pageViolations, consoleErrors },
+        { origins: [...origins].sort(), violations: recorded, consoleErrors },
         null,
         2,
       ),
     );
 
     // A blocked request is a broken product, so any violation fails the run.
-    expect(pageViolations, `CSP violations:\n${pageViolations.join('\n')}`).toEqual([]);
-    expect(
-      violations,
-      `console CSP errors:\n${violations.map((v) => v.blockedURI).join('\n')}`,
-    ).toEqual([]);
+    expect(recorded, `CSP violations:\n${recorded.join('\n')}`).toEqual([]);
+    expect(consoleErrors, `console CSP errors:\n${consoleErrors.join('\n')}`).toEqual([]);
 
     // Privacy without a banner (ADR-0018): nothing asks for consent, because
     // nothing is stored that would need it.

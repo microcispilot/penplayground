@@ -46,6 +46,13 @@ let client: PostHog | null = null;
 const pending: Array<(ph: PostHog) => void> = [];
 /** Bounded: a session that never loads the SDK must not grow a queue forever. */
 const PENDING_LIMIT = 200;
+/**
+ * The learner said no while the SDK was still being fetched. Lazy loading opens
+ * a window the eager version did not have — a few hundred milliseconds in which
+ * "turn analytics off" has nothing to turn off yet — and without this the
+ * import would land afterwards and start capturing anyway.
+ */
+let optedOut = false;
 
 function withClient(fn: (ph: PostHog) => void): void {
   if (client) {
@@ -59,8 +66,15 @@ export function initAnalytics(platform: Platform, choice: { analytics: boolean }
   monitor = platform.monitor ?? null;
   const analytics = platform.analytics;
   if (!analytics || !choice.analytics) return;
+  optedOut = false;
   void import('posthog-js')
     .then(({ default: posthog }) => {
+      // Answered "no" while this was in flight: never initialise, so no network
+      // call is made at all rather than one made and then regretted.
+      if (optedOut) {
+        pending.length = 0;
+        return;
+      }
       posthog.init(analytics.token, {
         api_host: analytics.host,
         autocapture: false,
@@ -91,11 +105,13 @@ export function initAnalytics(platform: Platform, choice: { analytics: boolean }
  * next page load, when `initAnalytics` runs with the new choice.
  */
 export function applyPrivacyChoice(choice: { analytics: boolean }): void {
-  // Nothing loaded means nothing was ever captured: turning it off is already
-  // true, and turning it on is the next page load's job (see `initAnalytics`).
+  optedOut = !choice.analytics;
   const ph = client;
+  // Nothing loaded yet: the flag above is the whole answer. Turning it off
+  // stops the in-flight import from initialising and drops what was queued for
+  // it; turning it on is the next page load's job (see `initAnalytics`).
   if (!ph) {
-    if (!choice.analytics) pending.length = 0;
+    if (optedOut) pending.length = 0;
     return;
   }
   if (choice.analytics) ph.opt_in_capturing();
@@ -188,5 +204,6 @@ export function resetAnalyticsForTests(): void {
   monitor = null;
   startClickedAt = null;
   client = null;
+  optedOut = false;
   pending.length = 0;
 }

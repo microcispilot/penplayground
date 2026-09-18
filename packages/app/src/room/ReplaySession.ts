@@ -42,6 +42,8 @@ interface ExportSayPlan {
 
 /** After the last sentence the recording keeps rolling this long so the board's final stroke is seen. */
 const EXPORT_TAIL_MS = 1000;
+/** How long "sound is unavailable" stays up: long enough to read, short enough not to nag. */
+const SOUND_NOTICE_MS = 6000;
 const EXPORT_PROGRESS_INTERVAL_MS = 33;
 
 /**
@@ -178,6 +180,11 @@ export class ReplaySession {
   private readonly fileCache = new Map<string, Promise<ArrayBuffer>>();
   private disposed = false;
   private paused = false;
+  /** The "no sound" notice is said once, not once per sentence. */
+  private soundNoticed = false;
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The sentence at `cursor` has been heard to the end. */
+  private playedThrough = false;
 
   constructor(
     private readonly api: ApiClient,
@@ -190,10 +197,30 @@ export class ReplaySession {
     this.player =
       this.mode === 'play'
         ? new MediaSayPlayer({
-            onError: (code, detail) => console.warn('[replay]', code, detail),
+            onError: (code, detail) => {
+              console.warn('[replay]', code, detail);
+              // A sentence whose audio never started is played mute on a wall
+              // clock (MEDIA_STALL_TIMEOUT_MS): the board, the captions and the
+              // clock keep going, so the viewer is told why it went quiet
+              // rather than left wondering. Once per replay; the notice fades
+              // on its own like every other one.
+              if (code === 'PEN_MEDIA_STALLED' && !this.soundNoticed) {
+                this.soundNoticed = true;
+                this.ports?.presence.notice(
+                  'Sound is unavailable here — the replay keeps going without it',
+                  'neutral',
+                );
+                // Said, then out of the way: it is an explanation, not a banner.
+                this.noticeTimer = setTimeout(
+                  () => this.ports?.presence.notice(null, 'neutral'),
+                  SOUND_NOTICE_MS,
+                );
+              }
+            },
             onSayStart: (id) => {
               const at = this.sayOrder.indexOf(id);
               if (at >= 0) this.cursor = at;
+              this.playedThrough = false;
               this.followRecordedPace(id);
               this.conductor?.audioEvents.onSayStart(id);
               // A seek asked for a position inside this sentence; the element exists now.
@@ -201,7 +228,10 @@ export class ReplaySession {
                 this.pendingSeekMs = null;
               void this.feedAhead();
             },
-            onSayEnd: (id, ms) => this.conductor?.audioEvents.onSayEnd(id, ms),
+            onSayEnd: (id, ms) => {
+              if (this.sayOrder[this.cursor] === id) this.playedThrough = true;
+              this.conductor?.audioEvents.onSayEnd(id, ms);
+            },
             onProgress: (id, ms) => this.conductor?.audioEvents.onProgress(id, ms),
           })
         : null;
@@ -419,8 +449,14 @@ export class ReplaySession {
     const entry = this.timeline.says[this.cursor];
     if (!entry) return 0;
     const clock = this.player?.clock;
-    const inside = clock?.sayId === entry.key ? clock.offsetMs : 0;
-    return entry.startMs + Math.min(entry.durationMs, inside);
+    if (clock?.sayId === entry.key)
+      return entry.startMs + Math.min(entry.durationMs, clock.offsetMs);
+    // Nothing of this sentence is at the speaker. Either it has not started
+    // yet — the position is its beginning — or it is over and nothing followed
+    // (the recording ends here, or the sentences after it were never spoken),
+    // in which case the position is its end. Reading its beginning either way
+    // is what made the clock jump backwards the moment a replay ran out.
+    return this.playedThrough ? entry.startMs + entry.durationMs : entry.startMs;
   }
 
   /** How much of the recording has been fetched: the scrubber's buffered fill. */
@@ -476,6 +512,7 @@ export class ReplaySession {
     this.announceDurations(conductor);
 
     this.cursor = index;
+    this.playedThrough = false;
     this.fed = index;
     this.pendingSeekMs = offsetMs > 0 ? offsetMs : null;
     conductor.startNextSayAt(offsetMs);
@@ -499,6 +536,8 @@ export class ReplaySession {
 
   dispose(): void {
     this.disposed = true;
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.noticeTimer = null;
     this.conductor?.dispose();
     this.player?.dispose();
     this.exportClock?.dispose();

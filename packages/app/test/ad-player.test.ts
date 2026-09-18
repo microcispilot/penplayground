@@ -54,6 +54,7 @@ class Clock {
 const TYPES = {
   LOADED: 'loaded',
   STARTED: 'start',
+  AD_PROGRESS: 'adProgress',
   FIRST_QUARTILE: 'firstQuartile',
   MIDPOINT: 'midpoint',
   THIRD_QUARTILE: 'thirdQuartile',
@@ -85,6 +86,13 @@ class FakeManager implements ImaAdsManager {
   calls: string[] = [];
   volume = 1;
   remaining = -1;
+  /**
+   * A creative that is really playing: its remaining time falls with the clock,
+   * which is how the player tells a running ad from a frozen one. Left null for
+   * a creative that started and then did nothing (headless Chromium has no
+   * H.264, so this is the ordinary case there).
+   */
+  live: { at: number; durationS: number; now: () => number } | null = null;
   ad: ImaAd | null = null;
   init(w: number, h: number, mode: string) {
     this.calls.push(`init:${w}x${h}:${mode}`);
@@ -113,7 +121,9 @@ class FakeManager implements ImaAdsManager {
     return this.volume;
   }
   getRemainingTime() {
-    return this.remaining;
+    const live = this.live;
+    if (!live) return this.remaining;
+    return Math.max(0, live.durationS - (live.now() - live.at) / 1000);
   }
   getCurrentAd() {
     return this.ad;
@@ -218,6 +228,27 @@ class FakeIma implements ImaNamespace {
   settings = { setLocale: () => undefined, setNumRedirects: () => undefined };
 }
 
+/** The slot and the content video, as much of an EventTarget as the player uses. */
+class FakeSlot {
+  readonly captured: Array<() => void> = [];
+  readonly bubbled: Array<() => void> = [];
+  addEventListener(_type: string, listener: () => void, capture?: boolean) {
+    (capture ? this.captured : this.bubbled).push(listener);
+  }
+  removeEventListener(_type: string, listener: () => void, capture?: boolean) {
+    const list = capture ? this.captured : this.bubbled;
+    const at = list.indexOf(listener);
+    if (at >= 0) list.splice(at, 1);
+  }
+  /** A media element inside the slot reported its clock moving. */
+  timeupdate() {
+    for (const l of [...this.captured, ...this.bubbled]) l();
+  }
+  get listening(): number {
+    return this.captured.length + this.bubbled.length;
+  }
+}
+
 // ── harness ──────────────────────────────────────────────────────────────────
 interface Harness {
   player: AdPlayer;
@@ -227,16 +258,25 @@ interface Harness {
   views: AdPlayerView[];
   ended: AdEndReason[];
   names(): string[];
+  container: FakeSlot;
+  video: FakeSlot;
 }
 
 function harness(
-  opts: { sdk?: 'ok' | 'reject' | 'hang'; sound?: boolean; requestTimeoutMs?: number } = {},
+  opts: {
+    sdk?: 'ok' | 'reject' | 'hang';
+    sound?: boolean;
+    requestTimeoutMs?: number;
+    progressTimeoutMs?: number;
+  } = {},
 ): Harness {
   const clock = new Clock();
   const ima = new FakeIma();
   const events: Harness['events'] = [];
   const views: AdPlayerView[] = [];
   const ended: AdEndReason[] = [];
+  const container = new FakeSlot();
+  const video = new FakeSlot();
   const loadSdk = () =>
     opts.sdk === 'reject'
       ? Promise.reject(Object.assign(new Error('blocked'), { code: 'PEN_AD_SDK_BLOCKED' }))
@@ -251,34 +291,50 @@ function harness(
       skippableAfterMs: 5000,
       durationMs: 30_000,
     },
-    container: {} as HTMLElement,
-    video: {} as HTMLVideoElement,
+    container: container as unknown as HTMLElement,
+    video: video as unknown as HTMLVideoElement,
     loadSdk,
     size: () => ({ width: 640, height: 360 }),
     canAutoplayWithSound: () => opts.sound ?? true,
     onView: (v) => views.push(v),
     onEvent: (name, props) => events.push({ name, props }),
     onEnd: (reason) => ended.push(reason),
-    rules: { sdkLoadTimeoutMs: 2000, requestTimeoutMs: opts.requestTimeoutMs ?? 8000 },
+    rules: {
+      sdkLoadTimeoutMs: 2000,
+      requestTimeoutMs: opts.requestTimeoutMs ?? 8000,
+      progressTimeoutMs: opts.progressTimeoutMs ?? 4000,
+    },
     now: clock.now,
     setTimeout: clock.setTimeout,
     clearTimeout: clock.clearTimeout,
     setInterval: clock.setInterval,
     clearInterval: clock.clearInterval,
   });
-  return { player, clock, ima, events, views, ended, names: () => events.map((e) => e.name) };
+  return {
+    player,
+    clock,
+    ima,
+    events,
+    views,
+    ended,
+    container,
+    video,
+    names: () => events.map((e) => e.name),
+  };
 }
 
 /** Let the SDK promise settle (a microtask). */
 const flush = () => new Promise<void>((r) => queueMicrotask(r));
 
-async function playing(opts: Parameters<typeof harness>[0] = {}) {
+async function playing(opts: Parameters<typeof harness>[0] & { stalls?: boolean } = {}) {
   const h = harness(opts);
   await flush();
   const loader = h.ima.loaders[0];
   if (!loader) throw new Error('no request made');
   const manager = new FakeManager();
   manager.ad = fakeAd({ skippable: false, duration: 15 });
+  // The default creative plays; `stalls` is the one that starts and then freezes.
+  if (!opts.stalls) manager.live = { at: h.clock.now(), durationS: 15, now: h.clock.now };
   loader.deliver(manager);
   manager.fire(TYPES.LOADED);
   manager.fire(TYPES.STARTED);
@@ -368,11 +424,100 @@ describe('ad player: happy path', () => {
   });
 
   it('publishes remaining time from the SDK while playing', async () => {
-    const h = await playing();
+    const h = await playing({ stalls: true });
     h.manager.remaining = 9.4;
     h.clock.advance(250);
     expect(h.views.at(-1)?.remainingMs).toBe(9400);
     expect(h.views.at(-1)?.elapsedMs).toBe(250);
+  });
+});
+
+describe('ad player: a creative that starts and then goes nowhere', () => {
+  it('ends the ad and resumes the lesson, reporting why', async () => {
+    const h = await playing({ stalls: true, progressTimeoutMs: 4000 });
+    expect(h.names()).toEqual(['ad_requested', 'ad_loaded', 'ad_started']);
+
+    // Just under the deadline the overlay is still the creative's to use.
+    h.clock.advance(3999);
+    expect(h.ended).toEqual([]);
+    expect(h.player.view.status).toBe('playing');
+
+    // Past it: one `ad_error` with the reason, through the same telemetry every
+    // other ad outcome uses, and the lesson gets its turn back.
+    h.clock.advance(1);
+    expect(h.names()).toEqual(['ad_requested', 'ad_loaded', 'ad_started', 'ad_error']);
+    expect(h.events.at(-1)?.props).toMatchObject({ code: 'STALLED', adId: 'ad-s-1' });
+    expect(h.ended).toEqual(['error']);
+    expect(h.player.view.status).toBe('ended');
+    // And the SDK is torn down with it, so nothing can start playing afterwards.
+    expect(h.manager.calls).toContain('destroy');
+  });
+
+  it('the SDK saying the ad is progressing keeps it alive', async () => {
+    const h = await playing({ stalls: true, progressTimeoutMs: 4000 });
+    for (let i = 0; i < 4; i += 1) {
+      h.clock.advance(3000);
+      h.manager.fire(TYPES.AD_PROGRESS);
+    }
+    expect(h.ended).toEqual([]);
+    expect(h.player.view.status).toBe('playing');
+  });
+
+  it('a media element inside the slot ticking keeps it alive', async () => {
+    const h = await playing({ stalls: true, progressTimeoutMs: 4000 });
+    expect(h.container.listening).toBe(1);
+    expect(h.video.listening).toBe(1);
+    for (let i = 0; i < 4; i += 1) {
+      h.clock.advance(3000);
+      h.container.timeupdate();
+    }
+    expect(h.ended).toEqual([]);
+    // The listeners come off with the ad, so a later tick cannot touch a dead player.
+    h.clock.advance(5000);
+    expect(h.ended).toEqual(['error']);
+    expect(h.container.listening).toBe(0);
+    expect(h.video.listening).toBe(0);
+  });
+
+  it('a creative whose own clock is running is never cut short', async () => {
+    const h = await playing({ progressTimeoutMs: 4000 });
+    // No AD_PROGRESS at all, only the remaining time falling: that is enough.
+    h.clock.advance(12_000);
+    expect(h.ended).toEqual([]);
+    expect(h.player.view.status).toBe('playing');
+  });
+
+  it('quartiles count as progress on their own', async () => {
+    const h = await playing({ stalls: true, progressTimeoutMs: 4000 });
+    h.clock.advance(3500);
+    h.manager.fire(TYPES.FIRST_QUARTILE);
+    h.clock.advance(3500);
+    h.manager.fire(TYPES.MIDPOINT);
+    h.clock.advance(3500);
+    h.manager.fire(TYPES.THIRD_QUARTILE);
+    h.clock.advance(3500);
+    expect(h.ended).toEqual([]);
+    expect(h.names()).toEqual([
+      'ad_requested',
+      'ad_loaded',
+      'ad_started',
+      'ad_first_quartile',
+      'ad_midpoint',
+      'ad_third_quartile',
+    ]);
+  });
+
+  it('a learner who skips a frozen creative is not also told it failed', async () => {
+    const h = await playing({ stalls: true, progressTimeoutMs: 4000 });
+    h.clock.advance(3000);
+    // The 5 s skip rule has not come round yet, so make it skippable the way VAST would.
+    h.manager.ad = fakeAd({ skippable: true, duration: 15 });
+    h.manager.fire(TYPES.SKIPPABLE_STATE_CHANGED, h.manager.ad);
+    h.player.skip();
+    expect(h.ended).toEqual(['skipped']);
+    h.clock.advance(10_000);
+    expect(h.ended).toEqual(['skipped']);
+    expect(h.names()).not.toContain('ad_error');
   });
 });
 
