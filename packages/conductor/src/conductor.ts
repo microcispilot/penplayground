@@ -157,6 +157,13 @@ export class Conductor {
     switch (message.kind) {
       case 'ready':
         this.isHost = message.state.hostId === this.o.participantId;
+        // `ready` arrives on a join and on every rejoin after a drop. Whatever the
+        // player still holds predates the gap: its clock no longer lines up with
+        // the stream the room is about to resume, and banking the two together
+        // makes the player reject the new chunks on a clock discontinuity. Start
+        // the audio clock clean; the backlog below restores the board.
+        this.o.audio.cancel();
+        this.abandonTurnAudio();
         this.applyState(message.state);
         for (const cue of message.backlog) this.acceptCue(cue, true);
         return;

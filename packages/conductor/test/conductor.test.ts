@@ -239,8 +239,10 @@ describe('Conductor', () => {
     c.handleAudio(frame('L0.s1'), new Uint8Array(4));
     c.audioEvents.onSayStart('L0.s1@0');
     audio.clock = { sayId: 'L0.s1@0', offsetMs: 900 };
+    // Counted as a delta: joining the room cancels once to start the clock clean.
+    const cancelsBefore = audio.cancelled;
     c.onSpeechStart();
-    expect(audio.cancelled).toBe(1);
+    expect(audio.cancelled).toBe(cancelsBefore + 1);
     expect(board.dimmed).toBe(true);
     expect(board.executed[0]?.exec.paused).toBe(1);
     expect(transport.sent.at(-1)).toEqual({
@@ -486,8 +488,9 @@ describe('Conductor', () => {
     expect(audio.paused).toBe(true);
     expect(transport.sent.at(-1)).toEqual({ kind: 'control', action: 'pause' });
     c.handleServer({ kind: 'state', state: state('paused') });
+    const cancelsBefore = audio.cancelled;
     c.control('resume');
-    expect(audio.cancelled).toBe(1);
+    expect(audio.cancelled).toBe(cancelsBefore + 1);
     expect(transport.sent.at(-1)).toEqual({ kind: 'control', action: 'resume' });
   });
 });
@@ -709,5 +712,41 @@ describe('Conductor fast-forward (replay seek)', () => {
     c.handleServer({ kind: 'say_complete', sayId: 'L0.s2', durationMs: 3000 });
     c.audioEvents.onSayStart('L0.s2@0');
     expect(board.executed.at(-1)?.paceMs).toBe(3000);
+  });
+});
+
+describe('Conductor rejoin', () => {
+  /**
+   * After a drop the room replays its state and cue backlog. Audio banked
+   * before the gap belongs to a clock the resumed stream no longer shares, so
+   * a rejoin starts the audio clean — otherwise the player rejects every new
+   * chunk on a clock discontinuity and the room goes quiet.
+   */
+  it('drops audio banked before the gap and rebuilds the board from the backlog', () => {
+    const { c, audio, board } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'Before the drop.') });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    expect(audio.enqueued).toEqual(['L0.s1@0']);
+    const cancelledBefore = audio.cancelled;
+
+    // The socket came back and the room re-admitted us.
+    c.handleServer({
+      kind: 'ready',
+      participantId: HOST,
+      state: state('teaching'),
+      backlog: [
+        say(0, 'L0.s1', 'Before the drop.'),
+        boardCue(1, 'L0.b1', 'L0.s1', 'written while away'),
+      ],
+    });
+    expect(audio.cancelled).toBe(cancelledBefore + 1);
+    // What was written while we were gone is on the paper, finished.
+    expect(board.executed.map((e) => e.op.id)).toEqual(['L0.b1']);
+    expect(board.executed[0]?.exec.finished).toBe(1);
+
+    // And the resumed stream plays.
+    c.handleAudio(frame('L0.s2'), new Uint8Array(4));
+    expect(audio.enqueued).toEqual(['L0.s1@0', 'L0.s2@0']);
   });
 });

@@ -77,17 +77,24 @@ test.describe('accessibility', () => {
     await expect(track).toHaveAttribute('aria-label', 'Seek');
   });
 
-  test('reduced motion is respected on the room', async ({ browser }) => {
+  /**
+   * Reduced motion is a design-system rule, not a per-screen one: the base layer
+   * collapses every animation and transition when the viewer asks for it. Explore
+   * is the densest screen of moving parts (the hero board writes itself), so it
+   * is where the rule is worth checking.
+   */
+  test('reduced motion is respected', async ({ browser }) => {
     const ctx = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await ctx.newPage();
-    await startLesson(page);
-    // The design system collapses every animation to a hair under a frame.
+    await page.goto(`${UI_WEB}/`);
+    await expect(page.getByRole('heading', { name: /What do you want to/ })).toBeVisible();
     const durations = await page.evaluate(() =>
-      [...document.querySelectorAll('*')]
-        .slice(0, 400)
-        .map((el) => getComputedStyle(el).animationDuration)
-        .filter((d) => d !== '0s' && d !== ''),
+      [...document.querySelectorAll('*')].flatMap((el) => {
+        const s = getComputedStyle(el);
+        return [s.animationDuration, s.transitionDuration].filter((d) => d && d !== '0s');
+      }),
     );
+    expect(durations.length).toBeGreaterThan(0);
     for (const d of durations) expect(Number.parseFloat(d)).toBeLessThan(0.01);
     await ctx.close();
   });
