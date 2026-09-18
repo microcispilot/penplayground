@@ -34,6 +34,7 @@ beforeAll(async () => {
       views: 0,
       thumbnail: null,
       canonicalId: null,
+      language: 'en-US',
       description: '',
       keywords: [],
       likes: 0,

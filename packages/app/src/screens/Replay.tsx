@@ -1,11 +1,12 @@
 import type { Expert, RoomState } from '@pen/contracts';
 import { Button, ExpertOrb, IconButton, Pill } from '@pen/design';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { BoardSurface } from '../components/BoardSurface.js';
 import { describeReplayRate, PaceMenu } from '../components/PaceMenu.js';
-import { CaptionOverlay } from '../components/RoomChrome.js';
+import { ARROW_STEP_MS, JL_STEP_MS, ReplayScrubber } from '../components/ReplayScrubber.js';
+import { CaptionOverlay, ReplayNotice } from '../components/RoomChrome.js';
 import { setAnalyticsContext, trackInteraction } from '../lib/analytics.js';
 import { formatClock, useApp } from '../lib/context.js';
 import {
@@ -61,6 +62,10 @@ export function Replay() {
     exportMode ? 1 : (readPacePreference(platform.storage, REPLAY_RATE_PREFERENCE_KEY) ?? 1),
   );
   const clockRef = useRef(0);
+  const [position, setPosition] = useState(0);
+  const [buffered, setBuffered] = useState(0);
+  /** While a drag is in flight the handle follows the pointer, not the player. */
+  const [scrubbing, setScrubbing] = useState<number | null>(null);
   const curtainRef = useRef<HTMLDivElement>(null);
   /** The session instance the export was started for (StrictMode re-runs effects; sessions are per mount). */
   const exportStartedFor = useRef<ReplaySession | null>(null);
@@ -132,6 +137,7 @@ export function Replay() {
         setSpeaking: (speaking) => set({ speaking }),
         showCheck: (check) => set({ check }),
         showAd: () => undefined,
+        setWaiting: (waiting) => set({ waiting }),
         notice: (text, tone) => set({ notice: text ? { text, tone } : null }),
       },
     });
@@ -189,23 +195,92 @@ export function Replay() {
     if (exportMode && error) window.__penExport?.onError(error);
   }, [exportMode, error]);
 
+  // The scrubber reads the recording's own clock (the audio clock is master,
+  // ADR-0002) rather than counting wall time, so a seek is reflected immediately
+  // and a stretched playback rate cannot make the two disagree.
   useEffect(() => {
-    if (!started || exportMode) return;
-    const t = setInterval(() => {
-      if (!paused) {
-        // The clock counts recorded time: at 2× it advances twice as fast, like a video's scrubber.
-        clockRef.current += 250 * rate;
-        useRoomStore.getState().set({ clockMs: clockRef.current });
-      }
-    }, 250);
+    if (!started || exportMode || !session) return;
+    const tick = () => {
+      clockRef.current = session.positionMs;
+      useRoomStore.getState().set({ clockMs: clockRef.current });
+      setPosition(session.positionMs);
+      setBuffered(session.bufferedMs);
+    };
+    tick();
+    const t = setInterval(tick, 200);
     return () => clearInterval(t);
-  }, [started, paused, exportMode, rate]);
+  }, [started, exportMode, session]);
 
   const changeRate = (next: number) => {
     setRate(next);
     writePacePreference(platform.storage, next, REPLAY_RATE_PREFERENCE_KEY);
     session?.setPlaybackRate(next);
   };
+
+  const togglePlay = useCallback(() => {
+    if (!session || !started) return;
+    if (paused) session.resume();
+    else session.pause();
+    trackInteraction(paused ? 'resume' : 'pause', { replay: true });
+    setPaused(!paused);
+  }, [session, started, paused]);
+
+  const seekTo = useCallback(
+    (toMs: number) => {
+      if (!session || !started) return;
+      const total = session.timeline.totalMs;
+      const to = Math.max(0, Math.min(total, Math.round(toMs)));
+      const from = Math.round(session.positionMs);
+      setScrubbing(null);
+      setPosition(to);
+      // Reserved in the telemetry contract for exactly this (ADR-0011): where the
+      // viewer was and where they went, in ms — a number, never a sentence.
+      trackInteraction('replay_seeked', { fromMs: from, toMs: to });
+      void session.seek(to);
+    },
+    [session, started],
+  );
+
+  // The shortcuts a video player has taught everyone. Skipped while the viewer is
+  // typing, and while the headless renderer is driving the page.
+  useEffect(() => {
+    if (exportMode || !started) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const at = session?.positionMs ?? 0;
+      switch (e.key) {
+        case ' ':
+        case 'k':
+        case 'K':
+          e.preventDefault();
+          togglePlay();
+          return;
+        case 'ArrowRight':
+          e.preventDefault();
+          seekTo(at + ARROW_STEP_MS);
+          return;
+        case 'ArrowLeft':
+          e.preventDefault();
+          seekTo(at - ARROW_STEP_MS);
+          return;
+        case 'l':
+        case 'L':
+          e.preventDefault();
+          seekTo(at + JL_STEP_MS);
+          return;
+        case 'j':
+        case 'J':
+          e.preventDefault();
+          seekTo(at - JL_STEP_MS);
+          return;
+        default:
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [exportMode, started, session, seekTo, togglePlay]);
 
   if (error) {
     return (
@@ -233,6 +308,7 @@ export function Replay() {
         />
       </div>
       <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
+      {exportMode ? null : <ReplayNotice notice={ui.notice} />}
       {!started && !exportMode ? (
         <div className="absolute inset-0 z-[9] grid place-items-center bg-navy-900/60">
           <Button
@@ -265,30 +341,49 @@ export function Replay() {
     );
   }
 
+  const timeline = session?.timeline ?? null;
+  const totalMs = timeline?.totalMs ?? 0;
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-bg">
-      <div className="flex min-h-0 flex-1 p-4">{stage}</div>
-      <div className="flex h-[54px] shrink-0 items-center gap-3 border-t border-line bg-surface px-3.5">
-        <IconButton label="Back" onClick={() => navigate(`/sessions/${id}`)}>
-          <ArrowLeft size={15} />
-        </IconButton>
-        <span className="min-w-0 flex-1 truncate text-sm">{title}</span>
-        <Pill tone="accent">Replay</Pill>
-        <span className="text-sm text-fg-2 tabular">{formatClock(ui.clockMs)}</span>
-        <PaceMenu value={rate} onChange={changeRate} label="Speed" describe={describeReplayRate} />
-        <IconButton
-          label={paused ? 'Resume' : 'Pause'}
-          onClick={() => {
-            if (!session) return;
-            if (paused) session.resume();
-            else session.pause();
-            trackInteraction(paused ? 'resume' : 'pause', { replay: true });
-            setPaused(!paused);
-          }}
-          disabled={!started}
-        >
-          {paused ? <Play size={14} /> : <Pause size={14} />}
-        </IconButton>
+    <div className="flex h-dvh flex-col overflow-hidden bg-bg">
+      <div className="flex min-h-0 flex-1 p-2 sm:p-3 lg:p-4">{stage}</div>
+      <div className="shrink-0 border-t border-line bg-surface px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] sm:px-3.5">
+        <ReplayScrubber
+          positionMs={scrubbing ?? position}
+          totalMs={totalMs}
+          bufferedMs={buffered}
+          chapters={timeline?.chapters ?? []}
+          disabled={!started || totalMs <= 0}
+          onScrub={setScrubbing}
+          onSeek={seekTo}
+          className="mb-1"
+        />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <IconButton label="Back" onClick={() => navigate(`/sessions/${id}`)}>
+            <ArrowLeft size={15} />
+          </IconButton>
+          <IconButton
+            label={paused ? 'Play' : 'Pause'}
+            onClick={togglePlay}
+            disabled={!started}
+            data-testid="replay-play"
+          >
+            {paused ? <Play size={14} /> : <Pause size={14} />}
+          </IconButton>
+          <span className="shrink-0 text-sm text-fg-2 tabular" data-testid="replay-clock">
+            {formatClock(scrubbing ?? position)} / {formatClock(totalMs)}
+          </span>
+          <span className="hidden min-w-0 flex-1 truncate text-sm sm:block">{title}</span>
+          <span className="flex-1 sm:hidden" />
+          <Pill tone="accent" className="hidden sm:inline-flex">
+            Replay
+          </Pill>
+          <PaceMenu
+            value={rate}
+            onChange={changeRate}
+            label="Speed"
+            describe={describeReplayRate}
+          />
+        </div>
       </div>
     </div>
   );

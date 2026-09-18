@@ -51,7 +51,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # ── build: bundle, then a hoisted production node_modules for the bundle's externals ──
 FROM deps AS build
 ARG GIT_SHA=unknown
-ARG SENTRY_ORG=microcis-0s
+ARG SENTRY_ORG=pen-playground
 COPY . .
 RUN --mount=type=secret,id=sentry_auth_token \
     sh -eu -c ' \

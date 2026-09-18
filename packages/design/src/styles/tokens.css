@@ -40,9 +40,17 @@
   --color-line-strong: oklch(0.285 0.062 247.7 / 24%);
   --color-fg: oklch(0.24 0.045 248);
   --color-fg-2: oklch(0.45 0.035 247);
-  --color-fg-3: oklch(0.6 0.025 245);
+  /* 0.52, not 0.6: at 0.6 this muted tone measured 3.77:1 on --color-bg and
+     3.25:1 on --color-surface-2, i.e. below WCAG AA for the small secondary
+     text it is used for. 0.52 clears 4.5:1 on every surface it lands on. */
+  --color-fg-3: oklch(0.52 0.025 245);
   --color-accent: var(--color-teal-600);
-  --color-accent-strong: oklch(0.5 0.1 219); /* AA on light surfaces */
+  /* 0.46: the accent wherever it carries or sits under text. At 0.5 it measured
+     4.39:1 as a label on --color-accent-soft over --color-surface — under AA for
+     the small pill text it is used for. --color-accent itself stays the brand
+     tone for strokes, fills and dots, which need 3:1, not 4.5:1. */
+  --color-accent-strong: oklch(0.46 0.1 219);
+  --color-accent-pressed: oklch(0.4 0.095 219);
   --color-accent-soft: oklch(0.597 0.107 218.3 / 14%);
   --color-on-accent: oklch(0.99 0.005 220);
   --color-warm: var(--color-yellow-500);
@@ -68,9 +76,40 @@
   --color-ink-muted: oklch(0.58 0.03 247);
   --color-ink-highlight: oklch(0.88 0.12 90 / 55%);
 
+  /*
+   * Captions sit on the board, and the board is always paper. These three are
+   * measured, not chosen by eye: composited over --color-paper they give white
+   * body text 11.3:1 and each speaker name better than 7:1, so the line stays
+   * readable at a glance and clears WCAG AA (4.5:1) with room to spare.
+   * packages/design/test/caption-contrast.test.ts holds the measurement.
+   */
+  --color-caption-scrim: oklch(0.12 0 0 / 78%);
+  --color-caption-expert: oklch(0.88 0.07 214);
+  --color-caption-learner: oklch(0.86 0.13 160);
+
+  /*
+   * Controls that float on the board. A session card's thumbnail is paper too,
+   * so the like and save chips there cannot follow the theme the way a page
+   * control does: in dark they would put theme-light ink on a permanently
+   * light sheet (measured at 1.5–2.5:1 before these existed). Fixed, and
+   * measured over --color-paper in caption-contrast.test.ts.
+   */
+  --color-on-paper-chip: oklch(1 0 0 / 88%);
+  --color-on-paper: oklch(0.38 0.03 247);
+  --color-on-paper-liked: oklch(0.47 0.173 20.4);
+  --color-on-paper-saved: oklch(0.46 0.1 219);
+
   /* ── type ─────────────────────────────────────────────────────────── */
-  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto,
+    "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  /* The display face is the same family at its display optical size: Apple and Google both
+     set headlines in their UI face, heavier and tighter, rather than in a second voice. */
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI",
+    Roboto, "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --display-weight: 600;
+  --display-tracking: -0.035em;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
 
@@ -162,9 +201,11 @@
     --color-line-strong: oklch(0.92 0.01 250 / 18%);
     --color-fg: oklch(0.93 0.008 250);
     --color-fg-2: oklch(0.7 0.015 250);
-    --color-fg-3: oklch(0.52 0.015 250);
+    /* 0.64, not 0.52: the dark tone measured 3.48:1 on --color-bg. */
+    --color-fg-3: oklch(0.64 0.015 250);
     --color-accent: oklch(0.72 0.1 214);
     --color-accent-strong: oklch(0.8 0.08 212);
+    --color-accent-pressed: oklch(0.68 0.1 214);
     --color-accent-soft: oklch(0.72 0.1 214 / 16%);
     --color-on-accent: oklch(0.16 0.03 240);
     --color-warm-soft: oklch(0.763 0.126 73.7 / 22%);
@@ -191,9 +232,10 @@
   --color-line-strong: oklch(0.92 0.01 250 / 18%);
   --color-fg: oklch(0.93 0.008 250);
   --color-fg-2: oklch(0.7 0.015 250);
-  --color-fg-3: oklch(0.52 0.015 250);
+  --color-fg-3: oklch(0.64 0.015 250);
   --color-accent: oklch(0.72 0.1 214);
   --color-accent-strong: oklch(0.8 0.08 212);
+  --color-accent-pressed: oklch(0.68 0.1 214);
   --color-accent-soft: oklch(0.72 0.1 214 / 16%);
   --color-on-accent: oklch(0.16 0.03 240);
   --color-warm-soft: oklch(0.763 0.126 73.7 / 22%);

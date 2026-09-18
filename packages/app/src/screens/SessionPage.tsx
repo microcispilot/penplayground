@@ -16,6 +16,8 @@ import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
+import { dirOf, useDocumentLanguage } from '../lib/locale.js';
+import { useSeo } from '../lib/seo.js';
 
 const LedgerResponse = z.object({
   session: SessionRecordSchema,
@@ -237,6 +239,94 @@ function ExportControl({
  * from the recording ledger. Deterministic audio+board replay lands in the
  * replay package; this page is the durable, shareable record.
  */
+/**
+ * What the host, and only the host, may do with a saved session: decide who can
+ * see it, and take it away entirely. Stated plainly — a private session is a
+ * normal choice, not a warning — and deletion asks twice.
+ */
+function OwnerControls({
+  session,
+  onChanged,
+  onDeleted,
+}: {
+  session: SessionRecord;
+  onChanged: (next: SessionRecord) => void;
+  onDeleted: () => void;
+}) {
+  const { api } = useApp();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const isPublic = session.visibility === 'public';
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-lg)] bg-surface-2 px-4 py-3 text-sm">
+      <span className="text-fg-2">
+        {isPublic
+          ? 'Anyone with the link can watch this.'
+          : 'Only you can watch this — it is not listed and the link will not open for anyone else.'}
+      </span>
+      <span className="flex-1" />
+      <Button
+        variant="ghost"
+        size="sm"
+        loading={busy}
+        data-testid="visibility-toggle"
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const next = await api.setVisibility(session.id, isPublic ? 'private' : 'public');
+            onChanged(next);
+            toast(isPublic ? 'Now private' : 'Now public', 'success');
+          } catch (error) {
+            toast(error instanceof Error ? error.message : 'Could not change this', 'danger');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {isPublic ? 'Make private' : 'Make public'}
+      </Button>
+      {confirming ? (
+        <>
+          <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+            Keep it
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            loading={busy}
+            data-testid="confirm-delete-session"
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await api.deleteSession(session.id);
+                toast('Session deleted', 'success');
+                onDeleted();
+              } catch (error) {
+                toast(error instanceof Error ? error.message : 'Could not delete this', 'danger');
+                setBusy(false);
+                setConfirming(false);
+              }
+            }}
+          >
+            Delete, including the recording
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid="delete-session"
+          onClick={() => setConfirming(true)}
+        >
+          Delete
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function SessionPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
@@ -311,6 +401,17 @@ export function SessionPage() {
 
   const s = data?.session;
   const live = s ? s.endedAt === null : false;
+  // The tab, the canonical URL and what a JavaScript-running crawler reads follow the session.
+  // The saved page is the session's: its language, and its direction for its own words.
+  useDocumentLanguage(s?.language);
+  const lang = s?.language;
+  const dir = dirOf(lang);
+  useSeo({
+    title: s?.title ?? 'Session',
+    ...(s?.description ? { description: s.description } : {}),
+    canonicalPath: `/sessions/${id}`,
+    ...(s ? { language: s.language } : {}),
+  });
   const shareUrl = `${api.baseUrl}/s/${id}`;
   // Only the host sees the export control (the API strips hostId for everyone else).
   const isHost = Boolean(s && participant && s.hostId === participant.id);
@@ -365,7 +466,7 @@ export function SessionPage() {
             )}
             <div className="mt-5 flex items-start justify-between gap-4">
               <div>
-                <h2 className="tracking-[-0.025em]">
+                <h2 className="tracking-[-0.025em]" lang={lang} dir={dir}>
                   {s?.title ?? <Skeleton className="h-7 w-72" />}
                 </h2>
                 <p className="mt-1.5 text-sm text-fg-2">
@@ -410,6 +511,13 @@ export function SessionPage() {
                 ) : null}
               </div>
             </div>
+            {s && isHost ? (
+              <OwnerControls
+                session={s}
+                onChanged={(next) => setData((d) => (d ? { ...d, session: next } : d))}
+                onDeleted={() => navigate('/sessions')}
+              />
+            ) : null}
             <div className="mt-6 flex gap-1 border-b border-line" role="tablist">
               {(isHost
                 ? (['recap', 'transcript', 'insights'] as const)
@@ -449,7 +557,7 @@ export function SessionPage() {
                 <section>
                   <h6 className="mb-2.5 text-fg-2">What was covered</h6>
                   {s?.recap.length ? (
-                    <ul className="flex flex-col gap-2">
+                    <ul className="flex flex-col gap-2" lang={lang} dir={dir}>
                       {s.recap.map((r) => (
                         <li
                           key={r}
@@ -478,7 +586,10 @@ export function SessionPage() {
                       {questions.map((q) => (
                         <div
                           key={`${q.question}-${q.headline}`}
-                          className="border-l-2 border-accent-strong pl-[11px]"
+                          className="border-accent-strong border-s-2 ps-[11px]"
+                          // A note carries the language the learner asked in.
+                          lang={q.language}
+                          dir={dirOf(q.language)}
                         >
                           <p className="text-sm text-fg">{q.question}</p>
                           <p className="text-[13px] text-fg-2">
@@ -512,7 +623,13 @@ export function SessionPage() {
                     >
                       {l.name}
                     </span>
-                    <span className={l.who === 'expert' ? 'text-fg-2' : ''}>{l.text}</span>
+                    <span
+                      className={cn('min-w-0', l.who === 'expert' ? 'text-fg-2' : '')}
+                      // Either speaker may have used another language: the line decides its own.
+                      dir="auto"
+                    >
+                      {l.text}
+                    </span>
                   </div>
                 ))}
               </div>

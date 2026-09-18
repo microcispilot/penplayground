@@ -7,6 +7,9 @@
 #   7880/tcp  signalling WebSocket + HTTP API — loopback only, behind the host nginx at /livekit
 #   7881/tcp  ICE over TCP (fallback for networks that block UDP) — public
 #   7882/udp  every media stream, multiplexed on one UDP port — public
+#   3478/udp  TURN/UDP (also a STUN server) — public
+#   30000-30200/udp  relayed media for TURN clients — public
+#   (TURN/TLS on 443 needs a second address for this host; see the `turn:` section below)
 port: 7880
 bind_addresses:
   - "0.0.0.0"
@@ -19,6 +22,40 @@ rtc:
   # Discover the host's public address with STUN and advertise it in ICE candidates; the
   # container itself only sees the bridge address.
   use_external_ip: true
+
+# Embedded TURN server: the last resort for a network that blocks UDP *and* outbound TCP 7881.
+# LiveKit hands every client a TURN URL and a short-lived per-participant credential in the join
+# response, so nothing is configured in the app (verified by apps/web/e2e/rooms-turn.spec.ts).
+#
+# TURN/UDP (3478) is on. It doubles as our STUN server and is what a network that allows UDP to
+# an unusual port — but not 7882 — uses.
+#
+# TURN/TLS is deliberately OFF here, and turning it on needs one thing this host does not have
+# yet. LiveKit advertises the TLS candidate as `turns:<domain>:443` — the port is hardcoded to
+# 443 in `iceServersForParticipant` (livekit/pkg/service/roommanager.go), whatever `tls_port`
+# says — so TURN/TLS is only reachable when 443 of that hostname reaches this container. On
+# prod-app-01 port 443 of the one public address belongs to the host nginx, which serves other
+# sites too, so the upgrade is: a second address (a Hetzner floating IP) for
+# `turn.penplayground.com`, a certificate for it, and then, here:
+#
+#   tls_port: 443
+#   cert_file: /etc/livekit/certs/fullchain.pem
+#   key_file: /etc/livekit/certs/privkey.pem
+#
+# plus `PEN_TURN_TLS_BIND=<that address>:443` for compose. deploy/livekit/cert-sync.sh (a
+# certbot deploy hook) keeps the two files in `livekit/certs` — the container cannot read
+# /etc/letsencrypt, whose `live/` entries are symlinks into `archive/`.
+# Full runbook: docs/DEPLOY.md → "Rooms audio (LiveKit)".
+turn:
+  enabled: true
+  # Must resolve to this host and match the certificate once TLS is on.
+  domain: turn.penplayground.com
+  udp_port: 3478
+  external_tls: false
+  # Relayed media leaves from this range, published 1:1 by compose. 12 participants need far
+  # fewer; the range is small so the Docker port mapping stays cheap.
+  relay_range_start: 30000
+  relay_range_end: 30200
 
 room:
   # A room is a session: nobody should be able to create one without the API minting a token.

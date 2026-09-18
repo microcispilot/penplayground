@@ -247,6 +247,9 @@ describe('computeTelemetry', () => {
       memoSegmentsGenerated: 1,
       contextSpeculationHits: 1,
       intakeCacheHit: true,
+      ttsSentencesReused: 0,
+      // Three sentences were synthesised; none came from the cache in this ledger.
+      ttsSentencesGenerated: 3,
       savedUsd: expect.closeTo(0.0541, 9),
       freshEquivalentUsd: expect.closeTo(0.00088 + 0.0541, 9),
     });
@@ -328,6 +331,8 @@ describe('aggregateReuse', () => {
       memoSegmentsGenerated: 0,
       contextSpeculationHits: 0,
       intakeCacheHit: false,
+      ttsSentencesReused: 0,
+      ttsSentencesGenerated: 0,
       savedUsd: 0,
       freshEquivalentUsd: cost,
       ...reuse,

@@ -1,12 +1,189 @@
 import type { CheckEvent, RoomState } from '@pen/contracts';
-import { Avatar, Button, Caption, cn, IconButton, Pill, SegmentDots } from '@pen/design';
-import { Captions, Maximize2, Mic, MicOff, Pause, Play, Send } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+  Avatar,
+  Button,
+  Caption,
+  cn,
+  IconButton,
+  Pill,
+  SegmentDots,
+  Sheet,
+  SheetRow,
+} from '@pen/design';
+import {
+  Captions,
+  Ellipsis,
+  Gauge,
+  Maximize2,
+  MessageSquare,
+  Mic,
+  MicOff,
+  Pause,
+  Play,
+  Send,
+} from 'lucide-react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { formatClock } from '../lib/context.js';
+import { dirOf } from '../lib/locale.js';
 import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
+import type { RoomConnectionStatus } from '../room/RoomClient.js';
 import type { CaptionLine } from '../room/store.js';
 import { PaceMenu } from './PaceMenu.js';
 import { ParticipantsControl } from './Participants.js';
+
+// ── honest status ─────────────────────────────────────────────────────────────
+
+/**
+ * One calm line, never more than one at a time, for every state in which the
+ * learner would otherwise be looking at stillness: the socket is away, the
+ * browser is holding the sound, or the expert owes a sentence. Deliberately
+ * quiet — a small pill in the room's own colours, no alarm, no exclamation —
+ * because none of these is the learner's fault or emergency.
+ */
+export interface RoomStatusProps {
+  connection: RoomConnectionStatus;
+  soundBlocked: boolean;
+  waiting: boolean;
+  notice: { text: string; tone: 'neutral' | 'danger' } | null;
+  expertFirstName: string;
+  onEnableSound: () => void;
+  onRetry: () => void;
+}
+
+/** How long "Back." stays up after a reconnection before the room goes quiet again. */
+const BACK_MS = 2400;
+
+export function RoomStatus({
+  connection,
+  soundBlocked,
+  waiting,
+  notice,
+  expertFirstName,
+  onEnableSound,
+  onRetry,
+}: RoomStatusProps) {
+  const [recovered, setRecovered] = useState(false);
+  const wasAway = useRef(false);
+
+  useEffect(() => {
+    if (connection === 'reconnecting' || connection === 'failed') {
+      wasAway.current = true;
+      setRecovered(false);
+      return;
+    }
+    if (connection === 'open' && wasAway.current) {
+      wasAway.current = false;
+      setRecovered(true);
+      const t = setTimeout(() => setRecovered(false), BACK_MS);
+      return () => clearTimeout(t);
+    }
+    return;
+  }, [connection]);
+
+  let content: ReactNode = null;
+  let testid = '';
+  if (connection === 'reconnecting') {
+    content = <StatusPill testid="status-reconnecting" pulse text="Reconnecting…" />;
+    testid = 'status-reconnecting';
+  } else if (connection === 'failed') {
+    content = <StatusButton testid="status-retry" onClick={onRetry} text="Tap to reconnect" />;
+    testid = 'status-retry';
+  } else if (recovered) {
+    content = <StatusPill testid="status-back" text="Back." />;
+    testid = 'status-back';
+  } else if (soundBlocked) {
+    content = (
+      <StatusButton
+        testid="status-sound"
+        onClick={onEnableSound}
+        text={`Tap to hear ${expertFirstName}`}
+      />
+    );
+    testid = 'status-sound';
+  } else if (waiting) {
+    content = <StatusPill testid="status-waiting" pulse text={`${expertFirstName} is thinking…`} />;
+    testid = 'status-waiting';
+  } else if (notice) {
+    content = <StatusPill testid="status-notice" text={notice.text} />;
+    testid = 'status-notice';
+  }
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 top-2.5 z-[8] flex justify-center px-3"
+      // One live region for the room's whole status: a screen reader hears the
+      // change, and only the change, without the board's chatter.
+      aria-live="polite"
+      data-status={testid || 'none'}
+    >
+      {content}
+    </div>
+  );
+}
+
+const STATUS_BASE =
+  'pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-bg-elevated/92 px-3 py-1.5 text-[12.5px] text-fg-2 shadow-card backdrop-blur-[6px] hairline';
+
+function StatusPill({ text, pulse, testid }: { text: string; pulse?: boolean; testid: string }) {
+  return (
+    <span className={cn(STATUS_BASE, 'animate-rise')} data-testid={testid}>
+      {pulse ? (
+        <span className="size-1.5 shrink-0 rounded-full bg-fg-3 animate-blink" aria-hidden />
+      ) : null}
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
+function StatusButton({
+  text,
+  onClick,
+  testid,
+}: {
+  text: string;
+  onClick: () => void;
+  testid: string;
+}) {
+  return (
+    // The whole pill is the control: nothing to aim at, no second step.
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testid}
+      className={cn(
+        STATUS_BASE,
+        'animate-rise text-fg transition-colors duration-[var(--duration-fast)] hover:bg-bg-elevated focus-visible:outline-accent',
+      )}
+    >
+      <span className="truncate">{text}</span>
+    </button>
+  );
+}
+
+/**
+ * The same one calm line, on a screen that has no room status of its own.
+ *
+ * A replay has no socket to lose and no floor to wait for, so it does not want
+ * `RoomStatus`; it wants the one case it can still hit — a sentence whose audio
+ * the browser refused to play, which the player recovers from by timing it off
+ * the wall clock (`MEDIA_STALL_TIMEOUT_MS`). Saying so beats a viewer wondering
+ * why the expert went quiet.
+ */
+export function ReplayNotice({
+  notice,
+}: {
+  notice: { text: string; tone: 'neutral' | 'danger' } | null;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 top-2.5 z-[8] flex justify-center px-3"
+      aria-live="polite"
+      data-status={notice ? 'status-notice' : 'none'}
+    >
+      {notice ? <StatusPill testid="status-notice" text={notice.text} /> : null}
+    </div>
+  );
+}
 
 // ── bottom bar ────────────────────────────────────────────────────────────────
 export interface BottomBarProps {
@@ -24,6 +201,8 @@ export interface BottomBarProps {
   onToggleMic: () => void;
   onFullscreen: () => void;
   onLeave: () => void;
+  /** Phone only: opens the ask sheet, where the mic is the primary control. */
+  onOpenAsk?: () => void;
   /** Human-to-human audio (rooms): who is on voice, speaking, muted; host mute controls. */
   audio?: RoomAudioUi;
   selfId?: string;
@@ -31,118 +210,293 @@ export interface BottomBarProps {
   onUnmuteVoice?: () => void;
 }
 
+/** What the room is doing, in the learner's words. */
+function statusLabelOf(state: RoomState, total: number): string {
+  switch (state.mode) {
+    case 'listening':
+      return 'Paused — you have the floor';
+    case 'thinking':
+      return 'Thinking…';
+    case 'answering':
+      return 'Answering you';
+    case 'checking':
+      return 'Your turn to answer';
+    case 'complete':
+      return `Complete · step ${total} of ${total}`;
+    case 'paused':
+      return `Paused · step ${Math.max(1, state.segment + 1)} of ${total}`;
+    default:
+      return `Step ${Math.max(1, state.segment + 1)} of ${total}`;
+  }
+}
+
 export function BottomBar(p: BottomBarProps) {
+  const [more, setMore] = useState(false);
   const total = p.state.plan?.segments.length ?? 0;
   const done = p.state.mode === 'complete' ? total : Math.min(total, p.state.segment);
   const playing = p.state.mode !== 'paused';
-  const statusLabel =
-    p.state.mode === 'listening'
-      ? 'Paused — you have the floor'
-      : p.state.mode === 'thinking'
-        ? 'Thinking…'
-        : p.state.mode === 'answering'
-          ? 'Answering you'
-          : p.state.mode === 'checking'
-            ? 'Your turn to answer'
-            : p.state.mode === 'complete'
-              ? `Complete · step ${total} of ${total}`
-              : p.state.mode === 'paused'
-                ? `Paused · step ${Math.max(1, p.state.segment + 1)} of ${total}`
-                : `Step ${Math.max(1, p.state.segment + 1)} of ${total}`;
+  const statusLabel = statusLabelOf(p.state, total);
+  const micLive = p.micState === 'listening' && !p.audio?.mutedByHost;
+  const micLabel = p.audio?.mutedByHost
+    ? 'Muted by the host — unmute'
+    : p.micState === 'listening'
+      ? 'Mute microphone'
+      : 'Unmute microphone';
+  const onMic = p.audio?.mutedByHost && p.onUnmuteVoice ? p.onUnmuteVoice : p.onToggleMic;
+  const canPlayPause =
+    p.state.phase === 'live' && p.state.mode !== 'listening' && p.state.mode !== 'answering';
+
   return (
-    <div className="flex h-[54px] shrink-0 items-center gap-3 border-t border-line bg-surface px-3.5">
-      <span
-        className="grid size-[26px] place-items-center rounded-[8px] bg-accent-strong text-[13px] text-on-accent"
-        aria-hidden
+    <>
+      <div
+        className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-2.5 pb-[env(safe-area-inset-bottom)] sm:gap-3 sm:px-3.5"
+        style={{ minHeight: 56 }}
       >
-        ◇
-      </span>
-      <div className="flex min-w-0 flex-auto items-center gap-2.5 border-l border-line-strong pl-2.5">
-        <span className="min-w-0 truncate text-sm text-fg">
-          {p.state.plan?.title ?? p.state.topic}
-        </span>
-        {p.state.phase === 'live' && p.state.mode !== 'complete' ? (
-          <Pill tone="live" dot>
-            Live session
-          </Pill>
-        ) : p.state.mode === 'complete' ? (
-          <Pill tone="accent">Complete</Pill>
-        ) : null}
-        <span className="hidden text-xs text-fg-3 lg:inline">{statusLabel}</span>
-      </div>
-      {total > 0 ? <SegmentDots total={total} done={done} active={p.state.segment} /> : null}
-      <span className="shrink-0 text-sm text-fg-2 tabular">{formatClock(p.clockMs)}</span>
-      <ParticipantsControl
-        state={p.state}
-        isHost={p.isHost}
-        selfId={p.selfId ?? ''}
-        audio={p.audio ?? null}
-        onMute={p.onMuteParticipant ?? null}
-      />
-      {p.isHost ? (
-        <IconButton
-          label={playing ? 'Pause' : 'Resume'}
-          onClick={p.onTogglePlay}
-          disabled={
-            p.state.phase !== 'live' || p.state.mode === 'listening' || p.state.mode === 'answering'
-          }
+        <span
+          className="hidden size-[26px] shrink-0 place-items-center rounded-[8px] bg-accent-strong text-[13px] text-on-accent sm:grid"
+          aria-hidden
         >
-          {playing ? <Pause size={14} /> : <Play size={14} />}
-        </IconButton>
-      ) : null}
-      <PaceMenu
-        value={p.state.pace}
-        onChange={p.onSetPace}
-        disabled={!p.isHost}
-        disabledReason="Only the host sets the pace"
-      />
-      <IconButton
-        label="Captions"
-        state={p.captionsOn ? 'on' : 'default'}
-        onClick={p.onToggleCaptions}
-      >
-        <Captions size={16} />
-      </IconButton>
-      <IconButton
-        label={
-          p.audio?.mutedByHost
-            ? 'Muted by the host — unmute'
-            : p.micState === 'listening'
-              ? 'Mute microphone'
-              : 'Unmute microphone'
-        }
-        state={
-          p.audio?.mutedByHost
-            ? 'warn'
-            : p.micState === 'listening'
-              ? 'on'
-              : p.micState === 'denied'
-                ? 'warn'
-                : 'default'
-        }
-        onClick={p.audio?.mutedByHost && p.onUnmuteVoice ? p.onUnmuteVoice : p.onToggleMic}
-        className="relative"
-      >
-        {p.micState === 'listening' && !p.audio?.mutedByHost ? (
-          <Mic size={18} />
-        ) : (
-          <MicOff size={18} />
-        )}
-        {p.micState === 'listening' ? (
-          <span
-            aria-hidden
-            className="absolute inset-0 rounded-[var(--radius-sm)] ring-2 ring-presence/60"
-            style={{ opacity: Math.min(1, p.micLevel * 12) }}
+          ◇
+        </span>
+        {/* Title and status: the first thing to go when the screen narrows. */}
+        <div className="hidden min-w-0 flex-auto items-center gap-2.5 border-l border-line-strong pl-2.5 md:flex">
+          <span className="min-w-0 truncate text-sm text-fg">
+            {p.state.plan?.title ?? p.state.topic}
+          </span>
+          {p.state.mode === 'complete' ? <Pill tone="accent">Complete</Pill> : null}
+          <span className="hidden text-xs text-fg-3 lg:inline" data-testid="room-status-label">
+            {statusLabel}
+          </span>
+        </div>
+        {/* On a phone the same sentence is the only thing worth the width. */}
+        <span className="min-w-0 flex-auto truncate text-[12.5px] text-fg-2 md:hidden">
+          {statusLabel}
+        </span>
+        {total > 0 ? (
+          <SegmentDots
+            total={total}
+            done={done}
+            active={p.state.segment}
+            className="hidden sm:flex"
           />
         ) : null}
-      </IconButton>
-      <IconButton label="Full screen" onClick={p.onFullscreen}>
-        <Maximize2 size={15} />
-      </IconButton>
-      <Button variant="danger" size="sm" onClick={p.onLeave}>
-        {p.isHost ? 'End' : 'Leave'}
-      </Button>
-    </div>
+        <span className="hidden shrink-0 text-sm text-fg-2 tabular sm:inline">
+          {formatClock(p.clockMs)}
+        </span>
+        <ParticipantsControl
+          state={p.state}
+          isHost={p.isHost}
+          selfId={p.selfId ?? ''}
+          audio={p.audio ?? null}
+          onMute={p.onMuteParticipant ?? null}
+        />
+        {p.isHost ? (
+          <IconButton
+            label={playing ? 'Pause' : 'Resume'}
+            onClick={p.onTogglePlay}
+            disabled={!canPlayPause}
+            className="hidden md:grid"
+          >
+            {playing ? <Pause size={14} /> : <Play size={14} />}
+          </IconButton>
+        ) : null}
+        <PaceMenu
+          value={p.state.pace}
+          onChange={p.onSetPace}
+          disabled={!p.isHost}
+          disabledReason="Only the host sets the pace"
+          className="hidden md:block"
+        />
+        <IconButton
+          label="Captions"
+          state={p.captionsOn ? 'on' : 'default'}
+          onClick={p.onToggleCaptions}
+          className="hidden sm:grid"
+        >
+          <Captions size={16} />
+        </IconButton>
+        {/* The microphone is the point of the product, so on a phone it is the biggest thing here. */}
+        <IconButton
+          label={micLabel}
+          state={
+            p.audio?.mutedByHost
+              ? 'warn'
+              : p.micState === 'listening'
+                ? 'on'
+                : p.micState === 'denied'
+                  ? 'warn'
+                  : 'default'
+          }
+          onClick={onMic}
+          size={44}
+          className="relative sm:[--icon-size:32px]"
+          data-testid="mic-toggle"
+        >
+          {micLive ? <Mic size={20} /> : <MicOff size={20} />}
+          {p.micState === 'listening' ? (
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-[var(--radius-sm)] ring-2 ring-presence/60"
+              style={{ opacity: Math.min(1, p.micLevel * 12) }}
+            />
+          ) : null}
+        </IconButton>
+        {p.onOpenAsk ? (
+          <IconButton label="Open the ask panel" onClick={p.onOpenAsk} className="md:hidden">
+            <MessageSquare size={18} />
+          </IconButton>
+        ) : null}
+        <IconButton label="Full screen" onClick={p.onFullscreen} className="hidden lg:grid">
+          <Maximize2 size={15} />
+        </IconButton>
+        <IconButton
+          label="More controls"
+          onClick={() => setMore(true)}
+          className="md:hidden"
+          data-testid="more-controls"
+        >
+          <Ellipsis size={18} />
+        </IconButton>
+        <Button variant="danger" size="sm" onClick={p.onLeave} className="shrink-0">
+          {p.isHost ? 'End' : 'Leave'}
+        </Button>
+      </div>
+
+      {/* Everything the wide bar shows at once, with the labels spelled out. */}
+      <Sheet
+        open={more}
+        onClose={() => setMore(false)}
+        title={p.state.plan?.title ?? p.state.topic}
+        data-testid="more-sheet"
+      >
+        <p className="mb-2 px-3 text-[13px] text-fg-2">
+          {statusLabel} · {formatClock(p.clockMs)}
+        </p>
+        {total > 0 ? (
+          <div className="mb-2 px-3">
+            <SegmentDots total={total} done={done} active={p.state.segment} />
+          </div>
+        ) : null}
+        {p.isHost ? (
+          <SheetRow
+            label={playing ? 'Pause' : 'Resume'}
+            icon={playing ? <Pause size={16} /> : <Play size={16} />}
+            disabled={!canPlayPause}
+            onClick={() => {
+              p.onTogglePlay();
+              setMore(false);
+            }}
+          />
+        ) : null}
+        <SheetRow
+          label="Captions"
+          hint={p.captionsOn ? 'On' : 'Off'}
+          icon={<Captions size={16} />}
+          pressed={p.captionsOn}
+          onClick={p.onToggleCaptions}
+        />
+        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-3">
+          <span className="flex items-center gap-3 text-[15px] text-fg">
+            <Gauge size={16} className="shrink-0" aria-hidden />
+            Pace
+          </span>
+          <PaceMenu
+            value={p.state.pace}
+            onChange={p.onSetPace}
+            disabled={!p.isHost}
+            disabledReason="Only the host sets the pace"
+          />
+        </div>
+        <SheetRow
+          label="Full screen"
+          icon={<Maximize2 size={16} />}
+          onClick={() => {
+            p.onFullscreen();
+            setMore(false);
+          }}
+        />
+      </Sheet>
+    </>
+  );
+}
+
+// ── ask sheet (phones) ────────────────────────────────────────────────────────
+
+/**
+ * On a phone the question row becomes a sheet, and the mic leads it: talking is
+ * how this product is meant to be used, typing is the fallback for when you
+ * can't.
+ */
+export function AskSheet({
+  open,
+  onClose,
+  expertFirstName,
+  micState,
+  micLive,
+  onToggleMic,
+  onAsk,
+}: {
+  open: boolean;
+  onClose: () => void;
+  expertFirstName: string;
+  micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';
+  micLive: boolean;
+  onToggleMic: () => void;
+  onAsk: (text: string) => void;
+}) {
+  const [text, setText] = useState('');
+  return (
+    <Sheet open={open} onClose={onClose} title={`Ask ${expertFirstName}`} data-testid="ask-sheet">
+      <div className="flex flex-col items-center gap-2 px-3 pt-1 pb-3">
+        <button
+          type="button"
+          onClick={onToggleMic}
+          aria-pressed={micLive}
+          data-testid="ask-mic"
+          className={cn(
+            'grid size-[68px] place-items-center rounded-full transition-colors duration-[var(--duration-fast)] focus-visible:outline-accent',
+            micLive
+              ? 'bg-presence-soft text-presence shadow-[0_0_0_2px_var(--color-presence)]'
+              : 'bg-accent-strong text-on-accent',
+          )}
+        >
+          {micLive ? <Mic size={26} /> : <MicOff size={26} />}
+        </button>
+        <span className="text-[13px] text-fg-2">
+          {micState === 'denied'
+            ? 'Microphone is off in your browser settings'
+            : micLive
+              ? 'Listening — just talk'
+              : 'Tap to talk'}
+        </span>
+      </div>
+      <form
+        className="flex items-center gap-2 px-3 pb-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!text.trim()) return;
+          onAsk(text.trim());
+          setText('');
+          onClose();
+        }}
+      >
+        <input
+          className="h-11 min-w-0 flex-1 rounded-[var(--radius-md)] bg-surface px-3 text-base outline-none hairline focus:shadow-[0_0_0_2px_var(--color-accent)]"
+          placeholder="Or type it"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          aria-label="Ask a question"
+        />
+        <Button
+          variant="primary"
+          type="submit"
+          disabled={!text.trim()}
+          leading={<Send size={14} />}
+        >
+          Ask
+        </Button>
+      </form>
+    </Sheet>
   );
 }
 
@@ -151,10 +505,13 @@ export function CaptionOverlay({
   line,
   hint,
   on,
+  language,
 }: {
   line: CaptionLine | null;
   hint: string | null;
   on: boolean;
+  /** The session's language: Persian, Arabic and Hebrew captions read right to left. */
+  language?: string;
 }) {
   const [shown, setShown] = useState('');
   useEffect(() => {
@@ -179,19 +536,28 @@ export function CaptionOverlay({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [line]);
+  // Room for the orb on the right at every size; the orb itself shrinks with the screen.
+  const box =
+    'pointer-events-none absolute bottom-3 left-3 right-[68px] z-[5] sm:bottom-[18px] sm:left-5 sm:right-[104px] lg:bottom-[22px] lg:left-6 lg:right-[126px]';
   if (!on || !line)
     return hint ? (
-      <div className="pointer-events-none absolute right-[126px] bottom-[22px] left-6 z-[5] text-center text-[12px] text-fg-2">
-        {hint}
+      <div className={cn(box, 'text-center')} data-caption-box>
+        <span
+          className="inline rounded-[2px] px-[0.4em] py-[0.18em] text-[12px] text-white/85"
+          style={{ background: 'var(--color-caption-scrim)' }}
+        >
+          {hint}
+        </span>
       </div>
     ) : null;
   return (
-    <div className="pointer-events-none absolute right-[126px] bottom-[22px] left-6 z-[5]">
+    <div className={box} data-caption-box>
       <Caption
         speaker={line.speaker}
         text={shown || '…'}
         who={line.who}
         live={line.live}
+        {...(language ? { lang: language, dir: dirOf(language) } : {})}
         {...(hint ? { hint } : {})}
       />
     </div>
@@ -203,25 +569,34 @@ export function CheckCard({
   check,
   question,
   onAnswer,
+  language,
 }: {
   check: CheckEvent;
   question: string;
   onAnswer: (text: string) => void;
+  /** The check is asked in the session's language, so it reads in its direction. */
+  language?: string;
 }) {
   const [text, setText] = useState('');
   return (
-    <div className="absolute inset-x-0 bottom-[70px] z-[6] mx-auto w-[min(560px,90%)] animate-rise rounded-[var(--radius-lg)] bg-bg-elevated p-4 shadow-pop">
+    <div className="absolute inset-x-2 bottom-3 z-[6] mx-auto max-h-[70%] w-[min(560px,100%)] animate-rise overflow-y-auto rounded-[var(--radius-lg)] bg-bg-elevated p-4 shadow-pop sm:inset-x-0 sm:bottom-[70px] sm:w-[min(560px,90%)]">
       <div className="mb-1 text-[10px] font-medium tracking-[0.1em] text-accent-strong uppercase">
         Quick check
       </div>
-      <p className="mb-3 text-[15px] font-medium leading-snug text-fg text-pretty">{question}</p>
+      <p
+        className="mb-3 text-[15px] font-medium leading-snug text-fg text-pretty"
+        {...(language ? { lang: language, dir: dirOf(language) } : { dir: 'auto' as const })}
+      >
+        {question}
+      </p>
       {check.options.length > 0 ? (
         <div className="flex flex-col gap-2">
           {check.options.map((o) => (
             <Button
               key={o}
               variant="secondary"
-              className="justify-start text-left"
+              className="justify-start text-start"
+              dir="auto"
               onClick={() => onAnswer(o)}
             >
               {o}
@@ -265,11 +640,15 @@ export function RecapPanel({
   onOpenSaved: () => void;
   onLearnMore: () => void;
 }) {
+  // The lesson's own words — title, recap, the learner's questions — read in its direction.
+  const lang = state.language;
+  const dir = dirOf(lang);
   return (
     <div className="absolute inset-0 z-[7] flex justify-end bg-navy-900/70">
-      <div className="h-full w-[min(430px,86%)] animate-rise overflow-auto bg-bg px-6 pt-6 pb-8 shadow-[-20px_0_50px_rgba(0,0,0,.5)]">
+      {/* A drawer on a wide screen; the whole screen on a phone, where a drawer is just a cramped page. */}
+      <div className="h-full w-full animate-rise overflow-auto bg-bg px-5 pt-6 pb-8 shadow-[-20px_0_50px_rgba(0,0,0,.5)] sm:w-[min(430px,86%)] sm:px-6">
         <h6 className="mb-2 text-accent-strong">Session saved</h6>
-        <h3 className="mb-1.5 leading-[1.14] tracking-[-0.02em] text-pretty">
+        <h3 className="mb-1.5 leading-[1.14] tracking-[-0.02em] text-pretty" lang={lang} dir={dir}>
           {state.plan?.title ?? state.topic}
         </h3>
         <p className="mb-[22px] text-sm text-fg-2">
@@ -277,7 +656,7 @@ export function RecapPanel({
           {questions.length === 1 ? '' : 's'}
         </p>
         <h6 className="mb-2.5 text-fg-2">What {expertFirstName} covered</h6>
-        <div className="mb-6 flex flex-col gap-2">
+        <div className="mb-6 flex flex-col gap-2" lang={lang} dir={dir}>
           {(state.recap ?? []).map((r) => (
             <div key={r} className="flex items-start gap-2.5">
               <span className="mt-2 size-[5px] shrink-0 rounded-full bg-accent" aria-hidden />
@@ -293,7 +672,12 @@ export function RecapPanel({
             </p>
           ) : (
             questions.map((q) => (
-              <div key={q.q} className="border-l-2 border-accent-strong pl-[11px]">
+              <div
+                key={q.q}
+                className="border-accent-strong border-s-2 ps-[11px]"
+                lang={lang}
+                dir={dir}
+              >
                 <p className="mb-1 text-sm text-fg">{q.q}</p>
                 <p className="text-[13px] leading-[1.5] text-fg-2">{q.a}</p>
               </div>
@@ -338,7 +722,14 @@ export function PreparingView({
           )}
         >
           {portraitUrl ? (
-            <img src={portraitUrl} alt={expertName} className="size-full object-cover" />
+            <img
+              src={portraitUrl}
+              alt={expertName}
+              width={92}
+              height={92}
+              decoding="async"
+              className="size-full object-cover"
+            />
           ) : (
             <Avatar name={expertName} size={92} />
           )}
@@ -360,7 +751,7 @@ export function PreparingView({
             style={{ width: `${Math.round((progress?.fraction ?? 0.05) * 100)}%` }}
           />
         </div>
-        <div className="mt-3.5 flex items-center gap-2">
+        <div className="mt-3.5 flex items-center gap-2" aria-live="polite">
           <span className="block size-[13px] animate-spin rounded-full border-2 border-line-strong border-t-accent" />
           <span className="text-sm text-fg-2">{progress?.status ?? 'Connecting…'}</span>
         </div>

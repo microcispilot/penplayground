@@ -13,7 +13,13 @@ export type {
   MediaPlayerErrorCode,
   MediaSayPlayerOptions,
 } from './media-player.js';
-export { MEDIA_RATE_MAX, MEDIA_RATE_MIN, MediaSayPlayer, pcmToWav } from './media-player.js';
+export {
+  MEDIA_RATE_MAX,
+  MEDIA_RATE_MIN,
+  MEDIA_STALL_TIMEOUT_MS,
+  MediaSayPlayer,
+  pcmToWav,
+} from './media-player.js';
 export type { MicrophoneOptions, MicrophoneState } from './microphone.js';
 export { CAPTURE_PROCESSOR_NAME, Microphone } from './microphone.js';
 export { resampleMonoToPcmS16le } from './pcm-resampler.js';

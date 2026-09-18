@@ -96,6 +96,33 @@ export function captureError(
   return id;
 }
 
+/**
+ * A condition worth a human's attention that is not a failure — the day's
+ * spend crossing its warning line, say. Same content-free rule as
+ * `captureError`: codes, numbers and booleans only.
+ */
+export function captureWarning(
+  area: string,
+  message: string,
+  data: Record<string, unknown> = {},
+): string | null {
+  logger.warn({ area, msg: message, ...data });
+  if (!sentryEnabled) return null;
+  let id: string | null = null;
+  Sentry.withScope((scope) => {
+    scope.setLevel('warning');
+    scope.setTag('area', area);
+    for (const [k, v] of Object.entries(data)) {
+      if (v === null || v === undefined) continue;
+      if (TAG_KEYS.has(k) && (typeof v === 'string' || typeof v === 'number'))
+        scope.setTag(k, String(v).slice(0, 200));
+      else if (typeof v === 'number' || typeof v === 'boolean') scope.setExtra(k, v);
+    }
+    id = Sentry.captureMessage(message, 'warning');
+  });
+  return id;
+}
+
 function breadcrumb(name: string, data: Record<string, unknown>): void {
   if (!sentryEnabled || !BREADCRUMB_EVENTS.has(name)) return;
   const safe: Record<string, string | number | boolean> = {};
@@ -104,6 +131,76 @@ function breadcrumb(name: string, data: Record<string, unknown>): void {
     else if (typeof v === 'string' && TAG_KEYS.has(k)) safe[k] = v;
     else if (typeof v === 'string' && v.length <= 32 && /^[\w.:-]+$/.test(v)) safe[k] = v;
   Sentry.addBreadcrumb({ category: name, level: 'info', data: safe });
+}
+
+/**
+ * Sentry Cron heartbeat: every `intervalMinutes` the API runs its own
+ * readiness probe and checks in (`ok` / `error`) against the monitor named by
+ * `SENTRY_CRON_MONITOR_SLUG`. Two failures are therefore visible without
+ * anyone watching: a *missed* check-in (the process is dead, wedged, or the
+ * host is gone) and an *error* check-in (the process runs but cannot serve —
+ * database down, disk full, keys missing).
+ *
+ * The monitor's schedule is upserted with each check-in, so the alert exists
+ * even on a fresh Sentry project and never drifts from this code: interval
+ * `intervalMinutes`, the same again as margin, `failureIssueThreshold: 1`.
+ * A dead API is therefore an issue within two intervals (10 minutes at the
+ * default), which is the number docs/RUNBOOK.md promises.
+ *
+ * Returns a stop function; the caller owns the lifetime. Without a DSN or a
+ * slug it does nothing and says so, so the same code runs in development.
+ */
+export function startCronHeartbeat(
+  cfg: Config,
+  probe: () => Promise<boolean>,
+  opts: { now?: () => number; setInterval?: typeof setInterval } = {},
+): (() => void) | null {
+  const slug = cfg.SENTRY_CRON_MONITOR_SLUG;
+  if (!slug) return null;
+  if (!sentryEnabled) {
+    logger.warn({ slug }, 'SENTRY_CRON_MONITOR_SLUG is set but Sentry is not: no heartbeat');
+    return null;
+  }
+  const minutes = cfg.SENTRY_CRON_INTERVAL_MINUTES;
+  const now = opts.now ?? (() => Date.now());
+  const monitorConfig = {
+    schedule: { type: 'interval', value: minutes, unit: 'minute' },
+    // Missed by more than one interval → issue; one good check-in closes it.
+    checkinMargin: minutes,
+    maxRuntime: Math.max(1, Math.ceil(minutes / 2)),
+    timezone: 'Etc/UTC',
+    failureIssueThreshold: 1,
+    recoveryThreshold: 1,
+  } as const;
+
+  const beat = async (): Promise<void> => {
+    const startedAt = now();
+    let ok = false;
+    try {
+      ok = await probe();
+    } catch (error) {
+      captureError('heartbeat.probe', error);
+      ok = false;
+    }
+    const duration = Math.max(0, (now() - startedAt) / 1000);
+    try {
+      Sentry.captureCheckIn(
+        { monitorSlug: slug, status: ok ? 'ok' : 'error', duration },
+        monitorConfig,
+      );
+      logger.debug({ evt: 'heartbeat', slug, ok, duration });
+    } catch (error) {
+      // Never let telemetry take the process down: the lesson matters more.
+      captureError('heartbeat.checkin', error, { slug });
+    }
+  };
+
+  void beat();
+  const schedule = opts.setInterval ?? setInterval;
+  const timer = schedule(() => void beat(), minutes * 60_000);
+  timer.unref?.();
+  logger.info({ slug, minutes, environment: cfg.SENTRY_ENVIRONMENT }, 'sentry cron heartbeat on');
+  return () => clearInterval(timer);
 }
 
 /** Structured events to logs (+ breadcrumbs); failures to logs + Sentry with content-free context. */

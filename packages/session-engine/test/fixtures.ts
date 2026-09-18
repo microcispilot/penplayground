@@ -109,10 +109,21 @@ export class MemoryTransport implements RoomTransport {
 /** Records which voice and speed each sentence was synthesised with; audio itself is silent. */
 export class SpySynthesizer implements SpeechSynthesizer {
   readonly id = 'spy';
-  readonly requests: Array<{ text: string; voice: string; speed: number | null }> = [];
+  readonly requests: Array<{
+    text: string;
+    voice: string;
+    speed: number | null;
+    /** Present only for the taught lesson: the mark that says "this may be stored". */
+    lesson: SynthesisRequest['lesson'];
+  }> = [];
   private readonly inner = new SilentSynthesizer();
   synthesize(request: SynthesisRequest) {
-    this.requests.push({ text: request.text, voice: request.voice, speed: request.speed ?? null });
+    this.requests.push({
+      text: request.text,
+      voice: request.voice,
+      speed: request.speed ?? null,
+      lesson: request.lesson,
+    });
     return this.inner.synthesize(request);
   }
   voicesFor(text: string): string[] {

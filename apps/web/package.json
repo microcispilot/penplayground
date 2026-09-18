@@ -9,7 +9,8 @@
     "preview": "vite preview --port 5173",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "csp:print": "tsx scripts/print-csp.ts"
   },
   "dependencies": {
     "@pen/app": "workspace:*",
@@ -19,6 +20,8 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@pen/contracts": "workspace:*",
     "@playwright/test": "1.63.0",
     "@sentry/vite-plugin": "5.4.0",
     "@tailwindcss/vite": "4.3.3",
@@ -28,6 +31,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vite": "8.3.0",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "tsx": "4.23.13"
   }
 }

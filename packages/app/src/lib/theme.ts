@@ -24,7 +24,11 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** The current theme and a setter; the first mount applies the stored choice to the document. */
+/**
+ * The current theme and a setter. Reading does not touch the document — the
+ * boot script in the host's index.html has already stamped the stored choice
+ * on `<html>` before React runs, so there is no flash to undo here.
+ */
 export function useTheme(): [Theme, (theme: Theme) => void] {
   const theme = useSyncExternalStore(subscribe, get, () => 'light' as const);
   return [theme, setTheme];

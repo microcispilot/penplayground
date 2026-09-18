@@ -16,6 +16,16 @@ const webPort = process.env.PEN_WEB_PORT ?? '5173';
  */
 const roomsApiPort = process.env.PEN_E2E_ROOMS_API_PORT ?? '4014';
 const roomsWebPort = process.env.PEN_E2E_ROOMS_WEB_PORT ?? '5174';
+/**
+ * A third pair for the UI specs (`ui-*.spec.ts`): screenshots, the replay
+ * scrubber and the accessibility sweep. Ads are deliberately off here — the ad
+ * pair above exists to exercise them, and an ad overlay in the middle of a
+ * screenshot or an axe run is noise, not coverage.
+ */
+const uiApiPort = process.env.PEN_E2E_UI_API_PORT ?? '4023';
+const uiWebPort = process.env.PEN_E2E_UI_WEB_PORT ?? '5183';
+/** The production build, served by `vite preview`: where load performance is measured. */
+const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
 
 export default defineConfig({
   testDir: './e2e',
@@ -37,6 +47,9 @@ export default defineConfig({
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
         '--autoplay-policy=no-user-gesture-required',
+        // A local TURN server is on 127.0.0.1, and Chrome silently drops ICE servers on a
+        // loopback address without this (rooms-turn.spec.ts). Local testing only.
+        '--allow-loopback-in-peer-connection',
       ],
     },
   },
@@ -59,6 +72,10 @@ export default defineConfig({
         // (the fake lesson has three segments) — see e2e/ads.spec.ts.
         PEN_AD_TEST_TAGS: '1',
         PEN_ADS_EVERY_SEGMENTS: '1',
+        // Every spec starts its sessions from 127.0.0.1, and some leave the
+        // room live on purpose; the production per-IP cap (5) would refuse the
+        // later ones. The cap itself is covered by services/api/test/limits.test.ts.
+        PEN_MAX_SESSIONS_PER_IP: '50',
       },
       timeout: 60_000,
     },
@@ -82,8 +99,11 @@ export default defineConfig({
         DATABASE_URL: 'pglite://memory',
         PEN_LOG_LEVEL: 'warn',
         PEN_DEV_PLAN: 'professional',
+        PEN_MAX_SESSIONS_PER_IP: '50',
         LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
         LIVEKIT_API_KEY: process.env.PEN_E2E_LIVEKIT_API_KEY ?? 'devkey',
+        // `livekit-server --dev` uses "secret"; deploy/livekit/livekit.dev.yaml (the TURN
+        // configuration rooms-turn.spec.ts needs) uses a 32-character one, which LiveKit requires.
         LIVEKIT_API_SECRET: process.env.PEN_E2E_LIVEKIT_API_SECRET ?? 'secret',
       },
       timeout: 60_000,
@@ -94,6 +114,41 @@ export default defineConfig({
       env: { PEN_API_PORT: roomsApiPort },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
+    },
+    {
+      command: 'pnpm --filter @pen/api start',
+      url: `http://127.0.0.1:${uiApiPort}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        PEN_PORT: uiApiPort,
+        PEN_PUBLIC_URL: `http://localhost:${uiWebPort}`,
+        PEN_LLM_PROVIDER: 'fake',
+        PEN_TTS_PROVIDER: 'silent',
+        PEN_DATA_DIR: '.pen-data-e2e-ui',
+        DATABASE_URL: 'pglite://memory',
+        PEN_LOG_LEVEL: 'warn',
+        // The UI specs teach a lesson each and several leave the room live on
+        // purpose (a dropped connection, a screenshot mid-sentence), so they
+        // run past the production cap of 5 live rooms per address and every
+        // later spec gets `RATE_LIMITED` instead of a board. The cap itself is
+        // covered by services/api/test/limits.test.ts.
+        PEN_MAX_SESSIONS_PER_IP: '50',
+      },
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm --filter @pen/web exec vite --port ${uiWebPort} --strictPort`,
+      url: `http://localhost:${uiWebPort}`,
+      env: { PEN_API_PORT: uiApiPort },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm --filter @pen/web build && pnpm --filter @pen/web exec vite preview --port ${previewPort} --strictPort`,
+      url: `http://localhost:${previewPort}`,
+      env: { PEN_API_PORT: uiApiPort },
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
     },
   ],
 });

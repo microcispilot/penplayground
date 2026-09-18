@@ -1,7 +1,25 @@
-import { Board } from '@pen/board';
 import type { BoardPort } from '@pen/conductor';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LazyBoard } from '../room/LazyBoard.js';
+
+/**
+ * tldraw, the ink fonts and the code highlighter are the heaviest thing the
+ * product ships, and only two screens ever paint them. Importing `@pen/board`
+ * through `lazy()` keeps that whole graph out of the entry bundle, so Explore
+ * loads without it. Nothing is lost while the chunk arrives: `LazyBoard`
+ * buffers every cue until the real board attaches (ADR-0002 — the audio clock
+ * is master, the board only ever follows).
+ */
+const Board = lazy(async () => ({ default: (await import('@pen/board')).Board }));
+
+/**
+ * Start fetching the board chunk before it is rendered. The room calls this
+ * while it is still preparing, so the paper is ready by the first cue instead
+ * of the download landing on the first stroke.
+ */
+export function preloadBoard(): void {
+  void import('@pen/board');
+}
 
 /**
  * Mounts the shared board once and attaches its controller to whichever
@@ -19,5 +37,9 @@ export function BoardSurface({
   useEffect(() => {
     if (controller && session) session.board.attach(controller);
   }, [controller, session]);
-  return <Board licenseKey={licenseKey} onReady={setController} />;
+  return (
+    <Suspense fallback={<div className="size-full paper" aria-hidden />}>
+      <Board licenseKey={licenseKey} onReady={setController} />
+    </Suspense>
+  );
 }

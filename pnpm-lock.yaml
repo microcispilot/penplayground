@@ -118,6 +118,12 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@axe-core/playwright':
+        specifier: ^4.13.0
+        version: 4.13.0(playwright-core@1.63.0)
+      '@pen/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -139,6 +145,9 @@ importers:
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
+      tsx:
+        specifier: 4.23.13
+        version: 4.23.13
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -333,9 +342,6 @@ importers:
 
   packages/design:
     dependencies:
-      '@fontsource-variable/fraunces':
-        specifier: 5.3.0
-        version: 5.3.0
       '@fontsource-variable/inter':
         specifier: 5.3.0
         version: 5.3.0
@@ -624,6 +630,11 @@ importers:
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.20.3)(happy-dom@20.14.5)(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13))
 
 packages:
+
+  '@axe-core/playwright@4.13.0':
+    resolution: {integrity: sha512-6YLx+kxXu5GJceG4ozFg+33a2EMTdjYwWGloJ3sb9Kta5pp+ZNS53uxGVog5JetIY8s++P5UrtX+cri+u0VAVg==}
+    peerDependencies:
+      playwright-core: '>= 1.0.0'
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -1366,9 +1377,6 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
-
-  '@fontsource-variable/fraunces@5.3.0':
-    resolution: {integrity: sha512-9BYGySn4AHEJdgp9Z28tQ3X+laJMEOITXkQarZXeloWQZDq5oOvXJ3kDA8c7MGIfpogIaZfjrQBqmda8POOCKA==}
 
   '@fontsource-variable/inter@5.3.0':
     resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
@@ -3324,6 +3332,10 @@ packages:
   author-regex@1.0.0:
     resolution: {integrity: sha512-KbWgR8wOYRAPekEmMXrYYdc7BRyhn2Ftk7KWfMUnQ43hFdojWEFRxhhRUm3/OFEdPa1r0KAvTTg9YQK57xTe0g==}
     engines: {node: '>=0.8'}
+
+  axe-core@4.13.0:
+    resolution: {integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==}
+    engines: {node: '>=4'}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -6061,6 +6073,11 @@ packages:
 
 snapshots:
 
+  '@axe-core/playwright@4.13.0(playwright-core@1.63.0)':
+    dependencies:
+      axe-core: 4.13.0
+      playwright-core: 1.63.0
+
   '@babel/code-frame@7.29.7':
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
@@ -6886,8 +6903,6 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
 
   '@floating-ui/utils@0.2.12': {}
-
-  '@fontsource-variable/fraunces@5.3.0': {}
 
   '@fontsource-variable/inter@5.3.0': {}
 
@@ -8942,6 +8957,8 @@ snapshots:
   atomic-sleep@1.0.0: {}
 
   author-regex@1.0.0: {}
+
+  axe-core@4.13.0: {}
 
   balanced-match@1.0.2: {}
 

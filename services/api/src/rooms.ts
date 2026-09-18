@@ -5,7 +5,7 @@ import type {
   SelectionBand,
   ServerMessage,
 } from '@pen/contracts';
-import { encodeAudioFrame, freshEstimateUsd, llmCostLines } from '@pen/contracts';
+import { encodeAudioFrame, freshEstimateUsd, llmCostLines, PLAN_LIMITS } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import {
   newSessionId,
@@ -79,6 +79,9 @@ export class RoomRegistry {
         counter.stageEvents += 1;
         services.analytics.capture(args.host.id, 'stage', stageProperties(sessionId, sample));
       },
+      // The breaker counts the very lines the ledger records, so the cap and
+      // the Insights tab can never disagree about what today cost (ADR-0016).
+      onCost: (line) => services.spend.record(line),
     });
     const modelId = services.modelFor(args.host.plan).id;
     // Intake (language + clean title) and an English resolution run concurrently: most topics are
@@ -145,7 +148,12 @@ export class RoomRegistry {
     // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
     const memoised =
       !args.expertId && resolution.packId
-        ? await services.onten.memo.find(resolution.canonicalKnowledgeId, args.band)
+        ? await services.onten.memo.find(
+            resolution.canonicalKnowledgeId,
+            args.band,
+            undefined,
+            locale,
+          )
         : null;
     const memoExpert = memoised ? services.experts.get(memoised.expertId) : null;
     const expert =
@@ -213,6 +221,7 @@ export class RoomRegistry {
       band: args.band,
       domain: resolution.domainBoundary,
       visibility: args.visibility,
+      language: locale,
       startedAt: Date.now(),
       endedAt: null,
       durationMs: 0,
@@ -256,6 +265,8 @@ export class RoomRegistry {
         title: state.plan.title,
         promise: state.plan.promise,
         segments: state.plan.segments.length,
+        // The room may have switched language with the learner; the saved page follows it.
+        language: state.language,
       });
       // Card copy + sketch in the background (ADR-0013): the first audio never waits for it.
       services.meta.enqueue({
@@ -265,6 +276,8 @@ export class RoomRegistry {
         topic: args.topic,
         plan: state.plan,
         language: state.language,
+        // The lesson memo's scope is the card's too: a topic taught before reuses its sketch.
+        canonicalId: resolution.canonicalKnowledgeId,
         cacheKey: roomCacheKey(expert.id, args.band),
         telemetry: metrics,
       });
@@ -387,13 +400,24 @@ export class RoomRegistry {
     setTimeout(() => this.rooms.delete(sessionId), 60_000);
   }
 
-  /** Idle rooms (no seats for 10 minutes) are ended to bound cost. */
+  /**
+   * Rooms nobody is in (10 minutes) and rooms that have run their plan's full
+   * length are ended. The length ceiling is what stops a tab left open
+   * overnight from quietly spending all night (PLAN_LIMITS.maxSessionMinutes).
+   */
   sweep(now = Date.now()): void {
     for (const [id, live] of this.rooms) {
       const state = live.room.getState();
       if (state.phase === 'ended') continue;
       const idle = live.seats.size === 0 && now - live.createdAt > 10 * 60_000;
-      const tooLong = now - live.createdAt > 3 * 60 * 60_000;
+      const ceilingMs = PLAN_LIMITS[live.plan].maxSessionMinutes * 60_000;
+      const tooLong = now - live.createdAt > ceilingMs;
+      if (tooLong)
+        observer.event('room.length_ceiling', {
+          sessionId: id,
+          plan: live.plan,
+          minutes: PLAN_LIMITS[live.plan].maxSessionMinutes,
+        });
       if (idle || tooLong) void this.end(id);
     }
   }

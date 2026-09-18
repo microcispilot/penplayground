@@ -1,4 +1,10 @@
-import { AD_RULES, GOOGLE_IMA_SAMPLE_TAG, hasEntitlement, type PlanCode } from '@pen/contracts';
+import {
+  AD_RULES,
+  GOOGLE_IMA_SAMPLE_TAG,
+  hasEntitlement,
+  nonPersonalisedTag,
+  type PlanCode,
+} from '@pen/contracts';
 import type { AdOutcome, AdPolicy } from '@pen/session-engine';
 import type { Config } from './config.js';
 import { logger } from './logger.js';
@@ -78,7 +84,10 @@ export class AdEconomics {
       everySegments,
       durationMs: AD_RULES.maxDurationMs,
       skippableAfterMs: AD_RULES.skipAfterMs,
-      tagUrl: this.demand.tagUrl,
+      // Non-personalised from the server out, so there is never a request that
+      // would have needed consent (ADR-0018). The client adds `ltd=1` on top
+      // where European rules may reach the viewer.
+      tagUrl: nonPersonalisedTag(this.demand.tagUrl),
       revenuePerCompletionUsd: this.ecpmUsd / 1000,
       onEvent: (o) => this.record(o),
     };

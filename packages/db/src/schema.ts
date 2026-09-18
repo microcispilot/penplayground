@@ -32,6 +32,14 @@ export const participants = pgTable(
     googleSub: text('google_sub'),
     avatarUrl: text('avatar_url'),
     stripeCustomerId: text('stripe_customer_id'),
+    /**
+     * The learner turned analytics off under "Privacy choices". There is no
+     * consent banner to answer (ADR-0018): analytics are cookieless and
+     * content-free by construction, and this is the switch for anyone who
+     * would rather not be counted at all — honoured on the server as well as
+     * in the browser.
+     */
+    analyticsOptOut: boolean('analytics_opt_out').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -64,6 +72,8 @@ export const sessions = pgTable(
     thumbnail: text('thumbnail'),
     /** `${lang}.${slug}` from the Onten registry: groups same-intent sessions for reuse statistics. */
     canonicalId: text('canonical_id'),
+    /** BCP-47 language the session was taught in; drives `<html lang>`, caption direction and dates. */
+    language: text('language').notNull().default('en-US'),
     /** Card / Open Graph copy from the same call; empty until then. */
     description: text('description').notNull().default(''),
     keywords: jsonb('keywords').$type<string[]>().notNull().default([]),

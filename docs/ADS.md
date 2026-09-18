@@ -74,16 +74,54 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
 
 - **Ad blockers**: the SDK has 2 s to appear, the tag 8 s to produce a playable ad; otherwise
   the lesson resumes (event `ad_error` with `SDK_TIMEOUT` / `PEN_AD_SDK_BLOCKED` / `TIMEOUT`).
+- **A creative that starts and then shows nothing**: `STARTED` means the SDK handed the slot over,
+  not that a frame was decoded. If nothing follows it — no `AD_PROGRESS`, no quartile, no
+  `timeupdate`, no falling remaining time — within 4 s (`AD_RULES.progressTimeoutMs`) the ad is
+  over and the lesson resumes, reported as `ad_error` with `STALLED`. A blocker that kills the
+  media request mid-roll, a dead CDN edge and a wedged media pipeline all look like this from the
+  outside, and it is why `apps/web/e2e/ads.spec.ts` passes on a runner where the sample creative
+  starts and then plays nothing. On this runner that is not the tag and not the codec: the same tag
+  on a bare page plays through (29 `AD_PROGRESS` events, clock at 7.5 s), and the identical run in
+  the same browser *after* a room has been opened reaches `start` and stops (0 `AD_PROGRESS`,
+  clock 0.00). Opening a room stops Chromium's out-of-process audio service rendering for the rest
+  of that browser — the same thing that freezes a replay's audio, and an ad always comes after a
+  lesson. That is an open defect in its own right (tasks/todo.md, "Chromium's audio service stops
+  rendering"); the watchdog is what keeps the lesson moving until it is fixed.
 - **Autoplay**: with sound after any gesture on the page; otherwise muted with "Tap to unmute";
   one muted retry on IMA error 1205.
 - **Ceiling**: 30 s, enforced by the conductor even if the creative misbehaves (`ad_error CEILING`).
 - **Desktop**: the Electron renderer's CSP (`apps/desktop/index.html`) allows
   `imasdk.googleapis.com`, `*.doubleclick.net`, `*.googlesyndication.com` and `https:` media.
+- **The web CSP** has to carry more than the obvious three: the SDK pulls a second script from
+  `*.2mdn.net`, beacons its timings to `csi.gstatic.com`, and the creative streams from a
+  `*.gvt1.com` edge that `redirector.gvt1.com` picks per request. Without `*.2mdn.net` the SDK's
+  own video client is blocked outright and the tag times out at 8 s (`ad_error TIMEOUT`, observed);
+  the other two were reported as violations on the same run. They are in `apps/web/csp.ts` and
+  re-derived by running the suite with `PEN_CSP_REPORT_ONLY=1` (docs/DEPLOY.md).
 - **Measurement**: `ad_requested, ad_loaded, ad_started, ad_first_quartile, ad_midpoint,
   ad_third_quartile, ad_completed, ad_skipped {atMs}, ad_error {code}, ad_clicked` — PostHog
   (client, `VITE_POSTHOG_TOKEN`) and the room socket (`ad_event`, host only, once per step).
   Per session: `session_ended` carries `adsCompleted / adsSkipped / adsErrors /
   adRevenueEstimateUsd`; the cost ledger has a negative `ads` line.
+
+## Personalisation: we do not ask, so we do not get it (ADR-0018)
+
+Every request this product makes carries **`npa=1`** (non-personalised ads), added by the API so
+no tag can leave without it. Where European rules may reach the viewer the client adds **`ltd=1`**
+(limited ads), which Google documents as serving without reading or writing local identifiers —
+the mode that needs no TCF consent. The region signal is the viewer's own timezone: anything under
+`Europe/` counts, and an unknown zone counts too, because over-including costs a little money and
+under-including serves the wrong kind of ad to someone the rules protect.
+
+**The trade-off, plainly:** non-personalised in-stream inventory earns less than personalised —
+commonly quoted at 30–50 % less on the open exchange. `PEN_AD_ECPM_USD` defaults to 8, the low end
+of the 2026 benchmark range (ADR-0014), so the estimate in `docs/COST.md` already assumes the
+lower number rather than the headline one. What it buys is that a learner never meets a consent
+wall between "I want to learn Swift" and the first spoken sentence, and that there is no
+advertising profile of anyone who uses this product.
+
+If personalised ads are ever wanted, that is the day a TCF 2.2 CMP is needed — a deliberate
+decision with revenue attached, not a banner added to be safe.
 
 ## Policy notes
 
@@ -93,4 +131,5 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
 - Children's content: sessions are general-audience learning; if a topic is directed at children
   the request must be tagged for child-directed treatment (`tfcd=1` on the tag). Not wired yet.
 - Consent (EEA/UK): Ad Manager's own consent handling needs a TCF 2.2 CMP before serving
-  personalised ads there; until one exists serve non-personalised (`npa=1` on the tag).
+  *personalised* ads there. We do not serve those at all: `npa=1` everywhere and `ltd=1` in
+  Europe (see above), so no CMP is required.

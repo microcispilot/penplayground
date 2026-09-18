@@ -6,7 +6,7 @@ import type {
   RoomState,
 } from '@pen/contracts';
 import { describe, expect, it } from 'vitest';
-import { Conductor } from '../src/conductor.js';
+import { Conductor, WAITING_AFTER_MS } from '../src/conductor.js';
 import type {
   AudioPort,
   BoardExecution,
@@ -109,6 +109,10 @@ class FakePresence implements PresencePort {
   }
   showAd(a: unknown) {
     this.ads.push(a);
+  }
+  waiting = false;
+  setWaiting(w: boolean) {
+    this.waiting = w;
   }
   notice(t: string | null) {
     if (t) this.notices.push(t);
@@ -235,8 +239,10 @@ describe('Conductor', () => {
     c.handleAudio(frame('L0.s1'), new Uint8Array(4));
     c.audioEvents.onSayStart('L0.s1@0');
     audio.clock = { sayId: 'L0.s1@0', offsetMs: 900 };
+    // Counted as a delta: joining the room cancels once to start the clock clean.
+    const cancelsBefore = audio.cancelled;
     c.onSpeechStart();
-    expect(audio.cancelled).toBe(1);
+    expect(audio.cancelled).toBe(cancelsBefore + 1);
     expect(board.dimmed).toBe(true);
     expect(board.executed[0]?.exec.paused).toBe(1);
     expect(transport.sent.at(-1)).toEqual({
@@ -482,8 +488,9 @@ describe('Conductor', () => {
     expect(audio.paused).toBe(true);
     expect(transport.sent.at(-1)).toEqual({ kind: 'control', action: 'pause' });
     c.handleServer({ kind: 'state', state: state('paused') });
+    const cancelsBefore = audio.cancelled;
     c.control('resume');
-    expect(audio.cancelled).toBe(1);
+    expect(audio.cancelled).toBe(cancelsBefore + 1);
     expect(transport.sent.at(-1)).toEqual({ kind: 'control', action: 'resume' });
   });
 });
@@ -542,5 +549,204 @@ describe('Conductor pace', () => {
     expect(board.executed.map((e) => [e.op.id, e.paceMs, e.rate])).toEqual([['L0.b1', 1500, 1.8]]);
     c.setPlaybackRate(Number.NaN);
     expect(c.boardRate).toBe(0.9);
+  });
+});
+
+describe('Conductor honest states', () => {
+  /**
+   * The bug the ads agent reported: the bottom bar stayed on "Answering you"
+   * after a check's feedback. The mic tripping during the feedback sentence
+   * cancelled its audio, so the sentence never reached `onSayEnd` and the
+   * client could never honestly tell the room the turn had finished playing.
+   */
+  it('a barge-in during a turn still settles the turn: resumed is sent for the abandoned audio', () => {
+    const { c, audio, transport } = setup();
+    c.handleServer({ kind: 'state', state: state('checking') });
+    c.answerCheck('L1.c1', 'a list of numbers');
+    c.handleServer({ kind: 'state', state: state('thinking', { floor: HOST }) });
+    c.handleServer({ kind: 'state', state: state('answering', { floor: HOST }) });
+    c.handleServer({ kind: 'cue', cue: say(10, 't1.s1', 'Exactly that.', 't1') });
+    c.handleAudio(frame('t1.s1', 0, false), new Uint8Array(4));
+    c.audioEvents.onSayStart('t1.s1@0');
+    expect(c.getPhase()).toBe('playing');
+
+    // The mic trips mid-feedback: the player is cancelled, so this say never ends.
+    audio.clock = { sayId: 't1.s1@0', offsetMs: 400 };
+    c.onSpeechStart();
+    expect(c.getPhase()).toBe('listening');
+
+    c.handleServer({ kind: 'turn_done', thread: 't1' });
+    expect(transport.sent.filter((m) => m.kind === 'resumed')).toHaveLength(1);
+  });
+
+  it('a turn that plays to the end still sends resumed exactly once', () => {
+    const { c, transport } = setup();
+    c.handleServer({ kind: 'state', state: state('answering', { floor: HOST }) });
+    c.handleServer({ kind: 'cue', cue: say(10, 't1.s1', 'Exactly that.', 't1') });
+    c.audioEvents.onSayStart('t1.s1@0');
+    c.audioEvents.onSayEnd('t1.s1@0', 1200);
+    c.handleServer({ kind: 'turn_done', thread: 't1' });
+    expect(transport.sent.filter((m) => m.kind === 'resumed')).toHaveLength(1);
+  });
+
+  it('lesson sentences are never abandoned: they come back with a new take', () => {
+    const { c, audio, transport } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'A long sentence.') });
+    c.audioEvents.onSayStart('L0.s1@0');
+    audio.clock = { sayId: 'L0.s1@0', offsetMs: 900 };
+    c.onSpeechStart();
+    // Nothing to resume: the lesson thread never reports a turn.
+    expect(transport.sent.some((m) => m.kind === 'resumed')).toBe(false);
+  });
+
+  it('says the expert is thinking when nothing is heard or written for the waiting beat', () => {
+    const { c, presence, timers } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'One sentence.') });
+    c.audioEvents.onSayStart('L0.s1@0');
+    expect(presence.waiting).toBe(false);
+    c.audioEvents.onSayEnd('L0.s1@0', 900);
+    // The gap after the sentence: the watchdog is armed for the waiting beat.
+    const watch = timers.filter((t) => t.ms === WAITING_AFTER_MS).at(-1);
+    expect(watch).toBeDefined();
+    watch?.fn();
+    expect(presence.waiting).toBe(true);
+    // The next sentence starts: the line goes away without anyone asking.
+    c.handleServer({ kind: 'cue', cue: say(1, 'L0.s2', 'The next one.') });
+    c.audioEvents.onSayStart('L0.s2@0');
+    expect(presence.waiting).toBe(false);
+  });
+
+  it('never claims the expert is thinking while the learner has the floor', () => {
+    const { c, presence, timers } = setup();
+    c.handleServer({ kind: 'state', state: state('listening', { floor: HOST }) });
+    for (const t of timers.filter((t) => t.ms === WAITING_AFTER_MS)) t.fn();
+    expect(presence.waiting).toBe(false);
+  });
+
+  it('says the expert is thinking while the room composes an answer', () => {
+    const { c, presence, timers } = setup();
+    c.handleServer({ kind: 'state', state: state('thinking', { floor: HOST }) });
+    const watch = timers.filter((t) => t.ms === WAITING_AFTER_MS).at(-1);
+    watch?.fn();
+    expect(presence.waiting).toBe(true);
+  });
+});
+
+describe('Conductor fast-forward (replay seek)', () => {
+  /**
+   * "Jump to cue N" is the same catch-up a late joiner gets: every board op
+   * before the target sentence is drawn in its finished state, in cue order,
+   * and then the lesson continues at the recorded pace.
+   */
+  it('renders the whole backlog instantly and in cue order, then paces what follows', () => {
+    const { c, board } = setup();
+    c.handleServer({
+      kind: 'ready',
+      participantId: HOST,
+      state: state('teaching'),
+      backlog: [
+        say(0, 'L0.s1', 'First sentence.'),
+        boardCue(1, 'L0.b1', 'L0.s1', 'the cat sat'),
+        boardCue(2, 'L0.b2', 'after:L0.s1', 'token → vector'),
+        say(3, 'L0.s2', 'Second sentence.'),
+      ],
+    });
+    // Both ops are on the paper already, finished, in the order they were written.
+    expect(board.executed.map((e) => e.op.id)).toEqual(['L0.b1', 'L0.b2']);
+    for (const e of board.executed) expect(e.exec.finished).toBe(1);
+
+    // From the target sentence on, the board is written at the human pace again.
+    c.handleServer({ kind: 'cue', cue: boardCue(4, 'L0.b3', 'L0.s2', 'and then this') });
+    c.handleServer({ kind: 'say_complete', sayId: 'L0.s2', durationMs: 2400 });
+    c.audioEvents.onSayStart('L0.s2@0');
+    const live = board.executed.at(-1);
+    expect(live?.op.id).toBe('L0.b3');
+    expect(live?.paceMs).toBe(2400);
+    expect(live?.exec.finished).toBe(0);
+  });
+
+  it('draws `now`-anchored ops in a backlog too, instead of dropping them', () => {
+    const { c, board } = setup();
+    const nowOp: Cue = {
+      seq: 1,
+      segment: 0,
+      thread: 'lesson',
+      at: 0,
+      event: {
+        type: 'board',
+        id: 'L0.b1',
+        anchor: 'now',
+        op: 'write',
+        text: 'drawn on arrival',
+        lang: '',
+        ref: '',
+        ref2: '',
+        place: 'flow',
+        emphasis: 'ink',
+      },
+    };
+    c.handleServer({
+      kind: 'ready',
+      participantId: HOST,
+      state: state('teaching'),
+      backlog: [say(0, 'L0.s1', 'First.'), nowOp],
+    });
+    expect(board.executed.map((e) => e.op.id)).toEqual(['L0.b1']);
+    expect(board.executed[0]?.exec.finished).toBe(1);
+  });
+
+  it('a sentence entered part-way through gets only the time it has left', () => {
+    const { c, board, captions } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'A four second sentence.') });
+    c.handleServer({ kind: 'cue', cue: boardCue(1, 'L0.b1', 'L0.s1', 'with the sentence') });
+    c.handleServer({ kind: 'say_complete', sayId: 'L0.s1', durationMs: 4000 });
+    // The seek landed 1.5 s in: the pen and the caption have 2.5 s, not 4 s.
+    c.startNextSayAt(1500);
+    c.audioEvents.onSayStart('L0.s1@0');
+    expect(board.executed[0]?.paceMs).toBe(2500);
+    expect(captions.reveals.at(-1)).toBe(2500);
+
+    // It applies once: the next sentence is timed normally again.
+    c.handleServer({ kind: 'cue', cue: say(2, 'L0.s2', 'The next one.') });
+    c.handleServer({ kind: 'cue', cue: boardCue(3, 'L0.b2', 'L0.s2', 'more') });
+    c.handleServer({ kind: 'say_complete', sayId: 'L0.s2', durationMs: 3000 });
+    c.audioEvents.onSayStart('L0.s2@0');
+    expect(board.executed.at(-1)?.paceMs).toBe(3000);
+  });
+});
+
+describe('Conductor rejoin', () => {
+  /**
+   * After a drop the room replays its state and cue backlog. Audio banked
+   * before the gap belongs to a clock the resumed stream no longer shares, so
+   * a rejoin starts the audio clean — otherwise the player rejects every new
+   * chunk on a clock discontinuity and the room goes quiet.
+   */
+  it('drops audio banked before the gap and rebuilds the board from the backlog', () => {
+    const { c, audio, board } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'Before the drop.') });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    expect(audio.enqueued).toEqual(['L0.s1@0']);
+    const cancelledBefore = audio.cancelled;
+
+    // The socket came back and the room re-admitted us.
+    c.handleServer({
+      kind: 'ready',
+      participantId: HOST,
+      state: state('teaching'),
+      backlog: [
+        say(0, 'L0.s1', 'Before the drop.'),
+        boardCue(1, 'L0.b1', 'L0.s1', 'written while away'),
+      ],
+    });
+    expect(audio.cancelled).toBe(cancelledBefore + 1);
+    // What was written while we were gone is on the paper, finished.
+    expect(board.executed.map((e) => e.op.id)).toEqual(['L0.b1']);
+    expect(board.executed[0]?.exec.finished).toBe(1);
+
+    // And the resumed stream plays.
+    c.handleAudio(frame('L0.s2'), new Uint8Array(4));
+    expect(audio.enqueued).toEqual(['L0.s1@0', 'L0.s2@0']);
   });
 });

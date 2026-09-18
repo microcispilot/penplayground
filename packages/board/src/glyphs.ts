@@ -1,6 +1,7 @@
 import type { GlyphSource } from './font.js';
 import { createRng, jitter } from './rng.js';
 import { sanitisePathData } from './svg-path.js';
+import { hasRtlChars } from './text-direction.js';
 
 /**
  * Handwritten text layout: glyph outlines from the hand font, kerned, wrapped
@@ -15,7 +16,13 @@ export type GlyphKind =
   /** Synthesised pen strokes for symbols the font lacks (√ → ≤ …); stroked, not filled. */
   | 'stroke'
   /** No outline at all: the renderer draws the character as text in the CSS hand font. */
-  | 'fallback';
+  | 'fallback'
+  /**
+   * A whole line of right-to-left text (Arabic script, Hebrew). Its letters
+   * join and run the other way, so the browser shapes the run as one `<text>`
+   * element instead of the pen placing each glyph. `char` is the line.
+   */
+  | 'run';
 
 export interface GlyphPlacement {
   char: string;
@@ -30,6 +37,10 @@ export interface GlyphPlacement {
   advance: number;
   /** Degrees, applied around (x, y). */
   rotation: number;
+  /** `run` only: how many characters the run covers, so the reveal can pace it. */
+  chars?: number;
+  /** `run` only: the run is drawn right to left and anchored at its right edge. */
+  rtl?: boolean;
 }
 
 export interface TextLine {
@@ -64,6 +75,12 @@ export interface HandTextOptions {
   /** Multiplier of fontSize; Caveat needs ~1.25 for descenders not to collide. */
   lineHeight?: number;
   jitter?: boolean;
+  /**
+   * Draw right-to-left lines as one shaped `<text>` run (default). The
+   * thumbnail renderer turns this off: its SVG has to stand alone, with no
+   * system font to shape a run, so it keeps its per-character squiggles.
+   */
+  runs?: boolean;
 }
 
 export const BASELINE_JITTER_PX = 1;
@@ -163,6 +180,25 @@ export function layoutHandText(
     const lineW = widths[li] ?? 0;
     let x = opts.align === 'center' ? (width - lineW) / 2 : 0;
     const glyphs: GlyphPlacement[] = [];
+    // Arabic script and Hebrew: one shaped run, anchored at its right edge. Drawing them
+    // glyph by glyph would disconnect the letters and reverse the word.
+    if ((opts.runs ?? true) && hasRtlChars(line)) {
+      glyphs.push({
+        char: line,
+        index,
+        kind: 'run',
+        d: '',
+        x: x + lineW,
+        y: baseline,
+        advance: lineW,
+        rotation: 0,
+        chars: [...line].length,
+        rtl: true,
+      });
+      index += line.length + 1;
+      outLines.push({ text: line, glyphs, width: lineW, baseline });
+      return;
+    }
     let prev: string | null = null;
     for (const ch of line) {
       const missing = !font.has(ch);

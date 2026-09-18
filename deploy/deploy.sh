@@ -147,6 +147,7 @@ fi
 log "syncing stack files to $PEN_DEPLOY_ROOT"
 # data/ is the API's /data volume; the container runs as uid 1000 (node), so it must own it.
 remote "mkdir -p '$PEN_DEPLOY_ROOT/searxng' '$PEN_DEPLOY_ROOT/nginx' '$PEN_DEPLOY_ROOT/livekit' '$PEN_DEPLOY_ROOT/data' \
+  '$PEN_DEPLOY_ROOT/backup/rclone' '$PEN_DEPLOY_ROOT/backups' \
   && chown 1000:1000 '$PEN_DEPLOY_ROOT/data'"
 RSYNC_SSH="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
 rsync -rltz -e "$RSYNC_SSH" \
@@ -159,8 +160,21 @@ rsync -rltz -e "$RSYNC_SSH" \
   deploy/nginx/pen-playground.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 rsync -rltz -e "$RSYNC_SSH" \
-  deploy/livekit/livekit.yaml \
+  deploy/livekit/livekit.yaml deploy/livekit/cert-sync.sh \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/livekit/"
+# The backup sidecar's scripts (docs/RUNBOOK.md → "Backups"). rclone.conf and its key
+# are host-only secrets and are never synced — only the README that explains them.
+rsync -rltz -e "$RSYNC_SSH" \
+  deploy/backup/backup.sh deploy/backup/restore.sh deploy/backup/entrypoint.sh \
+  "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/backup/"
+rsync -rltz -e "$RSYNC_SSH" \
+  deploy/backup/rclone/README.md \
+  "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/backup/rclone/"
+remote "chmod 0755 '$PEN_DEPLOY_ROOT'/backup/*.sh"
+# The TURN certificate lives here (cert-sync.sh fills it); without it the container refuses to
+# start, so an empty directory is created on every deploy and the hook is left executable.
+remote "mkdir -p '$PEN_DEPLOY_ROOT/livekit/certs' && chmod 0750 '$PEN_DEPLOY_ROOT/livekit/certs' \
+  && chmod 0750 '$PEN_DEPLOY_ROOT/livekit/cert-sync.sh'"
 # openrsync (macOS) has no --chmod; normalise modes on the host instead.
 remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '*.example' -o -name '*.md' \\) -exec chmod 0644 {} +"
 # The vhost with DOMAIN filled in, ready to copy into /etc/nginx/sites-available.
@@ -197,7 +211,10 @@ if [ "$NO_UP" = 1 ]; then
   log "not starting the stack (--no-up)"
 else
   log "docker compose up -d (tag $PEN_IMAGE_TAG)"
-  remote "cd '$PEN_DEPLOY_ROOT' && docker compose config -q && docker compose up -d --remove-orphans"
+  # --profile backup so the nightly dump sidecar is part of every deploy; without
+  # the profile compose would leave it stopped and backups would silently not run.
+  remote "cd '$PEN_DEPLOY_ROOT' && docker compose --profile backup config -q \
+    && docker compose --profile backup up -d --remove-orphans"
 
   log "waiting for health"
   ok=0

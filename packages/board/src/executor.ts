@@ -266,6 +266,7 @@ export class BoardExecutor implements BoardPort {
       label: note.headline || 'You asked',
       question: note.question,
       detail: note.detail,
+      lang: note.language,
       w,
       h,
     };

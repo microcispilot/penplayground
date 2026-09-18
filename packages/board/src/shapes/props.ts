@@ -82,6 +82,8 @@ export interface NoteCardProps {
   label: string;
   question: string;
   detail: string;
+  /** BCP-47 language the learner asked in; empty for the session's own. */
+  lang: string;
   w: number;
   h: number;
 }

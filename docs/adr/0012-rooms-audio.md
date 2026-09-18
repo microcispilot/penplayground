@@ -72,15 +72,47 @@ Constraints that shaped the design:
 8. **Recovery.** The SDK reconnects on its own; when it gives up, `RoomAudio`
    mints a fresh token and reconnects (1 s → 8 s backoff, five tries), then
    tells the participant honestly that voice dropped while the lesson goes on.
+9. **TURN is the media server's, and the client is told about it.** LiveKit's
+   embedded TURN server is enabled (`deploy/livekit/livekit.yaml`): TURN/UDP on
+   3478, relaying out of 30000-30200/udp. LiveKit puts the TURN URL and a
+   short-lived per-participant credential in the **join response**, so the app
+   configures nothing — and deliberately passes no `rtcConfig`, because
+   livekit-client only fills in the server's ICE servers while the app has set
+   none. `apps/web/e2e/rooms-turn.spec.ts` proves both halves against a real
+   server: the join response carries the TURN server, and a relay-only peer
+   connection using those credentials gathers a `typ relay` candidate (the
+   control with no TURN server gathers nothing), while an ordinary browser is
+   never relayed.
+
+   TURN/**TLS** stays off for now, and the reason is a LiveKit detail worth
+   recording: the TLS candidate is advertised as `turns:<turn.domain>:443` with
+   the port hardcoded (`iceServersForParticipant`), whatever `turn.tls_port`
+   says. On prod-app-01, 443 of the single public address is the host nginx,
+   shared with unrelated vhosts; taking it over with an nginx `stream` +
+   `ssl_preread` demux would move every other site on the box behind a new
+   port. The upgrade is therefore a second address (a floating IP) for
+   `turn.penplayground.com` plus its own certificate — four documented steps in
+   docs/DEPLOY.md, with `deploy/livekit/cert-sync.sh` (a certbot deploy hook)
+   already written, because the container cannot read `/etc/letsencrypt`
+   (its `live/` entries are symlinks into `archive/`).
 
 ## Consequences
 
 - Solo sessions: zero change (no SDK chunk, no media connection).
 - The mute/kick surface is server-authoritative and testable without a media
   server; the media server never holds a secret the API does not.
-- TURN is not deployed: clients that block UDP fall back to ICE over TCP 7881;
-  a network that blocks both needs a TURN/TLS listener on 443 (a second IP or
-  hostname) — tracked in `tasks/todo.md`.
+- A network that blocks 7882/udp is now relayed through TURN/UDP 3478; one
+  that blocks UDP entirely still falls back to ICE over TCP 7881. Only a
+  network that blocks all three needs TURN/TLS on 443, which needs a second
+  address for this host (above, and docs/DEPLOY.md) — tracked in
+  `tasks/todo.md`.
+- Relaying costs bandwidth on our host, so it is a fallback, never a default:
+  the e2e locks in that an ordinary browser stays on a direct candidate.
+- Forcing relay from the client (`iceTransportPolicy` at connect time) does not
+  work with livekit-client 2.22.3 — the peer connection is created before the
+  join response, so the policy applies with no ICE servers and nothing is
+  gathered. Moving a participant onto TURN is the server's job; it does that
+  itself when direct candidates fail.
 - The expert does not yet join the media room as an agent (ADR-0006's export
   mix); the ledger still records only expert audio and captions of guests.
 - `PEN_DEV_PLAN=professional` is how the e2e gives the host the entitlement;

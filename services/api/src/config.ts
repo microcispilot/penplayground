@@ -67,6 +67,14 @@ const Env = z.object({
 
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
+  /**
+   * Sentry Cron Monitor slug the API checks in to every `SENTRY_CRON_INTERVAL_MINUTES`
+   * (`pen-api-heartbeat` in production). Unset = no heartbeat. A process that dies,
+   * hangs, or loses its database stops checking in, and Sentry opens an issue one
+   * interval + margin later — see docs/RUNBOOK.md → "Alerting".
+   */
+  SENTRY_CRON_MONITOR_SLUG: z.string().min(1).max(50).optional(),
+  SENTRY_CRON_INTERVAL_MINUTES: z.coerce.number().int().positive().max(60).default(5),
 
   /** MP4 export: ffmpeg binary (PATH lookup by default) and an optional system Chromium for Playwright. */
   PEN_FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
@@ -91,6 +99,42 @@ const Env = z.object({
     .transform((v) => v === '1' || v === 'true'),
   /** Estimated net eCPM (USD per 1 000 completed ads) used for the per-session revenue line. */
   PEN_AD_ECPM_USD: z.coerce.number().nonnegative().default(8),
+
+  /**
+   * Spend circuit breaker (ADR-0016): the most provider spend one UTC day may
+   * cost, summed from the day's telemetry cost lines. Past it, new free-plan
+   * sessions are held back (503 CAPACITY) while paid plans continue to
+   * `PEN_DAILY_SPEND_PAID_MULTIPLE ×` the cap. 0 disables the breaker.
+   */
+  PEN_DAILY_SPEND_CAP_USD: z.coerce.number().nonnegative().default(25),
+  /** How far past the cap paying learners keep going before anyone is held back. */
+  PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).default(3),
+
+  /**
+   * Lesson voice store (ADR-0017): the audio of a lesson's sentences, kept
+   * beside the lesson under `PEN_DATA_DIR/lesson-voice`, so the second learner
+   * of a topic pays for neither the words (the memo) nor the voice. Only the
+   * taught lesson is stored; questions, answers and check-in verdicts are
+   * spoken fresh for every learner and never written down.
+   *
+   * Opt-in (0 = off) for one reason, recorded in tasks/todo.md: once a topic's
+   * voice is stored, the between-segment ad on the free plan stops opening —
+   * reproducibly, on a warm store, while a cold one is fine. Audio itself is
+   * sound (the server's frames are well formed, playback is in order), so this
+   * is a scheduling race, not a voice defect; but it costs free-plan revenue,
+   * so it does not ship on until it is understood. `PEN_TTS_CACHE_MB=2048`
+   * enables it for a deployment without ads, where the saving is pure win.
+   */
+  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(0),
+
+  /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
+  PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().default(5),
+  /** Largest JSON body any route accepts. Every route here is small; 64 KB is generous. */
+  PEN_MAX_BODY_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(64 * 1024),
 });
 
 export type Config = z.infer<typeof Env>;

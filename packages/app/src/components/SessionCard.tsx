@@ -191,6 +191,10 @@ export function SessionCard({
       className="group flex cursor-pointer flex-col gap-3 rounded-[var(--radius-lg)] text-left focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4"
       onClick={onOpen}
       onKeyDown={(e) => {
+        // Only the card itself. Enter and Space on the overlay's like/save
+        // buttons bubble up here, and preventing the default would cancel the
+        // button's own activation and open the session instead of liking it.
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onOpen();

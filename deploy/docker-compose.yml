@@ -50,6 +50,20 @@ services:
       - ./data:/data
     ports:
       - "127.0.0.1:4200:4000"
+    # /api/ready, not /api/health: health says "the process is up and this is
+    # its configuration" and stays 200 through an outage on purpose, while
+    # ready fails when the database, the data volume or the provider keys are
+    # unusable — which is exactly when this container should stop being fed.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.PEN_PORT||4000)+'/api/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +82,12 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:4201:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     depends_on:
       - api
     logging:
@@ -86,10 +106,23 @@ services:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}"
     volumes:
       - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+      # TURN/TLS is terminated by LiveKit itself: the certificate is copied here by
+      # livekit/cert-sync.sh (a certbot deploy hook), never mounted from /etc/letsencrypt,
+      # whose live/ entries are symlinks into archive/.
+      - ./livekit/certs:/etc/livekit/certs:ro
     ports:
       - "127.0.0.1:7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+      # TURN/UDP, for networks that block 7882 (it is also our STUN server).
+      - "3478:3478/udp"
+      # Relayed media (turn.relay_range_* in livekit.yaml).
+      - "30000-30200:30000-30200/udp"
+      # TURN/TLS, once this host has a second public address for turn.penplayground.com:
+      #   PEN_TURN_TLS_BIND=<that address>:443   (and turn.tls_port: 443 in livekit.yaml)
+      # LiveKit advertises `turns:<domain>:443` whatever tls_port says, so 443 is the only
+      # port that works — see the comment block in livekit/livekit.yaml.
+      - "${PEN_TURN_TLS_BIND:-127.0.0.1:5349}:443"
     logging:
       driver: json-file
       options:
@@ -113,6 +146,50 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ── backups (profile: backup) ───────────────────────────────────────────────
+  # Nightly pg_dump + a tarball of /data into /srv/pen-playground/backups, kept
+  # for PEN_BACKUP_KEEP_DAYS, optionally copied off-host with rclone. It is in a
+  # profile so `docker compose up -d` (the deploy path) never starts it by
+  # accident and `--profile backup` is an explicit choice; deploy.sh passes it.
+  #
+  #   docker compose --profile backup up -d backup                  # run the schedule
+  #   docker compose --profile backup run --rm backup /backup.sh    # one now
+  #   docker compose --profile backup run --rm backup /restore.sh 2026-09-17
+  #
+  # postgres:18-alpine: pg_dump must not be older than the server it dumps.
+  backup:
+    image: postgres:18-alpine
+    profiles: ["backup"]
+    restart: unless-stopped
+    entrypoint: ["/entrypoint.sh"]
+    env_file:
+      - ./postgres.env
+    environment:
+      POSTGRES_HOST: postgres
+      PEN_BACKUP_KEEP_DAYS: ${PEN_BACKUP_KEEP_DAYS:-14}
+      # e.g. "hetzner:pen-playground" for a Storage Box over SFTP; unset = local
+      # only. The remote itself is defined in ./backup/rclone.conf (chmod 600).
+      PEN_BACKUP_RCLONE_REMOTE: ${PEN_BACKUP_RCLONE_REMOTE:-}
+      RCLONE_CONFIG: /rclone/rclone.conf
+      PEN_BACKUP_CRON: ${PEN_BACKUP_CRON:-15 3 * * *}
+    volumes:
+      - ./backup/backup.sh:/backup.sh:ro
+      - ./backup/restore.sh:/restore.sh:ro
+      - ./backup/entrypoint.sh:/entrypoint.sh:ro
+      - ./backups:/backups
+      # Writable: the nightly run only reads it, but restore.sh unpacks into it
+      # through the same mount (see docs/RUNBOOK.md → "Restore").
+      - ./data:/data
+      - ./backup/rclone:/rclone:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     logging:
       driver: json-file
       options:

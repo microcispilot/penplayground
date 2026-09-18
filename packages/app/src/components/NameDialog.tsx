@@ -1,8 +1,10 @@
-import { Avatar, Button, Dialog, readTheme, TextField, useToast } from '@pen/design';
-import { LogOut } from 'lucide-react';
+import { Avatar, Button, Dialog, TextField, useToast } from '@pen/design';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/context.js';
 import { mountGoogleButton } from '../lib/google.js';
+import { isDarkTheme, useTheme } from '../lib/theme.js';
+import { PrivacyDialog } from './PrivacyDialog.js';
 
 /**
  * The account sheet. Anonymous: pick a display name and, where Google sign-in
@@ -11,32 +13,38 @@ import { mountGoogleButton } from '../lib/google.js';
  * name field, and sign-out back to a fresh anonymous participant.
  */
 export function NameDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { participant, platform, setName, signInWithGoogle, signOut } = useApp();
+  const { participant, platform, setName, signInWithGoogle, signOut, deleteAccount } = useApp();
   const toast = useToast();
   const [name, setNameState] = useState(participant?.name ?? '');
   const [busy, setBusy] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  /** Deleting is two deliberate clicks, never one — and the second one says what it will take. */
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleProblem, setGoogleProblem] = useState<string | null>(null);
   const googleSlot = useRef<HTMLDivElement>(null);
+  // Through the store, not `readTheme()`: Google's button is painted for one
+  // theme, so a toggle while this sheet is open has to remount it.
+  const [theme] = useTheme();
   const signedIn = participant !== null && !participant.anonymous;
   const googleOffered = platform.googleClientId !== null && !signedIn;
 
   // The field follows the participant while the sheet is closed (rename, sign-in, sign-out).
   useEffect(() => {
-    if (!open) setNameState(participant?.name ?? '');
+    if (!open) {
+      setNameState(participant?.name ?? '');
+      setConfirmingDelete(false);
+    }
   }, [open, participant]);
 
   useEffect(() => {
     const slot = googleSlot.current;
     if (!open || !googleOffered || !slot || !platform.googleClientId) return;
     setGoogleProblem(null);
-    const theme = readTheme();
-    const dark =
-      theme === 'dark' ||
-      (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
     return mountGoogleButton(slot, {
       clientId: platform.googleClientId,
-      theme: dark ? 'dark' : 'light',
+      theme: isDarkTheme(theme) ? 'dark' : 'light',
       width: Math.min(400, slot.clientWidth || 320),
       onCredential: (idToken) => {
         setGoogleBusy(true);
@@ -54,7 +62,7 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
       },
       onError: (error) => setGoogleProblem(error.message),
     });
-  }, [open, googleOffered, platform.googleClientId, signInWithGoogle, toast, onClose]);
+  }, [open, googleOffered, platform.googleClientId, theme, signInWithGoogle, toast, onClose]);
 
   return (
     <Dialog
@@ -129,6 +137,77 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
           </Button>
         </div>
       </form>
+      <div className="mt-5 border-t border-line pt-4">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-md text-sm text-fg-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-accent"
+          onClick={() => setPrivacyOpen(true)}
+        >
+          <ShieldCheck size={14} aria-hidden />
+          Privacy choices
+        </button>
+        <p className="mt-1.5 text-[13px] text-fg-3 text-pretty">
+          See what we collect, and turn analytics off if you would rather not be counted.
+        </p>
+      </div>
+
+      {/* Deleting is rare and permanent, so it lives at the bottom, stated plainly and without alarm. */}
+      <div className="mt-4 border-t border-line pt-4">
+        {confirmingDelete ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-fg-2 text-pretty">
+              This removes your account and every session you started, including their recordings.
+              It cannot be undone. Subscriptions are managed separately in billing.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                Keep my account
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={deleting}
+                data-testid="confirm-delete-account"
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    const removed = await deleteAccount();
+                    toast(
+                      removed === 0
+                        ? 'Your account was deleted'
+                        : `Your account and ${removed} session${removed === 1 ? '' : 's'} were deleted`,
+                      'success',
+                    );
+                    onClose();
+                  } catch (error) {
+                    toast(
+                      error instanceof Error ? error.message : 'Could not delete the account',
+                      'danger',
+                    );
+                  } finally {
+                    setDeleting(false);
+                    setConfirmingDelete(false);
+                  }
+                }}
+              >
+                Delete everything
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="rounded-md text-sm text-fg-3 underline decoration-line-strong underline-offset-4 transition-colors hover:text-danger hover:decoration-danger"
+            data-testid="delete-account"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete account
+          </button>
+        )}
+      </div>
+
+      <PrivacyDialog open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
+
       {googleOffered ? (
         <div className="mt-5 border-t border-line pt-4">
           <p className="mb-3 text-sm text-fg-2">

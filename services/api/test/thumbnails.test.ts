@@ -147,6 +147,42 @@ describe('a fake-provider session gets a real thumbnail', () => {
     expect(existsSync(og)).toBe(true);
   });
 
+  it('gives the next session on the same lesson the same card for nothing', async () => {
+    const before = services.costs.snapshot().session_meta?.calls ?? 0;
+    const second = await rooms.create({
+      topic: 'How Transformers work in LLMs',
+      host,
+      band: 'beginner',
+      visibility: 'public',
+    });
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline && !(await services.sessions.get(second.record.id))?.thumbnail)
+      await new Promise((r) => setTimeout(r, 50));
+    await services.meta.idle();
+    // Zero model calls: the card and the sketch came off the cache next to the lesson memo.
+    expect(services.costs.snapshot().session_meta?.calls ?? 0).toBe(before);
+    const stored = services.thumbnails.meta(second.record.id);
+    expect(stored?.reused).toBe(true);
+    expect(stored?.savedUsd).toBeGreaterThanOrEqual(0);
+    expect(stored?.meta.description).toBe(services.thumbnails.meta(sessionId)?.meta.description);
+    const record = await services.sessions.get(second.record.id);
+    expect(record?.thumbnail).toBe(thumbnailPath(second.record.id));
+    expect(record?.description).toMatch(/attention/i);
+    // Its own sketch on disk, drawn with its own seed — and its ledger says it was reused.
+    expect(existsSync(join(dataDir, 'sessions', second.record.id, THUMB_FILES.svg))).toBe(true);
+    const sample = services.ledger
+      .read(second.record.id)
+      .find(
+        (e) =>
+          e.kind === 'metric' &&
+          e.sample.stage === 'llm' &&
+          e.sample.meta.purpose === 'session_meta',
+      );
+    expect(sample?.kind === 'metric' && sample.sample.meta.reused).toBe(true);
+    expect(sample?.kind === 'metric' && (sample.sample.meta.savedUsd as number) >= 0).toBe(true);
+    await rooms.end(second.record.id);
+  }, 30_000);
+
   it('the share page advertises the Open Graph PNG and the description', async () => {
     const res = await fetchApp(`/s/${sessionId}`);
     const html = await res.text();
@@ -164,6 +200,7 @@ describe('a fake-provider session gets a real thumbnail', () => {
     const bare: SessionRecord = {
       id: 's_bare_0001',
       topic: 't',
+      language: 'en-US',
       title: 'Bare',
       promise: '',
       expertId: 'ada',
@@ -218,4 +255,93 @@ describe('a fake-provider session gets a real thumbnail', () => {
     expect(await (await fetchApp(`/s/${sessionId}`)).text()).not.toContain('og:image');
     await services.sessions.patch(sessionId, { visibility: 'public', hostId: record.hostId });
   });
+});
+
+/**
+ * Rasterising is native, and the synchronous resvg call blocked the event loop
+ * for ~120 ms per session — long enough to stall the PCM fan-out of every room
+ * still speaking. A 50-session load run showed it as ~160 ms stalls on a
+ * trivial request; moving to `renderAsync` took that to single digits.
+ *
+ * This is the regression guard: while a thumbnail is being written, a 5 ms
+ * interval must keep firing. Going back to the synchronous API makes it fail.
+ */
+describe('writing a thumbnail keeps the event loop turning', () => {
+  it('lets timers run while the PNGs are rasterised', async () => {
+    const meta = {
+      description: 'Loop-liveness probe',
+      keywords: ['attention'],
+      category: 'computing-data' as const,
+      thumbnail: {
+        elements: [
+          {
+            kind: 'label' as const,
+            text: 'Attention',
+            x: 0,
+            y: 0,
+            w: 6,
+            size: 'lg' as const,
+            ink: 'accent' as const,
+          },
+          { kind: 'box' as const, x: 0, y: 2, w: 2, h: 1.25, text: 'the', ink: 'ink' as const },
+          { kind: 'box' as const, x: 2.5, y: 2, w: 2, h: 1.25, text: 'cat', ink: 'ink' as const },
+          {
+            kind: 'arrow' as const,
+            x1: 6,
+            y1: 3.5,
+            x2: 1,
+            y2: 5.25,
+            text: 'query',
+            ink: 'ink' as const,
+          },
+          {
+            kind: 'circle' as const,
+            x: 0,
+            y: 5.25,
+            w: 2,
+            h: 1.5,
+            text: 'q·k / √d',
+            ink: 'ink' as const,
+          },
+          {
+            kind: 'bars' as const,
+            x: 8,
+            y: 1.5,
+            w: 4,
+            h: 4,
+            values: [0.15, 0.9, 0.35, 0.2],
+            ink: 'accent' as const,
+          },
+        ],
+      },
+    };
+
+    let ticks = 0;
+    const ticker = setInterval(() => {
+      ticks += 1;
+    }, 5);
+    const startedAt = Date.now();
+    try {
+      await services.thumbnails.write('s_loop_probe01', meta, {
+        usage: {
+          model: 'fake',
+          inputTokens: 0,
+          cachedTokens: 0,
+          outputTokens: 0,
+          usd: 0,
+          totalMs: 0,
+        },
+        attempts: 1,
+      });
+    } finally {
+      clearInterval(ticker);
+    }
+    const elapsed = Date.now() - startedAt;
+
+    // However fast the machine, the loop must not have been held shut: with the
+    // synchronous rasteriser the whole write is one uninterruptible block and
+    // `ticks` comes back as 0–1.
+    expect(elapsed).toBeGreaterThan(0);
+    expect(ticks).toBeGreaterThanOrEqual(Math.min(3, Math.floor(elapsed / 5)));
+  }, 30_000);
 });

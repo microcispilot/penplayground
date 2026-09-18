@@ -1,5 +1,7 @@
 # Pen Playground
 
+[![CI](https://github.com/microcispilot/penplayground/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/microcispilot/penplayground/actions/workflows/ci.yml)
+
 Learn anything from a hyper-real AI human expert who talks to you and writes on a
 shared board at a human pace, stops the instant you speak, answers from prepared
 evidence, and picks the lesson back up. Web and desktop share one product
@@ -8,6 +10,8 @@ package; the API is a Node service.
 Docs: `docs/PRODUCT.md` (vision + storyboards), `docs/SPEC.md`,
 `docs/CAPABILITY-MAP.md`, `docs/GLOSSARY.md`, `docs/COST.md`, `docs/adr/`,
 `docs/QUESTIONS.md` (decisions still needed), `tasks/plan.md`, `tasks/todo.md`.
+Operating it: `docs/DEPLOY.md` (how the stack is built) and
+`docs/RUNBOOK.md` (deploy, rollback, backups, secrets, incidents).
 
 ## Quick start (no keys needed)
 

@@ -1,5 +1,5 @@
 import type { InteractionName, InteractionProps } from '@pen/contracts';
-import posthog from 'posthog-js';
+import type { PostHog } from 'posthog-js';
 import type { Monitor, Platform } from '../platform/types.js';
 
 /**
@@ -22,35 +22,119 @@ let monitor: Monitor | null = null;
 /** When the learner clicked Start on Home (ms epoch); the room measures time-to-first-audio from it. */
 let startClickedAt: number | null = null;
 
-export function initAnalytics(platform: Platform): void {
+/**
+ * Start analytics, cookieless (ADR-0018) and off the critical path (ADR-0011).
+ *
+ * `persistence: 'memory'` is the whole privacy argument in one option: nothing
+ * identifying is written to the device, so there is no cookie or cross-visit
+ * identifier to ask permission for, and therefore no banner in front of a
+ * lesson. The cost is that a returning learner is a new anonymous id each
+ * visit — acceptable, because every question this product asks of its
+ * analytics is about sessions, latencies and cost, not about people.
+ *
+ * A learner who has turned analytics off under Privacy choices is not
+ * initialised at all: the SDK is never even fetched, rather than fetched and
+ * then told to stay quiet.
+ *
+ * posthog-js is ~200 kB that nothing on the first screen needs, so it is
+ * fetched after the app has booted instead of inside the entry bundle. Until
+ * it lands (or when it never does — a blocked host, an offline launch) the
+ * calls below stay synchronous and simply queue: analytics must never be on
+ * the critical path of a lesson, and must never throw into a screen.
+ */
+let client: PostHog | null = null;
+const pending: Array<(ph: PostHog) => void> = [];
+/** Bounded: a session that never loads the SDK must not grow a queue forever. */
+const PENDING_LIMIT = 200;
+/**
+ * The learner said no while the SDK was still being fetched. Lazy loading opens
+ * a window the eager version did not have — a few hundred milliseconds in which
+ * "turn analytics off" has nothing to turn off yet — and without this the
+ * import would land afterwards and start capturing anyway.
+ */
+let optedOut = false;
+
+function withClient(fn: (ph: PostHog) => void): void {
+  if (client) {
+    fn(client);
+    return;
+  }
+  if (pending.length < PENDING_LIMIT) pending.push(fn);
+}
+
+export function initAnalytics(platform: Platform, choice: { analytics: boolean }): void {
   monitor = platform.monitor ?? null;
-  if (!platform.analytics) return;
-  posthog.init(platform.analytics.token, {
-    api_host: platform.analytics.host,
-    autocapture: false,
-    capture_pageview: true,
-    capture_pageleave: true,
-    disable_session_recording: true,
-    persistence: 'localStorage',
-    person_profiles: 'identified_only',
-  });
-  posthog.register({ app: `pen-academy-${platform.name}` });
+  const analytics = platform.analytics;
+  if (!analytics || !choice.analytics) return;
+  optedOut = false;
+  void import('posthog-js')
+    .then(({ default: posthog }) => {
+      // Answered "no" while this was in flight: never initialise, so no network
+      // call is made at all rather than one made and then regretted.
+      if (optedOut) {
+        pending.length = 0;
+        return;
+      }
+      posthog.init(analytics.token, {
+        api_host: analytics.host,
+        autocapture: false,
+        capture_pageview: true,
+        capture_pageleave: true,
+        disable_session_recording: true,
+        // No cookies, no localStorage identifier, nothing left behind.
+        persistence: 'memory',
+        cross_subdomain_cookie: false,
+        person_profiles: 'identified_only',
+      });
+      posthog.register({ app: `pen-academy-${platform.name}` });
+      client = posthog;
+      for (const fn of pending.splice(0)) fn(posthog);
+    })
+    .catch((error: unknown) => {
+      // Never a user-visible failure: the product works without product analytics.
+      pending.length = 0;
+      monitor?.breadcrumb('analytics_unavailable', {
+        code: error instanceof Error ? error.name : 'unknown',
+      });
+    });
+}
+
+/**
+ * Apply a change made in Privacy choices. Turning it off stops capture at
+ * once and forgets the in-memory identity; turning it on takes effect from the
+ * next page load, when `initAnalytics` runs with the new choice.
+ */
+export function applyPrivacyChoice(choice: { analytics: boolean }): void {
+  optedOut = !choice.analytics;
+  const ph = client;
+  // Nothing loaded yet: the flag above is the whole answer. Turning it off
+  // stops the in-flight import from initialising and drops what was queued for
+  // it; turning it on is the next page load's job (see `initAnalytics`).
+  if (!ph) {
+    if (optedOut) pending.length = 0;
+    return;
+  }
+  if (choice.analytics) ph.opt_in_capturing();
+  else {
+    ph.opt_out_capturing();
+    ph.reset();
+  }
 }
 
 export function track(
   event: string,
   properties: Record<string, string | number | boolean> = {},
 ): void {
-  if (posthog.__loaded) posthog.capture(event, properties);
+  withClient((ph) => ph.capture(event, properties));
 }
 
 export function identify(id: string): void {
-  if (posthog.__loaded) posthog.identify(id);
+  withClient((ph) => ph.identify(id));
 }
 
 /** Sign-out: the next participant must not inherit this person's PostHog identity. */
 export function resetAnalytics(): void {
-  if (posthog.__loaded) posthog.reset();
+  withClient((ph) => ph.reset());
 }
 
 /** The room (or a screen) tells analytics where the learner is; Sentry gets the same as tags. */
@@ -119,4 +203,7 @@ export function resetAnalyticsForTests(): void {
   reporter = null;
   monitor = null;
   startClickedAt = null;
+  client = null;
+  optedOut = false;
+  pending.length = 0;
 }

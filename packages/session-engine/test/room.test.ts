@@ -301,6 +301,59 @@ describe('SessionRoom', () => {
     expect(memo?.cuesBySegment.length).toBe(2);
   });
 
+  it("answers a barge-in over its own answer: the turn ends and the floor is the learner's", async () => {
+    const onten = await preparedPack();
+    const transport = new MemoryTransport();
+    const room = new SessionRoom({
+      sessionId: 'sess-barge',
+      topic: 'How Transformers work in LLMs',
+      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      expert,
+      band: 'beginner',
+      language: 'en',
+      locale: 'en-US',
+      onten,
+      runtime: onten.newRuntime(),
+      memo: onten.memo,
+      model: fakeModel(),
+      synthesizer: new SilentSynthesizer(),
+      voice: 'v',
+      sampleRate: 44100,
+      transport,
+      acquirer: null,
+      targetMinutes: 2,
+    });
+    await room.start();
+    await until(() => transport.cues().filter((c) => c.segment === 0).length >= 3);
+    room.handle('host-1234', { kind: 'progress', seq: 0, clockMs: 1000 });
+    room.handle('host-1234', { kind: 'interrupt', atSeq: 2, sayId: 'L0.s2', offsetMs: 900 });
+    room.handle('host-1234', {
+      kind: 'transcript',
+      utteranceId: 'u1',
+      text: 'Why do we divide by the square root of d?',
+      final: true,
+    });
+    await until(() => room.getState().mode === 'answering');
+
+    // The learner cuts in again, over the answer. Their conductor has already
+    // faded the audio locally, so the room must follow instead of ignoring it.
+    const before = transport.states().length;
+    room.handle('host-1234', { kind: 'interrupt', atSeq: 6, sayId: 't1.s1', offsetMs: 300 });
+    expect(room.getState().mode).toBe('listening');
+    expect(room.getState().floor).toBe('host-1234');
+    expect(transport.states().length).toBeGreaterThan(before);
+
+    // And the next question is answered on a fresh turn rather than being dropped.
+    room.handle('host-1234', {
+      kind: 'transcript',
+      utteranceId: 'u2',
+      text: 'What about multi-head attention?',
+      final: true,
+    });
+    await until(() => transport.cues().some((c) => c.thread === 't2'));
+    expect(room.getState().mode).toBe('answering');
+  });
+
   it('refuses guests on the free plan and enforces host-only controls', async () => {
     const onten = await preparedPack();
     const transport = new MemoryTransport();

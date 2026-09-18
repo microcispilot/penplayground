@@ -15,6 +15,17 @@ export interface FakeScript {
   gapMs?: number;
 }
 
+/**
+ * A scripted structured-output answer. `purpose` picks it; `match` narrows
+ * further when one purpose has more than one answer (a lesson taught in
+ * Persian plans, recaps and draws its card in Persian).
+ */
+export interface FakeCompletion {
+  purpose: string;
+  value: unknown;
+  match?: (request: CompletionRequest<unknown>) => boolean;
+}
+
 /** Scripts write `{{expert}}` where the persona's first name belongs. */
 const EXPERT_PLACEHOLDER = /\{\{expert\}\}/g;
 
@@ -42,7 +53,7 @@ export class FakeLanguageModel implements LanguageModel {
   readonly id = 'fake';
   constructor(
     private readonly scripts: FakeScript[],
-    private readonly completions: Array<{ purpose: string; value: unknown }> = [],
+    private readonly completions: FakeCompletion[] = [],
   ) {}
 
   streamEvents(request: EventStreamRequest): EventStream {
@@ -99,7 +110,11 @@ export class FakeLanguageModel implements LanguageModel {
   }
 
   async complete<T>(request: CompletionRequest<T>): Promise<{ value: T; usage: Usage }> {
-    const c = this.completions.find((x) => x.purpose === request.purpose);
+    const c = this.completions.find(
+      (x) =>
+        x.purpose === request.purpose &&
+        (x.match === undefined || x.match(request as CompletionRequest<unknown>)),
+    );
     if (!c) throw new Error(`FakeLanguageModel: no completion for purpose "${request.purpose}"`);
     return {
       value: request.schema.parse(c.value),

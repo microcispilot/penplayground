@@ -745,9 +745,11 @@ export class PcmPlayer {
     try {
       await context.resume();
     } catch (error: unknown) {
+      if (this.#disposed) return;
       this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED', 'resume() rejected', error);
       return;
     }
+    if (this.#disposed) return;
     if (context.state !== 'running' && !this.#paused) {
       this.#reportSuspended(context.state);
     }
@@ -847,6 +849,7 @@ export class PcmPlayer {
         this.#ramp(gain, this.#volume, RESUME_FADE_SECONDS, context);
       },
       (error: unknown) => {
+        if (this.#disposed) return;
         this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED', 'resume() rejected', error);
       },
     );
@@ -978,6 +981,7 @@ export class PcmPlayer {
         if (context.state !== 'running' && !this.#paused) this.#reportSuspended(context.state);
       },
       (error: unknown) => {
+        if (this.#disposed) return;
         this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED', 'resume() rejected', error);
       },
     );
@@ -986,6 +990,10 @@ export class PcmPlayer {
   /** Autoplay policy keeps the context suspended until a gesture: report it
    * once per episode so the UI can ask for a tap, not once per chunk. */
   #reportSuspended(state: string): void {
+    // A closed context is our own dispose() (React StrictMode mounts twice, and
+    // every room teardown closes one). Reporting it would put an honest-looking
+    // "tap to hear" in front of a learner whose sound is perfectly fine.
+    if (this.#disposed || state === 'closed') return;
     if (this.#suspendedReported) return;
     this.#suspendedReported = true;
     this.#options.onError('PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED', `AudioContext state is ${state}`);

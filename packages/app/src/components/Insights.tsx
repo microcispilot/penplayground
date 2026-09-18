@@ -16,7 +16,7 @@ import { formatClock } from '../lib/context.js';
  * fast each part was, what it cost and where, what the learner did, and what
  * went wrong — with a link to the Sentry event for every error.
  */
-export const SENTRY_ISSUES_URL = 'https://microcis-0s.sentry.io/issues/?query=';
+export const SENTRY_ISSUES_URL = 'https://pen-playground.sentry.io/issues/?query=';
 
 /** Stage → semantic colour token. Same hue in light and dark; the legend names them. */
 const STAGE_CLASS: Record<StageName, string> = {
@@ -274,6 +274,7 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
   });
   const shown = t.interactions.filter((i) => i.event !== 'board_done' && i.event !== 'phase_shown');
   const memoTotal = t.reuse.memoSegmentsReused + t.reuse.memoSegmentsGenerated;
+  const ttsTotal = t.reuse.ttsSentencesReused + t.reuse.ttsSentencesGenerated;
   return (
     <div className="mt-5 flex flex-col gap-7" data-testid="insights">
       <section>
@@ -348,6 +349,11 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
           <Pill tone={t.reuse.contextSpeculationHits > 0 ? 'accent' : 'neutral'}>
             {t.reuse.contextSpeculationHits} speculative context hit
             {t.reuse.contextSpeculationHits === 1 ? '' : 's'}
+          </Pill>
+          <Pill tone={t.reuse.ttsSentencesReused > 0 ? 'accent' : 'neutral'}>
+            {ttsTotal === 0
+              ? 'No voice lines yet'
+              : `${t.reuse.ttsSentencesReused} of ${ttsTotal} voice lines from the cache`}
           </Pill>
           <Pill tone={t.reuse.intakeCacheHit ? 'accent' : 'neutral'}>
             {t.reuse.intakeCacheHit ? 'Topic translation cached' : 'No translation needed'}

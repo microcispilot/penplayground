@@ -101,7 +101,9 @@ export function Experts() {
               <ExpertTile
                 key={e.id}
                 expert={e}
-                portraitUrl={api.portraitUrl(e.portrait?.src)}
+                // A tile is ~178–220 px wide: the w192 variant, like every other
+                // portrait in the product. The w384 file is for the hero only.
+                portraitUrl={api.portraitUrl(e.portrait?.src, 192)}
                 onChoose={() => choose(e)}
               />
             ))}
@@ -142,6 +144,9 @@ function ExpertTile({
           src={portraitUrl}
           alt={expert.portrait?.alt ?? expert.displayName}
           loading="lazy"
+          decoding="async"
+          width={192}
+          height={240}
           className="absolute inset-0 size-full object-cover transition-transform duration-[600ms] ease-[var(--ease-out)] group-hover:scale-[1.04]"
         />
       ) : null}

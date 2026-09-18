@@ -134,7 +134,7 @@ export function Pricing() {
                     {current ? <Pill tone="live">Your plan</Pill> : null}
                   </div>
                   <div>
-                    <span className="font-display text-[40px] leading-none tracking-[-0.03em]">
+                    <span className="font-display text-[40px] font-semibold leading-none tracking-[-0.04em]">
                       ${price}
                     </span>
                     <span className="ml-1 text-sm text-fg-2">

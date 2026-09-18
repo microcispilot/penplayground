@@ -130,6 +130,37 @@ test.describe('the app shell', () => {
     await expect(page.getByText('support@penplayground.com').first()).toBeVisible();
   });
 
+  test('Terms, Privacy and the copyright are said once, wherever the sidebar is', async ({
+    page,
+  }) => {
+    // Home has a footer of its own and the shell has one; both used to carry
+    // these three, so at 1024 px and up the learner read them twice.
+    const onScreen = (text: string) => page.locator(`:text-is("${text}"):visible`);
+
+    // Wide: the sidebar's footer is in the layout and is the one that speaks.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.getByTestId('sidebar-footer')).toBeVisible();
+    for (const text of ['Terms', 'Privacy', '© 2026 Microcis'])
+      await expect(onScreen(text), text).toHaveCount(1);
+    // Home's own footer stays, with what the sidebar does not carry.
+    await expect(page.getByRole('button', { name: 'Privacy choices' })).toBeVisible();
+    await expect(onScreen('Pricing')).toHaveCount(2); // a sidebar row and a footer link
+
+    // 1024 px is exactly where the shell's sidebar appears, so it is the edge to check.
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await expect(page.getByTestId('sidebar-footer')).toBeVisible();
+    for (const text of ['Terms', 'Privacy', '© 2026 Microcis'])
+      await expect(onScreen(text), text).toHaveCount(1);
+
+    // Narrow: the sidebar is a drawer, so Home's own footer carries them.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByTestId('sidebar-aside')).toBeHidden();
+    for (const text of ['Terms', 'Privacy', '© 2026 Microcis'])
+      await expect(onScreen(text), text).toHaveCount(1);
+    await expect(onScreen('Terms')).toBeVisible();
+  });
+
   test('under 1024 px the sidebar is a drawer, opened from the header', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
@@ -149,7 +180,12 @@ test.describe('the app shell', () => {
     await boot(page, { token });
     // Straight into the room the host is already in (what "Rejoin" does).
     await page.goto(`/room/${id}`);
-    await expect(page.getByText('Live session')).toBeVisible({ timeout: 30_000 });
+    // The room is up when its board and its bottom bar are. The old
+    // "Live session" label is gone: RoomStatus shows a calm, transient pill
+    // instead, so no one string is always on screen. The board is a lazy chunk
+    // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
+    await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('sidebar')).toHaveCount(0);
     await expect(page.getByTestId('sidebar-menu')).toHaveCount(0);
     await expect(page.getByTestId('sidebar-footer')).toHaveCount(0);

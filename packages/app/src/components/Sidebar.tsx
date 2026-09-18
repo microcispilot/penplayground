@@ -1,6 +1,6 @@
 import type { Expert } from '@pen/contracts';
 import { formatPace, PACE_PRESETS } from '@pen/contracts';
-import { cn } from '@pen/design';
+import { cn, useModalFocus } from '@pen/design';
 import {
   Bookmark,
   ChevronDown,
@@ -409,25 +409,23 @@ function SidebarFooter({ onNavigate }: { onNavigate?: (() => void) | undefined }
 
 /**
  * The small-screen drawer: the same sidebar over a scrim, opened from the
- * header's menu button. Escape closes it, focus moves in, and the page behind
- * does not scroll while it is open.
+ * header's menu button. It claims `aria-modal`, so it owes what that promises —
+ * Escape closes it, focus moves in and cannot Tab out behind the scrim, and it
+ * returns to the menu button on close. That contract lives in `useModalFocus`
+ * (the same one the design system's `Sheet` uses); the only thing left here is
+ * the page behind not scrolling while it is up.
  */
 export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  useModalFocus(open, onClose, panelRef);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    panelRef.current?.focus();
     return () => {
-      document.removeEventListener('keydown', onKey);
       document.body.style.overflow = previous;
     };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 lg:hidden" data-testid="sidebar-drawer">

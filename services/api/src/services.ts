@@ -19,6 +19,7 @@ import {
 import { createOnten, type Onten } from '@pen/onten';
 import { ExpertCatalog, type KnowledgeAcquirer, type SessionMetaJobs } from '@pen/session-engine';
 import {
+  CachingSynthesizer,
   FishBridgeSynthesizer,
   FishCloudSynthesizer,
   SilentSynthesizer,
@@ -36,7 +37,9 @@ import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { LiveKitRooms } from './livekit.js';
 import { logger } from './logger.js';
-import { observer } from './observability.js';
+import { FileSessionMetaCache } from './meta-cache.js';
+import { captureWarning, observer } from './observability.js';
+import { SpendBreaker } from './spend.js';
 import { createRecognizer } from './stt.js';
 import { createSessionMetaJobs, loadThumbnailFont, ThumbnailStore } from './thumbnails.js';
 import { ExpertVoices } from './voices.js';
@@ -46,6 +49,8 @@ export interface Services {
   onten: Onten;
   experts: ExpertCatalog;
   synthesizer: SpeechSynthesizer;
+  /** The synthesis cache in front of the engine (ADR-0017); null when disabled. */
+  ttsCache: CachingSynthesizer | null;
   /** Server-side STT; null when clients transcribe on-device (`PEN_STT_PROVIDER=browser`). */
   recognizer: SpeechRecognizerFactory | null;
   voices: ExpertVoices;
@@ -67,6 +72,8 @@ export interface Services {
   costs: CostLedger;
   /** Free-plan video ad demand and the per-session revenue estimate (ADR-0014). */
   ads: AdEconomics;
+  /** The day's provider spend and the circuit breaker in front of it (ADR-0016). */
+  spend: SpendBreaker;
   /** MP4 export queue (one render at a time per process). */
   exports: ExportJobs;
   downloadTokens: DownloadTokens;
@@ -76,6 +83,10 @@ export interface Services {
   livekit: LiveKitRooms | null;
   /** Session thumbnails on disk (ADR-0013). */
   thumbnails: ThumbnailStore;
+  /** Cards already drawn, keyed by the lesson memo's scope (ADR-0013). */
+  metaCache: FileSessionMetaCache;
+  /** The cheap model the card + sketch call runs on (the backfill uses the same one). */
+  metaModel: LanguageModel;
   /** Background card copy + sketch jobs; rooms enqueue once their plan exists. */
   meta: SessionMetaJobs;
 }
@@ -139,7 +150,7 @@ export async function buildServices(
   const costs = new CostLedger();
   const ads = new AdEconomics(cfg, costs);
 
-  const synthesizer: SpeechSynthesizer = (() => {
+  const engine: SpeechSynthesizer = (() => {
     switch (cfg.PEN_TTS_PROVIDER) {
       case 'fish-cloud': {
         if (!cfg.FISH_AUDIO_API_KEY)
@@ -157,6 +168,46 @@ export async function buildServices(
         return new SilentSynthesizer({ realtime: true });
     }
   })();
+
+  /**
+   * Zero redundant work (ADR-0017): a lesson served from the memo says the very
+   * same sentences, so they are synthesised once and replayed from disk after
+   * that. The cache is a wrapper, so the pipeline above it is unchanged.
+   */
+  const ttsCache =
+    cfg.PEN_TTS_CACHE_MB > 0
+      ? new CachingSynthesizer({
+          inner: engine,
+          dir: join(cfg.PEN_DATA_DIR, 'tts-cache'),
+          maxBytes: cfg.PEN_TTS_CACHE_MB * 1024 * 1024,
+          onEvent: (name, data) => observer.event(name, data),
+        })
+      : null;
+  const synthesizer: SpeechSynthesizer = ttsCache ?? engine;
+  if (ttsCache)
+    logger.info(
+      { evt: 'tts.cache_on', maxMb: cfg.PEN_TTS_CACHE_MB, says: ttsCache.snapshot().says },
+      'lesson voice store ready',
+    );
+  else logger.info({ evt: 'tts.cache_off' }, 'lesson voice store disabled (PEN_TTS_CACHE_MB=0)');
+
+  const spend = new SpendBreaker({
+    capUsd: cfg.PEN_DAILY_SPEND_CAP_USD,
+    paidMultiple: cfg.PEN_DAILY_SPEND_PAID_MULTIPLE,
+    onWarning: ({ usd, capUsd, fraction }) =>
+      captureWarning('spend.threshold', 'Daily provider spend passed 80 % of the cap', {
+        usd: Math.round(usd * 100) / 100,
+        capUsd,
+        fraction: Math.round(fraction * 100) / 100,
+      }),
+  });
+  if (spend.enabled) {
+    const recovered = spend.rebuild(join(cfg.PEN_DATA_DIR, 'sessions'));
+    logger.info(
+      { evt: 'spend.ready', capUsd: cfg.PEN_DAILY_SPEND_CAP_USD, ...recovered },
+      "today's spend recovered from the ledgers",
+    );
+  } else logger.warn({ evt: 'spend.off' }, 'daily spend cap disabled (PEN_DAILY_SPEND_CAP_USD=0)');
 
   const recognizer = createRecognizer(cfg);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
@@ -259,12 +310,17 @@ export async function buildServices(
         ? 'exa'
         : 'none';
   const thumbnails = new ThumbnailStore(join(cfg.PEN_DATA_DIR, 'sessions'), loadThumbnailFont());
+  // The card of a lesson that was already taught (same topic, band, persona, language) is
+  // reused rather than drawn again — the lesson memo's rule, applied to the card (ADR-0013).
+  const metaCache = new FileSessionMetaCache(join(cfg.PEN_DATA_DIR, 'onten'));
   // Card copy and sketches are house-account work on the cheapest model; when it is the session
   // model (the default) the plan call's persona prefix is already in the prompt cache.
+  const metaModel = buildModel('free', cfg.PEN_LLM_OUTLINE_MODEL);
   const meta = createSessionMetaJobs({
-    model: buildModel('free', cfg.PEN_LLM_OUTLINE_MODEL),
+    model: metaModel,
     store: thumbnails,
     sessions,
+    cache: metaCache,
   });
   const base = {
     cfg,
@@ -272,6 +328,7 @@ export async function buildServices(
     searchProvider,
     experts,
     synthesizer,
+    ttsCache,
     recognizer,
     voices,
     ledger,
@@ -286,11 +343,14 @@ export async function buildServices(
     modelFor,
     costs,
     ads,
+    spend,
     exports,
     downloadTokens,
     renderUnavailable,
     livekit,
     thumbnails,
+    metaCache,
+    metaModel,
     meta,
   };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;

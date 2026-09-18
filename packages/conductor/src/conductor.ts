@@ -33,11 +33,32 @@ export interface ConductorOptions {
 
 export type ConductorPhase = 'idle' | 'playing' | 'paused' | 'listening' | 'ad' | 'ended';
 
+/**
+ * How long the room may be silent with an empty pen before the learner is owed
+ * a status line. Under a second reads as twitchy on every ordinary sentence
+ * seam; over two is the launch blocker in docs/PRODUCT.md.
+ */
+export const WAITING_AFTER_MS = 1500;
+
+/**
+ * Longest a pace re-take may wait for a sentence boundary before it swaps the
+ * bank anyway. No planned sentence runs anywhere near this long; it exists so a
+ * stalled say can never strand the audio that replaces it.
+ */
+const REBANK_CEILING_MS = 30_000;
+
 interface SayRecord {
   cue: Cue;
   text: string;
   thread: string;
+  /** Its audio played to the end: board ops anchored `after:` it may run. */
   ended: boolean;
+  /**
+   * Its audio was discarded and will never arrive again. Only ever true for a
+   * turn's sentences: the room re-speaks lesson sentences with a new take
+   * (`say_take`), but an answer or a check's feedback is spoken exactly once.
+   */
+  abandoned: boolean;
 }
 
 /**
@@ -58,6 +79,22 @@ export class Conductor {
   private readonly says = new Map<string, SayRecord>();
   private readonly checksByAsker = new Map<string, CheckEvent>();
   private readonly expectedTake = new Map<string, number>();
+  /** Takes whose audio is banked in the player, by say: what a re-take has to replace. */
+  private readonly bankedTakes = new Map<string, number>();
+  /** Says whose first sample has reached the speaker; these are never re-taken under the learner. */
+  private readonly startedSays = new Set<string>();
+  /**
+   * A pace re-take in progress (ADR-0010): the room has issued newer takes for
+   * sentences this client has already banked. The stale bank cannot be picked
+   * apart — the player schedules audio as one contiguous timeline — so the new
+   * audio waits here until the sentence at the speaker finishes, and the swap
+   * happens in that gap, where it is inaudible.
+   */
+  private rebank: {
+    ids: Set<string>;
+    held: Array<{ header: DownstreamAudioHeader; pcm: Uint8Array }>;
+    timer: unknown;
+  } | null = null;
   private readonly knownDuration = new Map<string, number>();
   private readonly withOps = new Map<string, BoardEvent[]>();
   private readonly afterOps = new Map<string, BoardEvent[]>();
@@ -83,6 +120,11 @@ export class Conductor {
   private sayPace = PACE_DEFAULT;
   /** Replay speed on top of the recorded pace (1 live); audio durations are content time, this converts to wall time. */
   private playbackRate = 1;
+  /** Set by a replay seek; the next sentence is entered this far in (see `startNextSayAt`). */
+  private seekOffsetMs = 0;
+  /** Dead-air watchdog: armed whenever the room owes speech, cleared by any sound or stroke. */
+  private waitingTimer: unknown = null;
+  private waiting = false;
 
   constructor(options: ConductorOptions) {
     this.o = options;
@@ -115,6 +157,15 @@ export class Conductor {
   }
 
   /**
+   * Replay seek: the next sentence starts `offsetMs` into its own audio, so the
+   * captions and the ops anchored to it must finish in what is left of it, not
+   * in its full recorded length. Consumed by the next `onSayStart`.
+   */
+  startNextSayAt(offsetMs: number): void {
+    this.seekOffsetMs = Number.isFinite(offsetMs) && offsetMs > 0 ? offsetMs : 0;
+  }
+
+  /**
    * Replay only: play the recording at `rate` (the audio port stretches the
    * audio, pitch preserved). Board ops and captions are re-timed so they
    * still finish with the sentence; a change applies from the next op.
@@ -129,6 +180,17 @@ export class Conductor {
     switch (message.kind) {
       case 'ready':
         this.isHost = message.state.hostId === this.o.participantId;
+        // `ready` arrives on a join and on every rejoin after a drop. Whatever the
+        // player still holds predates the gap: its clock no longer lines up with
+        // the stream the room is about to resume, and banking the two together
+        // makes the player reject the new chunks on a clock discontinuity. Start
+        // the audio clock clean; the backlog below restores the board. Through
+        // `dropBank` so the bank's bookkeeping goes with it: a take remembered
+        // across the gap would let a `say_take` hold audio for a sentence the
+        // player no longer has.
+        this.discardRebank();
+        this.dropBank();
+        this.abandonTurnAudio();
         this.applyState(message.state);
         for (const cue of message.backlog) this.acceptCue(cue, true);
         return;
@@ -141,9 +203,19 @@ export class Conductor {
       case 'say_complete':
         this.knownDuration.set(message.sayId, message.durationMs);
         return;
-      case 'say_take':
+      case 'say_take': {
         this.expectedTake.set(message.sayId, message.take);
+        // Only a pace re-take happens under a running lesson with a full bank.
+        // A `resume` take follows a pause, a barge-in or an answer, all of
+        // which already emptied the bank — holding audio for one of those
+        // would strand it until the ceiling fires.
+        if (message.reason !== 'pace') return;
+        const banked = this.bankedTakes.get(message.sayId);
+        // Banked but not yet heard: hold the newer take until the boundary.
+        if (banked !== undefined && banked < message.take && !this.startedSays.has(message.sayId))
+          this.armRebank(message.sayId);
         return;
+      }
       case 'turn_done':
         this.turnsDone.add(message.thread);
         this.maybeSendResumed(message.thread);
@@ -166,7 +238,12 @@ export class Conductor {
           skippableAfterMs: message.skippableAfterMs,
         };
         // A preparation-time card runs now and ends as soon as the room goes live (or on skip).
-        if (message.afterSeq < 0) this.startAd();
+        // A boundary card runs now too when its cue has already been played:
+        // the room schedules the slot from the host's progress reports, so on a
+        // fast-arriving lesson (a memo hit, a cached voice, a quick provider)
+        // the message can land after the sentence it was meant to follow. The
+        // alternative is an ad that waits for a sentence that may never come.
+        if (message.afterSeq < 0 || this.lastProgressSeq >= message.afterSeq) this.startAd();
         return;
       case 'prep':
         return;
@@ -181,6 +258,13 @@ export class Conductor {
     if (header.take < expected) return; // stale take after a barge-in or pause
     if (header.take > expected) this.expectedTake.set(header.sayId, header.take);
     if (this.phase === 'listening' || this.phase === 'ended') return;
+    const rebank = this.rebank;
+    if (rebank !== null && rebank.ids.has(header.sayId)) {
+      // Banking this now would leave both takes of the sentence on the timeline.
+      rebank.held.push({ header, pcm });
+      return;
+    }
+    this.bankedTakes.set(header.sayId, header.take);
     this.o.audio.enqueue({
       sayId: takeId(header.sayId, header.take),
       audioChunkId: header.audioChunkId,
@@ -206,12 +290,16 @@ export class Conductor {
       mode === 'checking' ||
       mode === 'thinking';
     if (!interruptible) return;
-    const clock = this.o.audio.cancel();
+    const clock = this.dropBank();
+    this.discardRebank();
+    this.abandonTurnAudio();
     const sayId = clock.sayId ? stripTake(clock.sayId) : this.currentSay;
     const cue = sayId ? this.says.get(sayId)?.cue : undefined;
     for (const { exec } of this.executions.values()) exec.pause();
     this.clearCheckTimer();
     this.phase = 'listening';
+    this.clearWaitingTimer();
+    this.setWaiting(false);
     this.o.board.setDimmed(true);
     this.o.presence.setSpeaking(false);
     this.o.captions.hint('Go ahead — release the mic when you are done');
@@ -252,7 +340,8 @@ export class Conductor {
     }
     if (action === 'resume' && this.phase === 'paused') {
       // The room re-speaks from the resume point with a new take; audio we held is stale.
-      this.o.audio.cancel();
+      this.discardRebank();
+      this.dropBank();
       this.phase = 'playing';
     }
     this.o.transport.send({ kind: 'control', action });
@@ -265,8 +354,11 @@ export class Conductor {
 
   dispose(): void {
     this.phase = 'ended';
+    this.discardRebank();
     if (this.adTimer) this.clearTimeout(this.adTimer);
     this.clearCheckTimer();
+    this.clearWaitingTimer();
+    this.setWaiting(false);
     for (const { exec } of this.executions.values()) exec.cancel();
     this.executions.clear();
   }
@@ -277,12 +369,15 @@ export class Conductor {
     const previous = this.state;
     this.state = state;
     this.pace = clampPace(state.pace);
+    // Whatever the room just became, re-decide whether the learner is owed a line.
+    this.touchActivity();
     if (this.currentSay === null) this.sayPace = this.pace;
     this.o.presence.setState(state);
     if (state.phase === 'live' && this.phase === 'ad' && this.prepAd) this.endAd();
     if (state.phase === 'ended') {
       this.phase = 'ended';
-      this.o.audio.cancel();
+      this.discardRebank();
+      this.dropBank();
       this.o.presence.setSpeaking(false);
       this.o.board.setDimmed(false);
       return;
@@ -294,7 +389,9 @@ export class Conductor {
     if (mode === 'listening' || mode === 'thinking') {
       if (this.phase !== 'listening') {
         // Someone else has the floor (or the room confirmed ours).
-        this.o.audio.cancel();
+        this.discardRebank();
+        this.dropBank();
+        this.abandonTurnAudio();
         for (const { exec } of this.executions.values()) exec.pause();
         this.clearCheckTimer();
         if (!inAd) this.phase = 'listening';
@@ -326,8 +423,19 @@ export class Conductor {
       this.o.captions.hint(null);
       if (previous?.mode === 'paused')
         for (const { exec } of this.executions.values()) exec.resume();
+      // A boundary ad whose sentence was cancelled mid-flight (a barge-in, or a
+      // check-in answered before the sentence finished) never gets the say-end
+      // that would have started it — a cancelled say fires no end event. The
+      // lesson coming back is the other honest moment to play it: between
+      // segments, after the answer, never inside the lesson audio.
+      const pending = this.pendingAd;
+      if (!inAd && pending && pending.afterSeq >= 0 && this.lastProgressSeq >= pending.afterSeq)
+        this.startAd();
     }
     if (previous?.mode !== 'checking' && mode !== 'checking') this.o.presence.showCheck(null);
+    // Cheap reconciliation: if a finished turn has nothing left to play, say so now
+    // rather than leaving the room to time out.
+    for (const thread of this.turnsDone) this.maybeSendResumed(thread);
   }
 
   private acceptCue(cue: Cue, backlog: boolean): void {
@@ -336,19 +444,26 @@ export class Conductor {
     const ev = cue.event;
     switch (ev.type) {
       case 'say':
-        this.says.set(ev.id, { cue, text: ev.text, thread: cue.thread, ended: false });
+        this.says.set(ev.id, {
+          cue,
+          text: ev.text,
+          thread: cue.thread,
+          ended: false,
+          abandoned: false,
+        });
         return;
       case 'board': {
         if (ev.anchor === 'now') {
-          if (!backlog) this.execute(ev, null, null);
+          // In a backlog this op is history like any other: draw it finished
+          // rather than dropping it, or the caught-up board is missing strokes.
+          this.execute(ev, null, null, backlog);
           return;
         }
         const after = ev.anchor.startsWith('after:');
         const target = after ? ev.anchor.slice(6) : ev.anchor;
         const say = this.says.get(target);
         if (say?.ended || backlog) {
-          if (!backlog) this.execute(ev, null, target);
-          else this.execute(ev, 0, target);
+          this.execute(ev, null, target, backlog);
           return;
         }
         const map = after ? this.afterOps : this.withOps;
@@ -366,24 +481,51 @@ export class Conductor {
     }
   }
 
-  private execute(op: BoardEvent, paceMs: number | null, sayId: string | null): void {
+  /**
+   * `instant` renders the op in its finished state with no animation: the
+   * catch-up path for a participant who joined late, and the fast-forward a
+   * replay seek is built on. The board already knows how — `BoardExecution`
+   * carries `finish()` for a sentence that ended early — so a jump to cue N is
+   * every earlier op, finished, in cue order.
+   */
+  private execute(
+    op: BoardEvent,
+    paceMs: number | null,
+    sayId: string | null,
+    instant = false,
+  ): void {
     // Durations are content time; the board writes in wall time.
     const wallMs = paceMs === null ? null : paceMs / this.playbackRate;
     const rate = (sayId === null ? this.pace : this.sayPace) * this.playbackRate;
     const exec = this.o.board.execute(op, { paceMs: wallMs, rate });
     this.executions.set(op.id, { exec, sayId });
-    void exec.done.finally(() => this.executions.delete(op.id));
+    void exec.done.finally(() => {
+      this.executions.delete(op.id);
+      // The pen lifted: if the room still owes speech, the quiet starts counting now.
+      this.armWaiting();
+    });
+    if (instant) {
+      exec.finish();
+      return;
+    }
+    this.touchActivity();
     if (this.phase === 'paused' || this.phase === 'listening') exec.pause();
   }
 
   private onSayStart(sayId: string): void {
     const say = this.says.get(sayId);
     this.currentSay = sayId;
+    this.touchActivity();
+    this.startedSays.add(sayId);
     // A pace change mid-sentence applies from the next sentence, like the voice.
     this.sayPace = this.pace;
     this.o.presence.setSpeaking(true);
     if (!say) return;
-    const durationMs = this.knownDuration.get(sayId) ?? estimateSpeechMs(say.text);
+    const recordedMs = this.knownDuration.get(sayId) ?? estimateSpeechMs(say.text);
+    // A seek enters the sentence part-way through: everything scheduled against it
+    // gets the remainder, so the pen and the caption still land on the last word.
+    const durationMs = Math.max(1, recordedMs - this.seekOffsetMs);
+    this.seekOffsetMs = 0;
     this.o.captions.showExpert(say.text, durationMs / this.playbackRate);
     // A check-in question is followed by the longer beat (ADR-0010); the card
     // and the room's `checking` mode belong to the end of the words, not of the
@@ -407,6 +549,12 @@ export class Conductor {
   private onSayEnd(sayId: string, durationMs: number): void {
     const say = this.says.get(sayId);
     this.o.presence.setSpeaking(false);
+    // The speaker has just fallen silent: the one moment a stale bank can be
+    // swapped for the re-taken one without a word being cut.
+    if (this.rebank !== null && !this.rebank.ids.has(sayId)) this.flushRebank();
+    // The pen and the voice are both idle now: start counting the quiet. `currentSay`
+    // deliberately stays put — a barge-in in this gap still resumes the sentence just heard.
+    this.armWaiting();
     if (!say) return;
     say.ended = true;
     this.knownDuration.set(sayId, durationMs);
@@ -443,6 +591,54 @@ export class Conductor {
     this.checkTimer = null;
   }
 
+  // ── dead-air watchdog ──────────────────────────────────────────────────────
+
+  /**
+   * True while the room owes the learner speech. `thinking` counts even though
+   * the local phase is `listening` — that is the room composing an answer, and
+   * it is exactly the moment a learner deserves to be told. `checking` does
+   * not: the floor is theirs and the card is up.
+   */
+  private owesSpeech(): boolean {
+    const mode = this.state?.mode;
+    if (this.state?.phase !== 'live' || !mode) return false;
+    if (this.phase === 'ad' || this.phase === 'ended' || this.phase === 'paused') return false;
+    if (mode === 'thinking') return true;
+    return (mode === 'teaching' || mode === 'answering') && this.phase === 'playing';
+  }
+
+  /** Nothing is audible and no stroke is being drawn. */
+  private isQuiet(): boolean {
+    return this.o.audio.clock.sayId === null && this.executions.size === 0;
+  }
+
+  /** Something was heard or written: cancel the line and start counting again. */
+  private touchActivity(): void {
+    this.clearWaitingTimer();
+    this.setWaiting(false);
+    this.armWaiting();
+  }
+
+  private armWaiting(): void {
+    if (this.waitingTimer !== null) return;
+    if (!this.owesSpeech()) return;
+    this.waitingTimer = this.setTimeout(() => {
+      this.waitingTimer = null;
+      if (this.owesSpeech() && this.isQuiet()) this.setWaiting(true);
+    }, WAITING_AFTER_MS);
+  }
+
+  private setWaiting(waiting: boolean): void {
+    if (this.waiting === waiting) return;
+    this.waiting = waiting;
+    this.o.presence.setWaiting(waiting);
+  }
+
+  private clearWaitingTimer(): void {
+    if (this.waitingTimer !== null) this.clearTimeout(this.waitingTimer);
+    this.waitingTimer = null;
+  }
+
   private onProgress(_sayId: string, _offsetMs: number): void {
     /* reserved for scrubbers/replay; the room clock is derived on progress reports */
   }
@@ -458,6 +654,24 @@ export class Conductor {
     });
   }
 
+  /**
+   * Everything the player had banked was just thrown away (a barge-in, or the
+   * room handing the floor to someone). A turn's audio is never re-sent — only
+   * lesson sentences come back with a new take — so those sentences will never
+   * reach `onSayEnd`, and without this the room would wait for a `resumed` this
+   * client can no longer honestly send. It waited 30 s for the fallback, with
+   * the bottom bar still reading "Answering you".
+   */
+  private abandonTurnAudio(): void {
+    const threads = new Set<string>();
+    for (const say of this.says.values()) {
+      if (say.thread === 'lesson' || say.ended || say.abandoned) continue;
+      say.abandoned = true;
+      threads.add(say.thread);
+    }
+    for (const thread of threads) this.maybeSendResumed(thread);
+  }
+
   private maybeSendResumed(thread: string): void {
     if (
       !this.isHost ||
@@ -466,7 +680,9 @@ export class Conductor {
       !this.turnsDone.has(thread)
     )
       return;
-    const pending = [...this.says.values()].some((s) => s.thread === thread && !s.ended);
+    const pending = [...this.says.values()].some(
+      (s) => s.thread === thread && !s.ended && !s.abandoned,
+    );
     if (pending) return;
     this.resumedSent.add(thread);
     this.o.transport.send({ kind: 'resumed' });
@@ -477,6 +693,9 @@ export class Conductor {
   private startAd(): void {
     const ad = this.pendingAd;
     if (!ad) return;
+    // Never over a learner who has the floor, and never twice. The slot keeps
+    // its place: `applyState` plays it when the lesson comes back.
+    if (this.phase === 'listening' || this.phase === 'ended' || this.phase === 'ad') return;
     this.pendingAd = null;
     this.prepAd = ad.afterSeq < 0;
     this.o.audio.pause();
@@ -504,9 +723,56 @@ export class Conductor {
     this.phase = 'playing';
     this.o.audio.resume();
     for (const { exec } of this.executions.values()) exec.resume();
+    this.touchActivity();
     // The room may have moved on during the ad (a check, an answer, a pause, someone else's
     // floor): land there instead of assuming the lesson simply continues.
     if (this.state && this.state.mode !== 'teaching') this.applyState(this.state);
+  }
+
+  /**
+   * Note that `sayId`'s banked audio is stale. The whole re-take usually
+   * arrives as a burst of `say_take` messages, so they accumulate into one
+   * swap rather than one swap each.
+   */
+  private armRebank(sayId: string): void {
+    if (this.rebank === null) {
+      this.rebank = {
+        ids: new Set(),
+        held: [],
+        // Safety net: a sentence that never ends (a failed say, a stalled
+        // stream) must not leave the re-taken audio held for ever.
+        timer: this.setTimeout(() => this.flushRebank(), REBANK_CEILING_MS),
+      };
+    }
+    this.rebank.ids.add(sayId);
+  }
+
+  /** Drop what the player holds and feed it the newer takes that were waiting. */
+  private flushRebank(): void {
+    const rebank = this.rebank;
+    if (rebank === null) return;
+    this.rebank = null;
+    this.clearTimeout(rebank.timer);
+    this.dropBank();
+    for (const { header, pcm } of rebank.held) this.handleAudio(header, pcm);
+  }
+
+  /**
+   * An interrupt or a pause makes a pending re-take moot: the room re-speaks
+   * everything from the resume point with newer takes still.
+   */
+  private discardRebank(): void {
+    if (this.rebank === null) return;
+    this.clearTimeout(this.rebank.timer);
+    this.rebank = null;
+  }
+
+  /** The player's bank is gone (barge-in, pause, re-take): forget what was in it. */
+  private dropBank(): { sayId: string | null; offsetMs: number } {
+    const clock = this.o.audio.cancel();
+    this.bankedTakes.clear();
+    this.startedSays.clear();
+    return clock;
   }
 
   private nameOf(participantId: string | null): string {

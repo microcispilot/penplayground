@@ -14,6 +14,27 @@ const BOX: Record<Size, string> = {
 const ICON: Record<Size, number> = { sm: 15, md: 16 };
 
 /**
+ * Which surface the control is sitting on. `page` follows the theme like every
+ * other control; `paper` does not, because the board — and a card's thumbnail,
+ * which is a picture of one — is always the same light sheet in both themes.
+ */
+export type ControlSurface = 'page' | 'paper';
+
+/** Idle / liked / saved skins, per surface. The paper ones are fixed tokens (tokens.css). */
+const IDLE: Record<ControlSurface, string> = {
+  page: 'bg-fg/[0.06] text-fg-2 hover:bg-fg/[0.1] hover:text-fg',
+  paper: 'bg-on-paper-chip text-on-paper hover:bg-white',
+};
+const LIKED: Record<ControlSurface, string> = {
+  page: 'bg-danger-soft text-danger',
+  paper: 'bg-on-paper-chip text-on-paper-liked',
+};
+const SAVED: Record<ControlSurface, string> = {
+  page: 'bg-accent-soft text-accent-strong',
+  paper: 'bg-on-paper-chip text-on-paper-saved',
+};
+
+/**
  * Like and save (ADR-0015): both are optimistic — the icon fills and the count
  * moves the moment it is pressed, and goes back with a short message if the
  * server refuses. They work for an anonymous participant too; signing in
@@ -22,10 +43,12 @@ const ICON: Record<Size, number> = { sm: 15, md: 16 };
 export function LikeButton({
   session,
   size = 'md',
+  surface = 'page',
   className,
 }: {
   session: Pick<SessionRecord, 'id' | 'likes'>;
   size?: Size;
+  surface?: ControlSurface;
   className?: string;
 }) {
   const { api } = useApp();
@@ -45,9 +68,7 @@ export function LikeButton({
       className={cn(
         'inline-flex items-center rounded-full font-medium transition-colors duration-[var(--duration-fast)]',
         BOX[size],
-        liked
-          ? 'bg-danger-soft text-danger'
-          : 'bg-fg/[0.06] text-fg-2 hover:bg-fg/[0.1] hover:text-fg',
+        liked ? LIKED[surface] : IDLE[surface],
         className,
       )}
       onClick={(e: MouseEvent) => {
@@ -67,11 +88,13 @@ export function LikeButton({
 export function SaveButton({
   session,
   size = 'md',
+  surface = 'page',
   withLabel = false,
   className,
 }: {
   session: Pick<SessionRecord, 'id'>;
   size?: Size;
+  surface?: ControlSurface;
   /** "Learn later" beside the icon (the session page); the card stays iconic. */
   withLabel?: boolean;
   className?: string;
@@ -91,9 +114,7 @@ export function SaveButton({
       className={cn(
         'inline-flex items-center rounded-full font-medium transition-colors duration-[var(--duration-fast)]',
         BOX[size],
-        saved
-          ? 'bg-accent-soft text-accent-strong'
-          : 'bg-fg/[0.06] text-fg-2 hover:bg-fg/[0.1] hover:text-fg',
+        saved ? SAVED[surface] : IDLE[surface],
         className,
       )}
       onClick={(e: MouseEvent) => {
@@ -111,6 +132,10 @@ export function SaveButton({
 /**
  * The pair as a card overlay: quiet until the card is hovered or something in
  * it has focus, and always visible once the learner has liked or saved it.
+ *
+ * It floats on the thumbnail, which is a picture of the board and therefore
+ * the same light paper in both themes — so these two wear the paper skin, not
+ * the page one (`ControlSurface`).
  */
 export function CardActions({ session }: { session: Pick<SessionRecord, 'id' | 'likes'> }) {
   const marked = useLists((s) => s.likedIds.has(session.id) || s.savedIds.has(session.id));
@@ -122,8 +147,8 @@ export function CardActions({ session }: { session: Pick<SessionRecord, 'id' | '
         marked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
       )}
     >
-      <LikeButton session={session} size="sm" className="shadow-card backdrop-blur-sm" />
-      <SaveButton session={session} size="sm" className="shadow-card backdrop-blur-sm" />
+      <LikeButton session={session} size="sm" surface="paper" className="shadow-card" />
+      <SaveButton session={session} size="sm" surface="paper" className="shadow-card" />
     </div>
   );
 }

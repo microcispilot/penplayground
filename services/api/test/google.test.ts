@@ -143,6 +143,7 @@ describe('GoogleSignIn (link/upgrade logic)', () => {
     await services.sessions.upsert({
       id: 's_adopt_1',
       topic: 'Swift',
+      language: 'en-US',
       title: 'Swift',
       promise: '',
       expertId: 'juno',

@@ -88,7 +88,7 @@ const sentry: Plugin[] =
   sentryAuthToken && sentryRelease
     ? [
         sentryEsbuildPlugin({
-          org: process.env.SENTRY_ORG?.trim() || 'microcis-0s',
+          org: process.env.SENTRY_ORG?.trim() || 'pen-playground',
           project: 'pen-academy-api',
           authToken: sentryAuthToken,
           release: { name: sentryRelease },

@@ -35,6 +35,7 @@ async function session(
   const record: SessionRecord = {
     id,
     topic: 'How Transformers work in LLMs',
+    language: 'en-US',
     title: 'How Transformers Work in LLMs',
     promise: '',
     expertId: 'ada',

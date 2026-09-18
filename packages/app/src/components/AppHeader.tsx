@@ -100,7 +100,7 @@ export function AppHeader({
           aria-label="Pen Playground home"
         >
           <PenMark />
-          <span className="font-display text-[21px] font-medium tracking-[-0.03em]">Pen</span>
+          <span className="font-display text-[21px] font-semibold tracking-[-0.045em]">Pen</span>
         </button>
         {/* Inside the shell the sidebar is the navigation; a standalone header keeps its own. */}
         <nav

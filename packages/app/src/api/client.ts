@@ -2,6 +2,7 @@ import {
   Expert,
   LikeResult,
   ListSummary,
+  PlanUsage,
   RoomState,
   SaveResult,
   SessionTelemetry,
@@ -22,6 +23,8 @@ export const Participant = z.object({
   email: z.string().nullable().default(null),
   avatarUrl: z.string().nullable().default(null),
 });
+
+export { PlanUsage } from '@pen/contracts';
 export type Participant = z.infer<typeof Participant>;
 
 export const GoogleSignInOutcome = z.enum(['linked', 'existing', 'created']);
@@ -49,6 +52,8 @@ export const SessionRecord = z.object({
   thumbnail: z.string().nullable(),
   /** `${lang}.${slug}` of the resolved topic; absent on records older than the column. */
   canonicalId: z.string().nullable().optional(),
+  /** BCP-47 language the session was taught in; records older than the column read as English. */
+  language: z.string().default('en-US'),
   /** Card copy; empty until the same job lands. */
   description: z.string().default(''),
   keywords: z.array(z.string()).default([]),
@@ -200,6 +205,52 @@ export class ApiClient {
     return res.participant;
   }
 
+  /** Tell the server the analytics choice, so its own capture honours it too. */
+  async setAnalyticsOptOut(optOut: boolean): Promise<Participant> {
+    const res = await this.request('/api/me', z.object({ participant: Participant }), {
+      method: 'PATCH',
+      body: JSON.stringify({ analyticsOptOut: optOut }),
+    });
+    return res.participant;
+  }
+
+  /** How much of today's allowance is left, and whether a session can start now. */
+  usage() {
+    return this.request('/api/me/usage', PlanUsage);
+  }
+
+  /** Everything this deployment holds about the caller, as JSON. */
+  myData() {
+    return this.request('/api/me/export', z.looseObject({}));
+  }
+
+  /** Erase the account and every session it hosts. The bearer is dropped locally too. */
+  async deleteAccount(): Promise<number> {
+    const res = await this.request(
+      '/api/me',
+      z.object({ ok: z.boolean(), sessionsDeleted: z.number() }),
+      { method: 'DELETE' },
+    );
+    this.signOut();
+    return res.sessionsDeleted;
+  }
+
+  /** Host only: make a saved session public or private. */
+  setVisibility(id: string, visibility: 'public' | 'private') {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}`,
+      z.object({ session: SessionRecord }),
+      { method: 'PATCH', body: JSON.stringify({ visibility }) },
+    ).then((r) => r.session);
+  }
+
+  /** Host only: delete a session and everything it recorded. */
+  deleteSession(id: string) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), {
+      method: 'DELETE',
+    });
+  }
+
   /** Forget the bearer; the next `ensureParticipant()` mints a fresh anonymous one. */
   signOut(): void {
     this.token = null;
@@ -331,8 +382,16 @@ export class ApiClient {
       body: '{}',
     }).then((r) => r.url);
   }
-  portraitUrl(src: string | null | undefined): string | null {
-    return src ? `${this.baseUrl}${src}` : null;
+  /**
+   * A portrait at the size it is actually painted. The catalog stores the w384
+   * variant and the w192 file sits beside it (`docs/…` — the contract says the
+   * UI derives the smaller ones), so a 36–92 px card asks for a quarter of the
+   * pixels instead of a portrait sized for the hero.
+   */
+  portraitUrl(src: string | null | undefined, width: 192 | 384 = 384): string | null {
+    if (!src) return null;
+    const sized = width === 192 ? src.replace(/-w384(\.[a-z0-9]+)$/i, '-w192$1') : src;
+    return `${this.baseUrl}${sized}`;
   }
   /** Absolute URL of a session's sketch (`thumbnail` is API-relative); null until it is ready. */
   thumbnailUrl(session: Pick<SessionRecord, 'thumbnail'>): string | null {

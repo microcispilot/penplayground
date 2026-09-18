@@ -68,6 +68,7 @@ class FakePresence implements PresencePort {
   showAd(a: { adId: string; durationMs: number; skippableAfterMs: number } | null) {
     this.ads.push(a);
   }
+  setWaiting() {}
   notice() {}
 }
 class FakeTransport implements TransportPort {
@@ -197,7 +198,9 @@ describe('Conductor preparation ad (afterSeq -1)', () => {
     expect(presence.ads.at(-1)).toBeNull();
     expect(c.getPhase()).toBe('playing');
     expect(audio.resumed).toBe(1);
-    expect(timers.at(-1)?.cleared).toBe(true);
+    // The ad's own duration timer, found by its duration: the conductor also arms
+    // the dead-air watchdog, so "the last timer" is no longer the ad's.
+    expect(timers.find((t) => t.ms === PREP_AD.durationMs)?.cleared).toBe(true);
     // The card is consumed: nothing lingers to fire when the first sentence ends.
     c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'Hello.') });
     c.audioEvents.onSayStart('L0.s1@0');

@@ -1,5 +1,6 @@
 import type { AdEndReason, AdEventName, AdSlot } from '@pen/contracts';
-import { AD_RULES } from '@pen/contracts';
+import { AD_RULES, nonPersonalisedTag } from '@pen/contracts';
+import { limitedAdsHere } from '../lib/privacy.js';
 import {
   IMA_ERROR,
   type ImaAd,
@@ -65,7 +66,7 @@ export interface AdPlayerOptions {
   onView: (view: AdPlayerView) => void;
   onEvent: (name: AdEventName, props: Record<string, string | number | boolean>) => void;
   onEnd: (reason: AdEndReason) => void;
-  rules?: { sdkLoadTimeoutMs?: number; requestTimeoutMs?: number };
+  rules?: { sdkLoadTimeoutMs?: number; requestTimeoutMs?: number; progressTimeoutMs?: number };
   now?: () => number;
   setTimeout?: (fn: () => void, ms: number) => unknown;
   clearTimeout?: (handle: unknown) => void;
@@ -89,6 +90,7 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
   const clearI = o.clearInterval ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
   const sdkTimeoutMs = o.rules?.sdkLoadTimeoutMs ?? AD_RULES.sdkLoadTimeoutMs;
   const requestTimeoutMs = o.rules?.requestTimeoutMs ?? AD_RULES.requestTimeoutMs;
+  const progressTimeoutMs = o.rules?.progressTimeoutMs ?? AD_RULES.progressTimeoutMs;
   const startedAt = now();
 
   const view: AdPlayerView = {
@@ -115,6 +117,10 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
   let destroyed = false;
   let retriedMuted = false;
   let skipReported = false;
+  /** Deadline for the started creative to show that it is actually playing. */
+  let progressTimer: unknown = null;
+  /** Last `getRemainingTime()` seen, so the 250 ms tick can tell a moving creative from a frozen one. */
+  let lastRemaining = Number.NaN;
 
   const elapsed = () => now() - startedAt;
   /** Time-derived fields are computed on read so the view is never a stale snapshot. */
@@ -141,6 +147,49 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
     view.skippable = true;
     publish();
   }, o.ad.skippableAfterMs);
+
+  /**
+   * A started creative that goes nowhere ends the ad rather than the lesson.
+   *
+   * `STARTED` means the SDK handed the slot over, not that a frame played, so
+   * it is the one lifecycle event that can be followed by nothing at all: a
+   * media request a blocker cut, a network that died mid-roll, a media pipeline
+   * that never feeds the element. The SDK has no event for that, so without
+   * this the overlay stays up and the lesson stays paused behind it until the
+   * conductor's 30 s ceiling — half a minute of nothing, which is the failure
+   * this product refuses. (Measured: in the e2e run the creative reaches
+   * `STARTED` and its remaining time never moves.)
+   *
+   * Every sign of life re-arms it: the SDK's own `AD_PROGRESS`, a quartile, a
+   * `timeupdate` from whatever media element the SDK is using, or the
+   * remaining time simply going down.
+   */
+  const armProgressWatchdog = () => {
+    if (destroyed || view.status !== 'playing') return;
+    if (progressTimer) clearT(progressTimer);
+    progressTimer = setT(() => {
+      progressTimer = null;
+      if (destroyed || view.status !== 'playing') return;
+      fail('STALLED', 'error');
+    }, progressTimeoutMs);
+  };
+
+  /** `timeupdate` does not bubble, so this listens in the capture phase for any media inside the slot. */
+  const onMediaProgress = () => armProgressWatchdog();
+
+  /** The creative's clock moved since the last tick: that is progress the SDK never announced. */
+  const sampleRemaining = () => {
+    if (view.status !== 'playing' || !manager) return;
+    let left: number;
+    try {
+      left = manager.getRemainingTime();
+    } catch {
+      return; // a manager being torn down; the deadline still applies
+    }
+    if (left < 0 || left === lastRemaining) return;
+    lastRemaining = left;
+    armProgressWatchdog();
+  };
 
   const teardownIma = () => {
     try {
@@ -169,8 +218,12 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
     view.status = 'ended';
     view.endedWith = reason;
     if (requestTimer) clearT(requestTimer);
+    if (progressTimer) clearT(progressTimer);
+    progressTimer = null;
     if (tick) clearI(tick);
     clearT(skipTimer);
+    o.container.removeEventListener('timeupdate', onMediaProgress, true);
+    o.video.removeEventListener('timeupdate', onMediaProgress);
     publish();
     teardownIma();
     o.onEnd(reason);
@@ -223,8 +276,17 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
         requestTimer = null;
         view.status = 'playing';
         event('ad_started', { muted: view.muted });
-        if (!tick) tick = setI(publish, 250);
+        lastRemaining = manager?.getRemainingTime() ?? Number.NaN;
+        armProgressWatchdog();
+        if (!tick)
+          tick = setI(() => {
+            sampleRemaining();
+            publish();
+          }, 250);
         publish();
+        return;
+      case T.AD_PROGRESS:
+        armProgressWatchdog();
         return;
       case T.SKIPPABLE_STATE_CHANGED:
         // The creative's own offset (VAST) may come before ours; whichever first.
@@ -234,12 +296,15 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
         }
         return;
       case T.FIRST_QUARTILE:
+        armProgressWatchdog();
         event('ad_first_quartile');
         return;
       case T.MIDPOINT:
+        armProgressWatchdog();
         event('ad_midpoint');
         return;
       case T.THIRD_QUARTILE:
+        armProgressWatchdog();
         event('ad_third_quartile');
         return;
       case T.COMPLETE:
@@ -284,11 +349,18 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
       );
       const { width, height } = o.size();
       const req = new sdk.AdsRequest();
-      req.adTagUrl = o.ad.tagUrl;
+      // The server already asked for non-personalised ads; where European rules
+      // may reach this viewer, ask for limited ads too — no identifiers read or
+      // written, and so nothing to put a consent wall in front of (ADR-0018).
+      req.adTagUrl = nonPersonalisedTag(o.ad.tagUrl, { limited: limitedAdsHere() });
       req.linearAdSlotWidth = width;
       req.linearAdSlotHeight = height;
       req.nonLinearAdSlotWidth = width;
       req.nonLinearAdSlotHeight = Math.round(height / 3);
+      // Any media the SDK drives inside the slot re-arms the watchdog; `timeupdate`
+      // does not bubble, so the slot listens for it on the way down.
+      o.container.addEventListener('timeupdate', onMediaProgress, true);
+      o.video.addEventListener('timeupdate', onMediaProgress);
       req.setAdWillAutoPlay(true);
       req.setAdWillPlayMuted(view.muted);
       view.status = 'requesting';
@@ -394,7 +466,10 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
       clearT(sdkTimer);
       clearT(skipTimer);
       if (requestTimer) clearT(requestTimer);
+      if (progressTimer) clearT(progressTimer);
       if (tick) clearI(tick);
+      o.container.removeEventListener('timeupdate', onMediaProgress, true);
+      o.video.removeEventListener('timeupdate', onMediaProgress);
       teardownIma();
     },
   };

@@ -538,6 +538,8 @@ function layoutText(
     maxWidth: Math.max(fontSize, maxWidth),
     seed,
     align,
+    // Self-contained SVG: no system font to shape a run, so every character is placed.
+    runs: false,
   });
 }
 

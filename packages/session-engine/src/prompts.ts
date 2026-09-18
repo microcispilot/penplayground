@@ -94,6 +94,8 @@ export function planPrompt(args: {
   band: SelectionBand;
   unitTitles: string[];
   targetMinutes: number;
+  /** BCP-47: the title, the promise and every segment title are read by the learner. */
+  language: string;
 }): Message[] {
   return [
     {
@@ -105,7 +107,7 @@ export function planPrompt(args: {
       content: `Topic: ${args.topic}\n\nMaterial available (section titles):\n${args.unitTitles
         .slice(0, 80)
         .map((t) => `- ${t}`)
-        .join('\n')}`,
+        .join('\n')}\n\n${languageLine(args.language)}`,
     },
   ];
 }
