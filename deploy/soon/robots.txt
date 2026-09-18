@@ -1,0 +1,4 @@
+# The product is not public yet; the holding page is.
+User-agent: *
+Allow: /$
+Disallow: /
