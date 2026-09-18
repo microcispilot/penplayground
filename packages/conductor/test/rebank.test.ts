@@ -1,5 +1,4 @@
 import type {
-  BoardEvent,
   ClientMessage,
   Cue,
   DownstreamAudioHeader,

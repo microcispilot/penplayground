@@ -207,7 +207,7 @@ describe('GET /api/me/export', () => {
 
 describe('DELETE /api/me', () => {
   it('takes the account and every session it hosts, on disk included', async () => {
-    const me = await participant();
+    const me = await participant('professional');
     const first = await seedSession(me.id);
     const second = await seedSession(me.id, 'private');
 
@@ -222,19 +222,20 @@ describe('DELETE /api/me', () => {
     }
 
     /**
-     * The bearer is still a validly signed token, so `/api/me` keeps answering
-     * 200 — but only from the claims it carries, because the row it named is
-     * gone. Nothing of the deleted account is served back.
+     * The token is still validly signed for another month, so the row being
+     * gone has to be what decides: every authenticated route now refuses it.
+     * Otherwise a deleted account could keep starting sessions on the plan
+     * baked into its bearer.
      */
-    const after = await app.request('/api/me', { headers: me.headers });
-    expect(after.status).toBe(200);
-    const view = (await after.json()) as { participant: { id: string; name: string } };
-    expect(view.participant.id).toBe(me.id);
-    expect(await services.participants.get(me.id)).toBeNull();
-
-    // A row-backed change has nothing left to change.
+    for (const path of ['/api/me', '/api/sessions/mine', '/api/me/usage', '/api/me/export'])
+      expect((await app.request(path, { headers: me.headers })).status, path).toBe(401);
     const patch = await app.request('/api/me', json({ name: 'Ada Again' }, me, 'PATCH'));
-    expect(patch.status).toBe(404);
+    expect(patch.status).toBe(401);
+    const started = await app.request(
+      '/api/sessions',
+      json({ topic: 'Anything at all' }, me, 'POST'),
+    );
+    expect(started.status).toBe(401);
   });
 });
 

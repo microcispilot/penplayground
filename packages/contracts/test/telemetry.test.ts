@@ -159,6 +159,8 @@ describe('telemetry contracts', () => {
         memoSegmentsGenerated: 1,
         contextSpeculationHits: 0,
         intakeCacheHit: false,
+        ttsSentencesReused: 4,
+        ttsSentencesGenerated: 1,
         savedUsd: 0.01,
         freshEquivalentUsd: 0.01,
       },

@@ -22,19 +22,49 @@ let monitor: Monitor | null = null;
 /** When the learner clicked Start on Home (ms epoch); the room measures time-to-first-audio from it. */
 let startClickedAt: number | null = null;
 
-export function initAnalytics(platform: Platform): void {
+/**
+ * Start analytics, cookieless (ADR-0017).
+ *
+ * `persistence: 'memory'` is the whole privacy argument in one option: nothing
+ * identifying is written to the device, so there is no cookie or cross-visit
+ * identifier to ask permission for, and therefore no banner in front of a
+ * lesson. The cost is that a returning learner is a new anonymous id each
+ * visit — acceptable, because every question this product asks of its
+ * analytics is about sessions, latencies and cost, not about people.
+ *
+ * A learner who has turned analytics off under Privacy choices is not
+ * initialised at all: no network call is made, rather than one that is made
+ * and then discarded.
+ */
+export function initAnalytics(platform: Platform, choice: { analytics: boolean }): void {
   monitor = platform.monitor ?? null;
-  if (!platform.analytics) return;
+  if (!platform.analytics || !choice.analytics) return;
   posthog.init(platform.analytics.token, {
     api_host: platform.analytics.host,
     autocapture: false,
     capture_pageview: true,
     capture_pageleave: true,
     disable_session_recording: true,
-    persistence: 'localStorage',
+    // No cookies, no localStorage identifier, nothing left behind.
+    persistence: 'memory',
+    cross_subdomain_cookie: false,
     person_profiles: 'identified_only',
   });
   posthog.register({ app: `pen-academy-${platform.name}` });
+}
+
+/**
+ * Apply a change made in Privacy choices. Turning it off stops capture at
+ * once and forgets the in-memory identity; turning it on takes effect from the
+ * next page load, when `initAnalytics` runs with the new choice.
+ */
+export function applyPrivacyChoice(choice: { analytics: boolean }): void {
+  if (!posthog.__loaded) return;
+  if (choice.analytics) posthog.opt_in_capturing();
+  else {
+    posthog.opt_out_capturing();
+    posthog.reset();
+  }
 }
 
 export function track(

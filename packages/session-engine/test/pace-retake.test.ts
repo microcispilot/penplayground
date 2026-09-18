@@ -147,7 +147,7 @@ describe('pace re-take', () => {
   }, 15_000);
 
   it('does not re-take anything for a guest, or for a pace that did not change', async () => {
-    const { room, transport, synthesizer } = await liveRoom();
+    const { room, transport } = await liveRoom();
     await room.start();
     await until(() => lessonSays(transport).length >= 4);
 

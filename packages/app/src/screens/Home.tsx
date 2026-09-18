@@ -1,4 +1,4 @@
-import type { Expert } from '@pen/contracts';
+import type { Expert, PlanUsage } from '@pen/contracts';
 import { Chip, cn, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, ArrowUpRight, Mic, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
 import { AppHeader, PenMark } from '../components/AppHeader.js';
 import { HeroBoard } from '../components/HeroBoard.js';
+import { PrivacyDialog } from '../components/PrivacyDialog.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { markStartClicked } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
@@ -85,6 +86,9 @@ export function Home() {
   const [experts, setExperts] = useState<Expert[]>([]);
   const [category, setCategory] = useState('All');
   const [filter, setFilter] = useState('');
+  /** Today's allowance, so the page can say what is left before anyone clicks Start. */
+  const [usage, setUsage] = useState<PlanUsage | null>(null);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +105,22 @@ export function Home() {
       cancelled = true;
     };
   }, [api]);
+
+  useEffect(() => {
+    if (!participant) return;
+    let cancelled = false;
+    api
+      .usage()
+      .then((u) => {
+        if (!cancelled) setUsage(u);
+      })
+      // The allowance is a courtesy, not a gate the client enforces: if it
+      // cannot be read, the page simply says nothing and the server decides.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [api, participant]);
 
   const expertById = useMemo(() => new Map(experts.map((e) => [e.id, e])), [experts]);
   const heroExpert = useMemo(
@@ -193,6 +213,9 @@ export function Home() {
       setStarting(false);
     }
   };
+
+  /** True only while today's allowance or the day's capacity is used up. */
+  const waiting = usage !== null && !usage.canStart;
 
   const chooseExpert = (e: Expert) => {
     setWithExpert(e);
@@ -318,7 +341,7 @@ export function Home() {
               </button>
               <button
                 type="submit"
-                disabled={!query.trim() || starting}
+                disabled={!query.trim() || starting || waiting}
                 className="group ml-1 flex h-12 shrink-0 items-center gap-2 rounded-[14px] bg-fg px-5 text-[15px] font-medium text-bg transition-[transform,opacity,background-color] duration-[var(--duration-fast)] hover:bg-navy-700 active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-3 dark:hover:bg-white"
               >
                 {starting ? 'Starting…' : 'Start'}
@@ -329,6 +352,33 @@ export function Home() {
               </button>
             </form>
 
+            {waiting ? (
+              <p
+                className="animate-rise mt-4 text-[14px] text-fg-2 text-pretty"
+                style={{ animationDelay: '240ms' }}
+                data-testid="home-allowance"
+              >
+                {usage?.reason === 'capacity'
+                  ? 'Free sessions are all booked for today — they open again at midnight UTC. '
+                  : `That is your ${usage?.sessionsPerDay ?? 3} sessions for today. They are back at midnight UTC. `}
+                <a
+                  href="/pricing"
+                  className="text-accent-strong underline decoration-line-strong underline-offset-4 hover:decoration-accent"
+                >
+                  Standard makes them unlimited
+                </a>
+                .
+              </p>
+            ) : null}
+            {!waiting && usage?.remaining !== null && usage !== null ? (
+              <p
+                className="animate-rise mt-4 text-[14px] text-fg-3"
+                style={{ animationDelay: '240ms' }}
+                data-testid="home-allowance"
+              >
+                {usage.remaining} of {usage.sessionsPerDay} sessions left today.
+              </p>
+            ) : null}
             <div
               className="animate-rise mt-4 flex flex-wrap items-center gap-x-1 gap-y-1.5 text-[14px] text-fg-3"
               style={{ animationDelay: '240ms' }}
@@ -485,10 +535,14 @@ export function Home() {
           <a href="/sessions" className="hover:text-fg">
             My sessions
           </a>
+          <button type="button" className="hover:text-fg" onClick={() => setPrivacyOpen(true)}>
+            Privacy choices
+          </button>
           <span className="flex-1" />
           <span>Experts are AI. They will tell you so.</span>
         </div>
       </footer>
+      <PrivacyDialog open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </div>
   );
 }

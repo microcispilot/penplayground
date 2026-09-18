@@ -1,4 +1,4 @@
-import { Expert, RoomState, SessionTelemetry } from '@pen/contracts';
+import { Expert, PlanUsage, RoomState, SessionTelemetry } from '@pen/contracts';
 import { z } from 'zod';
 import type { KeyValueStorage } from '../platform/types.js';
 
@@ -14,6 +14,8 @@ export const Participant = z.object({
   email: z.string().nullable().default(null),
   avatarUrl: z.string().nullable().default(null),
 });
+
+export { PlanUsage } from '@pen/contracts';
 export type Participant = z.infer<typeof Participant>;
 
 export const GoogleSignInOutcome = z.enum(['linked', 'existing', 'created']);
@@ -178,6 +180,52 @@ export class ApiClient {
     });
     this.storage.set(NAME_KEY, res.participant.name);
     return res.participant;
+  }
+
+  /** Tell the server the analytics choice, so its own capture honours it too. */
+  async setAnalyticsOptOut(optOut: boolean): Promise<Participant> {
+    const res = await this.request('/api/me', z.object({ participant: Participant }), {
+      method: 'PATCH',
+      body: JSON.stringify({ analyticsOptOut: optOut }),
+    });
+    return res.participant;
+  }
+
+  /** How much of today's allowance is left, and whether a session can start now. */
+  usage() {
+    return this.request('/api/me/usage', PlanUsage);
+  }
+
+  /** Everything this deployment holds about the caller, as JSON. */
+  myData() {
+    return this.request('/api/me/export', z.looseObject({}));
+  }
+
+  /** Erase the account and every session it hosts. The bearer is dropped locally too. */
+  async deleteAccount(): Promise<number> {
+    const res = await this.request(
+      '/api/me',
+      z.object({ ok: z.boolean(), sessionsDeleted: z.number() }),
+      { method: 'DELETE' },
+    );
+    this.signOut();
+    return res.sessionsDeleted;
+  }
+
+  /** Host only: make a saved session public or private. */
+  setVisibility(id: string, visibility: 'public' | 'private') {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}`,
+      z.object({ session: SessionRecord }),
+      { method: 'PATCH', body: JSON.stringify({ visibility }) },
+    ).then((r) => r.session);
+  }
+
+  /** Host only: delete a session and everything it recorded. */
+  deleteSession(id: string) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), {
+      method: 'DELETE',
+    });
   }
 
   /** Forget the bearer; the next `ensureParticipant()` mints a fresh anonymous one. */

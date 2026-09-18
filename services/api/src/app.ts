@@ -212,7 +212,11 @@ export function buildApp(services: Services): App {
     const claims = token ? await identity.verify(token) : null;
     if (!claims) return null;
     const row = await services.participants.get(claims.sub);
-    if (!row) return claims;
+    // No row, no participant. A token outlives the account it names — 30 days —
+    // so falling back to its own claims would let a deleted account keep
+    // starting sessions on the plan baked into it. The client treats the 401
+    // the way it treats any expired bearer: it mints a fresh anonymous one.
+    if (!row) return null;
     // The row is the truth about this participant's analytics choice; reading it
     // here keeps the server-side sink honest without an extra query per capture.
     services.analytics.setOptOut(row.id, row.analyticsOptOut);
@@ -266,7 +270,7 @@ export function buildApp(services: Services): App {
   );
 
   app.post('/api/auth/anonymous', async (c) => {
-    const ip = c.req.header('x-forwarded-for') ?? 'local';
+    const ip = clientIp((n) => c.req.header(n));
     if (!allowAuth(ip)) return c.json({ error: 'RATE_LIMITED' }, 429);
     const body = Anonymous.safeParse(await c.req.json().catch(() => ({})));
     const name = safeName(body.success ? body.data.name : undefined);
@@ -293,7 +297,7 @@ export function buildApp(services: Services): App {
    * account's own bearer is returned.
    */
   app.post('/api/identity/google', async (c) => {
-    const ip = c.req.header('x-forwarded-for') ?? 'local';
+    const ip = clientIp((n) => c.req.header(n));
     if (!allowAuth(ip)) return c.json({ error: 'RATE_LIMITED' }, 429);
     if (!services.google)
       return c.json(
@@ -489,7 +493,12 @@ export function buildApp(services: Services): App {
     const ip = clientIp((n) => c.req.header(n));
     const hosted = liveByIp.get(ip);
     if (hosted) {
-      for (const id of [...hosted]) if (!rooms.get(id)) hosted.delete(id);
+      // A room lingers in the registry for a minute after it ends so late reads
+      // still work; it stops occupying a slot the moment it is over.
+      for (const id of [...hosted]) {
+        const room = rooms.get(id);
+        if (!room || room.room.getState().phase === 'ended') hosted.delete(id);
+      }
       if (hosted.size >= services.cfg.PEN_MAX_SESSIONS_PER_IP) {
         observer.event('rooms.ip_cap', { live: hosted.size });
         return c.json(

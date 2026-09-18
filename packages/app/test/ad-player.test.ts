@@ -13,6 +13,7 @@ import type {
   ImaAdsRequest,
   ImaNamespace,
 } from '../src/ads/ima.js';
+import { limitedAdsHere } from '../src/lib/privacy.js';
 
 // ── a fake clock ─────────────────────────────────────────────────────────────
 class Clock {
@@ -289,7 +290,12 @@ describe('ad player: happy path', () => {
     const h = await playing();
     expect(h.names()).toEqual(['ad_requested', 'ad_loaded', 'ad_started']);
     const req = h.loader.requests[0] as InstanceType<FakeIma['AdsRequest']>;
-    expect(req.adTagUrl).toBe('https://ads.example.test/vast');
+    // Every request is non-personalised (ADR-0017), and limited where European
+    // rules may reach the viewer — which is why there is no consent banner.
+    const tag = new URL(req.adTagUrl);
+    expect(tag.origin + tag.pathname).toBe('https://ads.example.test/vast');
+    expect(tag.searchParams.get('npa')).toBe('1');
+    expect(tag.searchParams.get('ltd')).toBe(limitedAdsHere() ? '1' : null);
     expect(req.linearAdSlotWidth).toBe(640);
     expect(req.willAutoPlay).toBe(true);
     expect(req.willPlayMuted).toBe(false);

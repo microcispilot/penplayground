@@ -1,5 +1,6 @@
 import type { AdEndReason, AdEventName, AdSlot } from '@pen/contracts';
-import { AD_RULES } from '@pen/contracts';
+import { AD_RULES, nonPersonalisedTag } from '@pen/contracts';
+import { limitedAdsHere } from '../lib/privacy.js';
 import {
   IMA_ERROR,
   type ImaAd,
@@ -284,7 +285,10 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
       );
       const { width, height } = o.size();
       const req = new sdk.AdsRequest();
-      req.adTagUrl = o.ad.tagUrl;
+      // The server already asked for non-personalised ads; where European rules
+      // may reach this viewer, ask for limited ads too — no identifiers read or
+      // written, and so nothing to put a consent wall in front of (ADR-0017).
+      req.adTagUrl = nonPersonalisedTag(o.ad.tagUrl, { limited: limitedAdsHere() });
       req.linearAdSlotWidth = width;
       req.linearAdSlotHeight = height;
       req.nonLinearAdSlotWidth = width;
