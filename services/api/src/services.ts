@@ -178,7 +178,7 @@ export async function buildServices(
     cfg.PEN_TTS_CACHE_MB > 0
       ? new CachingSynthesizer({
           inner: engine,
-          dir: join(cfg.PEN_DATA_DIR, 'tts-cache'),
+          dir: join(cfg.PEN_DATA_DIR, 'lesson-voice'),
           maxBytes: cfg.PEN_TTS_CACHE_MB * 1024 * 1024,
           onEvent: (name, data) => observer.event(name, data),
         })

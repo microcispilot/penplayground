@@ -457,7 +457,7 @@ Everything here has a default that is safe to deploy unchanged.
 | `PEN_DAILY_SPEND_PAID_MULTIPLE` | `3` | Paid plans keep going to `cap × this` before anyone is held back. |
 | `PEN_MAX_SESSIONS_PER_IP` | `5` | Live rooms one address may host at once. |
 | `PEN_MAX_BODY_BYTES` | `65536` | Largest JSON body any route accepts (Stripe's signed webhook gets 256 KB). |
-| `PEN_TTS_CACHE_MB` | `0` (off) | Lesson voice store under `PEN_DATA_DIR/lesson-voice`: a lesson's audio kept beside the lesson, so a second learner of a topic pays for neither the words nor the voice. Questions and answers are never stored. Opt-in — read "Why it ships off" in ADR-0017 first; on a deployment without ads it is pure win. |
+| `PEN_TTS_CACHE_MB` | `2048` | Lesson voice store under `PEN_DATA_DIR/lesson-voice`: a lesson's audio kept beside the lesson, so a second learner of a topic pays for neither the words nor the voice. Questions and answers are never stored. Measured with real Fish: the second telling is the same audio byte for byte, and first audio went 107.6 s → 106 ms (ADR-0017). `0` turns it off. |
 
 Plan limits themselves (sessions per UTC day, session length, seats) are not
 environment variables — they are product promises, and they live in

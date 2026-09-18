@@ -711,6 +711,92 @@ export function buildApp(services: Services): App {
   });
 
   /**
+   * Development only: a VAST ad this deployment serves itself.
+   *
+   * The ad path is worth exercising end to end — the real IMA SDK, a real
+   * creative, the real player — but Google's public sample tag answers over
+   * the open internet and does not always fill within the eight seconds
+   * `AD_RULES.requestTimeoutMs` allows. This is the deterministic creative
+   * that replaces it: the same SDK, the same player, the same measurement.
+   *
+   * It is not yet what the suite runs, and the reason is a browser rule rather
+   * than anything here. The SDK requests the tag from inside its own frame,
+   * that frame mirrors the page's scheme, and Chrome refuses an insecure
+   * public origin reaching a loopback address at all — "the request client is
+   * not a secure context and the resource is in more-private address space
+   * `loopback`", surfacing as IMA error 1005 (FAILED_TO_REQUEST_ADS). Serving
+   * the e2e page over https makes the SDK's frame a secure context and this
+   * usable; until then `PEN_E2E_AD_FIXTURE=1` is how to try it, and
+   * tasks/todo.md carries the finding.
+   *
+   * Never mounted in production, where a self-served ad would earn nothing and
+   * mean nothing.
+   */
+  if (services.cfg.NODE_ENV !== 'production') {
+    const adFixture = join(DATA_DIR, 'dev', 'ad-fixture.mp4');
+    app.get('/api/dev/ad/vast.xml', (c) => {
+      // The creative is fetched from the origin the page is on, so the policy
+      // that governs it is the product's own (`media-src 'self'`).
+      const media = `${services.cfg.PEN_PUBLIC_URL}/api/dev/ad/media.mp4`;
+      c.header('Content-Type', 'application/xml; charset=utf-8');
+      c.header('Cache-Control', 'no-store');
+      // The SDK asks for the tag from inside its own imasdk.googleapis.com
+      // frame, so this answer is cross-origin to it and needs to say so. A
+      // development-only test creative is public by nature.
+      c.header('Access-Control-Allow-Origin', '*');
+      return c.body(`<?xml version="1.0" encoding="UTF-8"?>
+<VAST version="3.0">
+  <Ad id="pen-dev-ad">
+    <InLine>
+      <AdSystem>Pen Playground (development)</AdSystem>
+      <AdTitle>Pen Playground test creative</AdTitle>
+      <Impression><![CDATA[${services.cfg.PEN_PUBLIC_URL}/api/dev/ad/impression]]></Impression>
+      <Creatives>
+        <Creative>
+          <Linear skipoffset="00:00:05">
+            <Duration>00:00:08</Duration>
+            <MediaFiles>
+              <MediaFile delivery="progressive" type="video/mp4" width="640" height="480" scalable="true" maintainAspectRatio="true"><![CDATA[${media}]]></MediaFile>
+            </MediaFiles>
+          </Linear>
+        </Creative>
+      </Creatives>
+    </InLine>
+  </Ad>
+</VAST>
+`);
+    });
+    /** The creative itself. Range requests matter: a video element asks for them. */
+    app.get('/api/dev/ad/media.mp4', (c) => {
+      if (!existsSync(adFixture)) return c.json({ error: 'NOT_FOUND' }, 404);
+      const size = statSync(adFixture).size;
+      c.header('Content-Type', 'video/mp4');
+      c.header('Accept-Ranges', 'bytes');
+      c.header('Cache-Control', 'no-store');
+      c.header('Access-Control-Allow-Origin', '*');
+      const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '');
+      if (range?.[1]) {
+        const start = Number(range[1]);
+        const end = range[2] ? Math.min(size - 1, Number(range[2])) : size - 1;
+        if (start >= size || start > end) {
+          c.header('Content-Range', `bytes */${size}`);
+          return c.body(null, 416);
+        }
+        c.header('Content-Range', `bytes ${start}-${end}/${size}`);
+        c.header('Content-Length', String(end - start + 1));
+        return c.body(
+          Readable.toWeb(createReadStream(adFixture, { start, end })) as ReadableStream,
+          206,
+        );
+      }
+      c.header('Content-Length', String(size));
+      return c.body(Readable.toWeb(createReadStream(adFixture)) as ReadableStream);
+    });
+    /** The impression beacon the VAST above declares; counted by the SDK, ignored here. */
+    app.get('/api/dev/ad/impression', (c) => c.body(null, 204));
+  }
+
+  /**
    * Development only: attach a made-up Google identity to the caller's
    * anonymous row (same in-place upgrade as the real flow, without Google), so
    * the signed-in shell can be exercised by e2e and screenshots without a

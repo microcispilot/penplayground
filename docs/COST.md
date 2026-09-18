@@ -52,8 +52,10 @@ generating fresh would have cost, from the same table):
   `reused: true` with `savedUsd` = what buying them again would have cost. A
   learner's questions and the answers to them are never stored — different for
   every learner, and theirs — so those lines stay `reused: false`. The store is
-  opt-in (`PEN_TTS_CACHE_MB`); with it off, every voice line is `reused: false`
-  as before.
+  on by default (`PEN_TTS_CACHE_MB`, 2048 MB); with it off, every voice line is
+  `reused: false` as before. Measured with real Fish teaching one topic twice:
+  2 of 2 sentences came from the store on the second telling, byte for byte
+  identical, and time to first audio went from 107.6 s to 106 ms (ADR-0017).
 
 `SessionTelemetry.reuse` sums it (`savedUsd`, `freshEquivalentUsd = cost + saved`);
 `GET /api/stats/reuse` and `pnpm --filter @pen/api telemetry:pull --topic <canonicalId>`
