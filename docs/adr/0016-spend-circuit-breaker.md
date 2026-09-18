@@ -57,9 +57,11 @@ would know which number was true.
    the boot log rather than pretending to be on.
 
 5. **A limit is explained, never enforced silently.** `GET /api/me/usage`
-   returns the caller's own numbers (`PlanUsage`), so Home can say "2 of 3
-   sessions left today" before anyone clicks Start, and one friendly sentence
-   with a Pricing link when they are gone. The refusals carry the same numbers
+   returns the caller's own numbers (`PlanUsage`), so Home can say, in one
+   friendly sentence with a Pricing link, why Start is waiting. (Amended
+   2026-09-18: it no longer shows the running "2 of 3 sessions left today"
+   while there is allowance left — a count that ticks down is a meter, and a
+   meter is a kind of pressure. It speaks only when it is in the way.) The refusals carry the same numbers
    and the same tone: "That is your 3 sessions for today. Standard makes them
    unlimited." There is no red box anywhere in this feature.
 
