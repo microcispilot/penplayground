@@ -117,6 +117,10 @@ export class ApiClient {
    * every method that receives a participant keeps it current.
    */
   private account: Participant | null = null;
+  /** The pace the account has been asked for, whether or not the write has landed. */
+  private paceWanted: number | null = null;
+  /** Serialises `rememberPace`'s writes so they cannot land out of order. */
+  private paceWrite: Promise<void> = Promise.resolve();
   constructor(
     readonly baseUrl: string,
     private readonly storage: KeyValueStorage,
@@ -226,11 +230,23 @@ export class ApiClient {
    * nothing here for them to do and nothing to report if it fails.
    */
   rememberPace(pace: number): void {
-    if (this.account === null || this.account.anonymous) return;
+    const account = this.account;
+    if (account === null || account.anonymous) return;
     const clean = clampPace(pace);
-    if (Math.abs(this.account.pace - clean) < 1e-6) return;
-    this.account = { ...this.account, pace: clean };
-    void this.setPace(clean).catch(() => undefined);
+    // Against what has already been asked for, not against what has landed:
+    // otherwise a second change during the first request writes twice.
+    if (Math.abs((this.paceWanted ?? account.pace) - clean) < 1e-6) return;
+    this.paceWanted = clean;
+    // One write at a time, in order. Two quick changes must not land out of
+    // order and leave the account on a pace nobody chose; and a failed write
+    // clears the guard, so the next change tries again instead of believing
+    // the account already agrees.
+    this.paceWrite = this.paceWrite
+      .then(() => (this.paceWanted === clean ? this.setPace(clean) : undefined))
+      .catch(() => {
+        this.paceWanted = null;
+      })
+      .then(() => undefined);
   }
 
   /** Set the account's teaching pace and return the updated participant. */
@@ -249,6 +265,7 @@ export class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ analyticsOptOut: optOut }),
     });
+    this.account = res.participant;
     return res.participant;
   }
 
@@ -293,6 +310,7 @@ export class ApiClient {
   signOut(): void {
     this.token = null;
     this.account = null;
+    this.paceWanted = null;
     this.storage.remove(TOKEN_KEY);
     this.storage.remove(NAME_KEY);
   }

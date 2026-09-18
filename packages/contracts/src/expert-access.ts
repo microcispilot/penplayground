@@ -33,9 +33,13 @@ export const PLAN_NAME: Record<PlanCode, string> = {
 
 /**
  * Expert id → the plan that includes them. Any id not listed is included with
- * every plan. The four at the top are the marquee names, so they sit on the
- * higher tier; the six on Standard are the ones a learner is most likely to
- * ask for first.
+ * every plan. Six on Standard: the ones a learner is most likely to ask for
+ * first. Four on Professional: the marquee names.
+ *
+ * This is also the only thing that decides whether a persona is paid for. The
+ * catalog's own `premium` flag is data about the same ten, and a test pins the
+ * two together (`services/api/test/expert-access.test.ts`) so neither can
+ * drift; nothing in the seating logic reads the flag.
  */
 export const LEGEND_MIN_PLAN: Record<string, PlanCode> = {
   socrates: 'standard',

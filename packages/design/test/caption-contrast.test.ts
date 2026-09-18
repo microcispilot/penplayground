@@ -204,6 +204,38 @@ describe('every brand family', () => {
     dark: { bg: surface('dark', '--color-bg'), page: surface('dark', '--color-surface') },
   } as const;
 
+  /**
+   * A dark block is written twice: `[data-theme="dark"]` for a learner who
+   * chose it, and `:not([data-theme="light"])` inside `prefers-color-scheme`
+   * for one who did not. The tests above read the first; a learner on OS dark
+   * gets the second. Two hand-kept copies drift, so they are compared here.
+   */
+  it.each([['teal'], ['green'], ['forest']] as const)(
+    '%s says the same thing to a chosen dark theme and to an OS dark one',
+    (brand) => {
+      const selector =
+        brand === 'teal'
+          ? ':root[data-theme="dark"],\n:root:not([data-theme="light"])'
+          : `:root[data-brand="${brand}"]:not([data-theme="light"])`;
+      const at = css.indexOf(selector);
+      expect(at, `${brand}: the media-query dark block`).toBeGreaterThan(-1);
+      const media = css.slice(at, css.indexOf('\n}', css.indexOf('@media', at)));
+      const roles = [
+        '--color-accent',
+        '--color-accent-strong',
+        '--color-accent-pressed',
+        '--color-accent-soft',
+        '--color-on-accent',
+      ];
+      for (const role of roles) {
+        const inMedia = new RegExp(`${role}:\\s*([^;]+);`).exec(media)?.[1]?.trim();
+        const chosen = new RegExp(`${role}:\\s*([^;]+);`).exec(block(brand, 'dark'))?.[1]?.trim();
+        expect(inMedia, `${brand} ${role} in the media query`).toBeDefined();
+        expect(inMedia, `${brand} ${role}`).toBe(chosen);
+      }
+    },
+  );
+
   it.each([
     ['teal', 'light'],
     ['teal', 'dark'],

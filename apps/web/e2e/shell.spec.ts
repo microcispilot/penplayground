@@ -303,7 +303,9 @@ test.describe('shell screenshots', () => {
       { name: '390', width: 390, height: 844 },
     ] as const;
     const shots: { name: string; path: string; token: string; full?: boolean }[] = [
-      { name: 'home-signed-out', path: '/', token: anon },
+      // Full page: Home's two section bands and its footer are below the fold,
+      // and they are half of what the shell pass changed.
+      { name: 'home-signed-out', path: '/', token: anon, full: true },
       { name: 'home-signed-in', path: '/', token: account },
       { name: 'experts', path: '/experts', token: account },
       { name: 'terms', path: '/terms', token: account, full: true },
@@ -388,7 +390,13 @@ test.describe('shell screenshots', () => {
         // Twelve faces and one card that leads to the rest — never more.
         expect(await row.getByTestId('expert-tile').count()).toBe(12);
         await expect(row.getByTestId('experts-show-more')).toHaveCount(1);
-        expect(await row.getByTestId('expert-plan-chip').count()).toBe(who === 'free' ? 1 : 0);
+        // Aristotle is the pinned third card: a free learner sees the plan's
+        // name on him, a Standard learner sees an ordinary tile. Asserting the
+        // tile rather than a count keeps this true if the catalogue re-tiers.
+        const aristotle = row.getByTestId('expert-tile').nth(2);
+        await expect(aristotle).toHaveAccessibleName(/Aristotle/);
+        await expect(aristotle.getByTestId('expert-plan-chip')).toHaveCount(who === 'free' ? 1 : 0);
+        if (who === 'standard') await expect(aristotle).toHaveAttribute('title', /Aristotle/);
         await row.scrollIntoViewIfNeeded();
         await page.waitForTimeout(600);
         await row.screenshot({ path: join(SCREENS_DIR, `experts-row-${who}-${theme}.png`) });

@@ -203,11 +203,19 @@ export function SessionCard({
       draws around the whole card because it hangs off the container. This is
       the arrangement YouTube uses for the same shape.
     */
-    <div className="group relative flex flex-col gap-3 rounded-[var(--radius-lg)] text-left has-[button:focus-visible]:outline-2 has-[button:focus-visible]:outline-accent has-[button:focus-visible]:outline-offset-4">
+    <div className="group relative flex flex-col gap-3 rounded-[var(--radius-lg)] text-left">
+      {/*
+        z-10, not z-0: the thumbnail's own wrapper is positioned and comes
+        later in the tree, so at the same level it would paint over this and
+        swallow every click on the picture — the biggest target on the card.
+        The ring is the button's own, and the button is exactly the card's
+        box, so it draws where the comment above says it does and focusing
+        the heart does not also ring the whole card.
+      */}
       <button
         type="button"
         data-testid="session-card-open"
-        className="absolute inset-0 z-0 cursor-pointer rounded-[var(--radius-lg)] outline-none"
+        className="absolute inset-0 z-10 cursor-pointer rounded-[var(--radius-lg)] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4"
         onClick={onOpen}
       >
         <span className="sr-only">{session.title}</span>
@@ -217,7 +225,7 @@ export function SessionCard({
           session={session}
           className="absolute inset-0 transition-[transform,box-shadow] duration-[var(--duration-base)] group-hover:scale-[1.01] group-hover:shadow-[var(--shadow-thumb-hover)]"
         />
-        <CardActions session={session} className="z-10" />
+        <CardActions session={session} className="z-20" />
         <span className="absolute right-2 bottom-2 rounded-[5px] bg-navy-900/85 px-1.5 py-0.5 text-xs text-white tabular">
           {formatDuration(session.durationMs || session.segments * 90_000)}
         </span>

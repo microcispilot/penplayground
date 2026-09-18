@@ -298,14 +298,19 @@
  * colour for good, one line in the host that renders `PenApp`.
  *
  * A family declares the same five roles in light and in dark and nothing
- * else: every surface that carries colour (the sidebar, a section band, the
- * hero wash, an active row) is mixed from `--color-accent`, so it follows.
- * Each family is measured in `packages/design/test/caption-contrast.test.ts`
- * — a brand nobody can read is not a brand we can ship.
+ * else. The page's own furniture follows it — the sidebar and the footer
+ * (`--color-chrome`), a section's header band (`--color-band`) and the hero's
+ * wash (`--color-wash-aqua`) are all mixed from `--color-accent` — as does
+ * every control, link and active row that names an accent token. Each family
+ * is measured in `packages/design/test/caption-contrast.test.ts`: a brand
+ * nobody can read is not a brand we can ship.
  *
- * The board keeps its own ink (`--color-ink-accent`): a session's sketch is
- * rendered once, server-side, into a file, and it must not change colour
- * under a reader whose app is on another brand.
+ * Three things stay teal on purpose, because they belong to the board rather
+ * than to the app: `--color-ink-accent` (a session's sketch is rendered once,
+ * server-side, into a file, and must not change colour under a reader on
+ * another brand), `--color-speaking`, and the teal in `@keyframes ring` —
+ * both of which mark a live voice on that same board. Changing the brand for
+ * good means re-tuning those and re-rendering the sketches.
  */
 
 /* green — the brand lime #78BE21. On a light page the readable member of the

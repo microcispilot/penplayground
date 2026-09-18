@@ -24,7 +24,7 @@ Everything below serves that moment.
 | 2 | Latency is the product | Prepared topic: expert speaks < 1.5 s after Start. Question: first audible reply ≤ 800 ms after the learner's last word (ceiling 1200 ms). | time-to-first-audio p50/p95 |
 | 3 | The voice is the brand | Fish Audio S2.1 Pro at native 44.1 kHz, sentence-streamed, barge-in fade ≤ 150 ms. | barge-in latency, MOS spot checks |
 | 4 | Generality | Any topic. A miss is a *preparing* state, never a "not supported". | topic-miss recovery rate |
-| 5 | Trust engineered visibly | Mic state always visible. "AI expert" disclosure on every persona. Sources shown for every answer. Host-only controls are explicit. | 0 privacy surprises |
+| 5 | Trust engineered visibly | Mic state always visible. The "AI expert" disclosure where it is read — the pill on a saved session, what every expert says when asked, and the Terms page in full — rather than a line in the furniture of every screen. Sources shown for every answer. Host-only controls are explicit. | 0 privacy surprises |
 | 6 | One magic moment in the first minute | Start → hear the expert → see the board being written → interrupt with a question → get a grounded answer. All within 60 s. | first-session completion |
 
 ## The app shell (ADR-0015)

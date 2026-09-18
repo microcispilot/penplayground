@@ -204,7 +204,13 @@ export function Home() {
       const { session } = await api.createSession(expertId ? { topic: t, expertId } : { topic: t });
       navigate(`/room/${session.id}`, { state: { fresh: true } });
     } catch (error) {
-      toast(error instanceof ApiError ? error.message : 'Could not start the session', 'danger');
+      // A plan or a daily limit is a fact about an account, not a fault: it is
+      // said in the ordinary voice. Only a real failure is a danger.
+      const calm = error instanceof ApiError && error.status === 402;
+      toast(
+        error instanceof ApiError ? error.message : 'Could not start the session',
+        calm ? 'neutral' : 'danger',
+      );
       setStarting(false);
     }
   };

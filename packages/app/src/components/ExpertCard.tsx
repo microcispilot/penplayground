@@ -38,8 +38,13 @@ export interface ExpertCardProps {
   portraitUrl: string | null;
   /** Shown under the role on the Experts page, where breadth is the point. */
   domainLabel?: string;
-  /** Chosen as the session's expert (Home's row only). */
-  selected?: boolean;
+  /**
+   * Chosen as the session's expert. Only Home's row is a chooser; leaving this
+   * out makes the tile a plain link-like control rather than a toggle, which
+   * is what the Experts page needs — an `aria-pressed="false"` there would
+   * announce a switch that does not exist.
+   */
+  selected?: boolean | undefined;
   onChoose: () => void;
   className?: string;
   /** Portrait width to request and to size the <img> with. */
@@ -50,7 +55,7 @@ export function ExpertCard({
   expert,
   portraitUrl,
   domainLabel,
-  selected = false,
+  selected,
   onChoose,
   className,
   width = 192,
@@ -59,7 +64,7 @@ export function ExpertCard({
   const shell = cn(
     'group relative aspect-[4/5] overflow-hidden rounded-[var(--radius-xl)] bg-surface-2 text-left shadow-card',
     'transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-lift',
-    selected && 'ring-[3px] ring-accent ring-offset-2 ring-offset-bg',
+    selected === true && 'ring-[3px] ring-accent ring-offset-2 ring-offset-bg',
     className,
   );
   const inner = (
@@ -129,7 +134,7 @@ export function ExpertCard({
     <button
       type="button"
       data-testid="expert-tile"
-      aria-pressed={selected}
+      {...(selected === undefined ? {} : { 'aria-pressed': selected })}
       title={`Learn with ${expert.displayName}`}
       onClick={onChoose}
       className={shell}

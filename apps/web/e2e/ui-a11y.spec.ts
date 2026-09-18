@@ -48,6 +48,21 @@ test.describe('accessibility', () => {
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('like-button').first()).toBeAttached();
     await scan(page, 'Home');
+
+    /*
+      The whole card opens the session, not only the words under it. The
+      control that does it is stretched across the card, so this is really a
+      stacking assertion: a click on the middle of the thumbnail has to reach
+      that button and not the picture painted over it.
+    */
+    const thumb = page.getByTestId('session-thumb').first();
+    await thumb.scrollIntoViewIfNeeded();
+    const box = await thumb.boundingBox();
+    if (!box) throw new Error('the session thumbnail has no box to click');
+    // A raw click at the middle of the picture, so whatever is topmost there
+    // is what answers — which is the whole point of the arrangement.
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForURL(/\/sessions\//, { timeout: 10_000 });
   });
 
   test('the live room has no serious violations, and the board is reachable by keyboard', async ({
