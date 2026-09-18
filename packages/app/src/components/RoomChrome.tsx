@@ -365,7 +365,7 @@ export function BottomBar(p: BottomBarProps) {
         {p.onReact ? (
           <ReactionPicker
             disabled={p.inputsPaused ?? false}
-            disabledReason="Reactions are back when the ad ends"
+            disabledReason="Reactions are back after the ad"
             onReact={p.onReact}
           />
         ) : null}

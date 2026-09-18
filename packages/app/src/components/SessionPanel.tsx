@@ -268,7 +268,9 @@ function Composer({
         />
         <button
           type="submit"
-          aria-label={`Send to ${expertFirstName}`}
+          // "Ask Ada", not "Send": the room's own word for this, and the name
+          // every spec and screen reader reaches the control by.
+          aria-label={`Ask ${expertFirstName}`}
           title="Send"
           disabled={disabled || text.trim() === ''}
           data-testid="composer-send"

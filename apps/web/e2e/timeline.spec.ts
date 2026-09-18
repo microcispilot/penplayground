@@ -89,14 +89,28 @@ test.describe("the owner's in-session timeline", () => {
     const frames = watchFrames(page);
     await openLesson(page);
 
-    // The fake lesson's second segment ends with a check-in; answering it lets
-    // the expert finish the segment the ad is hung on.
-    const check = page.getByText('Quick check');
-    if (await check.isVisible({ timeout: 150_000 }).catch(() => false))
-      await page.getByRole('button', { name: /query from "sat"/ }).click();
-
+    // Teach until the ad takes the board, answering the check-in that gates
+    // the segment it is hung on. One loop rather than two fixed waits: on a
+    // loaded machine the lesson takes its time, and the point of the test is
+    // what happens *at* the ad, not how long the lesson took to reach it.
     const overlay = page.getByTestId('video-ad');
-    await expect(overlay).toBeVisible({ timeout: 120_000 });
+    const deadline = Date.now() + 240_000;
+    let answered = false;
+    while (Date.now() < deadline) {
+      if (await overlay.isVisible().catch(() => false)) break;
+      if (
+        !answered &&
+        (await page
+          .getByText('Quick check')
+          .isVisible()
+          .catch(() => false))
+      ) {
+        await page.getByRole('button', { name: /query from "sat"/ }).click();
+        answered = true;
+      }
+      await page.waitForTimeout(500);
+    }
+    await expect(overlay).toBeVisible({ timeout: 30_000 });
     const ad = frames.received.find((m) => m.kind === 'ad') as { afterSeq: number } | undefined;
     expect(ad, 'the room scheduled an ad at a segment boundary').toBeTruthy();
 
@@ -122,8 +136,8 @@ test.describe("the owner's in-session timeline", () => {
     // Skipped by the learner, or ended by the player when the creative never
     // renders — either way the lesson gets its time back.
     const skip = overlay.getByTestId('skip-ad');
-    const deadline = Date.now() + 25_000;
-    while (Date.now() < deadline) {
+    const skipBy = Date.now() + 25_000;
+    while (Date.now() < skipBy) {
       if (!(await overlay.isVisible().catch(() => false))) break;
       if (await skip.isEnabled().catch(() => false)) {
         await expect(skip).toHaveText(/Skip ad/);

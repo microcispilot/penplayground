@@ -32,15 +32,26 @@ test.describe('a session taught in Persian', () => {
     // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
-    const caption = page.locator('[aria-live="polite"]').filter({ hasText: PERSIAN }).first();
-    await expect(caption).toBeVisible({ timeout: 30_000 });
+    // The lesson's own words now live in the session panel's conversation
+    // (ADR-0019); the board keeps its caption for when the panel is folded
+    // away, and that is asserted from the same element either way.
+    const said = page.getByTestId('conversation');
+    await expect(said).toContainText(PERSIAN, { timeout: 30_000 });
 
-    // The document speaks Persian; the caption reads right to left.
+    // The document speaks Persian; what was said reads right to left.
     await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('fa-IR');
-    await expect(caption).toHaveAttribute('dir', 'rtl');
-    await expect(caption).toHaveAttribute('lang', 'fa-IR');
+    await expect(said).toHaveAttribute('dir', 'rtl');
+    await expect(said).toHaveAttribute('lang', 'fa-IR');
     // Right to left is what the browser actually computed, not just an attribute we set.
-    expect(await caption.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
+    expect(await said.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
+
+    // Folded away, the board says it instead — and says it the same way.
+    await page.getByTestId('session-panel-toggle').click();
+    const caption = page.locator('[data-caption-box] [aria-live="polite"]').first();
+    await expect(caption).toHaveAttribute('dir', 'rtl', { timeout: 30_000 });
+    await expect(caption).toHaveAttribute('lang', 'fa-IR');
+    await page.getByTestId('session-panel-toggle').click();
+    await expect(said).toBeVisible();
 
     // The board writes Persian too: the title is drawn as one joined, right-to-left run.
     const boardTitle = page.locator('svg text[direction="rtl"]').first();
@@ -50,7 +61,7 @@ test.describe('a session taught in Persian', () => {
 
     // A Persian question pins a Persian note card on the board.
     await page.getByLabel('Ask a question').fill(QUESTION);
-    await page.getByRole('button', { name: 'Ask' }).click();
+    await page.getByTestId('composer-send').click();
     const note = page.locator('.pen-note').first();
     await expect(note).toBeVisible({ timeout: 30_000 });
     await expect(note).toHaveAttribute('dir', 'rtl');
@@ -61,7 +72,7 @@ test.describe('a session taught in Persian', () => {
     await page.screenshot({ path: join(SCREENS_DIR, 'persian-note.png') });
 
     // The recap panel, which is the lesson's own words, reads right to left too.
-    await page.getByRole('button', { name: 'End' }).click();
+    await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
     const recapTitle = page.locator('h3[dir="rtl"]').first();
     await expect(recapTitle).toBeVisible();

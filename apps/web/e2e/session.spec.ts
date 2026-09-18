@@ -49,7 +49,7 @@ test.describe('a learner starts a session', () => {
 
     // A typed question interrupts; the acknowledgement and answer arrive; the lesson resumes.
     await page.getByLabel('Ask a question').fill('Why do we divide by the square root of d?');
-    await page.getByRole('button', { name: 'Ask' }).click();
+    await page.getByTestId('composer-send').click();
     await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
       timeout: 20_000,
     });
@@ -58,7 +58,7 @@ test.describe('a learner starts a session', () => {
     await page.getByRole('button', { name: 'Captions' }).click();
 
     // Host ends the session → recap panel → saved session page.
-    await page.getByRole('button', { name: 'End' }).click();
+    await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Open the saved session' }).click();
     await expect(page.getByRole('heading', { name: /Transformers/ })).toBeVisible();

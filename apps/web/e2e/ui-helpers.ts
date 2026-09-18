@@ -51,6 +51,8 @@ export async function startLesson(
   // never speaks, so no caption and no conversation ever appear. Tap once,
   // where a learner would ("Tap anywhere to enable sound").
   await page.mouse.click(40, 40);
+  // …and give the focus back, so the next Tab is still the skip link.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 }
 
 /** Wait until the expert has actually written something on the board. */
@@ -72,7 +74,9 @@ export async function shot(page: Page, name: string): Promise<void> {
 
 /** End the session and open the saved page, which is where a replay is linked from. */
 export async function endSession(page: Page): Promise<string> {
-  await page.getByRole('button', { name: 'End' }).click();
+  // Exact: the room now has an "Ask …" and a "Send …" of its own, and a
+  // substring match on "End" would find all three.
+  await page.getByRole('button', { name: 'End', exact: true }).click();
   await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Open the saved session' }).click();
   await page.waitForURL(/\/sessions\//, { timeout: 20_000 });

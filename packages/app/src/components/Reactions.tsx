@@ -109,7 +109,7 @@ export function ReactionPicker({
         </div>
       ) : null}
       <IconButton
-        label={disabled ? (disabledReason ?? 'Reactions are off right now') : 'Send a reaction'}
+        label={disabled ? (disabledReason ?? 'Reactions are off right now') : 'React'}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         aria-expanded={open}

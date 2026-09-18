@@ -114,13 +114,13 @@ describe('the reaction picker', () => {
     const { rerender } = render(
       <ReactionPicker
         disabled
-        disabledReason="Reactions are back when the ad ends"
+        disabledReason="Reactions are back after the ad"
         onReact={() => undefined}
       />,
     );
     const toggle = screen.getByTestId('reaction-toggle') as HTMLButtonElement;
     expect(toggle.disabled).toBe(true);
-    expect(toggle.getAttribute('aria-label')).toBe('Reactions are back when the ad ends');
+    expect(toggle.getAttribute('aria-label')).toBe('Reactions are back after the ad');
     fireEvent.click(toggle);
     expect(screen.queryByTestId('reaction-row')).toBeNull();
 

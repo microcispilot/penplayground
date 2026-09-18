@@ -204,7 +204,7 @@ test.describe('rooms: TURN', () => {
     const none = await relayCandidates(page, null);
     expect(none.candidates).toEqual([]);
 
-    await page.getByRole('button', { name: 'End' }).click();
+    await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
     await ctx.close();
   });
@@ -218,7 +218,7 @@ test.describe('rooms: TURN', () => {
     expect(types.length).toBeGreaterThan(0);
     // Relaying media through the server when the network does not need it is pure cost.
     expect(types.includes('relay')).toBe(false);
-    await page.getByRole('button', { name: 'End' }).click();
+    await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
     await ctx.close();
   });

@@ -178,7 +178,7 @@ test.describe('rooms: voice between participants', () => {
     await expect.poll(() => connectionState(guest.page)).toBe('absent');
 
     await host.page.keyboard.press('Escape');
-    await host.page.getByRole('button', { name: 'End' }).click();
+    await host.page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(host.page.getByText('Session saved')).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => connectionState(host.page)).toBe('absent');
 

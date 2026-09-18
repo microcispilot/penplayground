@@ -171,6 +171,8 @@ test.describe('the session panel, reviewed', () => {
       await expect(row).toBeVisible();
       await expect(row.locator('> button')).toHaveCount(8);
       await shot(page, `panel-1440-${theme}-reactions`);
+      await page.keyboard.press('Escape');
+      await expect(row).toBeHidden();
 
       // End to end, over the real socket: press one and it comes back from the
       // room as a pill with this learner's own face on it.

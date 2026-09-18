@@ -55,7 +55,10 @@ export default defineConfig({
    * none of the servers below do. Run here it would not merely fail — it would start a lesson on
    * the shared API on its way to failing, and the specs that follow share that one pipeline.
    */
-  testIgnore: ['base-path.spec.ts'],
+  // `**/` on purpose: a bare name is matched against the whole path and never
+  // matches, so this spec used to run here anyway — and fail, exactly as the
+  // note above says it would (the sibling MEDIA_AFTER_LESSON globs get it right).
+  testIgnore: ['**/base-path.spec.ts'],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
