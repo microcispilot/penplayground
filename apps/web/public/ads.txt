@@ -1,5 +1,3 @@
-# Pen Playground ads.txt (IAB Authorized Digital Sellers). Served at https://<domain>/ads.txt.
-# Google Ad Manager / AdSense needs one line per seller account. Replace pub-XXXXXXXXXXXXXXXX with the
-# publisher id from Ad Manager (Admin > Global settings > Network settings > Publisher ID, or
-# AdSense > Account > Settings) and remove the leading '#'. Runbook: docs/ADS.md.
-# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+# Authorised sellers of Pen Playground's ad inventory (IAB ads.txt).
+# Google Ad Manager / AdSense, publisher ca-pub-4311518841226007.
+google.com, pub-4311518841226007, DIRECT, f08c47fec0942fa0

@@ -133,3 +133,19 @@ decision with revenue attached, not a banner added to be safe.
 - Consent (EEA/UK): Ad Manager's own consent handling needs a TCF 2.2 CMP before serving
   *personalised* ads there. We do not serve those at all: `npa=1` everywhere and `ltd=1` in
   Europe (see above), so no CMP is required.
+
+## Account setup
+
+**Status (2026-09-18).** The AdSense account exists; publisher id **ca-pub-4311518841226007**.
+Site ownership for `penplayground.com` is proven two ways on the live holding page:
+
+- `https://penplayground.com/ads.txt` → `google.com, pub-4311518841226007, DIRECT, f08c47fec0942fa0`
+- a `<meta name="google-adsense-account">` tag in the holding page's head
+
+Both are served by nginx from `/var/www/pen-soon` (see `deploy/soon/`), so they survive until the
+product replaces that page — at which point `apps/web/public/ads.txt` carries the same line and the
+app's `index.html` should carry the same meta tag.
+
+Remaining, in order: AdSense review of the site (it needs real content, so expect this to wait for
+launch), then Google Ad Manager, then a video ad unit whose VAST tag URL becomes `PEN_AD_TAG_URL`.
+
