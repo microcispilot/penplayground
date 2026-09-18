@@ -98,3 +98,10 @@
       on-device recognition (`processLocally`). It only appears when the browser recognizer path runs
       inside the room in that Chromium. The ad and replay stall watchdogs stay as defence in depth;
       prefer `channel: 'chrome'` for any spec that must play media after a lesson.
+- [ ] `export.integration.test.ts` fails intermittently only inside the full API suite (passed alone
+      twice, failed twice in-suite, passed in-suite on the third run, 2026-09-18). It drives a real
+      Chromium plus ffmpeg while 24 other files run, so the likely cause is contention rather than
+      logic — but that is a hypothesis, not a diagnosis. Next step: run it with `--no-file-parallelism`
+      and with the renderer's timings logged, and if contention is confirmed, give it its own project
+      rather than a longer timeout.
+
