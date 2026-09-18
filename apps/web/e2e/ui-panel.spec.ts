@@ -171,7 +171,17 @@ test.describe('the session panel, reviewed', () => {
       await expect(row).toBeVisible();
       await expect(row.locator('> button')).toHaveCount(8);
       await shot(page, `panel-1440-${theme}-reactions`);
-      await page.keyboard.press('Escape');
+
+      // End to end, over the real socket: press one and it comes back from the
+      // room as a pill with this learner's own face on it.
+      await fillRoom(page, 1);
+      await page.getByTestId('reaction-toggle').click();
+      await page.getByTestId('reaction-👏').click();
+      await expect(page.getByTestId('reaction-row')).toBeHidden();
+      const pill = page.getByTestId('reaction-pill').first();
+      await expect(pill).toBeVisible({ timeout: 10_000 });
+      await expect(pill).toHaveAttribute('data-emoji', '👏');
+      await expect(page.getByRole('img', { name: /reacted — applauds$/ })).toBeVisible();
     });
   }
 

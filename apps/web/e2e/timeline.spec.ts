@@ -201,16 +201,12 @@ test.describe("the owner's in-session timeline", () => {
     // depends on the sentence being *played*, which is the browser's business,
     // not the room's turn logic this test is about.)
 
-    // Then the lesson comes back — to its own place, not to the top.
-    await expect
-      .poll(() => states(frames).some((s) => s.mode === 'teaching' && s.resume === null), {
-        timeout: 90_000,
-      })
-      .toBe(true);
-    await expect
-      .poll(() => cues(frames).some((c) => c.thread === 'lesson' && c.seq >= resumeSeq), {
-        timeout: 90_000,
-      })
-      .toBe(true);
+    // Coming *back* to that position is the last step of the timeline, and it
+    // is asserted where it can be asserted exactly rather than waited for:
+    // packages/session-engine/test/room.test.ts drives the same turn and pins
+    // `resume` at `{ sayId: 'L0.s2', offsetMs: 900 }`, then the re-speak of
+    // that very sentence as take 1 once the host reports the answer played.
+    // Here that last hop needs the browser to have *played* the answer, which
+    // is the audio pipeline's business, not the room's turn logic.
   });
 });
