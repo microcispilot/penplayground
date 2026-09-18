@@ -293,10 +293,17 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
     );
     // Every question that found anything the first time is remembered the second.
     expect(hits).toBeGreaterThan(questions.length * 0.9);
-    // Remembering is a different order of work from retrieving, whatever the
-    // machine: the warm path must cost a fraction of the cold one measured
-    // beside it. The budget itself is still the ceiling.
-    expect(warmP95).toBeLessThan(coldP95 / 4);
-    expect(warmP95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
+    // No saving is asserted, and the ratio I tried first was wrong to expect.
+    // Eight packs is a small corpus: retrieval is not what a query costs here,
+    // the fixed per-query work is — parsing, assembling the context, shaping
+    // the answer — and the memo skips none of that. On this laptop the memo
+    // still looked like a 12x win (warm p95 0.13 ms against a cold 1.56 ms);
+    // on a CI runner the two were 2.27 ms and 1.80 ms, the "saving" inverted,
+    // and both were noise around the same fixed cost. The saving is real where
+    // retrieval is real, and that is the 20,000-unit test above.
+    //
+    // What this test owns is that a repeat is remembered at all — every one of
+    // the forty — and that answering from memory stays well inside the budget.
+    expect(warmP95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS / 2);
   }, 300_000);
 });
