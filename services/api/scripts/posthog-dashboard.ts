@@ -7,11 +7,11 @@ import { z } from 'zod';
  *   pnpm --filter @pen/api posthog:dashboard -- --print # just print the SQL
  *   pnpm --filter @pen/api posthog:dashboard -- --check # run every query, print rows
  *
- * Creating a dashboard needs `dashboard:write` and `insight:write` on
- * `POSTHOG_PERSONAL_API_KEY`. The key this project ships with is query-scoped
- * only, so `--create` will say exactly which scope is missing and fall back to
- * printing the SQL for the owner to paste into a new dashboard by hand
- * (PostHog → Dashboards → New → Add insight → SQL).
+ * Scopes on `POSTHOG_PERSONAL_API_KEY` decide what runs: creating the
+ * dashboard needs `dashboard:write` + `insight:write`, and `--check` runs
+ * HogQL and needs `query:read`. All three are granted today. If one is ever
+ * revoked the script names the exact missing scope and falls back to printing
+ * the SQL to paste by hand (PostHog → Dashboards → New → Add insight → SQL).
  *
  * Every tile reads the server-side `session_ended` event, whose flat, dotted
  * properties are built by `sessionEndedProperties` (ADR-0011) — so each number
@@ -247,8 +247,8 @@ if (existing.status === 403) {
   const scope = missingScope(existing.body);
   console.error(`Cannot read dashboards: ${scope ?? JSON.stringify(existing.body)}`);
   console.error(
-    '\nThis key is query-scoped. Grant `dashboard:write` and `insight:write` in\n' +
-      'PostHog → Settings → Personal API keys, then re-run. Until then, paste these:',
+    '\nGrant `dashboard:write` and `insight:write` in PostHog → Settings →\n' +
+      'Personal API keys, then re-run. Until then, paste these by hand:',
   );
   printTiles();
   process.exit(1);

@@ -24,7 +24,7 @@ import { z } from 'zod';
  */
 const env = process.env;
 const TOKEN = env.SENTRY_AUTH_TOKEN;
-const ORG = env.SENTRY_ORG ?? 'microcis-0s';
+const ORG = env.SENTRY_ORG ?? 'pen-playground';
 const PROJECTS = (env.PEN_SENTRY_PROJECTS ?? 'pen-academy-api,pen-academy-web,pen-academy-desktop')
   .split(',')
   .map((s) => s.trim())
@@ -95,11 +95,24 @@ async function owner(): Promise<{ memberId: string; userId: string; email: strin
 }
 
 /**
- * A workflow listens to a project's issue stream. `issue_stream` is the
- * detector every project has for "an issue happened here"; the separate
- * `error` detector is the one the default high-priority workflow uses.
+ * The detectors a workflow listens to. `issue_stream` is the one every project
+ * has for "an issue happened here" (the separate `error` detector is what
+ * Sentry's own default workflow uses).
+ *
+ * Uptime checks and Cron monitors get their **own** detectors
+ * (`uptime_domain_failure`, `monitor_check_in_failure`) and they are created
+ * with no workflow attached — so a site going down, or the API's heartbeat
+ * going silent, would raise an issue that emails nobody. They are bound here
+ * explicitly. Both kinds of detector appear only once the monitor exists, so
+ * re-run this script after adding one (it is idempotent).
  */
-async function issueStreamDetectors(): Promise<string[]> {
+const ALERT_ON: readonly string[] = [
+  'issue_stream',
+  'uptime_domain_failure',
+  'monitor_check_in_failure',
+];
+
+async function alertDetectors(): Promise<string[]> {
   const projects = await get(`/organizations/${ORG}/projects/`, z.array(Project));
   const wanted = PROJECTS.map((slug) => {
     const p = projects.find((x) => x.slug === slug);
@@ -108,11 +121,13 @@ async function issueStreamDetectors(): Promise<string[]> {
   });
   const query = wanted.map((id) => `project=${encodeURIComponent(id)}`).join('&');
   const detectors = await get(`/organizations/${ORG}/detectors/?${query}`, z.array(Detector));
-  const ids = wanted.map((projectId) => {
-    const d = detectors.find((x) => x.projectId === projectId && x.type === 'issue_stream');
-    if (!d) throw new Error(`no issue_stream detector for project ${projectId}`);
-    return d.id;
-  });
+  const ids: string[] = [];
+  for (const projectId of wanted) {
+    const mine = detectors.filter((d) => d.projectId === projectId);
+    if (!mine.some((d) => d.type === 'issue_stream'))
+      throw new Error(`no issue_stream detector for project ${projectId}`);
+    for (const d of mine) if (ALERT_ON.includes(d.type)) ids.push(d.id);
+  }
   return ids;
 }
 
@@ -225,7 +240,7 @@ async function upsertMonitor(memberId: string): Promise<void> {
 }
 
 const who = await owner();
-const detectorIds = await issueStreamDetectors();
+const detectorIds = await alertDetectors();
 console.log(`org ${ORG}  →  ${who.email} (member ${who.memberId}, user ${who.userId})`);
 console.log(`projects: ${PROJECTS.join(', ')}  detectors: ${detectorIds.join(', ')}`);
 

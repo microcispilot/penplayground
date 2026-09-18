@@ -33,7 +33,7 @@ df -h /srv && free -m                             # 5. the two host limits that 
 
 Then read, in this order:
 
-1. **Sentry** — <https://microcis-0s.sentry.io/issues/?project=4512099987161088>.
+1. **Sentry** — <https://pen-playground.sentry.io/issues/?project=4512105492643840>.
    Every server error is here with `sessionId`, `expertId`, `plan` and `area`
    tags and no learner content. Sort by *Last seen*.
 2. **PostHog** — the "Pen Playground — Sessions" dashboard (§ Analytics). Did
@@ -129,10 +129,15 @@ so these are org-scoped **workflows** bound to each project's issue-stream
 
 | alert | fires when | goes to |
 | --- | --- | --- |
-| `Pen Playground — new issue` (workflow 5101143) | any issue is seen for the first time in api/web/desktop | owner's email |
-| `Pen Playground — error rate spike` (workflow 5101158) | one issue passes 20 events in an hour | owner's email |
+| `Pen Playground — new issue` (workflow 5368385) | any issue is seen for the first time in api/web/desktop | owner's email |
+| `Pen Playground — error rate spike` (workflow 5368408) | one issue passes 20 events in an hour | owner's email |
 | `pen-api-heartbeat` (Sentry Cron monitor) | the API stops checking in (5 min interval + 5 min margin) | an issue → the new-issue workflow → email |
-| UptimeRobot / Better Stack | `https://penplayground.com/api/health` fails twice | owner's email (`deploy/uptime.md`) |
+| `Pen Playground — penplayground.com` (Sentry Uptime `10374803`) | the public site fails two checks ≈ 10 min: not 200, or the body's `ok` is not `true` | an issue → the new-issue workflow → email (`deploy/uptime.md`) |
+
+> Uptime and Cron monitors come with their **own** detectors, created with no
+> workflow attached — a failure would raise an issue that emails nobody.
+> `sentry:alerts` binds them to both workflows, so **re-run it after adding any
+> new uptime or cron monitor**.
 
 The heartbeat is the dead-man's switch: `services/api/src/observability.ts`
 runs the readiness probe every `SENTRY_CRON_INTERVAL_MINUTES` and checks in
@@ -152,14 +157,15 @@ Check it after a deploy:
 docker compose logs api | grep 'cron heartbeat'    # "sentry cron heartbeat on"
 ```
 
-and in Sentry: <https://microcis-0s.sentry.io/insights/backend/crons/> — the
+and in Sentry: <https://pen-playground.sentry.io/insights/backend/crons/> — the
 monitor should be green with a check-in every five minutes.
 
-> **Sentry Crons needs one paid seat per monitor.** `pen-api-heartbeat` holds
-> the org's available seat. A *second* monitor (a staging heartbeat, say) is
-> created disabled and silently drops its check-ins until there is pay-as-you-go
-> budget — so if a new monitor never turns green, check its `status` first:
-> `GET /api/0/organizations/microcis-0s/monitors/<slug>/`.
+> **Sentry Crons takes a paid seat per monitor.** A monitor created *by a
+> check-in* (the SDK upserts one) comes up `status: "disabled"` and silently
+> drops every check-in until a seat is available — which is exactly why
+> `sentry:alerts` creates it through the API first, where it comes up `active`.
+> If a monitor never turns green, check its status before suspecting the code:
+> `GET /api/0/organizations/pen-playground/monitors/<slug>/`.
 
 ### When an alert fires
 
@@ -173,14 +179,16 @@ monitor should be green with a check-in every five minutes.
 
 ## 4. Analytics
 
-PostHog project `568150`, host `https://us.posthog.com`. Server events are
+PostHog project **Pen Playground** (`615574`, US region; ingestion
+`https://us.i.posthog.com`, API `https://us.posthog.com`). Server events are
 content-free by design (ADR-0011): codes, counts, timings — never a topic,
 question or transcript.
 
-The dashboard is **"Pen Playground — Sessions"**: sessions per day, time to
-first audio (p50/p95), question → answer (p50/p95), cost per session, reuse
-rate, ads completed/skipped, errors per session, and session health — each
-split by `plan`.
+The dashboard is **"Pen Playground — Sessions"**
+(<https://us.posthog.com/project/615574/dashboard/2109533>): sessions per day,
+time to first audio (p50/p95), question → answer (p50/p95), cost per session,
+reuse rate, ads completed/skipped, errors per session, and session health —
+each split by `plan`.
 
 ```sh
 pnpm --filter @pen/api posthog:dashboard            # create it (needs write scopes)
@@ -188,10 +196,13 @@ pnpm --filter @pen/api posthog:dashboard -- --check # run every query, print row
 pnpm --filter @pen/api posthog:dashboard -- --print # the SQL, to paste by hand
 ```
 
-> The `POSTHOG_PERSONAL_API_KEY` in `.env` is **query-scoped only**. Creating
-> the dashboard needs `dashboard:write` and `insight:write` (PostHog →
-> Settings → Personal API keys). Until those are granted, `--print` gives the
-> exact SQL for PostHog → Dashboards → New → Add insight → SQL.
+> **Scopes decide which of those three work.** `POSTHOG_PERSONAL_API_KEY` has
+> `organization:read`, `project:read`, `dashboard:write`, `insight:write` and
+> `query:read` — enough for all of them, and for `telemetry:pull`. If a command
+> ever answers `403 … missing required scope '<name>'`, that is the whole
+> diagnosis: add the scope in PostHog → Settings → Personal API keys. The
+> dashboard itself never depends on this key — its tiles run as whoever is
+> looking at them — and `--print` needs no key at all.
 
 Every tile filters `properties.app = 'pen-academy-api'` — the project is shared
 with another product, and an unfiltered average silently mixes them. Rows with
