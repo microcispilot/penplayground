@@ -678,6 +678,8 @@ export class PcmPlayer {
   readonly #pending: PendingAudio[] = [];
   readonly #scheduled = new Set<ScheduledAudio>();
   #context: PlayerAudioContext | undefined;
+  /** Set when the browser refused to build a context; cleared by the next gesture. */
+  #contextFailed = false;
   #timeline: SayTimeline | undefined;
   #masterGain: PlayerGainNode | undefined;
   /** One gain per playback run: cancel fades this node and releases it, so
@@ -738,6 +740,9 @@ export class PcmPlayer {
    */
   async prime(sampleRate: PlaybackSampleRate = AUDIO.ttsSampleRate): Promise<void> {
     if (this.#disposed) return;
+    // The learner just pressed something, which is the one moment worth another
+    // attempt: autoplay policy and a device that was busy both clear this way.
+    this.#contextFailed = false;
     const context = this.#ensureContext(sampleRate);
     // While paused the clock must stay frozen; the context is unlocked by
     // resume() instead.
@@ -944,12 +949,19 @@ export class PcmPlayer {
       if (existing.state !== 'running' && !this.#paused) this.#tryResume(existing);
       return existing;
     }
+    // A browser that refused to build a context refuses again a millisecond
+    // later, and chunks arrive by the dozen: asking once per chunk turns one
+    // broken device into fifty identical Sentry issues and a retry loop behind
+    // silence. Ask once, say so once, and wait for a gesture — `prime()` is
+    // only ever called from one, and a gesture is a fair reason to try again.
+    if (this.#contextFailed) return undefined;
     let context: PlayerAudioContext;
     try {
       context =
         this.#options.createAudioContext?.(sampleRate) ??
         new AudioContext({ latencyHint: 'interactive', sampleRate });
     } catch (error: unknown) {
+      this.#contextFailed = true;
       this.#options.onError(
         'PEN_PLAYBACK_AUDIO_CONTEXT_FAILED',
         'AudioContext creation failed',

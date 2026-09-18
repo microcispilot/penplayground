@@ -106,7 +106,15 @@ export class RoomSession {
       onError: (code, detail) => {
         console.warn('[playback]', code, detail);
         reportClientError(code, detail, 'tts');
-        if (code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED') {
+        // Two different ways the speakers stay quiet, one recovery: the
+        // browser held the sound back, or it refused to build the audio
+        // context at all. Either way the expert is talking into nothing, and
+        // the learner must be told rather than left in silence — the same tap
+        // that unlocks autoplay is also the moment worth a second attempt.
+        if (
+          code === 'PEN_PLAYBACK_AUDIO_CONTEXT_SUSPENDED' ||
+          code === 'PEN_PLAYBACK_AUDIO_CONTEXT_FAILED'
+        ) {
           set({ soundBlocked: true });
           this.armSoundGesture();
         }

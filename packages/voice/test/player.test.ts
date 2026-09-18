@@ -589,6 +589,46 @@ describe('PcmPlayer', () => {
   });
 });
 
+describe('PcmPlayer: a device that cannot make an audio context', () => {
+  /**
+   * A browser that refuses to build a context refuses again immediately, and
+   * chunks arrive by the dozen. Before this was held, one broken device asked
+   * fifty-six times in a single lesson and reported every one of them: a retry
+   * loop behind silence, and a Sentry issue per chunk.
+   */
+  it('asks once, says so once, and tries again only when the learner taps', async () => {
+    const errors: string[] = [];
+    let attempts = 0;
+    let refuse = true;
+    const player = new PcmPlayer({
+      onError: (code) => {
+        errors.push(code);
+      },
+      onSayStart: () => undefined,
+      onSayEnd: () => undefined,
+      onUnderrun: () => undefined,
+      onProgress: () => undefined,
+      createAudioContext: (rate) => {
+        attempts += 1;
+        if (refuse) throw new Error('no audio device');
+        return fakeContext(rate);
+      },
+    });
+
+    for (let i = 0; i < 20; i++) player.enqueue(chunk('s1', i, i * 120, 120, i === 19));
+    expect(attempts, 'one attempt, not one per chunk').toBe(1);
+    expect(errors).toEqual(['PEN_PLAYBACK_AUDIO_CONTEXT_FAILED']);
+
+    // The learner taps "Tap to hear …": that is a fair reason to try again,
+    // and when the device has come back the sound simply works.
+    refuse = false;
+    await player.prime();
+    expect(attempts).toBe(2);
+    expect(errors).toEqual(['PEN_PLAYBACK_AUDIO_CONTEXT_FAILED']);
+    player.dispose();
+  });
+});
+
 describe('PcmPlayer: the tap that turns the sound on', () => {
   /**
    * The room's "Tap to hear …" control calls `prime()` from a real user
