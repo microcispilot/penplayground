@@ -96,6 +96,9 @@ export const InteractionName = z.enum([
   'captions_off',
   'mic_on',
   'mic_off',
+  // The device cannot listen: no microphone, permission refused, no recognizer.
+  // A condition of the learner's machine, recorded so it is visible, never an error.
+  'speech_unavailable',
   'fullscreen',
   'pace_changed',
   'leave',

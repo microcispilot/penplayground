@@ -71,6 +71,14 @@ export interface KeyValueStorage {
 export interface SpeechRecognizerHandlers {
   onPartial(utteranceId: string, text: string): void;
   onFinal(utteranceId: string, text: string): void;
+  /**
+   * Recognition could not continue. Called at most once per distinct code for
+   * the life of the recognizer: a device with no microphone fails on every
+   * restart, and the room must hear about that once, not once a frame. Codes
+   * are the Web Speech API's (`audio-capture`, `not-allowed`,
+   * `service-not-allowed`, `language-not-supported`, `network`), plus
+   * `unavailable` when the platform has no recognizer at all.
+   */
   onError(code: string, error: unknown): void;
 }
 

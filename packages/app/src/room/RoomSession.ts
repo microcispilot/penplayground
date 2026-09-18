@@ -34,6 +34,21 @@ export interface RoomSessionOptions {
 }
 
 /**
+ * What the learner reads when speech recognition cannot run. Each is a fact
+ * and a way forward — typing always works — and every one of these codes is
+ * terminal, so the sentence is shown once and stays true.
+ */
+const SPEECH_NOTICE: Record<string, string> = {
+  'audio-capture': "We can't find a microphone. You can type your question instead.",
+  'not-allowed': 'Your browser is not letting us listen. You can type your question instead.',
+  'service-not-allowed':
+    'Your browser is not letting us listen. You can type your question instead.',
+  'language-not-supported':
+    "This browser doesn't recognise speech in this language yet. You can type your question instead.",
+  unavailable: "This browser can't recognise speech. You can type your question instead.",
+};
+
+/**
  * Owns everything that lives for one visit to a room: the socket, the audio
  * player (master clock), the conductor, the microphone (barge-in VAD) and the
  * speech recognizer. React only renders what the store says.
@@ -490,18 +505,22 @@ export class RoomSession {
       },
       onError: (code, error) => {
         console.warn('[stt]', code, error);
+        const line = SPEECH_NOTICE[code];
+        if (line) {
+          // A machine with no microphone, or a learner who said no to the
+          // prompt, is a condition of the device — not something that went
+          // wrong with the session. It is recorded so the session is still
+          // fully visible, and it reads as calm text with a way forward, but it
+          // never reaches Sentry and never lands in the session's error list.
+          trackInteraction('speech_unavailable', { code });
+          set({ notice: { text: line, tone: 'neutral' } });
+          return;
+        }
         reportClientError(
           `PEN_STT_${code.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
           error,
           'stt',
         );
-        if (code === 'not-allowed' || code === 'unavailable')
-          set({
-            notice: {
-              text: 'Speech recognition is not available in this browser. Type your question instead.',
-              tone: 'danger',
-            },
-          });
       },
     };
   }
