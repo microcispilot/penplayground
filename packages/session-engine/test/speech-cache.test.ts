@@ -13,7 +13,7 @@ import { SayPipeline } from '../src/speech.js';
 import type { RoomObserver, RoomTransport } from '../src/transport.js';
 
 /**
- * What a cache hit does to a session's books (ADR-0016 + ADR-0011): the
+ * What a cache hit does to a session's books (ADR-0017 + ADR-0011): the
  * sentence still streams and still lands in the ledger, but it costs nothing
  * and records what buying it again would have cost, which is the number
  * `SessionTelemetry.reuse` adds up.

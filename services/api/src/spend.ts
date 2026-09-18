@@ -6,7 +6,7 @@ import { logger } from './logger.js';
 
 /**
  * The day's provider spend, and the decision to hold new sessions back before
- * it runs away (ADR-0015).
+ * it runs away (ADR-0016).
  *
  * Every priced provider call already writes a `CostLine` into its session's
  * ledger through the telemetry port (ADR-0011). This listens to the same

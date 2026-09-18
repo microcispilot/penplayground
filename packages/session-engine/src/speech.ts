@@ -200,7 +200,7 @@ export class SayPipeline {
     let chunkIndex = 0;
     let firstChunkMs = -1;
     /**
-     * Whether the audio came from the synthesis cache (ADR-0016). The first
+     * Whether the audio came from the synthesis cache (ADR-0017). The first
      * chunk says so; until one arrives we assume the provider was called,
      * because a request abandoned before its first byte is still a request the
      * provider may have billed.

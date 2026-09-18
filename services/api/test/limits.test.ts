@@ -12,7 +12,7 @@ import { buildServices, type Services } from '../src/services.js';
 
 /**
  * What stands between a learner and a new session: the plan's daily allowance,
- * the day's spend cap (ADR-0015), the per-IP room cap and the body limit. All
+ * the day's spend cap (ADR-0016), the per-IP room cap and the body limit. All
  * four are enforced server-side, so all four are asserted through the real app.
  *
  * The spend cap is deliberately tiny here and pushed over the line in the last

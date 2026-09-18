@@ -42,7 +42,7 @@ export interface Services {
   onten: Onten;
   experts: ExpertCatalog;
   synthesizer: SpeechSynthesizer;
-  /** The synthesis cache in front of the engine (ADR-0016); null when disabled. */
+  /** The synthesis cache in front of the engine (ADR-0017); null when disabled. */
   ttsCache: CachingSynthesizer | null;
   /** Server-side STT; null when clients transcribe on-device (`PEN_STT_PROVIDER=browser`). */
   recognizer: SpeechRecognizerFactory | null;
@@ -63,7 +63,7 @@ export interface Services {
   costs: CostLedger;
   /** Free-plan video ad demand and the per-session revenue estimate (ADR-0014). */
   ads: AdEconomics;
-  /** The day's provider spend and the circuit breaker in front of it (ADR-0015). */
+  /** The day's provider spend and the circuit breaker in front of it (ADR-0016). */
   spend: SpendBreaker;
   /** MP4 export queue (one render at a time per process). */
   exports: ExportJobs;
@@ -157,7 +157,7 @@ export async function buildServices(
   })();
 
   /**
-   * Zero redundant work (ADR-0016): a lesson served from the memo says the very
+   * Zero redundant work (ADR-0017): a lesson served from the memo says the very
    * same sentences, so they are synthesised once and replayed from disk after
    * that. The cache is a wrapper, so the pipeline above it is unchanged.
    */

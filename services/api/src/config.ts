@@ -93,7 +93,7 @@ const Env = z.object({
   PEN_AD_ECPM_USD: z.coerce.number().nonnegative().default(8),
 
   /**
-   * Spend circuit breaker (ADR-0015): the most provider spend one UTC day may
+   * Spend circuit breaker (ADR-0016): the most provider spend one UTC day may
    * cost, summed from the day's telemetry cost lines. Past it, new free-plan
    * sessions are held back (503 CAPACITY) while paid plans continue to
    * `PEN_DAILY_SPEND_PAID_MULTIPLE ×` the cap. 0 disables the breaker.
@@ -103,7 +103,7 @@ const Env = z.object({
   PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).default(3),
 
   /**
-   * Synthesis cache (ADR-0016): identical sentences are synthesised once and
+   * Synthesis cache (ADR-0017): identical sentences are synthesised once and
    * replayed from `PEN_DATA_DIR/tts-cache` at the same streaming cadence.
    *
    * Opt-in (0 = off) until the interaction recorded in tasks/todo.md is

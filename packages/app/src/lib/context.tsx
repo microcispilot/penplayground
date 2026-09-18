@@ -19,7 +19,7 @@ interface AppContextValue {
   /** Back to a fresh anonymous participant. */
   signOut(): Promise<void>;
   /**
-   * The learner's privacy choice. There is no banner to answer (ADR-0017):
+   * The learner's privacy choice. There is no banner to answer (ADR-0018):
    * this is the quiet switch behind "Privacy choices".
    */
   privacy: PrivacyChoice;

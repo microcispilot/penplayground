@@ -2,7 +2,7 @@ import { limitedAdsForZone } from '@pen/contracts';
 import type { KeyValueStorage } from '../platform/types.js';
 
 /**
- * Privacy without a wall (ADR-0017).
+ * Privacy without a wall (ADR-0018).
  *
  * There is no consent banner in this product, because there is nothing here
  * that needs consenting to: analytics are cookieless and content-free, ads are

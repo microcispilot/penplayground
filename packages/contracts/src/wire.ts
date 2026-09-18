@@ -188,7 +188,7 @@ export const ServerError = z.object({
     'RATE_LIMITED',
     /** The frame did not match the protocol; repeated ones close the socket. */
     'BAD_MESSAGE',
-    /** The day's spend cap is holding new sessions back (ADR-0015). */
+    /** The day's spend cap is holding new sessions back (ADR-0016). */
     'CAPACITY',
     'STT_UNAVAILABLE',
     'TTS_UNAVAILABLE',

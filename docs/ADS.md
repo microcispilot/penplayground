@@ -85,7 +85,7 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
   Per session: `session_ended` carries `adsCompleted / adsSkipped / adsErrors /
   adRevenueEstimateUsd`; the cost ledger has a negative `ads` line.
 
-## Personalisation: we do not ask, so we do not get it (ADR-0017)
+## Personalisation: we do not ask, so we do not get it (ADR-0018)
 
 Every request this product makes carries **`npa=1`** (non-personalised ads), added by the API so
 no tag can leave without it. Where European rules may reach the viewer the client adds **`ltd=1`**

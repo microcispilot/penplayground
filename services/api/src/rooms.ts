@@ -80,7 +80,7 @@ export class RoomRegistry {
         services.analytics.capture(args.host.id, 'stage', stageProperties(sessionId, sample));
       },
       // The breaker counts the very lines the ledger records, so the cap and
-      // the Insights tab can never disagree about what today cost (ADR-0015).
+      // the Insights tab can never disagree about what today cost (ADR-0016).
       onCost: (line) => services.spend.record(line),
     });
     const modelId = services.modelFor(args.host.plan).id;

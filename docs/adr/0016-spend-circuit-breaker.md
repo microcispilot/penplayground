@@ -1,4 +1,4 @@
-# ADR-0015: Plan limits and a daily spend circuit breaker — the cap is computed from the same cost lines the Insights tab shows
+# ADR-0016: Plan limits and a daily spend circuit breaker — the cap is computed from the same cost lines the Insights tab shows
 
 Status: accepted · 2026-09-17
 

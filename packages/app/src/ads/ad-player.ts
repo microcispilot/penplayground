@@ -287,7 +287,7 @@ export function createAdPlayer(o: AdPlayerOptions): AdPlayer {
       const req = new sdk.AdsRequest();
       // The server already asked for non-personalised ads; where European rules
       // may reach this viewer, ask for limited ads too — no identifiers read or
-      // written, and so nothing to put a consent wall in front of (ADR-0017).
+      // written, and so nothing to put a consent wall in front of (ADR-0018).
       req.adTagUrl = nonPersonalisedTag(o.ad.tagUrl, { limited: limitedAdsHere() });
       req.linearAdSlotWidth = width;
       req.linearAdSlotHeight = height;

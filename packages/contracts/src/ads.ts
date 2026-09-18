@@ -19,7 +19,7 @@ export const AD_RULES = {
 } as const;
 
 /**
- * Ads are non-personalised here, always (ADR-0017).
+ * Ads are non-personalised here, always (ADR-0018).
  *
  * The product shows a learner one short video between segments; it does not
  * need to know who they are to do that, and asking would mean a consent wall

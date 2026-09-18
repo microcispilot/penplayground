@@ -108,7 +108,7 @@ test.describe('content security policy', () => {
       `console CSP errors:\n${violations.map((v) => v.blockedURI).join('\n')}`,
     ).toEqual([]);
 
-    // Privacy without a banner (ADR-0017): nothing asks for consent, because
+    // Privacy without a banner (ADR-0018): nothing asks for consent, because
     // nothing is stored that would need it.
     const cookies = await page.context().cookies();
     expect(

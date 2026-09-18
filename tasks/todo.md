@@ -31,7 +31,7 @@
 - [ ] Pace follow-ups: a spoken "faster" command; scrubber on the replay screen
 - [x] Observability: per-session stage timings, costs by component, interactions, errors → ledger + PostHog + Sentry; Insights tab; pull-back verified (ADR-0011)
 - [x] Reuse statistics: `reused`/`savedUsd` on stages, `SessionTelemetry.reuse`, `canonicalId`, incremental lesson memo, `/api/stats/reuse`, `telemetry:pull --topic|--all`
-- [x] Synthesis cache (ADR-0016): `CachingSynthesizer` wrapper, keyed by engine/voice/speed/rate/tone/text, LRU under `PEN_TTS_CACHE_MB`, one synthesis shared between concurrent rooms, `reused`/`savedUsd` on the `tts` stage and a $0 cost line
+- [x] Synthesis cache (ADR-0017): `CachingSynthesizer` wrapper, keyed by engine/voice/speed/rate/tone/text, LRU under `PEN_TTS_CACHE_MB`, one synthesis shared between concurrent rooms, `reused`/`savedUsd` on the `tts` stage and a $0 cost line
 - [ ] Synthesis cache: **opt-in until this is understood** — with the cache on, a *second* session on the same topic (memo hit, so nothing waits for the model) makes the client's player report repeated `PEN_PLAYBACK_SAY_STALE` for the last sentences (13 stale chunks cold vs 55 warm). The session's own ledger shows each sentence synthesised exactly once, so it is not a duplicate synthesis; pacing the replay down to 1.25× realtime did not remove it. Reproduce: fake model + silent voice, `PEN_TTS_CACHE_MB=2048`, run the same topic twice against one server. Verify the fix by ear with a real Fish key before flipping the default back to 2048.
 - [ ] Replay scrubber (`replay_seeked` is reserved in the interaction contract)
 - [x] Stripe webhook endpoint registered (sandbox we_1UGlYMRiNibGZsZpHljObkgl; `pnpm --filter @pen/api stripe:webhook`)
@@ -44,18 +44,18 @@
 - [x] Ads: `ad_event` lands in the session ledger (host-validated `interaction` entries; estimated revenue as an `ads` cost line → Insights + PostHog)
 - [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
 - [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
-- [x] Ads: non-personalised everywhere (`npa=1`, server-side) and limited ads in Europe (`ltd=1`, from the viewer's timezone) — so no CMP is needed (ADR-0017, docs/ADS.md)
+- [x] Ads: non-personalised everywhere (`npa=1`, server-side) and limited ads in Europe (`ltd=1`, from the viewer's timezone) — so no CMP is needed (ADR-0018, docs/ADS.md)
 - [ ] Ads: child-directed tagging (`tfcd=1`) for topics aimed at children
 - [ ] Ads: `apps/web/e2e/ads.spec.ts` depends on Google's public sample tag returning a creative within 8 s; it fails on a slow or unlucky network. Consider a recorded VAST fixture for CI and keep the live tag as a manual check.
 
 ## Production hardening (2026-09-17)
 
-- [x] Plan limits enforced server-side: 3 sessions per **UTC** day on free, session length by plan (20/45/60 min), seats by plan; `GET /api/me/usage` and a friendly gate on Home (ADR-0015)
-- [x] Daily spend circuit breaker from the ledger's own cost lines, rebuilt on boot, Sentry warning at 80 % (ADR-0015)
+- [x] Plan limits enforced server-side: 3 sessions per **UTC** day on free, session length by plan (20/45/60 min), seats by plan; `GET /api/me/usage` and a friendly gate on Home (ADR-0016)
+- [x] Daily spend circuit breaker from the ledger's own cost lines, rebuilt on boot, Sentry warning at 80 % (ADR-0016)
 - [x] Abuse limits: per-socket message budgets, bad-frame close, transcript ceiling, 64 KB bodies, per-IP live-session cap
 - [x] Security headers (HSTS behind TLS only, `microphone=(self)`, `DENY`, `no-referrer`) and CORS limited to the configured origins
 - [x] Content-Security-Policy generated from one source (`apps/web/csp.ts`), served by the web container and by the dev server, verified by a Playwright run that records every origin a session touches
 - [x] Data rights: `DELETE /api/me`, `DELETE /api/sessions/:id`, `PATCH /api/sessions/:id` visibility, `GET /api/me/export`, with the controls in the account sheet and the session page
-- [x] Privacy without a banner: cookieless PostHog, non-personalised ads, "Privacy choices" with a server-honoured analytics switch (`0005_analytics_opt_out`) (ADR-0017)
+- [x] Privacy without a banner: cookieless PostHog, non-personalised ads, "Privacy choices" with a server-honoured analytics switch (`0005_analytics_opt_out`) (ADR-0018)
 - [ ] Spend breaker is per process; a second node needs a shared counter (Redis behind `SpendBreaker`)
 - [ ] `DELETE /api/me` leaves the Stripe customer in place on purpose; decide whether deletion should also cancel a live subscription

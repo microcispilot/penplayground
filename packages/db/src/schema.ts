@@ -33,7 +33,7 @@ export const participants = pgTable(
     stripeCustomerId: text('stripe_customer_id'),
     /**
      * The learner turned analytics off under "Privacy choices". There is no
-     * consent banner to answer (ADR-0017): analytics are cookieless and
+     * consent banner to answer (ADR-0018): analytics are cookieless and
      * content-free by construction, and this is the switch for anyone who
      * would rather not be counted at all — honoured on the server as well as
      * in the browser.

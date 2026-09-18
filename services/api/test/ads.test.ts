@@ -74,7 +74,7 @@ describe('AdEconomics', () => {
       revenuePerCompletionUsd: 0.008,
     });
     // Every request leaves here non-personalised, so there is never one that
-    // would have needed a consent banner in front of the lesson (ADR-0017).
+    // would have needed a consent banner in front of the lesson (ADR-0018).
     expect(policy?.tagUrl).toContain('npa=1');
     expect(ads.policyFor('standard', 3)).toBeNull();
     expect(ads.policyFor('professional', 3)).toBeNull();

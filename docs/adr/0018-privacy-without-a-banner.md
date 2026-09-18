@@ -1,4 +1,4 @@
-# ADR-0017: Privacy without a banner — cookieless analytics, non-personalised ads, and one quiet switch
+# ADR-0018: Privacy without a banner — cookieless analytics, non-personalised ads, and one quiet switch
 
 Status: accepted · 2026-09-17
 

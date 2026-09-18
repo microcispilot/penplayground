@@ -23,7 +23,7 @@ let monitor: Monitor | null = null;
 let startClickedAt: number | null = null;
 
 /**
- * Start analytics, cookieless (ADR-0017).
+ * Start analytics, cookieless (ADR-0018).
  *
  * `persistence: 'memory'` is the whole privacy argument in one option: nothing
  * identifying is written to the device, so there is no cookie or cross-visit

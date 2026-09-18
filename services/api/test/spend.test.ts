@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SpendBreaker } from '../src/spend.js';
 
 /**
- * The circuit breaker in front of the day's provider spend (ADR-0015), driven
+ * The circuit breaker in front of the day's provider spend (ADR-0016), driven
  * by an injected clock so the UTC-midnight reset is a test rather than a wait.
  */
 const DAY = 86_400_000;

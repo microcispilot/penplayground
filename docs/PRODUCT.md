@@ -96,7 +96,7 @@ no fill) the lesson resumes within 2 s — no dead air. Demand comes from the
 highest-paying network a new site can join, Google Ad Manager through the IMA
 SDK, behind one swappable tag (ADR-0014, `docs/ADS.md`).
 
-## What the limits feel like (ADR-0015, ADR-0017)
+## What the limits feel like (ADR-0016, ADR-0018)
 
 The caps above are enforced on the server — `PLAN_LIMITS` in
 `packages/contracts/src/billing.ts` is the only table — and they are *explained*
@@ -106,7 +106,7 @@ Pricing. There is no red box, no lock icon and no warning tone anywhere in the
 product: a limit is a fact about a plan, not a fault.
 
 On a day when the whole service has spent its budget (`PEN_DAILY_SPEND_CAP_USD`,
-ADR-0015) free sessions wait until midnight UTC while paid plans keep going,
+ADR-0016) free sessions wait until midnight UTC while paid plans keep going,
 and the page says exactly that.
 
 **Privacy is the same idea.** There is no consent banner, because there is

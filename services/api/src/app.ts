@@ -55,7 +55,7 @@ const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
 const UpdateMe = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
-    /** Privacy choices: stop counting me, here and on the server (ADR-0017). */
+    /** Privacy choices: stop counting me, here and on the server (ADR-0018). */
     analyticsOptOut: z.boolean().optional(),
   })
   .refine((v) => v.name !== undefined || v.analyticsOptOut !== undefined, {
@@ -230,7 +230,7 @@ export function buildApp(services: Services): App {
 
   /**
    * What stands between this participant and a new session right now: their
-   * plan's daily allowance, and the day's spend cap (ADR-0015). Both answers
+   * plan's daily allowance, and the day's spend cap (ADR-0016). Both answers
    * are numbers the client can show plainly — "1 session left today" — rather
    * than a refusal it has to guess the reason for.
    */

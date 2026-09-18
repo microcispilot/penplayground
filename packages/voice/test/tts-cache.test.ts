@@ -7,7 +7,7 @@ import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from '../src/se
 
 /**
  * The cache is the seam that makes a memo-hit lesson nearly free to speak
- * (ADR-0016), so these tests hold it to the three properties that matter:
+ * (ADR-0017), so these tests hold it to the three properties that matter:
  * one purchase per sentence (even under a race), audio that streams like a
  * provider rather than arriving in a lump, and a store that stays inside its
  * ceiling.

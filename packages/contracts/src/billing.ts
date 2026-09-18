@@ -103,7 +103,7 @@ export const PlanUsage = z.object({
   resetsAt: z.number().int().nonnegative(),
   /**
    * False while the day's spend cap is holding new free sessions back
-   * (ADR-0015). Paid plans keep starting; the client says so kindly.
+   * (ADR-0016). Paid plans keep starting; the client says so kindly.
    */
   canStart: z.boolean(),
   /** Why Start is waiting, in one friendly sentence; null when nothing is in the way. */

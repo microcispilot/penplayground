@@ -1,4 +1,4 @@
-# ADR-0016: Synthesis cache — the same sentence is bought once, behind a wrapper, and is opt-in until it is proven against the room
+# ADR-0017: Synthesis cache — the same sentence is bought once, behind a wrapper, and is opt-in until it is proven against the room
 
 Status: accepted (opt-in) · 2026-09-17
 

@@ -85,7 +85,7 @@ export class AdEconomics {
       durationMs: AD_RULES.maxDurationMs,
       skippableAfterMs: AD_RULES.skipAfterMs,
       // Non-personalised from the server out, so there is never a request that
-      // would have needed consent (ADR-0017). The client adds `ltd=1` on top
+      // would have needed consent (ADR-0018). The client adds `ltd=1` on top
       // where European rules may reach the viewer.
       tagUrl: nonPersonalisedTag(this.demand.tagUrl),
       revenuePerCompletionUsd: this.ecpmUsd / 1000,

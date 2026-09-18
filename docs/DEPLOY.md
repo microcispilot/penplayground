@@ -318,7 +318,7 @@ Runbook: `docs/ADS.md`. Two things live in the deploy surface:
 
   Check with `curl -s https://DOMAIN/ads.txt`.
 
-## Limits, spend and privacy (ADR-0015, ADR-0016, ADR-0017)
+## Limits, spend and privacy (ADR-0016, ADR-0017, ADR-0018)
 
 Everything here has a default that is safe to deploy unchanged.
 
@@ -328,7 +328,7 @@ Everything here has a default that is safe to deploy unchanged.
 | `PEN_DAILY_SPEND_PAID_MULTIPLE` | `3` | Paid plans keep going to `cap × this` before anyone is held back. |
 | `PEN_MAX_SESSIONS_PER_IP` | `5` | Live rooms one address may host at once. |
 | `PEN_MAX_BODY_BYTES` | `65536` | Largest JSON body any route accepts (Stripe's signed webhook gets 256 KB). |
-| `PEN_TTS_CACHE_MB` | `0` (off) | Synthesis cache under `PEN_DATA_DIR/tts-cache`. See ADR-0016 before enabling: it is complete and tested, and opt-in until one interaction is understood. |
+| `PEN_TTS_CACHE_MB` | `0` (off) | Synthesis cache under `PEN_DATA_DIR/tts-cache`. See ADR-0017 before enabling: it is complete and tested, and opt-in until one interaction is understood. |
 
 Plan limits themselves (sessions per UTC day, session length, seats) are not
 environment variables — they are product promises, and they live in

@@ -5,7 +5,7 @@ import { useApp } from '../lib/context.js';
 import { WHAT_IS_COLLECTED, WHAT_IS_NEVER_COLLECTED } from '../lib/privacy.js';
 
 /**
- * Privacy choices (ADR-0017).
+ * Privacy choices (ADR-0018).
  *
  * Not a consent wall — it is never in anyone's way, and nothing here is asked
  * before a lesson can start. It exists because someone who wants to know what

@@ -13,7 +13,7 @@ import { buildServices, type Services } from '../src/services.js';
 /**
  * What a learner may do with their own data: hide a session, delete one, take
  * everything away as JSON, delete the account, and opt out of analytics
- * (ADR-0017). Each is asserted against the real store, on disk included —
+ * (ADR-0018). Each is asserted against the real store, on disk included —
  * "deleted" has to mean the bytes are gone, not just the row.
  */
 const dataDir = mkdtempSync(join(tmpdir(), 'pen-data-rights-'));

@@ -13,7 +13,7 @@ import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from './types.j
 
 /**
  * Synthesis cache: the same sentence, in the same voice at the same speed, is
- * bought from the provider once (ADR-0016).
+ * bought from the provider once (ADR-0017).
  *
  * A lesson that is served from the memo speaks the *identical* sentences the
  * previous learner heard, so without this every memo hit still paid full price

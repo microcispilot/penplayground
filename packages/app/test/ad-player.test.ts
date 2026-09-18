@@ -290,7 +290,7 @@ describe('ad player: happy path', () => {
     const h = await playing();
     expect(h.names()).toEqual(['ad_requested', 'ad_loaded', 'ad_started']);
     const req = h.loader.requests[0] as InstanceType<FakeIma['AdsRequest']>;
-    // Every request is non-personalised (ADR-0017), and limited where European
+    // Every request is non-personalised (ADR-0018), and limited where European
     // rules may reach the viewer — which is why there is no consent banner.
     const tag = new URL(req.adTagUrl);
     expect(tag.origin + tag.pathname).toBe('https://ads.example.test/vast');
