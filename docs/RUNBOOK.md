@@ -132,7 +132,12 @@ so these are org-scoped **workflows** bound to each project's issue-stream
 | `Pen Playground — new issue` (workflow 5368385) | any issue is seen for the first time in api/web/desktop | owner's email |
 | `Pen Playground — error rate spike` (workflow 5368408) | one issue passes 20 events in an hour | owner's email |
 | `pen-api-heartbeat` (Sentry Cron monitor) | the API stops checking in (5 min interval + 5 min margin) | an issue → the new-issue workflow → email |
-| UptimeRobot / Better Stack | `https://penplayground.com/api/health` fails twice | owner's email (`deploy/uptime.md`) |
+| `Pen Playground — penplayground.com` (Sentry Uptime `10374803`) | the public site fails two checks ≈ 10 min: not 200, or the body's `ok` is not `true` | an issue → the new-issue workflow → email (`deploy/uptime.md`) |
+
+> Uptime and Cron monitors come with their **own** detectors, created with no
+> workflow attached — a failure would raise an issue that emails nobody.
+> `sentry:alerts` binds them to both workflows, so **re-run it after adding any
+> new uptime or cron monitor**.
 
 The heartbeat is the dead-man's switch: `services/api/src/observability.ts`
 runs the readiness probe every `SENTRY_CRON_INTERVAL_MINUTES` and checks in
