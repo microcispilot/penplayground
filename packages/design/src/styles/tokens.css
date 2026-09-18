@@ -69,8 +69,16 @@
   --color-ink-highlight: oklch(0.88 0.12 90 / 55%);
 
   /* ── type ─────────────────────────────────────────────────────────── */
-  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto,
+    "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  /* The display face is the same family at its display optical size: Apple and Google both
+     set headlines in their UI face, heavier and tighter, rather than in a second voice. */
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI",
+    Roboto, "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --display-weight: 600;
+  --display-tracking: -0.035em;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
 
