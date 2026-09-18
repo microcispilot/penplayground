@@ -51,8 +51,10 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      # Playwright is a dependency of the packages that use it, not of the root,
+      # so the CLI only resolves inside one of them.
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @pen/api exec playwright install --with-deps chromium
 
       - name: Verify
         run: pnpm verify
@@ -80,7 +82,7 @@ jobs:
       # headless shell crashes on: the config pins `channel: chromium`, so the
       # full build is what has to be installed.
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @pen/web exec playwright install --with-deps chromium
 
       - name: Run e2e
         run: pnpm --filter @pen/web e2e
