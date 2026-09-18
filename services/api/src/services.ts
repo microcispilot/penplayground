@@ -30,6 +30,7 @@ import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { LiveKitRooms } from './livekit.js';
 import { logger } from './logger.js';
+import { FileSessionMetaCache } from './meta-cache.js';
 import { observer } from './observability.js';
 import { createRecognizer } from './stt.js';
 import { createSessionMetaJobs, loadThumbnailFont, ThumbnailStore } from './thumbnails.js';
@@ -68,6 +69,10 @@ export interface Services {
   livekit: LiveKitRooms | null;
   /** Session thumbnails on disk (ADR-0013). */
   thumbnails: ThumbnailStore;
+  /** Cards already drawn, keyed by the lesson memo's scope (ADR-0013). */
+  metaCache: FileSessionMetaCache;
+  /** The cheap model the card + sketch call runs on (the backfill uses the same one). */
+  metaModel: LanguageModel;
   /** Background card copy + sketch jobs; rooms enqueue once their plan exists. */
   meta: SessionMetaJobs;
 }
@@ -250,12 +255,17 @@ export async function buildServices(
         ? 'exa'
         : 'none';
   const thumbnails = new ThumbnailStore(join(cfg.PEN_DATA_DIR, 'sessions'), loadThumbnailFont());
+  // The card of a lesson that was already taught (same topic, band, persona, language) is
+  // reused rather than drawn again — the lesson memo's rule, applied to the card (ADR-0013).
+  const metaCache = new FileSessionMetaCache(join(cfg.PEN_DATA_DIR, 'onten'));
   // Card copy and sketches are house-account work on the cheapest model; when it is the session
   // model (the default) the plan call's persona prefix is already in the prompt cache.
+  const metaModel = buildModel('free', cfg.PEN_LLM_OUTLINE_MODEL);
   const meta = createSessionMetaJobs({
-    model: buildModel('free', cfg.PEN_LLM_OUTLINE_MODEL),
+    model: metaModel,
     store: thumbnails,
     sessions,
+    cache: metaCache,
   });
   const base = {
     cfg,
@@ -281,6 +291,8 @@ export async function buildServices(
     renderUnavailable,
     livekit,
     thumbnails,
+    metaCache,
+    metaModel,
     meta,
   };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;

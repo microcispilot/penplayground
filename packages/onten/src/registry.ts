@@ -122,7 +122,7 @@ export class MockRegistry implements OntenRegistry {
     }
 
     const memoTopic = best?.pack.canonicalKnowledgeId ?? canonicalKnowledgeId;
-    const memo = await this.memo.find(memoTopic, request.band);
+    const memo = await this.memo.find(memoTopic, request.band, undefined, request.language);
     if (best?.pack.qualified && best.score >= 0.72) {
       return {
         canonicalKnowledgeId: best.pack.canonicalKnowledgeId,

@@ -19,8 +19,8 @@ browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/site
 ```
 
 Everything binds to `127.0.0.1` (api 4200, web 4201, postgres 5432, searxng 8080, livekit
-signalling 7880); only the host nginx and LiveKit's two media ports (7881/tcp, 7882/udp) are
-reachable from the internet. `deploy/` holds every file involved:
+signalling 7880); only the host nginx and LiveKit's media and TURN ports (7881/tcp, 7882/udp,
+3478/udp, 30000-30200/udp) are reachable from the internet. `deploy/` holds every file involved:
 
 | file | purpose |
 | --- | --- |
@@ -29,7 +29,9 @@ reachable from the internet. `deploy/` holds every file involved:
 | `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env` |
 | `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-playground/postgres.env` |
 | `deploy/searxng/` | SearXNG compose + `settings.yml` (included by the stack) |
-| `deploy/livekit/livekit.yaml` | LiveKit server config (ports, room limits; no secrets) |
+| `deploy/livekit/livekit.yaml` | LiveKit server config (ports, TURN, room limits; no secrets) |
+| `deploy/livekit/livekit.dev.yaml` | the same with TURN on, for the local relay test |
+| `deploy/livekit/cert-sync.sh` | certbot deploy hook: the TURN certificate → the container |
 | `deploy/web/nginx.conf` | nginx inside the web container (baked into the image) |
 | `deploy/nginx/pen-playground.conf.example` | host vhost template (`DOMAIN` placeholder) |
 | `deploy/backup/` | the nightly backup sidecar: `backup.sh`, `restore.sh`, cron entrypoint, rclone setup |
@@ -251,14 +253,17 @@ stack; the API only mints join tokens and relays the host's mute requests.
 
 **Ports and firewall.** Signalling (WebSocket + HTTP API) listens on `127.0.0.1:7880` and is
 reached by browsers through the host nginx at `wss://DOMAIN/livekit` (the vhost template has
-the `/livekit/` location). Media uses two fixed public ports — `7881/tcp` (ICE over TCP, the
-fallback for networks that block UDP) and `7882/udp` (every stream, multiplexed on one port) —
-so the container needs no host networking and the firewall needs two rules. On the Hetzner host:
+the `/livekit/` location). Everything else is public and fixed, so the container needs no host
+networking: `7881/tcp` (ICE over TCP, the fallback for networks that block UDP), `7882/udp`
+(every stream, multiplexed on one port), and for TURN `3478/udp` plus the relay range
+`30000-30200/udp`. On the Hetzner host:
 
 ```sh
 ufw allow 7881/tcp comment 'livekit ice-tcp'
 ufw allow 7882/udp comment 'livekit media'
-# Hetzner Cloud firewall (if one is attached to the server): add the same two inbound rules.
+ufw allow 3478/udp comment 'livekit turn+stun'
+ufw allow 30000:30200/udp comment 'livekit turn relay'
+# Hetzner Cloud firewall (if one is attached to the server): add the same inbound rules.
 # Kernel UDP buffers: LiveKit warns below ~5 MB; make it permanent in /etc/sysctl.d/90-livekit.conf
 sysctl -w net.core.rmem_max=5000000 net.core.wmem_max=5000000
 ```
@@ -287,9 +292,80 @@ docker compose logs api | grep rooms.audio.                               # toke
 Failures land in Sentry under `rooms.audio.mute` (media server unreachable); token minting
 never touches the network.
 
-**No TURN yet.** Clients on networks that block UDP *and* outbound TCP 7881 cannot connect
-(corporate proxies, some hotel Wi-Fi). A TURN/TLS listener on 443 needs its own IP or hostname;
-until then the participant sees "Voice between participants dropped" and keeps the lesson.
+### TURN
+
+A client whose network blocks our media ports has one way left in: relay everything through the
+media server. LiveKit's own TURN server does that, and it hands every client the TURN URL and a
+short-lived per-participant credential **in the join response** — the app configures nothing
+(and must not: livekit-client only fills in the server's ICE servers while the app has set
+none). Verified end to end by `apps/web/e2e/rooms-turn.spec.ts`.
+
+**What is on:** TURN/UDP on `3478` (it is also the STUN server), relaying media out of
+`30000-30200/udp`. That covers a network that blocks `7882/udp` but allows UDP elsewhere.
+
+**What is not, and why:** TURN/TLS. LiveKit advertises the TLS candidate as
+`turns:<turn.domain>:443` — the port is hardcoded to 443 in `iceServersForParticipant`
+(`livekit/pkg/service/roommanager.go`), whatever `turn.tls_port` is set to. So TURN/TLS only
+works when **443 of that hostname** reaches the container, and on prod-app-01 port 443 of the
+one public address belongs to the host nginx, which also serves the onten vhosts. Sharing it
+with an nginx `stream` + `ssl_preread` demux would mean moving every other vhost on this host
+to another port: not worth the blast radius for one feature. The clean upgrade, when a network
+that blocks everything but 443 shows up in the wild:
+
+1. Add a second public address (Hetzner floating IP) to the server, and an `A` record
+   `turn.penplayground.com` → that address.
+2. `certbot certonly --webroot -w /var/www/letsencrypt -d turn.penplayground.com`
+   (the Pen vhost already answers `/.well-known/acme-challenge/` on port 80).
+3. Install the certificate hook, which copies the two files where the container can read them
+   (`/etc/letsencrypt/live/*` are symlinks into `archive/`, which is not mounted) and restarts
+   the container on renewal:
+
+   ```sh
+   cp /srv/pen-playground/livekit/cert-sync.sh /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
+   chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
+   /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh      # once, for the first copy
+   ```
+
+4. In `deploy/livekit/livekit.yaml`, uncomment `tls_port: 443`, `cert_file` and `key_file`
+   (the block above `turn:` spells them out), and put
+   `PEN_TURN_TLS_BIND=<floating ip>:443` in `/srv/pen-playground/.env`.
+5. `ufw allow 443/tcp` is already open; the Hetzner Cloud firewall needs the floating address
+   allowed. Redeploy, then check a client is offered `turns:` (below).
+
+**Check TURN on the host:**
+
+```sh
+docker compose logs livekit | grep -i 'TURN server'        # "Starting TURN server" + ports
+ss -lunp | grep 3478                                        # the listener
+# From a client: open the site, join a room, and in devtools
+#   const s = window.__penAudioRoom.engine.latestJoinResponse.iceServers; s
+# must list turn:<public ip>:3478 with a username and credential. Then, with those:
+#   const pc = new RTCPeerConnection({ iceServers: [s[0]], iceTransportPolicy: 'relay' });
+#   pc.onicecandidate = e => e.candidate && console.log(e.candidate.candidate);
+#   pc.createDataChannel('x'); await pc.setLocalDescription(await pc.createOffer());
+# A line containing "typ relay" means the TURN server allocated a relay for that client.
+```
+
+**Locally**, the same check runs as a test against a server with TURN on:
+
+```sh
+docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp -p 3478:3478/udp \
+  -p 30000-30010:30000-30010/udp \
+  -v "$PWD/deploy/livekit/livekit.dev.yaml:/etc/livekit.yaml:ro" \
+  livekit/livekit-server:v1.9.12 --config /etc/livekit.yaml
+PEN_E2E_LIVEKIT_API_SECRET='pen-local-development-secret-0123456789' \
+  pnpm --filter @pen/web e2e rooms-turn
+```
+
+(Chrome ignores ICE servers on a loopback address, so the Playwright config passes
+`--allow-loopback-in-peer-connection`; a deployed TURN server is on a public address and needs
+no such flag.)
+
+**Known limitation.** Forcing a browser onto relay from the app (`iceTransportPolicy: 'relay'`
+passed to `Room.connect`) does not work with livekit-client 2.22.3: it creates the peer
+connection before the join response, so the policy applies while the SDK still has no ICE
+servers and the client gathers nothing. Moving a participant onto TURN is the media server's
+job — it does that itself when direct candidates fail.
 
 **Locally** (the e2e uses exactly this):
 
@@ -303,6 +379,54 @@ pnpm --filter @pen/web e2e rooms           # host + guest in two Chromium proces
 # Ports are overridable when another checkout holds the defaults (4010/5173 and 4014/5174):
 # PEN_API_PORT=4016 PEN_WEB_PORT=5176 PEN_E2E_ROOMS_API_PORT=4017 PEN_E2E_ROOMS_WEB_PORT=5177 \
 #   PEN_E2E_ROOMS_WEB=http://localhost:5177 pnpm --filter @pen/web e2e
+```
+
+## Session thumbnails and card copy
+
+Every session gets a description, keywords and a whiteboard sketch from one cheap background
+model call (ADR-0013). Two things in the deploy surface:
+
+- **The card cache.** `<data>/onten/session-meta-cache.json`, beside the lesson memo, keyed by
+  the memo's own scope (canonical topic + band + persona + language) and the plan it describes.
+  The second session on a topic reuses the first one's card with zero model calls and records
+  what that saved (`reused: true`, `savedUsd` on its `llm` stage sample, so it shows up in
+  Insights and in `/api/stats/reuse`). A re-planned lesson misses and is drawn again. The file
+  holds one entry per scope, capped at 1000; deleting it only costs a redraw.
+- **Backfill.** Sessions from before ADR-0013 (and any whose background job failed) get their
+  card from:
+
+  ```sh
+  pnpm --filter @pen/api thumbnails:backfill --dry-run     # what it would do, and what it costs
+  pnpm --filter @pen/api thumbnails:backfill --limit 50    # the 50 newest without one
+  pnpm --filter @pen/api thumbnails:backfill               # everything
+  ```
+
+  It walks the session index, skips sessions that are still live, repairs records whose files
+  are already on disk without calling anything, and runs the rest through the same queue the
+  rooms use — two model calls at a time, one session per lesson first so the others are served
+  from the cache. It prints a line per session and the total spend. On the host, run it inside
+  the api container: `docker compose exec api node dist/main.js` has no backfill entry point, so
+  run it from a workstation against the production database, or `docker compose run --rm api
+  node --import tsx scripts/thumbnails-backfill.ts --dry-run` on an image built with sources.
+
+## Crawlers and share pages
+
+- **`/robots.txt`** — the static file in `apps/web/public/robots.txt`, served by the web
+  container. It allows everything except `/room/`, `/replay/` and `/api/`, and points at the
+  sitemap. The API serves its own generated copy at `/robots.txt` for anyone reaching it
+  directly.
+- **`/sitemap.xml`** — generated by the API from the public catalogue plus the static pages,
+  rebuilt at most once an hour and cached for an hour at the edge. The web container proxies
+  the path to the API (`deploy/web/nginx.conf`).
+- **`/s/:id`** — the share page: Open Graph and Twitter cards, a canonical link, `<html lang>`
+  from the session, and `schema.org/LearningResource` JSON-LD for public sessions.
+
+Check after a deploy:
+
+```sh
+curl -s https://DOMAIN/robots.txt | head -3
+curl -s https://DOMAIN/sitemap.xml | head -5
+curl -s https://DOMAIN/s/<session id> | grep -o 'application/ld+json'
 ```
 
 ## Video ads (free plan)

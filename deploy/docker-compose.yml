@@ -106,10 +106,23 @@ services:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}"
     volumes:
       - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+      # TURN/TLS is terminated by LiveKit itself: the certificate is copied here by
+      # livekit/cert-sync.sh (a certbot deploy hook), never mounted from /etc/letsencrypt,
+      # whose live/ entries are symlinks into archive/.
+      - ./livekit/certs:/etc/livekit/certs:ro
     ports:
       - "127.0.0.1:7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+      # TURN/UDP, for networks that block 7882 (it is also our STUN server).
+      - "3478:3478/udp"
+      # Relayed media (turn.relay_range_* in livekit.yaml).
+      - "30000-30200:30000-30200/udp"
+      # TURN/TLS, once this host has a second public address for turn.penplayground.com:
+      #   PEN_TURN_TLS_BIND=<that address>:443   (and turn.tls_port: 443 in livekit.yaml)
+      # LiveKit advertises `turns:<domain>:443` whatever tls_port says, so 443 is the only
+      # port that works — see the comment block in livekit/livekit.yaml.
+      - "${PEN_TURN_TLS_BIND:-127.0.0.1:5349}:443"
     logging:
       driver: json-file
       options:

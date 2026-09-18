@@ -557,6 +557,8 @@ export class SessionRoom {
         resolution.canonicalKnowledgeId,
         this.d.band,
         this.d.expert.id,
+        // A memo is a script of spoken sentences: only this language's replays.
+        this.language,
       );
       if (memo) {
         this.memoHit = {
@@ -663,6 +665,7 @@ export class SessionRoom {
         unitTitles,
         targetMinutes: this.d.targetMinutes ?? 14,
         cacheKey: this.cacheKey(),
+        language: this.language,
       },
       this.abort.signal,
     );
@@ -708,6 +711,7 @@ export class SessionRoom {
         const entry = await this.d.memo.put({
           canonicalKnowledgeId: ckid,
           band: this.d.band,
+          language: this.language,
           packId,
           packRevision,
           expertId: this.d.expert.id,

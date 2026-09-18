@@ -20,7 +20,8 @@
 - [x] Google sign-in (accounts on the same participant row; behind GOOGLE_CLIENT_ID / VITE_GOOGLE_CLIENT_ID; desktop hidden)
 - [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
 - [x] LiveKit rooms audio (human-to-human voice): self-hosted server in the stack, token + mute routes, shared-mic client, participants popover, two-browser e2e (ADR-0012)
-- [ ] Rooms audio follow-ups: TURN/TLS on 443 for UDP+7881-blocked networks; expert joins the media room as an agent (mixed track for export); guest voice in the ledger
+- [x] Rooms audio: TURN (LiveKit's own, UDP 3478 + relay range) — the join response hands every client the server and a credential; `e2e rooms-turn` proves a relay allocation and that ordinary browsers stay direct (ADR-0012)
+- [ ] Rooms audio follow-ups: TURN/TLS on 443 (needs a second public address — LiveKit advertises `turns:<domain>:443` regardless of `tls_port`; steps in docs/DEPLOY.md); expert joins the media room as an agent (mixed track for export); guest voice in the ledger
 - [ ] Desktop: package and sign (needs Apple ID / Windows cert)
 - [x] Sentry projects (pen-academy-api/web/desktop)
 - [x] Sentry source maps upload (web + api; release = git sha; BuildKit secret in deploy.sh)
@@ -37,12 +38,16 @@
 - [x] Fake model: completion for the knowledge outline purpose (Sentry issue) — locked by test
 - [x] Dev DB: migration timestamp guard (journal `when` vs applied `created_at`, by hash)
 - [x] Session thumbnails: one background `session_meta` call → SketchSpec → SVG/PNG next to the ledger; cards, session page and share OG use it (ADR-0013)
-- [ ] Thumbnails: cache the sketch per lesson memo (memo-hit sessions repeat the call today); backfill sessions created before ADR-0013
+- [x] Thumbnails: the card is cached per lesson (memo scope + plan digest) — a repeat session reuses description and sketch with zero model calls and reports `reused`/`savedUsd`; `pnpm --filter @pen/api thumbnails:backfill [--limit N] [--dry-run]` fills in older sessions (ADR-0013)
 - [x] Video ads (ADR-0014): Google Ad Manager via IMA behind `PEN_AD_TAG_URL`; player + overlay, measurement, revenue estimate, ads.txt, e2e against the sample tag
 - [x] Ads: `ad_event` lands in the session ledger (host-validated `interaction` entries; estimated revenue as an `ads` cost line → Insights + PostHog)
 - [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
 - [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
 - [ ] Ads: TCF 2.2 consent (EEA/UK) and child-directed tagging before serving there
+- [x] SEO and share basics: robots.txt, a dynamic sitemap from the API (public sessions + static pages, cached 1 h), canonical URLs and per-screen description/title, `LearningResource` JSON-LD on `/s/:id`, complete Twitter cards
+- [x] A 404 screen that starts a session, and an error boundary that reports to the Monitor seam and shows the reference id
+- [x] Session language: `<html lang>` follows the session, captions/notes/recap/transcript read right to left for Persian, Arabic and Hebrew, board text is drawn as one shaped run, dates via `Intl`; the lesson plan is written in the session's language and the lesson memo is keyed by it (`e2e persian`)
+- [ ] Language follow-ups: translate the chrome itself (headings, buttons) for RTL locales, and mirror the room layout (`dir` on the shell) once the board's camera and note slots are direction-aware
 - [x] CI on GitHub Actions: `pnpm verify` (ffmpeg + Chromium, no skipped integration tests), e2e with fake providers, both images built for linux/amd64; traces uploaded on failure; badge in README
 - [x] Backups: nightly `pg_dump` + `/data` tarball sidecar (compose profile `backup`, 14 days, checksums, optional rclone off-host), `deploy/backup/restore.sh`; restore proven against a throwaway Postgres
 - [x] Alerting: Sentry workflows (new issue, error-rate spike) + Cron monitor `pen-api-heartbeat` created via API (`pnpm --filter @pen/api sentry:alerts`); API checks in every 5 min behind `SENTRY_CRON_MONITOR_SLUG`

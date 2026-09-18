@@ -14,12 +14,19 @@ import type { LessonMemo, LessonMemoEntry } from './types.js';
 type NewEntry = Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>;
 type Segment = { index: number; cues: unknown[]; usd: number };
 
+/** Packs are keyed by language, never by region: `fa-IR` and `fa` are the same lesson. */
+function subtag(language: string): string {
+  return (language.split('-')[0] ?? language).toLowerCase();
+}
+
 function pick(
   all: LessonMemoEntry[],
   canonicalKnowledgeId: string,
   band: SelectionBand,
   expertId?: string,
+  language = 'en',
 ): LessonMemoEntry | null {
+  const want = subtag(language);
   // Newest first; insertion order breaks ties made in the same millisecond.
   const matches = all
     .map((e, order) => ({ e, order }))
@@ -27,6 +34,8 @@ function pick(
       ({ e }) =>
         e.canonicalKnowledgeId === canonicalKnowledgeId &&
         e.band === band &&
+        // A memo is spoken sentences: replaying it for another language would teach in the wrong one.
+        subtag(e.language) === want &&
         (expertId === undefined || e.expertId === expertId),
     )
     .sort((a, b) => b.e.createdAt - a.e.createdAt || b.order - a.order);
@@ -45,12 +54,16 @@ function fill(entry: LessonMemoEntry, segments: Segment[]): void {
   }
 }
 
-/** Older memos on disk predate `costUsd`; treat them as having cost nothing known. */
+/**
+ * Older memos on disk predate `costUsd` and `language`: they cost nothing
+ * known, and every lesson taught before the field was English.
+ */
 function normalise(entry: LessonMemoEntry): LessonMemoEntry {
   const raw = entry as Partial<LessonMemoEntry>;
   return {
     ...entry,
     costUsd: raw.costUsd ?? { plan: 0, segments: entry.cuesBySegment.map(() => 0) },
+    language: raw.language ?? 'en',
   };
 }
 
@@ -79,8 +92,9 @@ export class FileLessonMemo implements LessonMemo {
     canonicalKnowledgeId: string,
     band: SelectionBand,
     expertId?: string,
+    language?: string,
   ): Promise<LessonMemoEntry | null> {
-    return pick(await this.load(), canonicalKnowledgeId, band, expertId);
+    return pick(await this.load(), canonicalKnowledgeId, band, expertId, language);
   }
   async put(entry: NewEntry): Promise<LessonMemoEntry> {
     const all = await this.load();
@@ -112,8 +126,13 @@ export class FileLessonMemo implements LessonMemo {
 
 export class MemoryLessonMemo implements LessonMemo {
   private readonly entries: LessonMemoEntry[] = [];
-  async find(canonicalKnowledgeId: string, band: SelectionBand, expertId?: string) {
-    return pick(this.entries, canonicalKnowledgeId, band, expertId);
+  async find(
+    canonicalKnowledgeId: string,
+    band: SelectionBand,
+    expertId?: string,
+    language?: string,
+  ) {
+    return pick(this.entries, canonicalKnowledgeId, band, expertId, language);
   }
   async put(entry: NewEntry) {
     const full: LessonMemoEntry = {

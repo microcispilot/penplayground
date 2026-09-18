@@ -34,6 +34,7 @@ const record = (id: string, extra: Partial<Parameters<SessionRepository['upsert'
   views: 0,
   thumbnail: null,
   canonicalId: null,
+  language: 'en-US',
   description: '',
   keywords: [],
   ...extra,
@@ -63,6 +64,23 @@ describe('SessionRepository', () => {
     expect(patched?.recap).toEqual(['done']);
     expect(await repo.countToday('host-1')).toBe(2);
     expect(await repo.get('nope')).toBeNull();
+  });
+
+  it('lists the sessions a backfill has to draw, newest first, and drops them once drawn', async () => {
+    const repo = new SessionRepository(conn.db);
+    await repo.upsert(record('t1', { startedAt: 1_000, language: 'fa-IR' }));
+    await repo.upsert(record('t2', { startedAt: 2_000, thumbnail: '/api/sessions/t2/thumb.svg' }));
+    await repo.upsert(record('t3', { startedAt: 3_000 }));
+    // The rows this case added, newest first; `t2` already has its sketch.
+    const mine = (rows: Array<{ id: string }>) =>
+      rows.map((s) => s.id).filter((id) => id[0] === 't');
+    const pending = await repo.listWithoutThumbnail();
+    expect(mine(pending)).toEqual(['t3', 't1']);
+    expect(pending.find((s) => s.id === 't1')?.language).toBe('fa-IR');
+    // Sessions written before the column exists read as the default, never null.
+    expect(pending.find((s) => s.id === 't3')?.language).toBe('en-US');
+    await repo.patch('t3', { thumbnail: '/api/sessions/t3/thumb.svg' });
+    expect(mine(await repo.listWithoutThumbnail())).toEqual(['t1']);
   });
 });
 

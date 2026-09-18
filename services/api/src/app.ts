@@ -28,6 +28,13 @@ import { clientKey, RateLimiter } from './rate-limit.js';
 import { ReadinessProbe } from './readiness.js';
 import { RecognizerRouter } from './recognizer-router.js';
 import { type LiveRoom, RoomRegistry } from './rooms.js';
+import {
+  learningResourceJsonLd,
+  robotsTxt,
+  SITEMAP_MAX_SESSIONS,
+  SITEMAP_TTL_MS,
+  sitemapXml,
+} from './seo.js';
 import { DATA_DIR, type Services } from './services.js';
 import { aggregateReuse, computeTelemetry } from './telemetry.js';
 import { THUMB_CONTENT_TYPE, THUMB_SIZES, type ThumbnailKind } from './thumbnails.js';
@@ -621,12 +628,59 @@ export function buildApp(services: Services): App {
         ? `${services.cfg.PEN_API_URL}/api/sessions/${encodeURIComponent(record.id)}/og.png`
         : null;
     const imageTags = image
-      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}">`
+      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}">`
       : '<meta name="twitter:card" content="summary">';
-    return c.html(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(record.title)} · Pen Playground</title>
-<meta name="description" content="${esc(description)}"><meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(description)}">
-<meta property="og:type" content="video.other"><meta property="og:site_name" content="Pen Playground"><meta property="og:url" content="${esc(target)}">${imageTags}
+    // Structured data only for a page a crawler can actually read: a private session is
+    // host-only, so advertising it as a learning resource would be a lie.
+    const jsonLd =
+      record.visibility === 'public'
+        ? `<script type="application/ld+json">${learningResourceJsonLd({
+            record,
+            expertName: expert?.displayName ?? null,
+            url: target,
+            siteUrl: services.cfg.PEN_PUBLIC_URL,
+            imageUrl: image,
+            description,
+          })}</script>`
+        : '';
+    c.header('Cache-Control', record.visibility === 'public' ? 'public, max-age=3600' : 'private');
+    return c.html(`<!doctype html><html lang="${esc(record.language)}"><head><meta charset="utf-8"><title>${esc(record.title)} · Pen Playground</title>
+<meta name="description" content="${esc(description)}"><link rel="canonical" href="${esc(target)}"><meta property="og:title" content="${esc(record.title)}"><meta property="og:description" content="${esc(description)}">
+<meta property="og:type" content="video.other"><meta property="og:site_name" content="Pen Playground"><meta property="og:locale" content="${esc(record.language.replace('-', '_'))}"><meta property="og:url" content="${esc(target)}">${imageTags}
+<meta name="twitter:title" content="${esc(record.title)}"><meta name="twitter:description" content="${esc(description)}">${jsonLd}
 <meta http-equiv="refresh" content="0;url=${esc(target)}"></head><body><a href="${esc(target)}">Open the session</a></body></html>`);
+  });
+
+  // ── crawlers: robots, sitemap ────────────────────────────────────────────
+  /**
+   * The sitemap is the public catalogue plus the pages that always exist. It
+   * is the same for everyone, so it is built at most once an hour in the
+   * process and cached for an hour at the edge.
+   */
+  let sitemap: { xml: string; at: number } | null = null;
+  app.get('/sitemap.xml', async (c) => {
+    const now = Date.now();
+    if (!sitemap || now - sitemap.at > SITEMAP_TTL_MS) {
+      const sessions = await services.sessions.listPublic(SITEMAP_MAX_SESSIONS);
+      sitemap = {
+        xml: sitemapXml({ publicUrl: services.cfg.PEN_PUBLIC_URL, sessions, now }),
+        at: now,
+      };
+      observer.event('seo.sitemap_built', { sessions: sessions.length, bytes: sitemap.xml.length });
+    }
+    c.header('Content-Type', 'application/xml; charset=utf-8');
+    c.header('Cache-Control', 'public, max-age=3600');
+    return c.body(sitemap.xml);
+  });
+  /**
+   * The web container serves its own `robots.txt` (a static file next to the
+   * app). This one is what a crawler gets when it reaches the API directly,
+   * and it is generated from the same public URL the sitemap uses.
+   */
+  app.get('/robots.txt', (c) => {
+    c.header('Content-Type', 'text/plain; charset=utf-8');
+    c.header('Cache-Control', 'public, max-age=3600');
+    return c.body(robotsTxt(services.cfg.PEN_PUBLIC_URL));
   });
 
   // ── rooms: human-to-human audio (LiveKit) ────────────────────────────────

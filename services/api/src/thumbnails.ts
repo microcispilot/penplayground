@@ -13,6 +13,7 @@ import { SessionCategory, SessionMeta as SessionMetaSchema } from '@pen/contract
 import type { SessionRepository } from '@pen/db';
 import type { LanguageModel } from '@pen/llm';
 import {
+  type SessionMetaCachePort,
   type SessionMetaInput,
   SessionMetaJobs,
   type SessionMetaResult,
@@ -83,6 +84,10 @@ export const StoredSessionMeta = z.object({
     totalMs: z.number(),
   }),
   attempts: z.number().int(),
+  /** Served from the per-lesson cache instead of a model call (files written before it lack the field). */
+  reused: z.boolean().default(false),
+  /** What drawing this card fresh would have cost. */
+  savedUsd: z.number().nonnegative().default(0),
   render: z.object({
     svgBytes: z.number().int(),
     svgMs: z.number(),
@@ -139,7 +144,12 @@ export class ThumbnailStore {
   async write(
     sessionId: string,
     meta: SessionMeta,
-    provenance: { usage: StoredSessionMeta['usage']; attempts: number },
+    provenance: {
+      usage: StoredSessionMeta['usage'];
+      attempts: number;
+      reused?: boolean;
+      savedUsd?: number;
+    },
   ): Promise<WrittenThumbnail> {
     const dir = this.dir(sessionId);
     mkdirSync(dir, { recursive: true });
@@ -171,6 +181,8 @@ export class ThumbnailStore {
       meta,
       usage: provenance.usage,
       attempts: provenance.attempts,
+      reused: provenance.reused ?? false,
+      savedUsd: provenance.savedUsd ?? 0,
       render: written,
     };
     writeFileSync(join(dir, THUMB_FILES.meta), JSON.stringify(stored));
@@ -226,19 +238,28 @@ export function createSessionMetaJobs(deps: {
   model: LanguageModel;
   store: ThumbnailStore;
   sessions: SessionRepository;
+  /** Cards already drawn for a lesson (ADR-0013); omitted, every session pays for its own. */
+  cache?: SessionMetaCachePort;
+  concurrency?: number;
   onUsage?: (
     input: SessionMetaInput,
     usage: Parameters<NonNullable<SessionMetaJobsHooks['onUsage']>>[1],
   ) => void;
+  /** Called after the record is patched; the backfill prints a line per session. */
+  onDone?: (input: SessionMetaInput, result: SessionMetaResult) => void;
 }): SessionMetaJobs {
   return new SessionMetaJobs({
     model: deps.model,
     observer,
+    ...(deps.cache ? { cache: deps.cache } : {}),
+    ...(deps.concurrency ? { concurrency: deps.concurrency } : {}),
     ...(deps.onUsage ? { onUsage: deps.onUsage } : {}),
     onResult: async (input, result: SessionMetaResult) => {
       const written = await deps.store.write(input.sessionId, result.meta, {
         usage: result.usage,
         attempts: result.attempts,
+        reused: result.reused,
+        savedUsd: result.savedUsd,
       });
       const current = await deps.sessions.get(input.sessionId);
       // Onten's domain boundary is authoritative when it is one of ours; otherwise the model's category fills in.
@@ -262,7 +283,10 @@ export function createSessionMetaJobs(deps: {
         unsupportedChars: written.unsupportedChars.length,
         elements: result.meta.thumbnail.elements.length,
         usd: result.usage.usd,
+        reused: result.reused,
+        savedUsd: result.savedUsd,
       });
+      deps.onDone?.(input, result);
     },
   });
 }

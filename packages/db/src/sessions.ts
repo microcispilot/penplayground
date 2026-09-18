@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { type SessionRow, sessions } from './schema.js';
 
@@ -38,6 +38,20 @@ export class SessionRepository {
       .from(sessions)
       .where(and(eq(sessions.visibility, 'public'), isNotNull(sessions.endedAt)))
       .orderBy(desc(sessions.views), desc(sessions.startedAt))
+      .limit(limit);
+  }
+
+  /**
+   * Sessions with no sketch yet, newest first: what `thumbnails:backfill`
+   * walks (ADR-0013). Live sessions are included — their job may simply have
+   * failed — and the backfill skips anything the room is still teaching.
+   */
+  async listWithoutThumbnail(limit = 100): Promise<SessionRecord[]> {
+    return this.db
+      .select()
+      .from(sessions)
+      .where(isNull(sessions.thumbnail))
+      .orderBy(desc(sessions.startedAt))
       .limit(limit);
   }
 

@@ -16,7 +16,8 @@
     "posthog:dashboard": "node --env-file=../../.env --import tsx scripts/posthog-dashboard.ts",
     "sentry:alerts": "node --env-file=../../.env --import tsx scripts/sentry-alerts.ts",
     "stripe:webhook": "node --env-file=../../.env --import tsx scripts/stripe-webhook.ts",
-    "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts"
+    "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts",
+    "thumbnails:backfill": "node --env-file=../../.env --import tsx scripts/thumbnails-backfill.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",

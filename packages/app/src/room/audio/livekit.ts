@@ -90,6 +90,10 @@ export class LiveKitAudioRoom implements AudioRoomPort {
       .on(lk.RoomEvent.AudioPlaybackStatusChanged, (playing) => {
         if (!playing) events.playbackBlocked();
       });
+    // No `rtcConfig` here on purpose: the TURN servers come from the join response, and
+    // livekit-client only fills `rtcConfig.iceServers` from it while the app has set none
+    // (ADR-0012). A network that blocks UDP and 7881 is relayed through them without the
+    // app configuring anything.
     await room.connect(url, token, { autoSubscribe: true });
     this.room = room;
     window.__penAudioRoom = room;

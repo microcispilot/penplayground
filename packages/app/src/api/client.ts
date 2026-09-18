@@ -41,6 +41,8 @@ export const SessionRecord = z.object({
   thumbnail: z.string().nullable(),
   /** `${lang}.${slug}` of the resolved topic; absent on records older than the column. */
   canonicalId: z.string().nullable().optional(),
+  /** BCP-47 language the session was taught in; records older than the column read as English. */
+  language: z.string().default('en-US'),
   /** Card copy; empty until the same job lands. */
   description: z.string().default(''),
   keywords: z.array(z.string()).default([]),

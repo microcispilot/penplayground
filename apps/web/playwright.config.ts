@@ -41,6 +41,9 @@ export default defineConfig({
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
         '--autoplay-policy=no-user-gesture-required',
+        // A local TURN server is on 127.0.0.1, and Chrome silently drops ICE servers on a
+        // loopback address without this (rooms-turn.spec.ts). Local testing only.
+        '--allow-loopback-in-peer-connection',
       ],
     },
   },
@@ -88,6 +91,8 @@ export default defineConfig({
         PEN_DEV_PLAN: 'professional',
         LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
         LIVEKIT_API_KEY: process.env.PEN_E2E_LIVEKIT_API_KEY ?? 'devkey',
+        // `livekit-server --dev` uses "secret"; deploy/livekit/livekit.dev.yaml (the TURN
+        // configuration rooms-turn.spec.ts needs) uses a 32-character one, which LiveKit requires.
         LIVEKIT_API_SECRET: process.env.PEN_E2E_LIVEKIT_API_SECRET ?? 'secret',
       },
       timeout: 60_000,

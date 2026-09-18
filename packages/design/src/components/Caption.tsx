@@ -9,17 +9,41 @@ export interface CaptionProps {
   live?: boolean;
   hint?: string;
   className?: string;
+  /** BCP-47 language of the line; drives hyphenation and the screen reader's voice. */
+  lang?: string;
+  /**
+   * Reading direction of the line. Explicit rather than `auto`, because the
+   * speaker's name comes first and would otherwise decide the direction for a
+   * Persian sentence.
+   */
+  dir?: 'ltr' | 'rtl';
 }
 
 /** Subtitle-style caption drawn over the board (YouTube feel, cloned box-decoration). */
-export function Caption({ speaker, text, who, live = false, hint, className }: CaptionProps) {
+export function Caption({
+  speaker,
+  text,
+  who,
+  live = false,
+  hint,
+  className,
+  lang,
+  dir,
+}: CaptionProps) {
   return (
-    <div className={cn('pointer-events-none text-center', className)} aria-live="polite">
+    <div
+      className={cn('pointer-events-none text-center', className)}
+      aria-live="polite"
+      lang={lang}
+      dir={dir}
+    >
       <span
         className="inline rounded-[2px] px-[0.4em] py-[0.18em] text-[13px] leading-[1.55] text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:text-[13.5px]"
         style={{ background: 'var(--color-caption-scrim)', textWrap: 'pretty' }}
       >
         <span
+          // The name is ours, in our script: it keeps its own direction inside an RTL line.
+          dir="auto"
           style={{
             color:
               who === 'expert' ? 'var(--color-caption-expert)' : 'var(--color-caption-learner)',

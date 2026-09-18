@@ -1,12 +1,17 @@
 export { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
 export { ExpertCatalog } from './experts.js';
 export {
+  type CachedSessionMeta,
   META_MAX_OUTPUT_TOKENS,
   META_PURPOSE,
+  planDigest,
+  type SessionMetaCacheKey,
+  type SessionMetaCachePort,
   type SessionMetaInput,
   SessionMetaJobs,
   type SessionMetaJobsOptions,
   type SessionMetaResult,
+  sessionMetaScope,
 } from './meta.js';
 export {
   type Metrics,

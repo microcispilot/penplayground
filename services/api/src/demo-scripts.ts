@@ -1,5 +1,5 @@
 import type { LessonEvent, Tone } from '@pen/contracts';
-import type { FakeScript } from '@pen/llm';
+import type { FakeCompletion, FakeScript } from '@pen/llm';
 
 /**
  * Scripted lessons for PEN_LLM_PROVIDER=fake: development, demos and e2e tests
@@ -191,11 +191,103 @@ function lastUser(r: { messages: Array<{ role: string; content: string }> }): st
     .join('\n');
 }
 
+/**
+ * The same lesson in Persian. A multilingual product has to be testable in a
+ * language that reads right to left, so the fake model teaches this one in
+ * Persian whenever the request asks for `fa-IR` (`languageLine` puts the tag
+ * in every lesson, turn, recap and card prompt). The English scripts above are
+ * untouched; only the matchers decide which is served.
+ */
+const PERSIAN_SEGMENTS: LessonEvent[][] = [
+  [
+    say(
+      's1',
+      'سلام — من {{expert}} هستم. با یک جمله شروع می‌کنیم، چون مدل زبانی فقط همین را می‌بیند.',
+    ),
+    write('b1', 's1', 'ترنسفورمرها چطور کار می‌کنند', {
+      op: 'title',
+      place: 'newline',
+      emphasis: 'accent',
+    }),
+    say('s2', 'شش توکن. در آغاز، همهٔ چیزی که مدل دارد همین است.', 'curious'),
+    write('b2', 's2', 'گربه روی تشک نشست', { place: 'newline' }),
+    say('s3', 'هر توکن به یک بردار تبدیل می‌شود: فهرستی از عددها که مدل می‌تواند جابه‌جا کند.'),
+    write('b3', 's3', 'توکن → بردار  [0.2, -1.1, 0.7 …]', { place: 'newline' }),
+    say('s4', 'هر جا چیزی روشن نبود، وسط حرفم بپر — جدی می‌گویم.', 'encouraging'),
+    done,
+  ],
+  [
+    say(
+      's1',
+      'حالا بخش اصلی: وقتی مدل «نشست» را می‌خواند، به عقب نگاه می‌کند و وزن هر توکن را می‌سنجد.',
+      'curious',
+    ),
+    write('b1', 's1', 'توجه', { op: 'title', emphasis: 'accent' }),
+    say('s2', 'این کار با سه تصویر از هر بردار انجام می‌شود: پرس‌وجو، کلید و مقدار.'),
+    write('b2', 's2', 'q·k / √d → softmax', { place: 'newline' }),
+    say('s3', 'امتیازها از softmax می‌گذرند تا وزن‌ها جمعشان یک شود.'),
+    done,
+  ],
+  [
+    say('s1', 'دوازده سر به موازات هم کار می‌کنند و هر کدام چیز دیگری را می‌بینند.'),
+    write('b1', 's1', '۱۲ سر، به موازات هم', { place: 'newline', emphasis: 'accent' }),
+    say('s2', 'همین بلوک را سی‌ودو بار روی هم بگذار: توزیع توکن بعدی به دست می‌آید.', 'playful'),
+    say('s3', 'همهٔ ماشین همین است. باقی‌اش فقط مقیاس است.', 'warm'),
+    done,
+  ],
+];
+
+/** A Persian question, answered in Persian, with the pinned note in Persian. */
+const PERSIAN_ANSWER: LessonEvent[] = [
+  {
+    type: 'note',
+    language: 'fa-IR',
+    question: 'چرا بر جذر d تقسیم می‌کنیم؟',
+    headline: 'اندازهٔ امتیازها را نگه می‌دارد',
+    detail: 'تا softmax به بیشینهٔ سخت تبدیل نشود',
+  },
+  say('s1', 'سؤال خوبی است. بدون آن، با بلندتر شدن بردارها ضرب داخلی خیلی بزرگ می‌شود.'),
+  say(
+    's2',
+    'آن وقت یک توکن همه‌چیز را برمی‌دارد. تقسیم بر جذر d امتیازها را در محدودهٔ مفید نگه می‌دارد.',
+  ),
+  write('b1', 's2', 'q·k / √d  softmax را نرم نگه می‌دارد', {
+    place: 'newline',
+    emphasis: 'accent',
+  }),
+  say('s3', 'خب — برگردیم به همان جایی که بودیم.', 'neutral'),
+  done,
+];
+
+/** `languageLine` writes the BCP-47 tag into every prompt; that is what the matchers read. */
+function wantsPersian(r: { messages: Array<{ role: string; content: string }> }): boolean {
+  return /\bfa(?:-[A-Za-z]{2,4})?\b/.test(lastUser(r));
+}
+
 export const demoScripts: {
   scripts: FakeScript[];
-  completions: Array<{ purpose: string; value: unknown }>;
+  completions: FakeCompletion[];
 } = {
   scripts: [
+    // Persian first: a request that names `fa-IR` is taught in Persian, segment by segment.
+    ...PERSIAN_SEGMENTS.map((events, i) => ({
+      match: (r: { purpose: string; messages: Array<{ role: string; content: string }> }) =>
+        r.purpose === 'lesson' && wantsPersian(r) && lastUser(r).includes(`SEGMENT ${i + 1}:`),
+      events,
+      gapMs: 120,
+    })),
+    {
+      match: (r: { purpose: string; messages: Array<{ role: string; content: string }> }) =>
+        r.purpose === 'lesson' && wantsPersian(r),
+      events: PERSIAN_SEGMENTS[PERSIAN_SEGMENTS.length - 1] ?? [],
+      gapMs: 120,
+    },
+    {
+      match: (r: { purpose: string; messages: Array<{ role: string; content: string }> }) =>
+        r.purpose === 'turn' && wantsPersian(r),
+      events: PERSIAN_ANSWER,
+      gapMs: 150,
+    },
     ...segments.map((events, i) => ({
       match: (r: { purpose: string; messages: Array<{ role: string; content: string }> }) =>
         r.purpose === 'lesson' && lastUser(r).includes(`SEGMENT ${i + 1}:`),
@@ -216,6 +308,81 @@ export const demoScripts: {
     { match: (r) => r.purpose === 'turn', events: answers.default ?? [], gapMs: 150 },
   ],
   completions: [
+    // A Persian lesson plans, recaps and draws its card in Persian; every other
+    // request falls through to the English answers below.
+    {
+      purpose: 'plan',
+      match: wantsPersian,
+      value: {
+        title: 'ترنسفورمرها چطور کار می‌کنند',
+        promise: 'یاد بگیرید یک نمودار توجه را بخوانید و بگویید هر تکه چرا آنجاست.',
+        segments: [
+          {
+            title: 'توکن‌ها بردار می‌شوند',
+            goal: 'یک جمله را اول به توکن و بعد به بردار ببینید',
+            minutes: 1,
+            hasCheck: false,
+          },
+          {
+            title: 'توجه: پرس‌وجو، کلید، مقدار',
+            goal: 'بگویید امتیاز توجه چه چیزی را مقایسه می‌کند',
+            minutes: 1.5,
+            hasCheck: false,
+          },
+          {
+            title: 'سرها، باقی‌مانده‌ها و پشته',
+            goal: 'ببینید چرا سرها موازی‌اند و بلوک‌ها چطور روی هم می‌نشینند',
+            minutes: 1,
+            hasCheck: false,
+          },
+        ],
+      },
+    },
+    {
+      purpose: 'recap',
+      match: wantsPersian,
+      value: {
+        points: [
+          'توکن‌ها بردار می‌شوند و بعد موقعیت می‌گیرند',
+          'توجه یک پرس‌وجو را با همهٔ کلیدها می‌سنجد',
+          'softmax امتیازها را به وزن‌هایی تبدیل می‌کند که جمعشان یک است',
+          'دوازده سر به موازات هم کار می‌کنند',
+          'باقی‌مانده و لایهٔ پیش‌خور، سی‌ودو بار روی هم',
+        ],
+      },
+    },
+    {
+      purpose: 'session_meta',
+      match: wantsPersian,
+      value: {
+        description: 'ببینید یک جمله چطور بردار می‌شود و توجه چطور توکن بعدی را انتخاب می‌کند.',
+        keywords: ['ترنسفورمر', 'توجه', 'توکن'],
+        category: 'computing-data',
+        thumbnail: {
+          elements: [
+            { kind: 'label', text: 'q·k / \u221ad', x: 0, y: 0, w: 6, size: 'lg', ink: 'accent' },
+            { kind: 'underline', x: 0, y: 1, w: 3.5, ink: 'accent' },
+            { kind: 'box', x: 0, y: 2, w: 2, h: 1.25, text: '1', ink: 'ink' },
+            { kind: 'box', x: 2.5, y: 2, w: 2, h: 1.25, text: '2', ink: 'ink' },
+            { kind: 'box', x: 5, y: 2, w: 2, h: 1.25, text: '3', ink: 'accent' },
+            { kind: 'highlight', x: 4.75, y: 1.75, w: 2.5, h: 1.75 },
+            { kind: 'arrow', x1: 6, y1: 3.5, x2: 1, y2: 5.25, text: 'q', ink: 'ink' },
+            { kind: 'arrow', x1: 6, y1: 3.5, x2: 3.5, y2: 5.25, text: 'k', ink: 'ink' },
+            { kind: 'circle', x: 0, y: 5.25, w: 2, h: 1.5, text: 'softmax', ink: 'ink' },
+            {
+              kind: 'bars',
+              x: 8,
+              y: 1.5,
+              w: 4,
+              h: 4,
+              values: [0.15, 0.9, 0.35, 0.2],
+              ink: 'accent',
+            },
+            { kind: 'label', text: '\u03a3 = 1', x: 8, y: 5.75, w: 4, size: 'sm', ink: 'ink' },
+          ],
+        },
+      },
+    },
     {
       purpose: 'plan',
       value: {

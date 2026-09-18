@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { formatClock } from '../lib/context.js';
+import { dirOf } from '../lib/locale.js';
 import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import type { RoomConnectionStatus } from '../room/RoomClient.js';
 import type { CaptionLine } from '../room/store.js';
@@ -479,10 +480,13 @@ export function CaptionOverlay({
   line,
   hint,
   on,
+  language,
 }: {
   line: CaptionLine | null;
   hint: string | null;
   on: boolean;
+  /** The session's language: Persian, Arabic and Hebrew captions read right to left. */
+  language?: string;
 }) {
   const [shown, setShown] = useState('');
   useEffect(() => {
@@ -528,6 +532,7 @@ export function CaptionOverlay({
         text={shown || '…'}
         who={line.who}
         live={line.live}
+        {...(language ? { lang: language, dir: dirOf(language) } : {})}
         {...(hint ? { hint } : {})}
       />
     </div>
@@ -539,10 +544,13 @@ export function CheckCard({
   check,
   question,
   onAnswer,
+  language,
 }: {
   check: CheckEvent;
   question: string;
   onAnswer: (text: string) => void;
+  /** The check is asked in the session's language, so it reads in its direction. */
+  language?: string;
 }) {
   const [text, setText] = useState('');
   return (
@@ -550,14 +558,20 @@ export function CheckCard({
       <div className="mb-1 text-[10px] font-medium tracking-[0.1em] text-accent-strong uppercase">
         Quick check
       </div>
-      <p className="mb-3 text-[15px] font-medium leading-snug text-fg text-pretty">{question}</p>
+      <p
+        className="mb-3 text-[15px] font-medium leading-snug text-fg text-pretty"
+        {...(language ? { lang: language, dir: dirOf(language) } : { dir: 'auto' as const })}
+      >
+        {question}
+      </p>
       {check.options.length > 0 ? (
         <div className="flex flex-col gap-2">
           {check.options.map((o) => (
             <Button
               key={o}
               variant="secondary"
-              className="justify-start text-left"
+              className="justify-start text-start"
+              dir="auto"
               onClick={() => onAnswer(o)}
             >
               {o}
@@ -601,12 +615,15 @@ export function RecapPanel({
   onOpenSaved: () => void;
   onLearnMore: () => void;
 }) {
+  // The lesson's own words — title, recap, the learner's questions — read in its direction.
+  const lang = state.language;
+  const dir = dirOf(lang);
   return (
     <div className="absolute inset-0 z-[7] flex justify-end bg-navy-900/70">
       {/* A drawer on a wide screen; the whole screen on a phone, where a drawer is just a cramped page. */}
       <div className="h-full w-full animate-rise overflow-auto bg-bg px-5 pt-6 pb-8 shadow-[-20px_0_50px_rgba(0,0,0,.5)] sm:w-[min(430px,86%)] sm:px-6">
         <h6 className="mb-2 text-accent-strong">Session saved</h6>
-        <h3 className="mb-1.5 leading-[1.14] tracking-[-0.02em] text-pretty">
+        <h3 className="mb-1.5 leading-[1.14] tracking-[-0.02em] text-pretty" lang={lang} dir={dir}>
           {state.plan?.title ?? state.topic}
         </h3>
         <p className="mb-[22px] text-sm text-fg-2">
@@ -614,7 +631,7 @@ export function RecapPanel({
           {questions.length === 1 ? '' : 's'}
         </p>
         <h6 className="mb-2.5 text-fg-2">What {expertFirstName} covered</h6>
-        <div className="mb-6 flex flex-col gap-2">
+        <div className="mb-6 flex flex-col gap-2" lang={lang} dir={dir}>
           {(state.recap ?? []).map((r) => (
             <div key={r} className="flex items-start gap-2.5">
               <span className="mt-2 size-[5px] shrink-0 rounded-full bg-accent" aria-hidden />
@@ -630,7 +647,12 @@ export function RecapPanel({
             </p>
           ) : (
             questions.map((q) => (
-              <div key={q.q} className="border-l-2 border-accent-strong pl-[11px]">
+              <div
+                key={q.q}
+                className="border-accent-strong border-s-2 ps-[11px]"
+                lang={lang}
+                dir={dir}
+              >
                 <p className="mb-1 text-sm text-fg">{q.q}</p>
                 <p className="text-[13px] leading-[1.5] text-fg-2">{q.a}</p>
               </div>

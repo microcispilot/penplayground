@@ -16,6 +16,8 @@ import { Insights } from '../components/Insights.js';
 import { SessionThumb } from '../components/SessionCard.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
+import { dirOf, useDocumentLanguage } from '../lib/locale.js';
+import { useSeo } from '../lib/seo.js';
 
 const LedgerResponse = z.object({
   session: SessionRecordSchema,
@@ -311,6 +313,17 @@ export function SessionPage() {
 
   const s = data?.session;
   const live = s ? s.endedAt === null : false;
+  // The tab, the canonical URL and what a JavaScript-running crawler reads follow the session.
+  // The saved page is the session's: its language, and its direction for its own words.
+  useDocumentLanguage(s?.language);
+  const lang = s?.language;
+  const dir = dirOf(lang);
+  useSeo({
+    title: s?.title ?? 'Session',
+    ...(s?.description ? { description: s.description } : {}),
+    canonicalPath: `/sessions/${id}`,
+    ...(s ? { language: s.language } : {}),
+  });
   const shareUrl = `${api.baseUrl}/s/${id}`;
   // Only the host sees the export control (the API strips hostId for everyone else).
   const isHost = Boolean(s && participant && s.hostId === participant.id);
@@ -369,7 +382,7 @@ export function SessionPage() {
             )}
             <div className="mt-5 flex items-start justify-between gap-4">
               <div>
-                <h2 className="tracking-[-0.025em]">
+                <h2 className="tracking-[-0.025em]" lang={lang} dir={dir}>
                   {s?.title ?? <Skeleton className="h-7 w-72" />}
                 </h2>
                 <p className="mt-1.5 text-sm text-fg-2">
@@ -451,7 +464,7 @@ export function SessionPage() {
                 <section>
                   <h6 className="mb-2.5 text-fg-2">What was covered</h6>
                   {s?.recap.length ? (
-                    <ul className="flex flex-col gap-2">
+                    <ul className="flex flex-col gap-2" lang={lang} dir={dir}>
                       {s.recap.map((r) => (
                         <li
                           key={r}
@@ -480,7 +493,10 @@ export function SessionPage() {
                       {questions.map((q) => (
                         <div
                           key={`${q.question}-${q.headline}`}
-                          className="border-l-2 border-accent-strong pl-[11px]"
+                          className="border-accent-strong border-s-2 ps-[11px]"
+                          // A note carries the language the learner asked in.
+                          lang={q.language}
+                          dir={dirOf(q.language)}
                         >
                           <p className="text-sm text-fg">{q.question}</p>
                           <p className="text-[13px] text-fg-2">
@@ -514,7 +530,13 @@ export function SessionPage() {
                     >
                       {l.name}
                     </span>
-                    <span className={l.who === 'expert' ? 'text-fg-2' : ''}>{l.text}</span>
+                    <span
+                      className={cn('min-w-0', l.who === 'expert' ? 'text-fg-2' : '')}
+                      // Either speaker may have used another language: the line decides its own.
+                      dir="auto"
+                    >
+                      {l.text}
+                    </span>
                   </div>
                 ))}
               </div>
