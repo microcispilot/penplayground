@@ -1,5 +1,5 @@
 import type { SourceDocument } from '@pen/contracts';
-import { AnswerContext } from '@pen/contracts';
+import { AnswerContext, ONTEN_LATENCY_BUDGET_MS } from '@pen/contracts';
 import { describe, expect, it } from 'vitest';
 import { chunkMarkdown, createOnten, normalizeTopic } from '../src/index.js';
 
@@ -148,7 +148,14 @@ describe('progressive compilation → query', () => {
     expect(JSON.parse(result.context.modelContext)).toHaveProperty('evidence');
     expect(result.context.modelContext).not.toContain('contentDigest');
     expect(result.context.constraints).toContain('content_instructions:answer:v1');
-    expect(elapsedMs).toBeLessThan(50);
+    // Not a stopwatch: one query on one machine says nothing a shared CI
+    // runner will agree with — it lost 62 ms to a garbage collection once
+    // already. What this test owns is the answer; the budget is measured
+    // properly over hundreds of samples at full corpus size in
+    // test/latency.test.ts. The elapsed time is kept only as a sanity
+    // ceiling: a retrieval that takes a second is a defect on any machine.
+    expect(elapsedMs).toBeLessThan(1_000);
+    expect(result.metrics.budgetMs).toBe(ONTEN_LATENCY_BUDGET_MS);
 
     const off = await runtime.query({
       text: 'how do I bake sourdough bread at home',
