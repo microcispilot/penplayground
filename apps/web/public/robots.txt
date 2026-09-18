@@ -5,6 +5,10 @@
 # learner's own. Keep this list in step with PRIVATE_PAGES in services/api/src/seo.ts —
 # the API serves the same policy at /robots.txt in production. The sitemap is built by
 # the API from the public catalogue and cached for an hour.
+#
+# The paths below are root-absolute on purpose. A crawler only ever fetches /robots.txt from the
+# ROOT of an origin, so when the app is served under a path prefix this file is never read at all —
+# the host's own vhost answers there instead (deploy/nginx/pen-playground-test.conf.example).
 
 User-agent: *
 Allow: /

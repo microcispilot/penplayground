@@ -40,8 +40,10 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
   const [privacy, setPrivacyState] = useState<PrivacyChoice>(() => readPrivacy(platform.storage));
   // A headless export render is a pure player: no identity, no analytics (see lib/boot.ts).
   const headless = useMemo(
-    () => typeof window !== 'undefined' && bootMode(window.location) === 'headless-render',
-    [],
+    () =>
+      typeof window !== 'undefined' &&
+      bootMode(window.location, platform.basePath) === 'headless-render',
+    [platform.basePath],
   );
 
   // Deliberately once per mount: PostHog is initialised with the choice that was

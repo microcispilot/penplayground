@@ -15,6 +15,20 @@
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /
 # VITE_GOOGLE_CLIENT_ID (web build args),
+#
+# Serving the app under a path prefix instead of the root of its host — the test deployment:
+#   PEN_VHOST=test                               which vhost to render: "prod" (default) or "test"
+#   PEN_BASE_PATH=/testingxyzbdc                 baked into the web image at build time (Vite base)
+#   PEN_PUBLIC_URL=https://HOST/testingxyzbdc    written into the host's api.env
+#   PEN_API_URL=https://HOST/testingxyzbdc       likewise (og:image and MP4 download URLs)
+# Example:
+#   PEN_VHOST=test PEN_DOMAIN=sdjust.penplayground.com PEN_BASE_PATH=/testingxyzbdc \
+#   PEN_PUBLIC_URL=https://sdjust.penplayground.com/testingxyzbdc \
+#   PEN_API_URL=https://sdjust.penplayground.com/testingxyzbdc \
+#   PEN_DEPLOY_HOST=... deploy/deploy.sh
+# All four are unset by default, which is exactly today's behaviour: the root deployment, the
+# production vhost, and a web image whose base is "/".
+#
 # SENTRY_AUTH_TOKEN (source maps for both images are uploaded under release = git sha when set;
 # passed to docker as a BuildKit secret, never as a build arg).
 #
@@ -35,7 +49,8 @@ while [ $# -gt 0 ]; do
     --skip-build) SKIP_BUILD=1; shift ;;
     --skip-ship) SKIP_SHIP=1; shift ;;
     --no-up) NO_UP=1; shift ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    # The whole header comment, however long it grows — up to `set -Eeuo pipefail`.
+    -h|--help) sed -n '2,/^set -/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -49,6 +64,25 @@ PEN_DEPLOY_ROOT="${PEN_DEPLOY_ROOT:-/srv/pen-playground}"
 PEN_DEPLOY_EXPECTED_HOSTNAME="${PEN_DEPLOY_EXPECTED_HOSTNAME:-prod-app-01}"
 API_PORT=4200
 WEB_PORT=4201
+
+# Which edge vhost this deploy renders, and where the app sits on it.
+PEN_VHOST="${PEN_VHOST:-prod}"
+case "$PEN_VHOST" in
+  prod|test) ;;
+  *) echo "PEN_VHOST must be 'prod' or 'test' (got '$PEN_VHOST')" >&2; exit 2 ;;
+esac
+# "/testingxyzbdc" -> prefix "/testingxyzbdc", bare name "testingxyzbdc" (what the test vhost
+# template spells). Empty means the root, which is every default in this script.
+PEN_BASE_PATH="${PEN_BASE_PATH:-}"
+BASE_PREFIX=""
+BASE_NAME=""
+if [ -n "$PEN_BASE_PATH" ] && [ "$PEN_BASE_PATH" != "/" ]; then
+  BASE_NAME="${PEN_BASE_PATH#/}"; BASE_NAME="${BASE_NAME%/}"
+  BASE_PREFIX="/$BASE_NAME"
+fi
+if [ "$PEN_VHOST" = "test" ] && [ -z "$BASE_PREFIX" ]; then
+  echo "PEN_VHOST=test needs PEN_BASE_PATH (e.g. /testingxyzbdc)" >&2; exit 2
+fi
 
 if [ -z "${PEN_IMAGE_TAG:-}" ]; then
   PEN_IMAGE_TAG="$(git rev-parse --short=12 HEAD 2>/dev/null || date -u +%Y%m%d%H%M%S)"
@@ -112,6 +146,12 @@ if [ "$SKIP_BUILD" = 0 ]; then
   for v in VITE_TLDRAW_LICENSE_KEY VITE_SENTRY_DSN VITE_POSTHOG_TOKEN VITE_POSTHOG_HOST VITE_GOOGLE_CLIENT_ID; do
     if [ -n "${!v:-}" ]; then web_args+=(--build-arg "$v=${!v}"); fi
   done
+  # The base path is baked into the bundle (Vite base), so it belongs to the image, not the
+  # container. Unset = "/", and the image is what it has always been.
+  if [ -n "$BASE_PREFIX" ]; then
+    web_args+=(--build-arg "PEN_BASE_PATH=$BASE_PREFIX")
+    echo "  base path: $BASE_PREFIX (baked into $WEB_IMAGE)"
+  fi
   docker buildx build --platform linux/amd64 --load \
     -f apps/web/Dockerfile "${web_args[@]}" "${sentry_args[@]}" \
     -t "$WEB_IMAGE" -t pen-playground-web:latest .
@@ -157,7 +197,7 @@ rsync -rltz -e "$RSYNC_SSH" \
   deploy/searxng/docker-compose.yml deploy/searxng/settings.yml deploy/searxng/README.md \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/searxng/"
 rsync -rltz -e "$RSYNC_SSH" \
-  deploy/nginx/pen-playground.conf.example \
+  deploy/nginx/pen-playground.conf.example deploy/nginx/pen-playground-test.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 rsync -rltz -e "$RSYNC_SSH" \
   deploy/livekit/livekit.yaml deploy/livekit/cert-sync.sh \
@@ -177,8 +217,17 @@ remote "mkdir -p '$PEN_DEPLOY_ROOT/livekit/certs' && chmod 0750 '$PEN_DEPLOY_ROO
   && chmod 0750 '$PEN_DEPLOY_ROOT/livekit/cert-sync.sh'"
 # openrsync (macOS) has no --chmod; normalise modes on the host instead.
 remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '*.example' -o -name '*.md' \\) -exec chmod 0644 {} +"
-# The vhost with DOMAIN filled in, ready to copy into /etc/nginx/sites-available.
-remote "sed 's/DOMAIN/$PEN_DOMAIN/g' '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf.example' > '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf'"
+# The vhost with its placeholders filled in, ready to copy into /etc/nginx/sites-available.
+# Both templates land on the host either way; only the chosen one is rendered.
+if [ "$PEN_VHOST" = "test" ]; then
+  VHOST_NAME="pen-playground-test"
+  remote "sed -e 's/TEST_DOMAIN/$PEN_DOMAIN/g' -e 's/BASE_PATH/$BASE_NAME/g' \
+    '$PEN_DEPLOY_ROOT/nginx/pen-playground-test.conf.example' > '$PEN_DEPLOY_ROOT/nginx/$VHOST_NAME.conf'"
+else
+  VHOST_NAME="pen-playground"
+  remote "sed 's/DOMAIN/$PEN_DOMAIN/g' '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf.example' > '$PEN_DEPLOY_ROOT/nginx/$VHOST_NAME.conf'"
+fi
+echo "  vhost: $VHOST_NAME.conf (PEN_VHOST=$PEN_VHOST)"
 
 # ── 4. secrets present? (.env is managed here; api.env / postgres.env are never generated) ──
 log "checking secrets"
@@ -205,6 +254,27 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
   printf 'LIVEKIT_URL=wss://%s/livekit\n' '$PEN_DOMAIN' >> .env.next
   chmod 600 .env.next
   mv .env.next .env"
+
+# api.env is the host's own file and is never generated here — but the two public URLs are a
+# property of the edge this script just rendered, not of the secrets, and a prefixed deployment
+# is wrong without them (share links, og:image, the sitemap, MP4 download links, Stripe's
+# return URLs). Set either variable and its line is rewritten in place; leave them unset — the
+# default — and api.env is not touched at all.
+for var in PEN_PUBLIC_URL PEN_API_URL; do
+  value="${!var:-}"
+  [ -n "$value" ] || continue
+  case "$value" in
+    http://*|https://*) ;;
+    *) die "$var must be an absolute URL (got '$value')" ;;
+  esac
+  log "setting $var in api.env"
+  remote "set -e; cd '$PEN_DEPLOY_ROOT'
+    grep -v '^$var=' api.env > api.env.next || true
+    printf '%s=%s\n' '$var' '$value' >> api.env.next
+    chmod 600 api.env.next
+    mv api.env.next api.env"
+  echo "  $var=$value"
+done
 
 # ── 5. up ────────────────────────────────────────────────────────────────────
 if [ "$NO_UP" = 1 ]; then
@@ -237,26 +307,29 @@ else
 fi
 
 # ── 6. edge (manual, once DNS for the domain points at the host) ─────────────
+# The production vhost also answers on www.; the test host is one name.
+CERTBOT_WWW=""
+if [ "$PEN_VHOST" = "prod" ]; then CERTBOT_WWW="-d www.$PEN_DOMAIN"; fi
 cat <<STEPS
 
 ────────────────────────────────────────────────────────────────────────────
 Deployed tag $PEN_IMAGE_TAG. The stack listens on 127.0.0.1:$API_PORT (api) and 127.0.0.1:$WEB_PORT (web).
 
-Edge setup for https://$PEN_DOMAIN (run once, on the host, after the DNS A/AAAA records point here):
+Edge setup for https://$PEN_DOMAIN$BASE_PREFIX/ (run once, on the host, after the DNS A/AAAA records point here):
 
   # 1. vhost (port-80 block only until the certificate exists)
-  cp $PEN_DEPLOY_ROOT/nginx/pen-playground.conf /etc/nginx/sites-available/pen-playground.conf
-  ln -sf /etc/nginx/sites-available/pen-playground.conf /etc/nginx/sites-enabled/pen-playground.conf
+  cp $PEN_DEPLOY_ROOT/nginx/$VHOST_NAME.conf /etc/nginx/sites-available/$VHOST_NAME.conf
+  ln -sf /etc/nginx/sites-available/$VHOST_NAME.conf /etc/nginx/sites-enabled/$VHOST_NAME.conf
   nginx -t && systemctl reload nginx
 
   # 2. certificate (webroot is the same one the onten vhosts use)
   mkdir -p /var/www/letsencrypt
-  certbot certonly --webroot -w /var/www/letsencrypt -d $PEN_DOMAIN -d www.$PEN_DOMAIN \\
+  certbot certonly --webroot -w /var/www/letsencrypt -d $PEN_DOMAIN $CERTBOT_WWW \\
     --non-interactive --agree-tos -m <ops email>
 
   # 3. enable TLS and reload
   nginx -t && systemctl reload nginx
-  curl -fsS https://$PEN_DOMAIN/api/health
+  curl -fsS https://$PEN_DOMAIN$BASE_PREFIX/api/health
 
 Certbot renews automatically (systemd timer); the vhost's acme-challenge location keeps working.
 ────────────────────────────────────────────────────────────────────────────

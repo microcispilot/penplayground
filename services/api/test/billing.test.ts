@@ -176,6 +176,26 @@ describe('Billing.checkout', () => {
     expect(params.customer_email).toBe('sam@example.test');
   });
 
+  it('sends Stripe back to the app under its base path', async () => {
+    // PEN_PUBLIC_URL carries the prefix when the product is served under one;
+    // a return URL without it lands on the coming-soon page, not the app.
+    const participants = new FakeParticipants();
+    participants.add({ id: 'p_base' });
+    const billing = new Billing(
+      configured({ PEN_PUBLIC_URL: 'https://sdjust.pen.example/testingxyzbdc' }),
+      participants.asRepository(),
+    );
+    const create = stubCheckout(billing, { id: 'cs_b', url: 'https://checkout.stripe.test/cs_b' });
+    await billing.checkout('p_base', 'standard', 'month');
+    const params = create.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+    expect(params.success_url).toBe(
+      'https://sdjust.pen.example/testingxyzbdc/pricing?checkout=success',
+    );
+    expect(params.cancel_url).toBe(
+      'https://sdjust.pen.example/testingxyzbdc/pricing?checkout=cancelled',
+    );
+  });
+
   it('reuses an existing Stripe customer instead of the email', async () => {
     const participants = new FakeParticipants();
     participants.add({ id: 'p_old', email: 'sam@example.test', stripeCustomerId: 'cus_42' });

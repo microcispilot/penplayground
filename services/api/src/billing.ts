@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import type { Config } from './config.js';
 import { logger } from './logger.js';
 import { observer } from './observability.js';
+import { publicUrl } from './urls.js';
 
 export type Interval = 'month' | 'year';
 
@@ -83,8 +84,10 @@ export class Billing {
       subscription_data: { metadata: { participantId, plan } },
       metadata: { participantId, plan },
       allow_promotion_codes: true,
-      success_url: `${this.cfg.PEN_PUBLIC_URL}/pricing?checkout=success`,
-      cancel_url: `${this.cfg.PEN_PUBLIC_URL}/pricing?checkout=cancelled`,
+      // Stripe sends the learner back to the app itself, which may be served
+      // under a path prefix — `publicUrl` is what carries it (urls.ts).
+      success_url: publicUrl(this.cfg.PEN_PUBLIC_URL, '/pricing?checkout=success'),
+      cancel_url: publicUrl(this.cfg.PEN_PUBLIC_URL, '/pricing?checkout=cancelled'),
     });
     if (!session.url) throw new Error('CHECKOUT_NO_URL');
     return session.url;
@@ -96,7 +99,7 @@ export class Billing {
     if (!participant?.stripeCustomerId) throw new Error('NO_CUSTOMER');
     const session = await this.stripe.billingPortal.sessions.create({
       customer: participant.stripeCustomerId,
-      return_url: `${this.cfg.PEN_PUBLIC_URL}/pricing`,
+      return_url: publicUrl(this.cfg.PEN_PUBLIC_URL, '/pricing'),
       ...(this.cfg.STRIPE_PORTAL_CONFIGURATION_ID
         ? { configuration: this.cfg.STRIPE_PORTAL_CONFIGURATION_ID }
         : {}),

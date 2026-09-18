@@ -9,6 +9,15 @@
 # VITE_API_URL is deliberately left unset so the app talks to its own origin (the WebSocket URL is
 # derived from it; an empty string would break that). Empty build args are unset before the build.
 #
+# PEN_BASE_PATH bakes in the URL path the app will be served under. It is a BUILD-time choice and
+# cannot be changed afterwards: Vite's `base` decides the asset, lazy-chunk and preload URLs in the
+# bundle, and the app reads the same value back as `import.meta.env.BASE_URL` for the router's
+# basename and the API origin. Default `/` — the ordinary deployment, byte-identical to before.
+#   --build-arg PEN_BASE_PATH=/testingxyzbdc
+# The nginx vhost in front must strip exactly this prefix
+# (deploy/nginx/pen-playground-test.conf.example); the image itself is unchanged and still serves
+# the app, /api, /s and /ws at its own root.
+#
 # Sentry source maps: mount the auth token as a BuildKit secret and the build uploads the maps
 # under release = GIT_SHA, then deletes them from dist (they are never served):
 #   --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN --build-arg GIT_SHA=$(git rev-parse HEAD)
@@ -47,6 +56,7 @@ ARG VITE_SENTRY_DSN=""
 ARG VITE_POSTHOG_TOKEN=""
 ARG VITE_POSTHOG_HOST=""
 ARG VITE_GOOGLE_CLIENT_ID=""
+ARG PEN_BASE_PATH="/"
 ARG GIT_SHA=unknown
 ARG SENTRY_ORG=pen-playground
 COPY . .
@@ -58,6 +68,8 @@ RUN --mount=type=secret,id=sentry_auth_token \
       if [ -s /run/secrets/sentry_auth_token ]; then \
         export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" SENTRY_RELEASE="$GIT_SHA"; \
       fi; \
+      export PEN_BASE_PATH="${PEN_BASE_PATH:-/}"; \
+      echo "web build base path: $PEN_BASE_PATH"; \
       pnpm --filter @pen/web build'
 
 # ── runtime ───────────────────────────────────────────────────────────────────

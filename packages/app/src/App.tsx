@@ -5,8 +5,9 @@ import { AppErrorBoundary } from './components/AppErrorBoundary.js';
 import { AppShell } from './components/AppShell.js';
 import { preloadBoard } from './components/BoardSurface.js';
 import { setAnalyticsContext, trackInteraction } from './lib/analytics.js';
+import { routerBasename, withBasePath } from './lib/base-path.js';
 import { AppProvider } from './lib/context.js';
-import { RouteHead } from './lib/seo.js';
+import { RouteHead, setSeoBasePath } from './lib/seo.js';
 import type { Platform } from './platform/types.js';
 import { Experts } from './screens/Experts.js';
 import { Home } from './screens/Home.js';
@@ -134,14 +135,24 @@ function ShellLayout() {
   );
 }
 
-/** The whole product. Hosts render this once with their Platform. */
+/**
+ * The whole product. Hosts render this once with their Platform.
+ *
+ * `platform.basePath` is where the app is mounted on its origin. It reaches
+ * three places from here and nowhere else: react-router's `basename` (which
+ * puts the prefix on every `<Link>`, `navigate()` and `useLocation()`, so no
+ * screen ever spells it), the canonical URLs in `lib/seo.ts`, and the one full
+ * page load the router does not own — "Back to Explore" on the crash screen.
+ */
 export function PenApp({ platform }: { platform: Platform }) {
+  // Before the first effect runs: a canonical URL must never be written without the prefix.
+  setSeoBasePath(platform.basePath);
   return (
     // Outermost: a crash inside a provider still lands on a screen, not a white page.
-    <AppErrorBoundary>
+    <AppErrorBoundary homeHref={withBasePath(platform.basePath, '/')}>
       <AppProvider platform={platform}>
         <ToastProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={routerBasename(platform.basePath)}>
             <ScreenTracker />
             <ScrollToTop />
             <RouteHead />

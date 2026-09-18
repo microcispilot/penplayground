@@ -5,7 +5,21 @@
  */
 export interface Platform {
   readonly name: 'web' | 'desktop';
-  /** Base URL of the API (http) — the WebSocket URL is derived from it. */
+  /**
+   * The URL path the app is served under: `/` at the root of an origin,
+   * `/testingxyzbdc` (or `/testingxyzbdc/`) when it is mounted under a prefix.
+   * The web host passes Vite's `import.meta.env.BASE_URL`, which is the `base`
+   * the bundle was built with, so the router, the API origin and every
+   * hand-built URL agree with the asset URLs. Desktop is always `/`.
+   * Normalise it with `normalizeBasePath` before concatenating.
+   */
+  readonly basePath: string;
+  /**
+   * Base URL of the API (http) — the WebSocket URL is derived from it. When
+   * the API is served from the same origin as the app it carries the same path
+   * prefix (`https://host/testingxyzbdc`), because the API lives at
+   * `<basePath>/api` there.
+   */
   readonly apiUrl: string;
   readonly speech: SpeechRecognizerFactory;
   readonly mic: MicrophoneAssets;

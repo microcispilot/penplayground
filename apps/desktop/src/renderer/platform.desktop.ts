@@ -51,6 +51,8 @@ const sentryMonitor: Monitor = {
 
 export const desktopPlatform: Platform = {
   name: 'desktop',
+  // The renderer loads from the packaged root; there is no prefix to serve under.
+  basePath: '/',
   apiUrl: window.pen?.apiUrl ?? 'http://localhost:4000',
   speech,
   mic: { workletSource, createResamplerWorker: () => new ResamplerWorker() },

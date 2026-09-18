@@ -42,6 +42,7 @@ import {
 import { DATA_DIR, type Services } from './services.js';
 import { aggregateReuse, computeTelemetry } from './telemetry.js';
 import { THUMB_CONTENT_TYPE, THUMB_SIZES, type ThumbnailKind } from './thumbnails.js';
+import { publicUrl } from './urls.js';
 
 export interface App {
   app: Hono;
@@ -934,7 +935,10 @@ export function buildApp(services: Services): App {
       };
     const downloadUrl =
       job.status === 'ready'
-        ? `${services.cfg.PEN_API_URL}/api/sessions/${encodeURIComponent(sessionId)}/export.mp4?token=${encodeURIComponent(await services.downloadTokens.issue(claims.sub, sessionId))}`
+        ? publicUrl(
+            services.cfg.PEN_API_URL,
+            `/api/sessions/${encodeURIComponent(sessionId)}/export.mp4?token=${encodeURIComponent(await services.downloadTokens.issue(claims.sub, sessionId))}`,
+          )
         : null;
     return {
       status: job.status,
@@ -1030,7 +1034,7 @@ export function buildApp(services: Services): App {
     const record = await services.sessions.get(c.req.param('id'));
     if (!record) return c.notFound();
     const expert = services.experts.get(record.expertId);
-    const target = `${services.cfg.PEN_PUBLIC_URL}/sessions/${record.id}`;
+    const target = publicUrl(services.cfg.PEN_PUBLIC_URL, `/sessions/${record.id}`);
     const esc = (s: string) =>
       s.replace(
         /[&<>"]/g,
@@ -1044,7 +1048,10 @@ export function buildApp(services: Services): App {
     // can be fetched without a bearer, so only they advertise an image.
     const image =
       record.thumbnail && record.visibility === 'public'
-        ? `${services.cfg.PEN_API_URL}/api/sessions/${encodeURIComponent(record.id)}/og.png`
+        ? publicUrl(
+            services.cfg.PEN_API_URL,
+            `/api/sessions/${encodeURIComponent(record.id)}/og.png`,
+          )
         : null;
     const imageTags = image
       ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}">`

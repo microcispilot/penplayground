@@ -56,10 +56,10 @@ function stubFetch() {
   }) as typeof fetch;
 }
 
-function renderAt(path: string) {
+function renderAt(path: string, basePath = '/') {
   window.history.replaceState({}, '', path);
   const storage = memoryStorage({ 'pen.token': 'test-token' });
-  return render(<PenApp platform={testPlatform(storage)} />);
+  return render(<PenApp platform={{ ...testPlatform(storage), basePath }} />);
 }
 
 beforeEach(() => {
@@ -115,5 +115,48 @@ describe('the route table', () => {
     renderAt('/nope');
     await waitFor(() => expect(screen.getByText('This page wandered off')).toBeTruthy());
     expect(screen.getByTestId('sidebar-aside')).toBeTruthy();
+  });
+});
+
+/**
+ * The same route table when the app is not at the root of its origin. Nothing
+ * in the product spells the prefix: react-router's `basename` strips it off
+ * the URL on the way in and puts it back on every link on the way out.
+ */
+describe('the route table under a base path', () => {
+  const BASE = '/testingxyzbdc/';
+
+  it('matches routes past the prefix', async () => {
+    const room = renderAt('/testingxyzbdc/room/s_123', BASE);
+    await waitFor(() => expect(screen.getByTestId('room-screen')).toBeTruthy());
+    room.unmount();
+
+    renderAt('/testingxyzbdc/sessions/s_123', BASE);
+    await waitFor(() => expect(screen.getByTestId('session-screen')).toBeTruthy());
+  });
+
+  it('writes the prefix into every in-app link', async () => {
+    renderAt('/testingxyzbdc/', BASE);
+    await waitFor(() => expect(screen.getByTestId('sidebar-aside')).toBeTruthy());
+    const hrefs = screen
+      .getAllByRole('link')
+      .map((a) => a.getAttribute('href'))
+      .filter((href): href is string => href !== null);
+    // Every link the shell paints is under the prefix, and none doubles a slash.
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      // react-router renders `to="/"` as the bare prefix, every other route as
+      // `<prefix>/…`. nginx redirects the bare form to the trailing-slash one
+      // (deploy/nginx/pen-playground-test.conf.example), so a reload on it lands.
+      expect(href, href).toMatch(/^\/testingxyzbdc(\/|$)/);
+      expect(href, href).not.toContain('//testing');
+    }
+    expect(hrefs).toContain('/testingxyzbdc/pricing');
+    expect(hrefs).toContain('/testingxyzbdc');
+  });
+
+  it('answers an unknown path under the prefix with the 404 screen', async () => {
+    renderAt('/testingxyzbdc/nope', BASE);
+    await waitFor(() => expect(screen.getByText('This page wandered off')).toBeTruthy());
   });
 });

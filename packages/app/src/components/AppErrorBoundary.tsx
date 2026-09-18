@@ -18,6 +18,12 @@ export interface AppErrorBoundaryProps {
   children: ReactNode;
   /** Capture the failure and return the monitor's reference id (or null). */
   onError?: (error: unknown, info: { componentStack: string }) => string | null;
+  /**
+   * Where "Back to Explore" reloads to. This is a full document load, outside
+   * the router, so it is the one link in the product that has to spell the
+   * app's base path itself; `PenApp` passes it. Defaults to the origin root.
+   */
+  homeHref?: string;
 }
 
 interface State {
@@ -56,7 +62,13 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, State> {
 
   override render(): ReactNode {
     if (!this.state.failed) return <div key={this.state.attempt}>{this.props.children}</div>;
-    return <ErrorScreen reference={this.state.ref} onRetry={this.retry} />;
+    return (
+      <ErrorScreen
+        reference={this.state.ref}
+        onRetry={this.retry}
+        homeHref={this.props.homeHref ?? '/'}
+      />
+    );
   }
 }
 
@@ -64,9 +76,12 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, State> {
 export function ErrorScreen({
   reference,
   onRetry,
+  homeHref = '/',
 }: {
   reference: string | null;
   onRetry: () => void;
+  /** The app's own root, base path included (see `AppErrorBoundaryProps`). */
+  homeHref?: string;
 }) {
   return (
     <div className="grid min-h-screen place-items-center bg-bg px-6" data-testid="error-screen">
@@ -90,7 +105,7 @@ export function ErrorScreen({
             size="lg"
             onClick={() => {
               // A full load, not a route change: whatever broke is not in the next document.
-              if (typeof window !== 'undefined') window.location.assign('/');
+              if (typeof window !== 'undefined') window.location.assign(homeHref);
             }}
           >
             Back to Explore
