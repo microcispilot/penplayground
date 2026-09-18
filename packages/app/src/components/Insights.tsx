@@ -231,6 +231,7 @@ const INTERACTION_LABEL: Partial<Record<InteractionEvent['event'], string>> = {
   captions_off: 'Captions off',
   mic_on: 'Mic on',
   mic_off: 'Mic off',
+  speech_unavailable: 'Could not listen on this device',
   fullscreen: 'Full screen',
   pace_changed: 'Changed the pace',
   leave: 'Left',
