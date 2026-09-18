@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { shot, startLesson, type Theme, useTheme, waitForInk } from './ui-helpers.js';
+import { shot, startLesson, type Theme, unlockAudio, useTheme, waitForInk } from './ui-helpers.js';
 
 /**
  * The session panel, at the three widths the product is reviewed at, in both
@@ -115,6 +115,7 @@ test.describe('the session panel, reviewed', () => {
       await page.setViewportSize({ width: SIZES[0].width, height: SIZES[0].height });
       await useTheme(page, theme);
       await startLesson(page);
+      await unlockAudio(page);
       await waitForInk(page);
 
       // A few sentences in, so the picture has a conversation in it. A wait,
@@ -191,6 +192,7 @@ test.describe('the session panel, reviewed', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await useTheme(page, 'light');
     await startLesson(page, 'ترنسفورمرها در مدل‌های زبانی چطور کار می‌کنند');
+    await unlockAudio(page);
     await waitForInk(page);
     await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('fa-IR');
 
