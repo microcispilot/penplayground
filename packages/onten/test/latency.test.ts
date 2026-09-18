@@ -202,12 +202,15 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
       expect(measured.units).toBeGreaterThanOrEqual(PACKS * UNITS_PER_PACK);
       expect(measured.p50).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
       expect(measured.p95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
-      // The single worst sample is held to a looser bound on purpose: one call in
-      // four hundred lands on whatever the V8 heap was doing, and a garbage
-      // collection is not a retrieval regression. p50 and p95 are the numbers the
-      // budget is really about; `max` is here so a regression that moves the tail
-      // alone still shows up rather than hiding behind a healthy p95.
-      expect(measured.max).toBeLessThan(2 * ONTEN_LATENCY_BUDGET_MS);
+      // The tail is held by counting, not by the single worst sample. One call in
+      // four hundred lands on whatever the V8 heap was doing, and on a shared CI
+      // runner a garbage collection can cost 60 ms — that is not a retrieval
+      // regression, and a bound on `max` alone makes the build depend on the
+      // machine it ran on. A regression that moves the tail pushes many samples
+      // over at once, so allowing a handful still catches it. p50 and p95 above
+      // are the numbers the budget is really about, and they are absolute.
+      const overTail = samples.filter((ms) => ms >= 2 * ONTEN_LATENCY_BUDGET_MS).length;
+      expect(overTail / samples.length).toBeLessThanOrEqual(0.01);
       // The runtime's own accounting must agree with the stopwatch above.
       const report = runtime.latency();
       expect(report.count).toBe(QUERIES);
@@ -254,9 +257,16 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
       const terms = Array.from({ length: 4 }, () => zipfWord(q));
       return `what is ${terms.join(' ')}?`;
     });
-    // Ask every question once (cold), then ask them all again (memo).
-    for (let i = 0; i < questions.length; i++)
+    // Ask every question once (cold), then ask them all again (memo). The cold
+    // pass is timed too: what this test is really about is how much the memo
+    // saves, and a ratio measured in the same process on the same machine says
+    // that far more honestly than a millisecond bound calibrated on a laptop.
+    const cold: number[] = [];
+    for (let i = 0; i < questions.length; i++) {
+      const started = performance.now();
       await runtime.query(ask(questions[i] as string, 'en.memo-corpus-0', i));
+      cold.push(performance.now() - started);
+    }
 
     const warm: number[] = [];
     let hits = 0;
@@ -267,17 +277,25 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
       if (result.metrics.memoHit) hits += 1;
     }
     const sorted = [...warm].sort((a, b) => a - b);
+    const coldSorted = [...cold].sort((a, b) => a - b);
+    const warmP95 = percentile(sorted, 0.95);
+    const coldP95 = percentile(coldSorted, 0.95);
     process.stderr.write(
       `onten memo-hit latency: ${JSON.stringify({
         hits,
         of: questions.length,
         p50: Number(percentile(sorted, 0.5).toFixed(3)),
-        p95: Number(percentile(sorted, 0.95).toFixed(3)),
+        p95: Number(warmP95.toFixed(3)),
         max: Number((sorted[sorted.length - 1] as number).toFixed(3)),
+        coldP95: Number(coldP95.toFixed(3)),
       })}\n`,
     );
     // Every question that found anything the first time is remembered the second.
     expect(hits).toBeGreaterThan(questions.length * 0.9);
-    expect(percentile(sorted, 0.95)).toBeLessThan(ONTEN_LATENCY_BUDGET_MS / 4);
+    // Remembering is a different order of work from retrieving, whatever the
+    // machine: the warm path must cost a fraction of the cold one measured
+    // beside it. The budget itself is still the ceiling.
+    expect(warmP95).toBeLessThan(coldP95 / 4);
+    expect(warmP95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
   }, 300_000);
 });

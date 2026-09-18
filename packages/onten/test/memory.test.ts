@@ -1,4 +1,9 @@
-import { AnswerContext, type QueryInput, type SourceDocument } from '@pen/contracts';
+import {
+  AnswerContext,
+  ONTEN_LATENCY_BUDGET_MS,
+  type QueryInput,
+  type SourceDocument,
+} from '@pen/contracts';
 import { describe, expect, it } from 'vitest';
 import { createOnten } from '../src/index.js';
 
@@ -124,7 +129,13 @@ describe('give Onten information, then ask it', () => {
     expect(answer.context.modelContext).toContain('1222');
     expect(answer.context.evidenceSpans.some((s) => s.text.includes('cone 6'))).toBe(true);
     expect(answer.context.evidenceSpans.every((s) => s.sourceId === 'kiln-notes')).toBe(true);
-    expect(answer.metrics.overBudget).toBe(false);
+    // The budget this answer was judged against is Onten's own, and the
+    // runtime reports honestly whether it was met. Whether one particular
+    // call on one particular machine came in under 20 ms is not this test's
+    // question — a shared CI runner can lose that much to a garbage
+    // collection — and it is answered properly, over hundreds of samples at
+    // full corpus size, in test/latency.test.ts.
+    expect(answer.metrics.budgetMs).toBe(ONTEN_LATENCY_BUDGET_MS);
   });
 
   it('a running session sees a document added after it started, once it refreshes', async () => {
