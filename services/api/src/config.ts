@@ -5,7 +5,7 @@ import { z } from 'zod';
  * required value fails fast with a readable message instead of a runtime
  * surprise three requests later.
  */
-const Env = z.object({
+export const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PEN_PORT: z.coerce.number().int().positive().default(4000),
   PEN_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
@@ -16,8 +16,8 @@ const Env = z.object({
   DATABASE_URL: z.string().default('pglite://.pen-data/db'),
 
   PEN_LLM_PROVIDER: z.enum(['openai', 'openai-compatible', 'fake']).default('openai'),
-  PEN_LLM_MODEL: z.string().default('gpt-5.6-luna'),
-  PEN_LLM_OUTLINE_MODEL: z.string().default('gpt-5.6-luna'),
+  PEN_LLM_MODEL: z.string().trim().min(1).max(120).default('gpt-5.6-luna'),
+  PEN_LLM_OUTLINE_MODEL: z.string().trim().min(1).max(120).default('gpt-5.6-luna'),
   PEN_LLM_BASE_URL: z.string().url().optional(),
   /**
    * Session thumbnails (ADR-0021). One `gpt-image-1` generation per session,
@@ -30,7 +30,7 @@ const Env = z.object({
    * actually read at the two are not tellable apart. Raise it here if that
    * ever stops being true.
    */
-  PEN_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  PEN_IMAGE_MODEL: z.string().trim().min(1).max(120).default('gpt-image-1'),
   PEN_THUMBNAIL_QUALITY: z.enum(['low', 'medium', 'high']).default('low'),
   PEN_LLM_SERVICE_TIER: z.enum(['auto', 'default', 'flex', 'priority']).optional(),
   /**
@@ -57,15 +57,17 @@ const Env = z.object({
    * `jev` puts a hosted decisions model in front, and falls back to `model`
    * on any error, timeout or answer it is not sure enough about.
    *
-   * `model` is the default so nothing changes until a deployment opts in, and
-   * this line is the whole of turning it off again.
+   * `jev` is the default (ADR-0025): the hosted classifier is what decides an
+   * ambiguous turn, and the session model stays underneath it as the floor.
+   * Without `OPENROUTER_API_KEY` the room quietly uses the model path, so a
+   * deployment that has no key still behaves exactly as it did.
    */
-  PEN_INTENT_PROVIDER: z.enum(['model', 'jev']).default('model'),
+  PEN_INTENT_PROVIDER: z.enum(['model', 'jev']).default('jev'),
   /**
    * Pinned: TypeSafe's own console also lists `typesafe/jev-latest`, but
    * OpenRouter rejects that id.
    */
-  PEN_INTENT_MODEL: z.string().default('typesafe/jev-1.13'),
+  PEN_INTENT_MODEL: z.string().trim().min(1).max(120).default('typesafe/jev-1.13'),
   /**
    * OpenRouter, not OpenAI: the decisions endpoint is a different gateway and
    * a different account, and the per-plan OpenAI keys are never reused for it
@@ -75,7 +77,7 @@ const Env = z.object({
 
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),
-  FISH_AUDIO_MODEL: z.string().default('s2.1-pro'),
+  FISH_AUDIO_MODEL: z.string().trim().min(1).max(120).default('s2.1-pro'),
   PEN_TTS_BRIDGE_URL: z.string().url().default('http://127.0.0.1:8310'),
 
   PEN_STT_PROVIDER: z.enum(['browser', 'ws-relay', 'deepgram', 'assemblyai']).default('browser'),
@@ -90,6 +92,22 @@ const Env = z.object({
 
   /** Google Identity Services web client id; sign-in is off (and `/api/health` says `google:false`) until set. */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+
+  /**
+   * Who may read and change the runtime configuration (ADR-0025): a
+   * comma-separated list of the Google addresses that are allowed into
+   * `/api/admin/runtime-config` and the Settings screen behind it. Unset
+   * means nobody — the routes answer 403 and the screen is not offered, so a
+   * deployment that never configures this cannot have its providers switched
+   * by whoever happens to hold a bearer token.
+   */
+  PEN_ADMIN_EMAILS: z.string().optional(),
+  /**
+   * How often the API re-reads the stored runtime configuration. One small
+   * indexed read per interval per process; every flag read in between is an
+   * in-memory lookup. 0 reads once at boot and never again.
+   */
+  PEN_RUNTIME_CONFIG_POLL_MS: z.coerce.number().int().nonnegative().default(15_000),
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
@@ -135,7 +153,7 @@ const Env = z.object({
 
   /** Dev only: force a plan for anonymous participants (e.g. classroom) to exercise gated features. */
   PEN_DEV_PLAN: z.enum(['free', 'standard', 'professional']).optional(),
-  PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().default(3),
+  PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().max(50).default(3),
   /**
    * Video ad demand (ADR-0014): the Google Ad Manager VAST/VMAP tag for the free plan's in-stream
    * ads (any VAST seller's tag works). Unset → no ads, unless PEN_AD_TEST_TAGS=1 substitutes
@@ -147,7 +165,7 @@ const Env = z.object({
     .default('0')
     .transform((v) => v === '1' || v === 'true'),
   /** Estimated net eCPM (USD per 1 000 completed ads) used for the per-session revenue line. */
-  PEN_AD_ECPM_USD: z.coerce.number().nonnegative().default(8),
+  PEN_AD_ECPM_USD: z.coerce.number().nonnegative().max(1_000).default(8),
 
   /**
    * Spend circuit breaker (ADR-0016): the most provider spend one UTC day may
@@ -155,9 +173,9 @@ const Env = z.object({
    * sessions are held back (503 CAPACITY) while paid plans continue to
    * `PEN_DAILY_SPEND_PAID_MULTIPLE ×` the cap. 0 disables the breaker.
    */
-  PEN_DAILY_SPEND_CAP_USD: z.coerce.number().nonnegative().default(25),
+  PEN_DAILY_SPEND_CAP_USD: z.coerce.number().nonnegative().max(100_000).default(25),
   /** How far past the cap paying learners keep going before anyone is held back. */
-  PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).default(3),
+  PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).max(100).default(3),
 
   /**
    * Lesson voice store (ADR-0017): the audio of a lesson's sentences, kept
@@ -173,31 +191,65 @@ const Env = z.object({
    * Time to first audio went from 107.6 s (the free tier queueing) to 106 ms.
    * 0 turns it off.
    */
-  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(2048),
+  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().max(1_048_576).default(2048),
 
   /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
-  PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().default(5),
+  PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().max(1_000).default(5),
   /** Largest JSON body any route accepts. Every route here is small; 64 KB is generous. */
   PEN_MAX_BODY_BYTES: z.coerce
     .number()
     .int()
-    .positive()
+    .min(4096)
+    .max(1_048_576)
     .default(64 * 1024),
 });
 
 export type Config = z.infer<typeof Env>;
 
+/**
+ * Which variables the environment actually set, per config object.
+ *
+ * A runtime setting has three tiers — environment variable, stored document,
+ * compiled-in default (ADR-0025) — and the first of them only exists if we can
+ * tell "the operator pinned this on this box" apart from "zod filled in the
+ * default". `Config` cannot: by the time it is parsed both look identical. So
+ * `loadConfig` remembers the raw, explicitly-present values beside the config
+ * it returns, keyed weakly so a discarded config takes its pins with it.
+ *
+ * Deliberately a side table rather than a field on `Config`: the config object
+ * is spread, logged and handed to every service, and a pin map riding along
+ * inside it would be copied into places that must not act on it.
+ */
+const PINS = new WeakMap<Config, Readonly<Record<string, string>>>();
+
+/**
+ * The environment variables that were explicitly set for this config — never
+ * the ones zod defaulted. Empty for a config that was built by spreading
+ * another one, which is exactly right: a spread value is not an operator pin.
+ */
+export function pinnedEnv(cfg: Config): Readonly<Record<string, string>> {
+  return PINS.get(cfg) ?? {};
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // `KEY=` in a .env means "unset", not "empty string".
   const cleaned = Object.fromEntries(
     Object.entries(env).filter(([, v]) => v !== undefined && v !== ''),
-  );
+  ) as Record<string, string>;
   const parsed = Env.safeParse(cleaned);
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment:\n${lines}`);
   }
   const cfg = parsed.data;
+  // Only variables this schema knows about. `cleaned` is the whole process
+  // environment — every provider key, the Stripe secret, the JWT secret — and
+  // a pin table that holds those is one careless log line away from printing
+  // them. Nothing needs them here: a pin is only ever looked up by setting name.
+  PINS.set(
+    cfg,
+    Object.freeze(Object.fromEntries(Object.entries(cleaned).filter(([key]) => key in Env.shape))),
+  );
   if (cfg.NODE_ENV === 'production') {
     if (cfg.PEN_TTS_PROVIDER === 'silent')
       throw new Error('PEN_TTS_PROVIDER=silent is not allowed in production');

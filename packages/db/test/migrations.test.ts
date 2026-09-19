@@ -1,3 +1,6 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
@@ -88,4 +91,91 @@ describe('migration timestamp guard', () => {
     expect(logs).toEqual([]);
     await conn.close();
   });
+});
+
+describe('upgrading a database that already exists', () => {
+  it('adds the runtime-config tables to a 0007 database without touching its rows', async () => {
+    // The production path, not the fresh-checkout one: a database that was
+    // migrated before this branch existed, with data in it, being upgraded.
+    const older = mkdtempSync(join(tmpdir(), 'pen-mig-0007-'));
+    cpSync(folder, older, { recursive: true });
+    const journalPath = join(older, 'meta', '_journal.json');
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+      entries: Array<{ tag: string }>;
+    };
+    const newest = journal.entries[journal.entries.length - 1];
+    if (!newest) throw new Error('no migrations');
+    journal.entries = journal.entries.slice(0, -1);
+    writeFileSync(journalPath, JSON.stringify(journal, null, 2));
+    rmSync(join(older, `${newest.tag}.sql`));
+
+    const client = new PGlite();
+    const db = drizzle(client, { schema });
+    await applyMigrations(db, 'pglite', older);
+    expect(await tableNames(db)).not.toContain('runtime_config_state');
+    await db.execute(sql`insert into participants (id, name) values ('p_before', 'Ada')`);
+
+    // The same database, now with this branch's migrations.
+    await applyMigrations(db, 'pglite', folder);
+    const after = await tableNames(db);
+    expect(after).toContain('runtime_config_state');
+    expect(after).toContain('runtime_config_audits');
+    const kept = await db.execute(sql`select name from participants where id = 'p_before'`);
+    expect((kept.rows as Array<{ name: string }>)[0]?.name).toBe('Ada');
+
+    // And running it again is a no-op rather than "relation already exists".
+    await applyMigrations(db, 'pglite', folder);
+    expect(await tableNames(db)).toContain('runtime_config_state');
+    await client.close();
+    rmSync(older, { recursive: true, force: true });
+  });
+});
+
+async function tableNames(db: ReturnType<typeof drizzle<typeof schema>>): Promise<string[]> {
+  const res = await db.execute(
+    sql`select table_name from information_schema.tables where table_schema = 'public' order by 1`,
+  );
+  return (res.rows as Array<{ table_name: string }>).map((r) => r.table_name);
+}
+
+/**
+ * The migrations against the engine production actually runs. PGlite is
+ * Postgres, but not the same build, and `CHECK` constraints and `jsonb`
+ * defaults are exactly the sort of thing worth seeing land on the real one.
+ *
+ *   PEN_TEST_DATABASE_URL=postgres://… pnpm --filter @pen/db test
+ */
+describe.skipIf(!process.env.PEN_TEST_DATABASE_URL)('on postgres', () => {
+  it('applies every migration, and is a no-op the second time', async () => {
+    const url = process.env.PEN_TEST_DATABASE_URL ?? '';
+    let conn = await connect(url);
+    // `execute()` yields `{ rows }` on PGlite and a bare array on postgres-js.
+    const present = async () => {
+      const res: unknown = await conn.db.execute(
+        sql`select table_name from information_schema.tables where table_schema = 'public' order by 1`,
+      );
+      const rows = (
+        Array.isArray(res) ? res : ((res as { rows?: unknown[] }).rows ?? [])
+      ) as Array<{ table_name: string }>;
+      return rows.map((r) => r.table_name);
+    };
+    expect(await present()).toContain('runtime_config_state');
+    expect(await present()).toContain('runtime_config_audits');
+    // The singleton and the forward-only constraints are the database's job,
+    // not the repository's; prove the real engine is enforcing them.
+    await expect(
+      conn.db.execute(sql`insert into runtime_config_state (id, revision, updated_at)
+                          values (2, 0, 0)`),
+    ).rejects.toThrow();
+    await expect(
+      conn.db.execute(sql`insert into runtime_config_audits
+                          (revision, settings, updated_at, updated_by, updated_by_name, reason,
+                           restored_from_revision)
+                          values (5, '{}'::jsonb, 0, 'p', 'P', 'r', 9)`),
+    ).rejects.toThrow();
+    await conn.close();
+    conn = await connect(url);
+    expect(await present()).toContain('runtime_config_state');
+    await conn.close();
+  }, 60_000);
 });

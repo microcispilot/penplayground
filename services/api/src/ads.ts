@@ -8,6 +8,7 @@ import {
 import type { AdOutcome, AdPolicy } from '@pen/session-engine';
 import type { Config } from './config.js';
 import { logger } from './logger.js';
+import type { RuntimeConfigStore } from './runtime-config/index.js';
 
 /**
  * Where the free plan's video ads come from (ADR-0014). One VAST/VMAP tag URL
@@ -64,22 +65,35 @@ export interface RevenueSink {
  */
 export class AdEconomics {
   readonly demand: AdDemand;
-  private readonly ecpmUsd: number;
   private readonly bySession = new Map<string, SessionAdTally>();
+  /**
+   * The rate each live session is being priced at. Captured when the room is
+   * built and kept: a session's ad revenue is summed from many completions
+   * over many minutes, and a rate that moved half way through would make the
+   * total the sum of two different prices.
+   */
+  private readonly rateBySession = new Map<string, number>();
 
   constructor(
     cfg: Config,
+    private readonly config: RuntimeConfigStore,
     private readonly revenue: RevenueSink | null = null,
   ) {
     this.demand = resolveAdDemand(cfg);
-    this.ecpmUsd = cfg.PEN_AD_ECPM_USD;
     if (this.demand.source === 'off') logger.info({ evt: 'ads.off' }, this.demand.reason);
-    else logger.info({ evt: 'ads.on', source: this.demand.source, ecpmUsd: this.ecpmUsd });
+    else
+      logger.info({
+        evt: 'ads.on',
+        source: this.demand.source,
+        ecpmUsd: this.config.get('PEN_AD_ECPM_USD'),
+      });
   }
 
   /** The room's ad policy for an ad-supported host; null when the plan pays or there is no demand. */
-  policyFor(plan: PlanCode, everySegments: number): AdPolicy | null {
+  policyFor(plan: PlanCode, sessionId: string, everySegments: number): AdPolicy | null {
     if (hasEntitlement(plan, 'no_ads') || !this.demand.tagUrl) return null;
+    const ecpmUsd = this.config.get('PEN_AD_ECPM_USD');
+    this.rateBySession.set(sessionId, ecpmUsd);
     return {
       everySegments,
       durationMs: AD_RULES.maxDurationMs,
@@ -88,7 +102,7 @@ export class AdEconomics {
       // would have needed consent (ADR-0018). The client adds `ltd=1` on top
       // where European rules may reach the viewer.
       tagUrl: nonPersonalisedTag(this.demand.tagUrl),
-      revenuePerCompletionUsd: this.ecpmUsd / 1000,
+      revenuePerCompletionUsd: ecpmUsd / 1000,
       onEvent: (o) => this.record(o),
     };
   }
@@ -104,7 +118,8 @@ export class AdEconomics {
         break;
       case 'ad_completed': {
         t.completed += 1;
-        const usd = this.ecpmUsd / 1000;
+        const usd =
+          (this.rateBySession.get(o.sessionId) ?? this.config.get('PEN_AD_ECPM_USD')) / 1000;
         t.revenueUsd += usd;
         // House totals: a negative line under `ads` so the per-purpose snapshot nets out by itself.
         this.revenue?.credit('ads', usd);
@@ -132,5 +147,6 @@ export class AdEconomics {
   /** Called when a session is released; the totals already went to the cost ledger and analytics. */
   forget(sessionId: string): void {
     this.bySession.delete(sessionId);
+    this.rateBySession.delete(sessionId);
   }
 }

@@ -1,6 +1,11 @@
 # ADR-0024: A provider seam for intent, and a confidence a turn can act on
 
-Status: accepted · 2026-09-19
+Status: accepted · 2026-09-19 · **partly superseded by ADR-0025**
+
+> ADR-0025 makes `PEN_INTENT_PROVIDER` a runtime setting, changes its default
+> from `model` to `jev`, and stops `jev` without `OPENROUTER_API_KEY` being
+> fatal — the room falls back to the session model and says so once, rather
+> than refusing to build. Everything else below still stands.
 
 ## Context
 

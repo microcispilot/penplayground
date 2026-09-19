@@ -320,12 +320,26 @@ export function aggregateReuse(
  */
 export function sessionEndedProperties(
   t: SessionTelemetry,
-  extra: { completed: boolean; providers: { llm: string; tts: string; stt: string } },
+  extra: {
+    completed: boolean;
+    providers: { llm: string; tts: string; stt: string };
+    /**
+     * The runtime settings the room was built with (ADR-0025), flattened as
+     * `config.PEN_…`. A finished session can then be explained from its own
+     * record — which model taught it, which classifier placed its turns —
+     * without anyone having to remember what the dashboard said that day.
+     */
+    settings?: Record<string, string | number | boolean>;
+  },
 ): Record<string, string | number | boolean | null> {
   const units = (c: CostComponent, u: keyof CostByComponent['units']) =>
     t.cost.byComponent[c]?.units[u] ?? 0;
   const usd = (c: CostComponent) => round6(t.cost.byComponent[c]?.usd ?? 0);
+  const settings = Object.fromEntries(
+    Object.entries(extra.settings ?? {}).map(([k, v]) => [`config.${k}`, v]),
+  );
   return {
+    ...settings,
     sessionId: t.sessionId,
     canonicalId: t.canonicalId,
     plan: t.plan,

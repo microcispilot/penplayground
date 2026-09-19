@@ -98,6 +98,10 @@ fi
 GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 API_IMAGE="pen-playground-api:${PEN_IMAGE_TAG}"
 WEB_IMAGE="pen-playground-web:${PEN_IMAGE_TAG}"
+# The operations console (ADR-0026) is opt-in: PEN_WITH_ADMIN=1 builds it, ships it and starts it
+# under compose's `admin` profile. Off, every step below behaves exactly as it always has.
+ADMIN_IMAGE="pen-playground-admin:${PEN_IMAGE_TAG}"
+WITH_ADMIN="${PEN_WITH_ADMIN:-0}"
 
 SSH_OPTS=(
   -i "$PEN_DEPLOY_SSH_IDENTITY_FILE"
@@ -163,18 +167,35 @@ if [ "$SKIP_BUILD" = 0 ]; then
   docker buildx build --platform linux/amd64 --load \
     -f apps/web/Dockerfile "${web_args[@]}" "${sentry_args[@]}" \
     -t "$WEB_IMAGE" -t pen-playground-web:latest .
+
+  if [ "$WITH_ADMIN" = 1 ]; then
+    log "building $ADMIN_IMAGE (linux/amd64)"
+    admin_args=(--build-arg "GIT_SHA=$GIT_SHA")
+    for v in VITE_SENTRY_DSN VITE_GOOGLE_CLIENT_ID; do
+      if [ -n "${!v:-}" ]; then admin_args+=(--build-arg "$v=${!v}"); fi
+    done
+    # No sentry_args: the console builds without source maps, so there is
+    # nothing to upload (apps/admin/Dockerfile says why).
+    docker buildx build --platform linux/amd64 --load \
+      -f apps/admin/Dockerfile "${admin_args[@]}" \
+      -t "$ADMIN_IMAGE" -t pen-playground-admin:latest .
+  fi
 else
   log "skipping build (--skip-build)"
-  docker image inspect "$API_IMAGE" "$WEB_IMAGE" >/dev/null 2>&1 \
+  needed=("$API_IMAGE" "$WEB_IMAGE")
+  if [ "$WITH_ADMIN" = 1 ]; then needed+=("$ADMIN_IMAGE"); fi
+  docker image inspect "${needed[@]}" >/dev/null 2>&1 \
     || [ "$SKIP_SHIP" = 1 ] \
-    || die "images $API_IMAGE / $WEB_IMAGE are not present locally; build them or pass --skip-ship"
+    || die "images ${needed[*]} are not all present locally; build them or pass --skip-ship"
 fi
 
 # ── 2. ship images (docker save | ssh docker load), skipping ones the host already has ─────
 if [ "$SKIP_SHIP" = 0 ]; then
   log "shipping images"
   to_ship=()
-  for image in "$API_IMAGE" "$WEB_IMAGE"; do
+  ship_list=("$API_IMAGE" "$WEB_IMAGE")
+  if [ "$WITH_ADMIN" = 1 ]; then ship_list+=("$ADMIN_IMAGE"); fi
+  for image in "${ship_list[@]}"; do
     local_id="$(docker image inspect --format '{{.Id}}' "$image")"
     remote_id="$(remote "docker image inspect --format '{{.Id}}' '$image' 2>/dev/null || true")"
     if [ "$local_id" = "$remote_id" ]; then
@@ -206,6 +227,7 @@ rsync -rltz -e "$RSYNC_SSH" \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/searxng/"
 rsync -rltz -e "$RSYNC_SSH" \
   deploy/nginx/pen-playground.conf.example deploy/nginx/pen-playground-test.conf.example \
+  deploy/nginx/pen-playground-admin.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 rsync -rltz -e "$RSYNC_SSH" \
   deploy/livekit/livekit.yaml deploy/livekit/cert-sync.sh \
@@ -374,8 +396,10 @@ else
   log "docker compose up -d (tag $PEN_IMAGE_TAG)"
   # --profile backup so the nightly dump sidecar is part of every deploy; without
   # the profile compose would leave it stopped and backups would silently not run.
-  remote "cd '$PEN_DEPLOY_ROOT' && docker compose --profile backup config -q \
-    && docker compose --profile backup up -d --remove-orphans"
+  profiles="--profile backup"
+  if [ "$WITH_ADMIN" = 1 ]; then profiles="$profiles --profile admin"; fi
+  remote "cd '$PEN_DEPLOY_ROOT' && docker compose $profiles config -q \
+    && docker compose $profiles up -d --remove-orphans"
 
   log "waiting for health"
   ok=0

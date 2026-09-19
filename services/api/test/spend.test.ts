@@ -43,8 +43,33 @@ afterEach(() => {
 });
 
 describe('SpendBreaker', () => {
+  it('follows a cap that moves under it, because the cap is a runtime setting', () => {
+    // The point of a circuit breaker is being able to move it while the fire
+    // is burning (ADR-0025). A breaker that captured its cap at construction
+    // would pass every other test in this file and fail this one.
+    let capUsd = 10;
+    let paidMultiple = 2;
+    const breaker = new SpendBreaker({ capUsd: () => capUsd, paidMultiple: () => paidMultiple });
+    breaker.record(costLine(12));
+    expect(breaker.check('free').ok).toBe(false);
+    expect(breaker.check('professional').ok).toBe(true);
+
+    capUsd = 100;
+    expect(breaker.check('free')).toEqual({ ok: true, usd: 12, limitUsd: 100 });
+
+    capUsd = 5;
+    expect(breaker.check('free').ok).toBe(false);
+    paidMultiple = 10;
+    expect(breaker.check('professional')).toEqual({ ok: true, usd: 12, limitUsd: 50 });
+
+    // And zero still turns it off, whenever it is set.
+    capUsd = 0;
+    expect(breaker.enabled).toBe(false);
+    expect(breaker.check('free').ok).toBe(true);
+  });
+
   it('is disabled at a cap of 0, and says so rather than silently allowing everything', () => {
-    const breaker = new SpendBreaker({ capUsd: 0, paidMultiple: 3 });
+    const breaker = new SpendBreaker({ capUsd: () => 0, paidMultiple: () => 3 });
     expect(breaker.enabled).toBe(false);
     expect(breaker.capUsd).toBe(0);
     breaker.record(costLine(500));
@@ -55,7 +80,7 @@ describe('SpendBreaker', () => {
   });
 
   it('sums provider spend and keeps ad revenue out of the capped total', () => {
-    const breaker = new SpendBreaker({ capUsd: 25, paidMultiple: 3 });
+    const breaker = new SpendBreaker({ capUsd: () => 25, paidMultiple: () => 3 });
     breaker.record(costLine(1.5, 'llm'));
     breaker.record(costLine(0.25, 'tts'));
     breaker.record(costLine(0.2, 'stt'));
@@ -72,7 +97,7 @@ describe('SpendBreaker', () => {
   });
 
   it('holds free sessions at the cap while paid plans continue to the multiple', () => {
-    const breaker = new SpendBreaker({ capUsd: 10, paidMultiple: 3 });
+    const breaker = new SpendBreaker({ capUsd: () => 10, paidMultiple: () => 3 });
     expect(breaker.limitFor('free')).toBe(10);
     expect(breaker.limitFor('standard')).toBe(30);
     expect(breaker.limitFor('professional')).toBe(30);
@@ -96,8 +121,8 @@ describe('SpendBreaker', () => {
   it('warns once, at the first crossing of 80 % of the cap', () => {
     const seen: Array<{ usd: number; capUsd: number; fraction: number }> = [];
     const breaker = new SpendBreaker({
-      capUsd: 10,
-      paidMultiple: 3,
+      capUsd: () => 10,
+      paidMultiple: () => 3,
       onWarning: (info) => seen.push(info),
     });
     breaker.record(costLine(7.9));
@@ -120,8 +145,8 @@ describe('SpendBreaker', () => {
     let clock = start;
     const seen: number[] = [];
     const breaker = new SpendBreaker({
-      capUsd: 10,
-      paidMultiple: 3,
+      capUsd: () => 10,
+      paidMultiple: () => 3,
       onWarning: ({ usd }) => seen.push(usd),
       now: () => clock,
     });
@@ -158,7 +183,7 @@ describe('SpendBreaker', () => {
       { kind: 'cost', t: now, line: costLine(0.5, 'stt') },
     ]);
 
-    const breaker = new SpendBreaker({ capUsd: 25, paidMultiple: 3, now: () => now });
+    const breaker = new SpendBreaker({ capUsd: () => 25, paidMultiple: () => 3, now: () => now });
     const result = breaker.rebuild(sessionsDir);
     expect(result.sessions).toBe(2);
     expect(result.usd).toBeCloseTo(2.5, 10);
@@ -180,14 +205,14 @@ describe('SpendBreaker', () => {
     // A ledger that is a directory cannot be read at all: the scan must go on.
     mkdirSync(join(sessionsDir, 's_unreadable', 'ledger.jsonl'), { recursive: true });
 
-    const breaker = new SpendBreaker({ capUsd: 25, paidMultiple: 3, now: () => now });
+    const breaker = new SpendBreaker({ capUsd: () => 25, paidMultiple: () => 3, now: () => now });
     expect(() => breaker.rebuild(sessionsDir)).not.toThrow();
     expect(breaker.snapshot().usd).toBeCloseTo(2, 10);
   });
 
   it('rebuilds nothing from a sessions directory that does not exist yet', () => {
     const now = Date.UTC(2026, 8, 17, 9, 0);
-    const breaker = new SpendBreaker({ capUsd: 25, paidMultiple: 3, now: () => now });
+    const breaker = new SpendBreaker({ capUsd: () => 25, paidMultiple: () => 3, now: () => now });
     expect(breaker.rebuild(join(tempSessionsDir(), 'never-created'))).toEqual({
       sessions: 0,
       usd: 0,

@@ -20,8 +20,9 @@ const server = serve({ fetch: app.fetch, port: cfg.PEN_PORT }, (info) => {
     {
       port: info.port,
       tts: services.synthesizer.id,
-      llm: cfg.PEN_LLM_PROVIDER,
-      stt: cfg.PEN_STT_PROVIDER,
+      llm: services.config.get('PEN_LLM_PROVIDER'),
+      stt: services.recognizer?.id ?? 'browser',
+      configRevision: services.config.revision,
       sentry,
       acquirer: services.acquirer !== null,
     },
@@ -35,7 +36,15 @@ const sweeper = setInterval(() => rooms.sweep(), 60_000);
 // Dead-man's switch: the same readiness the healthcheck asks for, reported to
 // Sentry Crons every few minutes. Silence (a crashed or wedged process) is an
 // issue within two intervals; a failed probe is one immediately.
-const readiness = new ReadinessProbe({ db: services.db, cfg });
+const readiness = new ReadinessProbe({
+  db: services.db,
+  cfg,
+  providers: {
+    PEN_LLM_PROVIDER: services.llmProvider,
+    PEN_TTS_PROVIDER: services.config.get('PEN_TTS_PROVIDER'),
+    PEN_STT_PROVIDER: services.config.get('PEN_STT_PROVIDER'),
+  },
+});
 const stopHeartbeat = startCronHeartbeat(cfg, async () => (await readiness.check()).ok);
 
 // The Simurgh STT host is reached over a Tailscale path that costs ~6 s to establish the
@@ -55,6 +64,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
     stopHeartbeat?.();
+    services.config.stop();
     services.exports.close();
     services.meta.close();
     logger.info({ signal }, 'shutting down');

@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -152,6 +154,64 @@ export const sessionVisits = pgTable(
   ],
 );
 
+/**
+ * The runtime configuration this deployment is running on (ADR-0025) — which
+ * intent provider, which models, how big the voice store is — as one JSON
+ * document under one row. A setting absent from the document is not "off": it
+ * means nobody has overridden the compiled-in default, which is why an empty
+ * table is the same product as no table at all.
+ *
+ * One row, enforced by the database rather than by convention, because two
+ * rows would be two answers to "what is this deployment running on".
+ * `revision` is the concurrency token: a save carrying a stale one is refused
+ * rather than silently winning over whoever saved in between.
+ */
+export const runtimeConfigState = pgTable(
+  'runtime_config_state',
+  {
+    id: integer('id').primaryKey(),
+    revision: bigint('revision', { mode: 'number' }).notNull().default(0),
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+    /** The participant who saved it; null only for the empty revision 0 the table is born with. */
+    updatedBy: text('updated_by'),
+  },
+  (t) => [
+    check('runtime_config_state_singleton', sql`${t.id} = 1`),
+    check('runtime_config_state_revision', sql`${t.revision} >= 0`),
+  ],
+);
+
+/**
+ * Every revision that was ever in force, append-only. A rollback writes a new
+ * revision carrying an old document rather than deleting the ones after it:
+ * "we went back" is itself a thing that happened, and a history that can be
+ * rewritten cannot answer "what was this running when that session was taught".
+ */
+export const runtimeConfigAudits = pgTable(
+  'runtime_config_audits',
+  {
+    revision: bigint('revision', { mode: 'number' }).primaryKey(),
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+    updatedBy: text('updated_by').notNull(),
+    /** Denormalised so history reads without a join, and survives the account being deleted. */
+    updatedByName: text('updated_by_name').notNull(),
+    reason: text('reason').notNull(),
+    /** Set when this revision restored an earlier one, and says which. */
+    restoredFromRevision: bigint('restored_from_revision', { mode: 'number' }),
+  },
+  (t) => [
+    index('runtime_config_audits_updated_idx').on(t.updatedAt),
+    check('runtime_config_audits_revision', sql`${t.revision} > 0`),
+    check(
+      'runtime_config_audits_restored',
+      sql`${t.restoredFromRevision} is null or ${t.restoredFromRevision} < ${t.revision}`,
+    ),
+  ],
+);
+
 export type SessionRow = typeof sessions.$inferSelect;
 export type ParticipantRow = typeof participants.$inferSelect;
 export type SessionVisitRow = typeof sessionVisits.$inferSelect;
+export type RuntimeConfigAuditRow = typeof runtimeConfigAudits.$inferSelect;

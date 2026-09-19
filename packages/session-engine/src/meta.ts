@@ -105,6 +105,13 @@ export interface SessionThumbnail {
    */
   ms: number;
   attempts: number;
+  /**
+   * The quality these bytes were actually drawn at — which on a reuse is what
+   * the earlier session paid for, not what the setting says today. Picture
+   * quality is a runtime setting (ADR-0025), so the record has to carry the
+   * answer rather than let a reader look it up later and get a different one.
+   */
+  quality: ThumbnailQuality;
 }
 
 export interface SessionMetaResult {
@@ -262,8 +269,12 @@ export interface SessionMetaJobsOptions {
   modelFor: (owner: KeyOwner) => LanguageModel;
   /** The image model on the same key, same rule. */
   imageFor: (owner: KeyOwner) => ImageModel;
-  /** Picture quality; `low` is the default everywhere (docs/COST.md). */
-  quality: ThumbnailQuality;
+  /**
+   * Picture quality, asked for once per picture rather than held: it is a
+   * runtime setting (ADR-0025) and may change between two jobs in the same
+   * process. `low` is the default everywhere (docs/COST.md).
+   */
+  quality: () => ThumbnailQuality;
   /** Consumes a result (render, store, persist). Its failure is reported, never retried. */
   onResult: (input: SessionMetaInput, result: SessionMetaResult) => Promise<void> | void;
   /** Called once when both copy attempts failed; the caller keeps the placeholder thumbnail. */
@@ -528,7 +539,15 @@ export class SessionMetaJobs {
       bytes: hit.png.length,
       savedUsd,
     });
-    return { png: hit.png, usage: null, reused: true, savedUsd, ms, attempts: 0 };
+    return {
+      png: hit.png,
+      usage: null,
+      reused: true,
+      savedUsd,
+      ms,
+      attempts: 0,
+      quality: hit.quality,
+    };
   }
 
   /**
@@ -596,6 +615,9 @@ export class SessionMetaJobs {
     if (claim && mine) PICTURE_IN_FLIGHT.set(claim, mine);
     const base = this.o.imageFor(input.billTo);
     const model = input.telemetry ? withImageTelemetry(base, input.telemetry) : base;
+    // One read for this picture: the attempt, the cache entry and the event
+    // all say the quality it was actually drawn at.
+    const quality = this.o.quality();
     const waitFrom = this.now();
     const subject = await this.subjectFrom(copy);
     const copyWaitMs = this.now() - waitFrom;
@@ -606,7 +628,7 @@ export class SessionMetaJobs {
           const { png, usage } = await model.generate({
             prompt,
             size: THUMBNAIL_SIZE,
-            quality: this.o.quality,
+            quality,
             purpose: THUMBNAIL_PURPOSE,
           });
           this.o.onUsage?.(input, { ...usage, purpose: THUMBNAIL_PURPOSE });
@@ -618,7 +640,7 @@ export class SessionMetaJobs {
                 png,
                 usd: usage.usd,
                 model: usage.model,
-                quality: this.o.quality,
+                quality,
               });
             } catch (error) {
               this.observer.error('session_thumbnail.cache_write', error, {
@@ -631,7 +653,7 @@ export class SessionMetaJobs {
             attempts: attempt,
             ms: usage.totalMs,
             bytes: png.length,
-            quality: this.o.quality,
+            quality,
             outputTokens: usage.outputTokens,
             usd: usage.usd,
             // Whether the camera was given something to point at, and what the
@@ -647,6 +669,7 @@ export class SessionMetaJobs {
             savedUsd: 0,
             ms: this.now() - started,
             attempts: attempt,
+            quality,
           };
         } catch (error) {
           if (attempt < ATTEMPTS && !this.closed) {

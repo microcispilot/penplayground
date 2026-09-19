@@ -46,7 +46,7 @@ describe('detectLanguage (fastText lid.176)', () => {
 describe('TopicIntake', () => {
   it('never calls the model for English and cleans the title', async () => {
     const model = new FakeLanguageModel([], []); // any completion would throw: no scripts
-    const intake = new TopicIntake(model, mkdtempSync(join(tmpdir(), 'pen-intake-')));
+    const intake = new TopicIntake(() => model, mkdtempSync(join(tmpdir(), 'pen-intake-')));
     const r = await intake.intake('I want to learn Swift fundamentals');
     expect(r).toMatchObject({
       language: 'en',
@@ -72,20 +72,20 @@ describe('TopicIntake', () => {
       return original(req);
     };
     const dir = mkdtempSync(join(tmpdir(), 'pen-intake-'));
-    const a = await new TopicIntake(model, dir).intake('من میخواهم سویفت را از پایه بیاموزم');
+    const a = await new TopicIntake(() => model, dir).intake('من میخواهم سویفت را از پایه بیاموزم');
     expect(a).toMatchObject({
       language: 'fa',
       via: 'model',
       canonicalTitle: 'Swift Programming for Beginners',
       sourceLanguage: 'en',
     });
-    const b = await new TopicIntake(model, dir).intake('من میخواهم سویفت را از پایه بیاموزم');
+    const b = await new TopicIntake(() => model, dir).intake('من میخواهم سویفت را از پایه بیاموزم');
     expect(b.via).toBe('cache');
     expect(calls).toBe(1);
   });
   it('keeps the learner text as the key when translation fails', async () => {
     const model = new FakeLanguageModel([], []);
-    const r = await new TopicIntake(model, mkdtempSync(join(tmpdir(), 'pen-intake-'))).intake(
+    const r = await new TopicIntake(() => model, mkdtempSync(join(tmpdir(), 'pen-intake-'))).intake(
       'Quiero aprender los fundamentos de Swift',
     );
     expect(r).toMatchObject({ language: 'es', via: 'fallback', sourceLanguage: 'es' });

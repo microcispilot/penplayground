@@ -9,6 +9,11 @@ import type { Services } from './services.js';
  * key's model (cheap, cached); search is SearXNG → Tavily → Exa → curated seeds only.
  */
 export function createAcquirer(services: Omit<Services, 'acquirer'>): KnowledgeAcquirer | null {
+  // The one model this file binds at boot rather than per use. The corpus
+  // builder is a background job on a topic miss, its model reaches it through
+  // another package's constructor, and it is outline work on the free key
+  // rather than a lesson — so a model setting changed in the console reaches
+  // it at the next restart (ADR-0025).
   let model: ReturnType<Services['modelFor']>;
   try {
     model = services.modelFor('free');

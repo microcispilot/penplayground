@@ -116,7 +116,52 @@ body names the failing check:
 | --- | --- |
 | `db` | `docker compose ps postgres`, `docker compose logs postgres`; disk full? § Disk |
 | `dataDir` | `df -h /srv`; is `/srv/pen-playground/data` owned by uid 1000? |
-| `providers` | a key is missing from `api.env` — the detail names it |
+| `providers` | a key is missing from `api.env` — the detail names it. `OPENROUTER_API_KEY` is deliberately not one of them: without it the room classifies with the session model and the stack can still serve a lesson (ADR-0025) |
+
+---
+
+## 2b. Runtime settings (the operations console)
+
+ADR-0025. Which models teach, how the product sounds, what a day may cost — all of it is a
+document in Postgres, and all of it can be changed without a deploy at
+`https://admin.DOMAIN/settings` (ADR-0026, `docs/DEPLOY.md` → "Operations console").
+
+**What the product does when the settings cannot be read.** Nothing changes. Each API process
+holds the resolved document in memory and caches it at `/data/runtime-config.json`; a failed
+read keeps the last good one and logs `config.read_failed` once per outage, and a restart during
+an outage reads the disk copy back. Compiled-in defaults are today's behaviour, so an empty
+table and an unreachable database are the same product.
+
+**Precedence, when a change does not seem to land.** Environment variable → stored document →
+compiled-in default. A variable set in `api.env` **wins over the console on that box**, and the
+console's row says so. That is the escape hatch: to pin a value on a server whatever the console
+says, put it in `api.env` and restart.
+
+**When a change takes effect.** Each row says. `Takes effect immediately` is read per request;
+`on the next lesson` is read once as a room is built, so a lesson in progress never changes
+under the learner; `after the API restarts` is built into a service at boot (the speech engine,
+the voice store, the model adapters).
+
+```sh
+# what this process is running on, in its own log, at boot and on every change
+docker compose logs api | grep -E 'config\.(ready|changed|read_failed|invalid_value)'
+
+# the revision in force, from outside
+curl -s https://DOMAIN/api/health | jq .configRevision
+```
+
+A session's own record carries the settings it ran on: `session_ended` in PostHog has
+`config.PEN_*` properties, so "why was that lesson slow" can be answered from the session
+rather than from memory.
+
+**If a change made things worse**, open the console's History, find the revision that was good,
+and press *Restore this revision*. It writes that document again as a **new** revision; nothing
+is deleted, and the change you are undoing stays in the history with its reason. Two people
+saving at once get one winner and one 409 — the loser keeps their draft.
+
+**Nobody can open the console** until `PEN_ADMIN_EMAILS` in `api.env` names them. Removing an
+address there and restarting the API revokes access immediately; it does not wait for a token
+to expire.
 
 ---
 

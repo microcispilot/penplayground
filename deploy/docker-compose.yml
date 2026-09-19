@@ -10,7 +10,7 @@
 #   searxng/       settings.yml + the included compose file
 #   livekit/       livekit.yaml (no secrets; keys come from .env)
 #
-# Host ports: 4200 (api) and 4201 (web) — 4100 was already taken on prod-app-01 by another
+# Host ports: 4200 (api), 4201 (web) and 4202 (admin console, `admin` profile only) — 4100 was already taken on prod-app-01 by another
 # node process, 4000 by the onten backend. Postgres 18 mounts its volume at /var/lib/postgresql.
 # LiveKit: 127.0.0.1:7880 (signalling, behind nginx at /livekit), 7881/tcp and 7882/udp public
 # (media) — see docs/DEPLOY.md → "Rooms audio (LiveKit)".
@@ -82,6 +82,37 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:4201:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      - api
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # The operations console (ADR-0026). Opt-in: it only starts under the
+  # `admin` profile, so an ordinary `docker compose up -d` is unchanged.
+  #
+  #   PEN_WITH_ADMIN=1 deploy/deploy.sh        # build, ship and start it
+  #   docker compose --profile admin up -d     # on the host, by hand
+  #
+  # It is inert until `PEN_ADMIN_EMAILS` names somebody in api.env: every admin
+  # route answers 403 to everyone otherwise. Put a vhost in front of
+  # 127.0.0.1:4202 (deploy/nginx/pen-playground-admin.conf.example) on a
+  # hostname of its own — never the public domain, so the console never shares
+  # an origin, a CSP or a stored token with the learner app.
+  admin:
+    profiles: ["admin"]
+    image: pen-playground-admin:${PEN_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4202:80"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 30s

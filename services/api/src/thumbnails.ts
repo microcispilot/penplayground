@@ -419,7 +419,8 @@ export async function derive(png: Buffer, kind: DerivedKind): Promise<Buffer> {
 export function createSessionMetaJobs(deps: {
   modelFor: (owner: KeyOwner) => LanguageModel;
   imageFor: (owner: KeyOwner) => ImageModel;
-  quality: ThumbnailQuality;
+  /** Picture quality, read per picture: it is a runtime setting (ADR-0025). */
+  quality: () => ThumbnailQuality;
   store: ThumbnailStore;
   sessions: SessionRepository;
   /** Card copy already written for a lesson (ADR-0013); omitted, every session pays for its own. */
@@ -450,7 +451,7 @@ export function createSessionMetaJobs(deps: {
         image: image
           ? {
               model: image.usage?.model ?? 'cache',
-              quality: deps.quality,
+              quality: image.quality,
               inputTokens: image.usage?.inputTokens ?? 0,
               outputTokens: image.usage?.outputTokens ?? 0,
               usd: image.usage?.usd ?? 0,

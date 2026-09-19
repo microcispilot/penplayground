@@ -14,6 +14,8 @@ import {
   PLAN_NAME,
   PlanCode,
   planAllowsExpert,
+  RuntimeConfigMutation,
+  RuntimeConfigRollback,
   requiredPlanFor,
   type ServerErrorCode,
   type ServerMessage,
@@ -22,7 +24,7 @@ import {
   sttUsd,
   utcDayStart,
 } from '@pen/contracts';
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
@@ -39,6 +41,7 @@ import { clientKey, RateLimiter } from './rate-limit.js';
 import { ReadinessProbe } from './readiness.js';
 import { RecognizerRouter } from './recognizer-router.js';
 import { type LiveRoom, RoomRegistry } from './rooms.js';
+import { RuntimeConfigConflict, RuntimeConfigInvalid } from './runtime-config/index.js';
 import {
   learningResourceJsonLd,
   robotsTxt,
@@ -157,7 +160,15 @@ export function buildApp(services: Services): App {
   const authLimiter = new RateLimiter(30, 60_000);
   const allowSession = (key: string) => sessionLimiter.allow(key);
   const allowAuth = (key: string) => authLimiter.allow(key);
-  const readiness = new ReadinessProbe({ db: services.db, cfg: services.cfg });
+  const readiness = new ReadinessProbe({
+    db: services.db,
+    cfg: services.cfg,
+    providers: {
+      PEN_LLM_PROVIDER: services.llmProvider,
+      PEN_TTS_PROVIDER: services.config.get('PEN_TTS_PROVIDER'),
+      PEN_STT_PROVIDER: services.config.get('PEN_STT_PROVIDER'),
+    },
+  });
   /** Live sessions hosted from each address, so one machine cannot open rooms without bound. */
   const liveByIp = new Map<string, Set<string>>();
   const dev = services.cfg.NODE_ENV !== 'production';
@@ -222,7 +233,9 @@ export function buildApp(services: Services): App {
   app.use('/api/*', (c, next) =>
     bodyLimit({
       maxSize:
-        c.req.path === '/api/billing/webhook' ? WEBHOOK_MAX_BYTES : services.cfg.PEN_MAX_BODY_BYTES,
+        c.req.path === '/api/billing/webhook'
+          ? WEBHOOK_MAX_BYTES
+          : services.config.get('PEN_MAX_BODY_BYTES'),
       onError: (ctx) =>
         ctx.json({ error: 'TOO_LARGE', message: 'That request was too large.' }, 413),
     })(c, next),
@@ -279,9 +292,12 @@ export function buildApp(services: Services): App {
     c.json({
       ok: true,
       tts: services.synthesizer.id,
-      llm: services.cfg.PEN_LLM_PROVIDER,
-      stt: services.cfg.PEN_STT_PROVIDER,
-      intent: services.cfg.PEN_INTENT_PROVIDER,
+      llm: services.llmProvider,
+      stt: services.recognizer?.id ?? 'browser',
+      // What a room being built right now would actually classify with — not
+      // what the setting asks for, which can be `jev` with no key behind it.
+      intent: services.intentFor() ? 'jev' : 'model',
+      configRevision: services.config.revision,
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
       google: services.google !== null,
@@ -603,7 +619,7 @@ export function buildApp(services: Services): App {
         const room = rooms.get(id);
         if (!room || room.room.getState().phase === 'ended') hosted.delete(id);
       }
-      if (hosted.size >= services.cfg.PEN_MAX_SESSIONS_PER_IP) {
+      if (hosted.size >= services.config.get('PEN_MAX_SESSIONS_PER_IP')) {
         observer.event('rooms.ip_cap', { live: hosted.size });
         return c.json(
           {
@@ -1406,6 +1422,112 @@ export function buildApp(services: Services): App {
       observer.error('billing.webhook', error);
       return c.json({ error: 'WEBHOOK_REJECTED' }, 400);
     }
+  });
+
+  const unreachable = 'The settings store cannot be reached right now. Nothing was changed.';
+  /**
+   * The three ways a save can end, in one place: somebody else got there
+   * first, the value is not one this setting accepts, or the store is down.
+   * Each is a different status so the console can say which without guessing.
+   */
+  const runtimeConfigWrite = async (c: Context, run: () => Promise<unknown>): Promise<Response> => {
+    c.header('cache-control', 'no-store');
+    try {
+      return c.json((await run()) as Record<string, unknown>);
+    } catch (error) {
+      if (error instanceof RuntimeConfigConflict)
+        return c.json({ error: 'CONFLICT', message: error.message, current: error.current }, 409);
+      if (error instanceof RuntimeConfigInvalid)
+        return c.json({ error: 'INVALID', message: error.message }, 422);
+      observer.error('runtime_config.write', error);
+      return c.json({ error: 'UNAVAILABLE', message: unreachable }, 503);
+    }
+  };
+
+  /**
+   * Who may change how the product runs (ADR-0025). An allow-list of Google
+   * addresses in `PEN_ADMIN_EMAILS`, checked against the participant's own
+   * row rather than against anything in the bearer, so revoking access is one
+   * environment variable and does not wait for a token to expire.
+   *
+   * Unset means nobody: a deployment that never configures this cannot have
+   * its providers switched by whoever happens to hold a signed-in token.
+   * Anonymous participants never qualify, whatever the list says.
+   */
+  const adminEmails = new Set(
+    (services.cfg.PEN_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const admin = async (
+    header: string | undefined,
+  ): Promise<{ id: string; name: string; email: string } | null> => {
+    if (adminEmails.size === 0) return null;
+    const claims = await bearer(header);
+    if (!claims || claims.anonymous) return null;
+    const row = await services.participants.get(claims.sub);
+    if (!row) return null;
+    // Only an address Google verified. `POST /api/dev/me/google` writes this
+    // column from the request body on non-production boxes, so without this
+    // any staging deployment with `PEN_ADMIN_EMAILS` set would hand the
+    // console to whoever posted the owner's address.
+    if (row.provider !== 'google' || !row.googleSub) return null;
+    const email = row.email?.trim().toLowerCase();
+    if (!email || !adminEmails.has(email)) return null;
+    return { id: row.id, name: row.name, email };
+  };
+
+  /**
+   * Whether this bearer may open the admin app, and who it belongs to. The
+   * admin app calls it on load: one answer decides between the console and
+   * the sign-in screen, and it never leaks the allow-list to anyone else.
+   */
+  app.get('/api/admin/session', async (c) => {
+    c.header('cache-control', 'no-store');
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ admin: false }, 200);
+    return c.json({ admin: true, id: actor.id, name: actor.name, email: actor.email });
+  });
+
+  app.get('/api/admin/runtime-config', async (c) => {
+    c.header('cache-control', 'no-store');
+    if (!(await admin(c.req.header('authorization')))) return c.json({ error: 'FORBIDDEN' }, 403);
+    return c.json(await services.runtimeConfig.document());
+  });
+
+  app.put('/api/admin/runtime-config', async (c) => {
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ error: 'FORBIDDEN' }, 403);
+    const body = RuntimeConfigMutation.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    return runtimeConfigWrite(c, () => services.runtimeConfig.mutate(actor, body.data));
+  });
+
+  app.get('/api/admin/runtime-config/history', async (c) => {
+    c.header('cache-control', 'no-store');
+    if (!(await admin(c.req.header('authorization')))) return c.json({ error: 'FORBIDDEN' }, 403);
+    const before = Number(c.req.query('beforeRevision'));
+    const limit = Number(c.req.query('limit'));
+    try {
+      return c.json(
+        await services.runtimeConfig.history({
+          beforeRevision: Number.isFinite(before) && before > 0 ? before : null,
+          ...(Number.isFinite(limit) && limit > 0 ? { limit } : {}),
+        }),
+      );
+    } catch (error) {
+      observer.error('runtime_config.history', error);
+      return c.json({ error: 'UNAVAILABLE', message: unreachable }, 503);
+    }
+  });
+
+  app.post('/api/admin/runtime-config/rollback', async (c) => {
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ error: 'FORBIDDEN' }, 403);
+    const body = RuntimeConfigRollback.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    return runtimeConfigWrite(c, () => services.runtimeConfig.rollback(actor, body.data));
   });
 
   app.get('/api/admin/costs', async (c) => {

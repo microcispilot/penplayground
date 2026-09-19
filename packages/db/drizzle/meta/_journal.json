@@ -57,6 +57,13 @@
       "when": 1789762616944,
       "tag": "0007_participant_pace",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789839046455,
+      "tag": "0008_runtime_config",
+      "breakpoints": true
     }
   ]
 }

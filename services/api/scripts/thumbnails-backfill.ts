@@ -266,7 +266,7 @@ try {
     // Every job here is the platform's, whatever plan the session's host is on.
     modelFor: () => platformModel,
     imageFor: () => platformImage,
-    quality: cfg.PEN_THUMBNAIL_QUALITY,
+    quality: () => services.config.get('PEN_THUMBNAIL_QUALITY'),
     store: services.thumbnails,
     sessions: services.sessions,
     cache: services.metaCache,

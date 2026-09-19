@@ -120,7 +120,7 @@ async function runJobs(opts: {
   return new SessionMetaJobs({
     modelFor: () => opts.model,
     imageFor: () => new FakeImageModel(),
-    quality: 'low',
+    quality: () => 'low',
     cache: opts.cache,
     onResult: (i, r) => {
       opts.results.push({
