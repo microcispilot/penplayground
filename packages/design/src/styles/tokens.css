@@ -825,3 +825,109 @@
   --color-error-container: #8f0045;
   --color-on-error-container: #ffd9e1;
 }
+
+/* ── signal: the candidate that answers the question the others could not ──
+ *
+ * The first four families asked "what does M3 make of a red seed?" and the
+ * answer, measured, was: not a red. Tonal spot flattens it; vibrant saves the
+ * light scheme and not the dark one; every red arrives in dark mode as
+ * #ffb4a8, the error role to within ΔE 0.004. Four candidates, one outcome.
+ *
+ * So this one asks the other question — "what does YouTube actually do?" —
+ * and the answer is not a red palette at all. YouTube's chrome is neutral.
+ * Grey chips, grey rails, grey active states; the red is the mark, the
+ * subscribe button and the progress bar, and nothing else. The red reads as
+ * red *because* nothing around it is tinted. A red that spreads into every
+ * container is the thing that turns pale, both in M3's arithmetic and in the
+ * eye.
+ *
+ * `signal` is therefore the only family here that is not generator output
+ * pasted whole. Two deliberate departures, both away from M3's defaults and
+ * both the reason it looks like what was asked for:
+ *
+ *   The red does not lighten in the dark. M3 puts primary at tone 80 in dark
+ *   schemes, which is what makes every red brand pale salmon there. This pins
+ *   it instead: #cc0000 in light, #e62117 in dark — one step up for the darker
+ *   ground, still unmistakably the same red. Both carry white at 5.89:1 and
+ *   4.57:1, and both clear 3:1 against every surface they sit on (light 5.59
+ *   and 5.07; dark 4.07, 3.61 and 3.14).
+ *
+ *   The containers are neutral. `primary-container` and `secondary-container`
+ *   are the sidebar's active pill, the filter chips, the header nav, the
+ *   pagination and Sign in — the surfaces that made the other four families a
+ *   pale rose page. Here they are the same chroma-0 greys the rest of the
+ *   platform is built from, at 14.06:1 and 11.08:1. The red is left to
+ *   `bg-primary`: Start, the ask-send button, the lesson progress bar, the
+ *   replay scrubber, the board's ink. Five places, and they are the five that
+ *   matter.
+ *
+ * Error still moves to magenta, for the reason ember moved it: #cc0000 against
+ * M3's #ba1a1a is 1.1:1 and one degree of hue. What error cannot be is the
+ * brand. What the brand costs, in exchange, is the three places the app spends
+ * red on ordinary states — End, liked, the ad lane — which have to become
+ * neutral, brand and tertiary respectively. That is a product decision, not a
+ * token one, and it is not made here.
+ */
+:root[data-brand="signal"] {
+  --color-primary: #cc0000;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #e8e8e8;
+  --color-on-primary-container: #1b1b1b;
+  --color-inverse-primary: #ff897d;
+  --color-secondary: #474747;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e2e2e2;
+  --color-on-secondary-container: #1b1b1b;
+  --color-error: #ba025c;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffd9e1;
+  --color-on-error-container: #8f0045;
+
+  /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
+  --color-ink-accent: oklch(0.531 0.218 29.2); /* #cc0000 at 5.48:1 on paper */
+  --color-speaking: oklch(0.594 0.203 29.2);
+  /* Warn moves to amber: the brand took its hue (9° apart), and two reds on one sheet are one red. */
+  --color-ink-warn: oklch(0.457 0.15 62);
+  --color-ring-pulse: oklch(0.531 0.218 29.2 / 45%);
+  --color-ring-pulse-out: oklch(0.531 0.218 29.2 / 0%);
+}
+:root[data-brand="signal"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-primary: #e62117;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #2a2a2a;
+    --color-on-primary-container: #e2e2e2;
+    --color-inverse-primary: #cc0000;
+    --color-secondary: #c6c6c6;
+    --color-on-secondary: #1b1b1b;
+    --color-secondary-container: #353535;
+    --color-on-secondary-container: #e2e2e2;
+    --color-error: #ffb1c5;
+    --color-on-error: #65002f;
+    --color-error-container: #8f0045;
+    --color-on-error-container: #ffd9e1;
+    --color-ink-accent: oklch(0.592 0.228 29.3);
+    --color-speaking: oklch(0.655 0.212 29.3);
+    --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
+    --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
+  }
+}
+:root[data-brand="signal"][data-theme="dark"] {
+  --color-primary: #e62117;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #2a2a2a;
+  --color-on-primary-container: #e2e2e2;
+  --color-inverse-primary: #cc0000;
+  --color-secondary: #c6c6c6;
+  --color-on-secondary: #1b1b1b;
+  --color-secondary-container: #353535;
+  --color-on-secondary-container: #e2e2e2;
+  --color-error: #ffb1c5;
+  --color-on-error: #65002f;
+  --color-error-container: #8f0045;
+  --color-on-error-container: #ffd9e1;
+  --color-ink-accent: oklch(0.592 0.228 29.3);
+  --color-speaking: oklch(0.655 0.212 29.3);
+  --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
+  --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
+}

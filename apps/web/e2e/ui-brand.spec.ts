@@ -4,11 +4,11 @@ import { type APIRequestContext, expect, type Page, test } from '@playwright/tes
 import { endSession, startLesson, UI_WEB, useTheme, waitForInk } from './ui-helpers.js';
 
 /**
- * The brand review: five families, two themes, five screens, one width.
+ * The brand review: six families, two themes, six screens, one width.
  *
  * The owner asked for "a real better branding colour, something youtubish",
  * and a colour is not a thing anyone can decide from a hex. This spec produces
- * the fifty pictures the decision needs, and it produces them the one way that
+ * the pictures the decision needs, and it produces them the one way that
  * makes them worth looking at: the *same page*, in the *same state*, at the
  * *same width*, with only `data-brand` moved between shots. Nothing is
  * re-navigated and no lesson is re-taught between candidates, so two shots of
@@ -41,7 +41,7 @@ const HEIGHT = 900;
  * needs one. It is reached by *removing* the attribute, because teal is not a
  * family in `tokens.css` — it is the default that `@theme` declares.
  */
-const FAMILIES = ['teal', 'youtube', 'vermilion', 'coral', 'ember'] as const;
+const FAMILIES = ['teal', 'youtube', 'vermilion', 'coral', 'ember', 'signal'] as const;
 type Family = (typeof FAMILIES)[number];
 const THEMES = ['light', 'dark'] as const;
 

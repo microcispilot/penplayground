@@ -331,3 +331,107 @@ describe('the maths under the generator', () => {
     expect(oklabDistance('#86d1e9', '#ffb4ab')).toBeGreaterThan(0.15);
   });
 });
+
+// ── signal: the family the generator did not write ──────────────────────────
+
+/**
+ * `signal` is the one family in `tokens.css` that departs from M3 on purpose,
+ * so it is the one family the generator cannot vouch for. These assertions
+ * are what stands in for the oracle: they read the departures back out of the
+ * stylesheet and check that each one is still doing the thing it was made to
+ * do. Nothing here restates a hex the file does not declare.
+ *
+ * Read together with the block comment above `[data-brand="signal"]`, which
+ * says why each departure exists.
+ */
+describe('signal keeps its red, and keeps everything else grey', () => {
+  const rgb = (hex: string) => rgbFromOklch(oklchFromHex(hex));
+  const primary = (theme: 'light' | 'dark') =>
+    declared(familyBlock('signal', theme), 'primary') ?? '';
+
+  /**
+   * The finding the family exists to answer: M3 puts primary at tone 80 in a
+   * dark scheme, and a red at tone 80 is #ffb4a8 — a salmon with barely a
+   * tenth of the seed's chroma. Measured against its neighbours in the file:
+   * the three tonal-spot reds all land there, and signal does not.
+   */
+  it('does not go pale in the dark the way every generated red does', () => {
+    const chroma = (brand: string) =>
+      oklchFromHex(declared(familyBlock(brand, 'dark'), 'primary') ?? '').c;
+    for (const pale of ['youtube', 'vermilion', 'coral', 'ember']) {
+      expect(chroma(pale), `${pale} dark primary`).toBeLessThan(0.11);
+    }
+    expect(chroma('signal'), 'signal dark primary').toBeGreaterThan(0.18);
+  });
+
+  it('is the same red in both themes, not two different colours', () => {
+    expect(
+      hueGap(oklchFromHex(primary('light')).h, oklchFromHex(primary('dark')).h),
+      `${primary('light')} vs ${primary('dark')}`,
+    ).toBeLessThan(5);
+  });
+
+  /** A filled button's label is body-sized, so 3:1 is not the bar here. */
+  it.each(['light', 'dark'] as const)('%s: its label is readable on it', (theme) => {
+    const block = familyBlock('signal', theme);
+    const on = declared(block, 'on-primary') ?? '';
+    expect(contrast(rgb(primary(theme)), rgb(on)), `${on} on ${primary(theme)}`).toBeGreaterThan(
+      4.5,
+    );
+  });
+
+  /**
+   * The mark, the focus ring and the progress bar are drawn in primary
+   * directly, on whichever of the neutral surfaces they happen to sit on.
+   * 3:1 is WCAG's bar for a non-text control, and it has to hold on all of
+   * them, not on the lightest one.
+   */
+  it.each(['light', 'dark'] as const)('%s: it reads on every surface it sits on', (theme) => {
+    const surfaces = ['surface', 'surface-container', 'surface-container-high'];
+    for (const role of surfaces) {
+      const ground = declared(themeBlock(theme), role) ?? '';
+      expect(
+        contrast(rgb(primary(theme)), rgb(ground)),
+        `${theme} primary ${primary(theme)} on --color-${role} ${ground}`,
+      ).toBeGreaterThan(3);
+    }
+  });
+
+  /**
+   * The point of the family. The sidebar pill, the chips, the header nav and
+   * Sign in are containers; if they carry hue, the page turns rose and the
+   * red stops reading as red. Every one of them is a platform grey, declared
+   * nowhere but in the theme block itself.
+   */
+  it.each(['light', 'dark'] as const)('%s: the containers are the platform greys', (theme) => {
+    const block = familyBlock('signal', theme);
+    const theme_ = themeBlock(theme);
+    const neutral = new Set(
+      ['surface-container-high', 'surface-container-highest', 'surface-container', 'on-surface']
+        .map((role) => declared(theme_, role))
+        .filter((hex): hex is string => hex !== undefined),
+    );
+    for (const role of [
+      'primary-container',
+      'on-primary-container',
+      'secondary-container',
+      'on-secondary-container',
+    ]) {
+      const hex = declared(block, role) ?? '';
+      expect(neutral, `--color-${role} is ${hex}, which is not a platform neutral`).toContain(hex);
+    }
+  });
+
+  /**
+   * ΔE 0.004 is what a tonal-spot red scores against the error role — the
+   * collision the whole review turned up. Moving error off the brand hue is
+   * the only reason a red brand is possible at all.
+   */
+  it.each(['light', 'dark'] as const)('%s: error is not the brand', (theme) => {
+    const error = declared(familyBlock('signal', theme), 'error') ?? '';
+    expect(
+      oklabDistance(primary(theme), error),
+      `primary ${primary(theme)} vs error ${error}`,
+    ).toBeGreaterThan(0.1);
+  });
+});
