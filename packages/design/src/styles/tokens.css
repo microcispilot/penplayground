@@ -64,8 +64,9 @@
    * whichever brand family is active instead of going grey — which is what
    * made the platform read as lifeless.
    */
-  --color-chrome: color-mix(in oklab, var(--color-accent) 4%, var(--color-surface));
-  --color-band: color-mix(in oklab, var(--color-accent) 8%, var(--color-surface));
+  /* No accent mixed in: the frame is a step in value from the page, not a tint. */
+  --color-chrome: color-mix(in oklab, var(--color-fg) 4%, var(--color-surface));
+  --color-band: color-mix(in oklab, var(--color-fg) 6%, var(--color-surface));
   --color-warm: var(--color-yellow-500);
   --color-warm-soft: oklch(0.763 0.126 73.7 / 18%);
   --color-success: var(--color-lime-700);
@@ -151,6 +152,13 @@
   --shadow-float:
     0 1px 0 oklch(1 0 0 / 60%) inset, 0 1px 2px oklch(0.2 0.05 248 / 6%),
     0 12px 40px oklch(0.2 0.05 248 / 12%), 0 0 0 1px oklch(0.285 0.062 247.7 / 8%);
+  /*
+    The ask field, and only it. Every other elevation here draws an edge — an
+    inset highlight in light, a hairline ring in dark — which on a field sitting
+    in the middle of the hero reads as a stray line above the input rather than
+    as depth. This one is depth alone.
+  */
+  --shadow-ask: 0 1px 2px oklch(0.2 0.05 248 / 6%), 0 12px 40px oklch(0.2 0.05 248 / 12%);
   --shadow-lift: 0 2px 4px oklch(0.2 0.05 248 / 8%), 0 22px 48px oklch(0.2 0.05 248 / 16%);
   --shadow-pop: 0 2px 6px oklch(0.2 0.05 248 / 12%), 0 18px 44px oklch(0.2 0.05 248 / 22%);
   --shadow-board: 0 0 0 1px var(--color-line-strong), 0 18px 44px oklch(0.2 0.05 248 / 28%);
@@ -222,10 +230,15 @@
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-bg: oklch(0.17 0.02 250);
-    --color-bg-elevated: oklch(0.21 0.022 250);
-    --color-surface: oklch(0.2 0.022 250);
-    --color-surface-2: oklch(0.25 0.024 250);
+    /*
+      Matte, not lacquered. These were a blue-tinted dark whose chroma caught
+      the light and read as a sheen across every panel; they are darker now and
+      nearly neutral, so a surface separates from the page by value alone.
+    */
+    --color-bg: oklch(0.14 0.006 250);
+    --color-bg-elevated: oklch(0.18 0.007 250);
+    --color-surface: oklch(0.17 0.007 250);
+    --color-surface-2: oklch(0.22 0.008 250);
     --color-line: oklch(0.92 0.01 250 / 10%);
     --color-line-strong: oklch(0.92 0.01 250 / 18%);
     --color-fg: oklch(0.93 0.008 250);
@@ -244,6 +257,7 @@
     --color-danger-soft: oklch(0.47 0.173 20.4 / 22%);
     --shadow-card: 0 0 0 1px oklch(1 0 0 / 6%), 0 10px 28px oklch(0 0 0 / 45%);
     --shadow-float: 0 0 0 1px oklch(1 0 0 / 10%), 0 12px 40px oklch(0 0 0 / 50%);
+    --shadow-ask: 0 12px 40px oklch(0 0 0 / 50%);
     --shadow-lift: 0 0 0 1px oklch(1 0 0 / 10%), 0 22px 48px oklch(0 0 0 / 60%);
     --shadow-pop: 0 0 0 1px oklch(1 0 0 / 8%), 0 20px 50px oklch(0 0 0 / 60%);
     --shadow-board: 0 0 0 1px oklch(1 0 0 / 10%), 0 18px 44px oklch(0 0 0 / 50%);
@@ -257,10 +271,10 @@
   }
 }
 :root[data-theme="dark"] {
-  --color-bg: oklch(0.17 0.02 250);
-  --color-bg-elevated: oklch(0.21 0.022 250);
-  --color-surface: oklch(0.2 0.022 250);
-  --color-surface-2: oklch(0.25 0.024 250);
+  --color-bg: oklch(0.14 0.006 250);
+  --color-bg-elevated: oklch(0.18 0.007 250);
+  --color-surface: oklch(0.17 0.007 250);
+  --color-surface-2: oklch(0.22 0.008 250);
   --color-line: oklch(0.92 0.01 250 / 10%);
   --color-line-strong: oklch(0.92 0.01 250 / 18%);
   --color-fg: oklch(0.93 0.008 250);
@@ -278,6 +292,7 @@
   --color-danger-soft: oklch(0.47 0.173 20.4 / 22%);
   --shadow-card: 0 0 0 1px oklch(1 0 0 / 6%), 0 10px 28px oklch(0 0 0 / 45%);
   --shadow-float: 0 0 0 1px oklch(1 0 0 / 10%), 0 12px 40px oklch(0 0 0 / 50%);
+  --shadow-ask: 0 12px 40px oklch(0 0 0 / 50%);
   --shadow-lift: 0 0 0 1px oklch(1 0 0 / 10%), 0 22px 48px oklch(0 0 0 / 60%);
   --shadow-pop: 0 0 0 1px oklch(1 0 0 / 8%), 0 20px 50px oklch(0 0 0 / 60%);
   --shadow-board: 0 0 0 1px oklch(1 0 0 / 10%), 0 18px 44px oklch(0 0 0 / 50%);

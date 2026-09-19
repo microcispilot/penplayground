@@ -50,14 +50,6 @@ export function NotFound() {
 
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden px-6 py-16">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            'radial-gradient(50% 55% at 50% 0%, var(--color-wash-aqua), transparent 70%), radial-gradient(60% 50% at 50% 110%, var(--color-wash-yellow), transparent 70%)',
-        }}
-      />
       <div className="flex w-full max-w-[560px] flex-col items-center text-center">
         <span className="animate-rise mb-6 grid size-14 place-items-center rounded-[18px] bg-bg-elevated text-fg shadow-float">
           <PenMark size={28} />

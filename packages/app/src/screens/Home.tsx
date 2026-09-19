@@ -244,14 +244,6 @@ export function Home() {
     <div className="flex flex-1 flex-col">
       {/* ── hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            background:
-              'radial-gradient(55% 60% at 12% 0%, var(--color-wash-yellow), transparent 70%), radial-gradient(50% 60% at 88% 20%, var(--color-wash-aqua), transparent 70%), radial-gradient(70% 50% at 60% 110%, var(--color-wash-pink), transparent 70%)',
-          }}
-        />
         {/*
           One column, centred. The animated board used to hold the right half;
           with it gone a two-column grid would read as a missing element, so the
@@ -259,47 +251,23 @@ export function Home() {
           that answers it — at a measure wide enough to carry the display type.
         */}
         <div className="mx-auto flex w-full max-w-[820px] flex-col items-center px-6 pt-16 pb-20 text-center sm:pt-20 lg:pt-24 lg:pb-24">
+          {/*
+            One sentence, one voice: no word set apart in another colour, style
+            or weight, and nothing underlining it. The question is the whole
+            hero now, so it is sized to sit on a single line at this measure
+            rather than breaking across two — it wraps only where the viewport
+            is genuinely too narrow to hold it.
+          */}
           <h1
-            className="animate-rise text-[clamp(2.6rem,6vw,4.5rem)] leading-[0.98] tracking-[-0.035em] text-fg text-pretty"
+            className="animate-rise text-[clamp(2.1rem,5vw,3.5rem)] leading-[1.05] tracking-[-0.035em] text-fg text-balance"
             style={{ animationDelay: '40ms' }}
           >
-            What do you want to{' '}
-            <span
-              className="relative inline-block text-accent-strong"
-              style={{
-                fontVariationSettings: '"opsz" 96, "SOFT" 60, "WONK" 1',
-                fontStyle: 'italic',
-              }}
-            >
-              learn
-              <svg
-                viewBox="0 0 200 12"
-                className="absolute -bottom-1 left-0 h-3 w-full"
-                preserveAspectRatio="none"
-                aria-hidden
-              >
-                <path
-                  d="M3 8 C50 2 120 10 197 4"
-                  stroke="var(--color-yellow-500)"
-                  strokeWidth="4"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
-            ?
+            What do you want to learn?
           </h1>
-          <p
-            className="animate-rise mt-6 max-w-[560px] text-[17px] leading-[1.55] text-fg-2 text-pretty"
-            style={{ animationDelay: '100ms' }}
-          >
-            Ask for anything. An expert starts talking within seconds, writes it out on a board at a
-            human pace, and stops the moment you speak.
-          </p>
 
           <form
             className={cn(
-              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-[20px] bg-bg-elevated p-2 pl-5 text-left shadow-float transition-shadow duration-[var(--duration-base)]',
+              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-[20px] bg-bg-elevated p-2 pl-5 text-left shadow-ask transition-shadow duration-[var(--duration-base)]',
               'focus-within:shadow-[var(--shadow-lift),0_0_0_2px_var(--color-accent)]',
             )}
             style={{ animationDelay: '160ms' }}
@@ -398,7 +366,7 @@ export function Home() {
               <h2 className="text-[clamp(1.6rem,2.4vw,2.1rem)] tracking-[-0.03em]">
                 Taught by experts who never lose patience.
               </h2>
-              <p className="mt-2 max-w-[640px] text-[15px] text-fg-2 text-pretty">
+              <p className="mt-2 max-w-[920px] text-[15px] text-fg-2 text-pretty">
                 100+ experts across science, software, coding, medicine, law, money, arts, and more.
                 They can teach you in your language.
               </p>
@@ -550,12 +518,14 @@ export function Home() {
  * than as the first item of content, which is what made these rows blur into
  * the grid underneath them.
  */
+/**
+ * A row's heading and its line, with nothing drawn behind them. A filled panel
+ * here boxed the type in and fought the cards underneath; the separation a
+ * section needs is space, which is what it gets.
+ */
 function SectionBand({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="mb-7 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] bg-band px-5 py-4 hairline"
-      data-testid="section-band"
-    >
+    <div className="mb-7 flex flex-wrap items-center gap-3" data-testid="section-band">
       {children}
     </div>
   );
