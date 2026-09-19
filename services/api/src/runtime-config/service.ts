@@ -26,14 +26,6 @@ export class RuntimeConfigInvalid extends Error {
   }
 }
 
-/** A save nobody may make, because the document could not be read to begin with. */
-export class RuntimeConfigUnavailable extends Error {
-  constructor() {
-    super('The configuration store cannot be reached right now.');
-    this.name = 'RuntimeConfigUnavailable';
-  }
-}
-
 export interface Actor {
   id: string;
   name: string;

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   changedSettings,
   draftFrom,
+  draftValue,
   type EditorState,
   editorReducer,
   historyReducer,
@@ -168,7 +169,12 @@ describe('what would actually run', () => {
   it('says the default when a setting has no override', () => {
     const doc = document();
     const state = ready(doc);
-    expect(wouldRun(state.draft, doc.settings[0] as RuntimeSetting)).toEqual({
+    expect(
+      wouldRun(
+        draftValue(state.draft, doc.settings[0] as RuntimeSetting),
+        doc.settings[0] as RuntimeSetting,
+      ),
+    ).toEqual({
       value: 'low',
       from: 'default',
     });
@@ -183,7 +189,10 @@ describe('what would actually run', () => {
     });
     const state = ready(document({ settings: [pinned] }));
     const edited = editorReducer(state, { type: 'EDIT', draft: { PEN_THUMBNAIL_QUALITY: 'low' } });
-    expect(wouldRun(edited.draft, pinned)).toEqual({ value: 'medium', from: 'env' });
+    expect(wouldRun(draftValue(edited.draft, pinned), pinned)).toEqual({
+      value: 'medium',
+      from: 'env',
+    });
   });
 });
 

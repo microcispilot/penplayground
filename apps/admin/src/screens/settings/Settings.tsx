@@ -134,6 +134,12 @@ export function Settings() {
             {counts.pinned > 0 ? (
               <Fact label="Pinned on this server" value={String(counts.pinned)} />
             ) : null}
+            {counts.needsRestart > 0 ? (
+              <Fact
+                label="Waiting for a restart"
+                value={`${counts.needsRestart} setting${counts.needsRestart === 1 ? '' : 's'}`}
+              />
+            ) : null}
           </Card>
 
           {byGroup(document.settings).map(([group, settings]) => (

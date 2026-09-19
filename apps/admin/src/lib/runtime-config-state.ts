@@ -213,11 +213,10 @@ export function draftValue(draft: Draft, setting: RuntimeSetting): RuntimeSettin
  * rather than letting someone believe a save will take effect here.
  */
 export function wouldRun(
-  draft: Draft,
+  value: RuntimeSettingValue | null,
   setting: RuntimeSetting,
 ): { value: RuntimeSettingValue | null; from: 'env' | 'stored' | 'default' } {
   if (setting.pinnedByEnv) return { value: setting.effectiveValue, from: 'env' };
-  const value = draftValue(draft, setting);
   return value === null
     ? { value: setting.defaultValue, from: 'default' }
     : { value, from: 'stored' };

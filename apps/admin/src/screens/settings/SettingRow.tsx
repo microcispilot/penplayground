@@ -2,6 +2,7 @@ import type { RuntimeSetting, RuntimeSettingValue } from '@pen/contracts';
 import { Button, cn, Pill } from '@pen/design';
 import { RotateCcw } from 'lucide-react';
 import { SCOPE_NOTE, showValue } from '../../lib/presenters.js';
+import { wouldRun } from '../../lib/runtime-config-state.js';
 
 /** The sentinel a choice uses for "no value"; the API turns it back into nothing. */
 const UNSET = 'unset';
@@ -89,7 +90,14 @@ export function SettingRow({
         />
         <div className="flex items-center justify-between gap-2">
           <span className="text-body-small text-on-surface-variant">
-            {overridden ? 'Set here' : 'Using the default'}
+            {/* Once the draft has moved, the useful sentence is not "set here"
+                but what this server would actually be running afterwards —
+                which, on a pinned setting, is not what the control says. */}
+            {changed
+              ? `After saving · ${showValue(wouldRun(value, setting).value)}`
+              : overridden
+                ? 'Set here'
+                : 'Using the default'}
           </span>
           <Button
             variant="ghost"

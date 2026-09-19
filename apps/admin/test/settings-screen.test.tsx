@@ -142,6 +142,33 @@ describe('the settings screen', () => {
     expect(row.textContent).toContain('silent');
   });
 
+  it('says what this server would run after a save, and that a pin will still win', async () => {
+    mount();
+    await screen.findByText('Intent provider');
+
+    fireEvent.change(screen.getByLabelText('Intent provider'), { target: { value: 'model' } });
+    expect(screen.getByTestId('setting-PEN_INTENT_PROVIDER').textContent).toContain(
+      'After saving · model',
+    );
+
+    // The same edit on a pinned setting: the save is for the other servers,
+    // and the row says so rather than implying this one will follow.
+    fireEvent.change(screen.getByLabelText('Voice provider'), {
+      target: { value: 'fish-bridge' },
+    });
+    // Saved as fish-bridge for everyone else; this box keeps running on the
+    // value its environment pins, and the row says that and not the draft.
+    expect(screen.getByTestId('setting-PEN_TTS_PROVIDER').textContent).toContain(
+      'After saving · silent',
+    );
+    expect(screen.getByTestId('setting-PEN_TTS_PROVIDER').textContent).not.toContain(
+      'After saving · fish-bridge',
+    );
+    expect(screen.getByTestId('setting-PEN_TTS_PROVIDER').textContent).toContain(
+      'Pinned on this server',
+    );
+  });
+
   it('will not save without a reason, and sends the whole document when it does', async () => {
     const { saves } = mount();
     await screen.findByText('Intent provider');

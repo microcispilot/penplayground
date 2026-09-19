@@ -12,7 +12,6 @@ export {
   RuntimeConfigConflict,
   RuntimeConfigInvalid,
   RuntimeConfigService,
-  RuntimeConfigUnavailable,
 } from './service.js';
 export {
   type ResolvedSetting,

@@ -18,12 +18,6 @@ export const SCOPE_NOTE: Readonly<Record<RuntimeSettingScope, string>> = {
   restart: 'Takes effect after the API restarts',
 };
 
-export const SOURCE_NOTE: Readonly<Record<RuntimeSetting['source'], string>> = {
-  env: 'Pinned on this server',
-  stored: 'Set here',
-  default: 'Default',
-};
-
 /** Same moment, said twice: readable, and machine-readable for the `<time>`. */
 export function showMoment(epochMs: number): { text: string; iso: string } {
   if (epochMs <= 0) return { text: 'never', iso: new Date(0).toISOString() };
