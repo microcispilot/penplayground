@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react';
-import type { HTMLAttributes, ReactNode } from 'react';
+import { type HTMLAttributes, type ReactNode, useRef } from 'react';
 import { cn } from '../cn.js';
 
 /**
@@ -65,6 +65,11 @@ export interface SegmentedButtonsProps<T extends string> {
  * One outline around the whole run, hairlines between the segments, and the
  * chosen one filled rather than merely coloured — so the answer is legible
  * without relying on hue.
+ *
+ * It keeps the keyboard contract a run of radios owes: one Tab stop for the
+ * whole group (a roving `tabIndex`), the arrows moving *and* choosing, Home
+ * and End reaching the ends. Without that, `role="radio"` is a promise the
+ * component does not keep.
  */
 export function SegmentedButtons<T extends string>({
   label,
@@ -75,12 +80,26 @@ export function SegmentedButtons<T extends string>({
   className,
   'data-testid': testId,
 }: SegmentedButtonsProps<T>) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const at = options.findIndex((o) => o.value === value);
+
+  const move = (to: number) => {
+    const next = options[(to + options.length) % options.length];
+    if (!next) return;
+    onChange(next.value);
+    refs.current[(to + options.length) % options.length]?.focus();
+  };
+
   return (
-    <fieldset
+    // A run of `radio`s owes them a `radiogroup`, or a screen reader reads
+    // three loose radios instead of one question with three answers and never
+    // says "2 of 3". This is the WAI-ARIA APG radio-group pattern exactly.
+    <div
+      role="radiogroup"
       aria-label={label}
       data-testid={testId}
       className={cn(
-        'm-0 inline-flex h-10 min-w-0 items-stretch overflow-hidden rounded-full border border-outline p-0',
+        'inline-flex h-10 min-w-0 items-stretch overflow-hidden rounded-full border border-outline',
         className,
       )}
     >
@@ -95,7 +114,26 @@ export function SegmentedButtons<T extends string>({
             aria-checked={selected}
             title={option.title ?? option.label}
             data-testid={option['data-testid']}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            tabIndex={selected || (at === -1 && i === 0) ? 0 : -1}
             onClick={() => onChange(option.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                move(i + 1);
+              } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                move(i - 1);
+              } else if (e.key === 'Home') {
+                e.preventDefault();
+                move(0);
+              } else if (e.key === 'End') {
+                e.preventDefault();
+                move(options.length - 1);
+              }
+            }}
             className={cn(
               'state-layer flex min-w-0 flex-auto items-center justify-center gap-2 px-4 text-label-large transition-colors duration-[var(--duration-fast)]',
               i > 0 && 'border-s border-outline',
@@ -109,6 +147,6 @@ export function SegmentedButtons<T extends string>({
           </button>
         );
       })}
-    </fieldset>
+    </div>
   );
 }
