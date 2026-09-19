@@ -383,6 +383,39 @@ describe('aggregateReuse', () => {
 });
 
 describe('PostHog property shapes', () => {
+  it('carries the runtime settings the room was built with, so a session explains itself', () => {
+    // A finished session must be answerable without anybody remembering what
+    // the console said that afternoon (ADR-0025).
+    const t = computeTelemetry({ ...base, entries: [] });
+    const props = sessionEndedProperties(t, {
+      completed: true,
+      providers: { llm: 'openai', tts: 'fish-cloud:s2.1-pro', stt: 'browser' },
+      settings: {
+        PEN_INTENT_PROVIDER: 'jev',
+        PEN_LLM_MODEL: 'gpt-5.6-luna',
+        PEN_TTS_CACHE_MB: 2048,
+      },
+    });
+    expect(props).toMatchObject({
+      'config.PEN_INTENT_PROVIDER': 'jev',
+      'config.PEN_LLM_MODEL': 'gpt-5.6-luna',
+      'config.PEN_TTS_CACHE_MB': 2048,
+    });
+    // Prefixed, so a setting can never collide with a metric of the same name.
+    expect(props.PEN_LLM_MODEL).toBeUndefined();
+    // And still flat: no object ever reaches PostHog from here.
+    for (const v of Object.values(props))
+      expect(['number', 'boolean', 'string'].includes(typeof v) || v === null).toBe(true);
+  });
+
+  it('omits them entirely when a caller has none, rather than sending nulls', () => {
+    const props = sessionEndedProperties(computeTelemetry({ ...base, entries: [] }), {
+      completed: true,
+      providers: { llm: 'openai', tts: 'silent', stt: 'browser' },
+    });
+    expect(Object.keys(props).some((k) => k.startsWith('config.'))).toBe(false);
+  });
+
   it('session_ended is flat: numbers, booleans, codes and nulls only', () => {
     const t = computeTelemetry({ ...base, entries: [] });
     const props = sessionEndedProperties(t, {
