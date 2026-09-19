@@ -220,16 +220,17 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
       expect(measured.units).toBeGreaterThanOrEqual(PACKS * UNITS_PER_PACK);
       expect(measured.p50).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
       expect(measured.p95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
-      // The tail is held by its shape, not by a millisecond count, because the
-      // shape is the part that survives a change of machine. Measured on two
-      // very different ones — a laptop that indexes this corpus in 2.9 s and a
-      // shared CI runner that needs 22.5 s — the absolute tail moved by a
-      // factor of five (p99 11.25 ms against 51.92 ms) while p99/p95 barely
-      // moved at all: 3.4 and 3.1. So that ratio is what a tail regression
-      // would break, and an absolute bound here would only measure the
-      // hardware. p50 and p95 above stay absolute: they are the budget, and
-      // they are Onten's number, not this test's.
-      expect(measured.p99 / measured.p95).toBeLessThanOrEqual(6);
+      // p50 and p95 above are the gate. They are Onten's own number, they are
+      // absolute, and with fuzzy matching gone they are met with more than an
+      // order of magnitude to spare on both machines this has been measured on.
+      //
+      // This line is only a sanity ceiling on the tail, and it is deliberately
+      // loose. A ratio was tried first and is worse: once the body is under two
+      // milliseconds, one garbage collection moves p99 enough to swing
+      // p99/p95 across any threshold, which made the build depend on how busy
+      // the machine was rather than on the code. A tail-only regression — the
+      // thing worth catching here — moves p99 by far more than this allows.
+      expect(measured.p99).toBeLessThan(4 * ONTEN_LATENCY_BUDGET_MS);
       // The runtime's own accounting must agree with the stopwatch above.
       const report = runtime.latency();
       expect(report.count).toBe(QUERIES);

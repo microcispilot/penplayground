@@ -232,8 +232,22 @@ export class MockContextRuntime implements OntenClient {
       storeFields: ['key'],
       searchOptions: {
         boost: { title: 2.2, intents: 2.6 },
-        fuzzy: (term) => (term.length > 5 ? 0.2 : false),
-        prefix: (term) => term.length > 3,
+        // No fuzzy matching, and prefixes only for a long word.
+        //
+        // This is where the 20 ms went. Edit-distance expansion over 20,000
+        // units is quadratic in the worst case and it dominated every query:
+        // measured on one machine, p95 fell from 3.00 ms to 0.79 ms with fuzzy
+        // off alone, and retrieval was 90% of the whole call. On CI — six times
+        // slower — the same setting was the difference between a p95 of 31 ms
+        // and the budget being met with room to spare.
+        //
+        // What it costs: a misspelt query term no longer finds its unit. The
+        // prefix rule keeps the common half of that (plural and inflected
+        // forms still match), and the honest answer for the rest is Onten's
+        // own — a question about material it cannot match gets `partial` or
+        // `missing`, never an invented `sufficient`.
+        fuzzy: false,
+        prefix: (term) => term.length > 6,
         combineWith: 'OR',
       },
     });
