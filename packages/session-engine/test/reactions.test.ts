@@ -155,14 +155,24 @@ describe('SessionRoom reactions', () => {
     // the gate had leaked. Wait for the state the test is actually about, and
     // name it if it never comes.
     const holdsFloor = () => ['listening', 'thinking', 'answering'].includes(room.getState().mode);
-    // 15 s, not the helper's 5: under a full `pnpm test` every package runs at
-    // once and the room takes its time leaving the floor. That is load, not a
-    // defect, and it is what made this fail in CI.
-    await until(() => !holdsFloor(), 15_000).catch(() => {
-      throw new Error(`the room stayed on the floor ("${room.getState().mode}"): no ad window`);
-    });
-
-    room.handle(HOST, { kind: 'reaction', emoji: '😕' });
+    // Read the mode and send the reaction in the *same* synchronous block.
+    //
+    // Waiting for the mode and then sending on the next line looks equivalent
+    // and is not: `await` yields, the room's own pending work runs in that
+    // gap, and it can retake the floor before the reaction is handled. Then
+    // the room is right to accept it — a learner holding the floor never sees
+    // an ad — and the test fails as though the gate had leaked. That is
+    // exactly how this failed in CI twice.
+    let sent = false;
+    for (let i = 0; i < 400 && !sent; i++) {
+      if (!holdsFloor()) {
+        room.handle(HOST, { kind: 'reaction', emoji: '😕' });
+        sent = true;
+        break;
+      }
+      await sleep(10);
+    }
+    expect(sent, `the room never left the floor ("${room.getState().mode}")`).toBe(true);
     expect(reactions(transport)).toEqual([]);
 
     // The ad ends; expression comes back with everything else.
