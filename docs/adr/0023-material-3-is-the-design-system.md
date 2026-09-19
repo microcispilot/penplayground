@@ -41,9 +41,12 @@ recalled:
   state-layer opacities (hover 8 %, focus 12 %, pressed 12 %, dragged 16 %)
   from `_md-sys-state.scss`, applied through one `state-layer` utility.
 
-**Colour is M3's role set, generated from our own teal.** The palette comes
-from `@material/material-color-utilities@0.4.0` — `SchemeTonalSpot` seeded
-with the brand teal #008EAA, read through `MaterialDynamicColors`. Surfaces
+**Colour is M3's role set.** The palette comes from
+`@material/material-color-utilities@0.4.0` — `SchemeTonalSpot` read through
+`MaterialDynamicColors`. It was seeded with the brand teal #008EAA when this
+ADR was written; the brand is now the red #E62117 and the seeded machinery
+describes everything except the brand roles themselves (see the second
+addendum). Surfaces
 are expressed as M3 expresses them: `surface`, the five `surface-container-*`
 steps, `on-surface`, `on-surface-variant`, `outline`, `outline-variant`, and
 the `primary` / `on-primary` / `primary-container` / `on-primary-container`
@@ -61,9 +64,10 @@ machinery rather than around it:
   alone — no tint, no wash, no sheen. M3's own teal-tinted neutrals would have
   put a cool cast on every dark panel, which is the look this replaces. The
   `--color-wash-*` tokens are gone.
-- **Teal.** Every board sketch is drawn in teal ink, so the primary palette is
-  seeded from #008EAA and `--color-ink-accent` stays pinned to that exact
-  tone. A different hue would make the session page read as two brands.
+- **One hue for the app and the board.** Every board sketch is drawn in
+  `--color-ink-accent`, and a page in one hue around sketches in another reads
+  as two products. So the ink is pinned to the brand's own tone, whatever the
+  brand is: #008EAA while teal was it, #E62117 now.
 
 **Smaller, deliberately.** Nothing on a page a learner reads every day reaches
 a `display` role. The hero is `headline-large` (32 px, from 56); page titles
@@ -107,8 +111,8 @@ palette, and it clears 4.5:1 on every surface in the ladder.
 ## Addendum — the generator, and what a red brand costs
 
 *Added while answering "I want a real better branding colour, something like
-youtubish or similar." Nothing here decides anything; the colour is the
-owner's call.*
+youtubish or similar." Nothing in this addendum decided anything; the decision
+is the one after it.*
 
 The values above were produced once and pasted, which made "show me the
 platform in another colour" an afternoon of arithmetic. It is now a command:
@@ -153,3 +157,55 @@ Two costs this addendum does not solve, and the owner should see them named:
 the happy path both wear the brand. And session thumbnails are rendered once
 into files, so every sketch already in a learner's library stays teal until it
 is re-rendered.
+
+## Second addendum — the decision: #E62117, fixed
+
+The owner looked at all four and answered in two parts. **The red was right
+and the palette was not.** Named specifically: the brown-orange pill under a
+selected nav row — `secondary-container`, #5d3f3b and #653d28, which is what
+M3's "calmer companion" to a red seed turns out to be — was rejected. The
+Sign in pill at #930002 was kept. And: *"the same red youtubish colour like
+what is used in sign in to be used both for dark and light."*
+
+That last clause is what shapes the answer, because M3 cannot honour it
+through a seed. Tonal spot flattens a red; vibrant rescues the light scheme
+and leaves dark on tone 80. So the brand is declared rather than generated,
+and it is declared as **`primary-fixed`** — M3's own role for a colour that
+must not change between themes:
+
+- `--color-primary-fixed: #e62117` / `--color-on-primary-fixed: #ffffff`, in
+  `@theme` and nowhere else. The dark scheme never redeclares it, which is
+  what makes it fixed rather than merely named so. It fills the mark, Sign in,
+  Start, the ask-send button, every `Button variant="primary"`, a liked
+  session, and it is the board's ink.
+- `--color-primary` stays toned per theme (#c00003 / #ff7a6e) because it
+  carries *text*, and no colour at all clears 4.5:1 against both #ffffff and
+  #353535. That is arithmetic, not a shortage of imagination, and
+  `brand-generator.test.ts` proves it with black and white as witnesses so
+  nobody goes looking for the hex that would have worked.
+- **Every container is neutral.** `primary-container` and
+  `secondary-container` are the chroma-0 greys the rest of the platform is
+  built from. This removes the rejected brown at its source, and it is also
+  why the red reads as red: nothing around it is tinted. It is what YouTube
+  does, and the reason their red survives a grey page.
+- **Error moves to hue 341**, seeded from #B0008A. A rose error is ΔE 0.095
+  from this red — inside the 0.15 that `design-system.test.ts` calls "shades
+  of one another". The magenta clears it at 0.175 light and 0.157 dark.
+  Families that used to inherit M3's red error now declare their own, so the
+  four candidates still record their collision honestly.
+- **Red no longer means "wrong".** "End" is an M3 filled-tonal button
+  (`Button variant="neutral"`), a liked session is the brand, and the ad lane
+  in Insights is `tertiary`. `CLAUDE.md`'s one-line "no red for ordinary
+  states" is now a paragraph about which of the two reds a change is reaching
+  for.
+
+**Teal is a family, not a deletion.** `data-brand="teal"` is the platform
+exactly as it was, and the generator still re-derives every one of its roles
+from #008EAA — which is the proof the values moved across intact rather than
+being retyped. Two things still need it: a board rendered before today is a
+file on disk and keeps its teal ink, and a brand decision that cannot be
+reversed in one attribute is a migration rather than a decision.
+
+`apps/web/e2e/ui-brand.spec.ts` keeps producing the six-family review on six
+screens in both themes, and now also reads the rendered Sign in button's
+computed background in each theme and fails if it is not `rgb(230, 33, 23)`.
