@@ -41,9 +41,14 @@ describe('Sidebar rows', () => {
     }
   });
 
-  it('keeps Theme in Settings and nothing else: pace belongs to the session', async () => {
+  it('carries no settings of its own: theme is in the header, pace is in the session', async () => {
+    // Both were here once. Pace moved into the session, where it is a property
+    // of the lesson being taught rather than of the app; theme is the header's
+    // one control, and a second copy in the sidebar was a second place to look.
     renderWithApp(<Sidebar />, { participant: SIGNED_IN });
-    expect(await screen.findByTestId('sidebar-theme')).toBeTruthy();
+    await screen.findByText('History');
+    expect(screen.queryByTestId('sidebar-theme')).toBeNull();
+    expect(screen.queryByText('Settings')).toBeNull();
     expect(screen.queryByTestId('sidebar-pace')).toBeNull();
     expect(screen.queryByText('Pace')).toBeNull();
   });

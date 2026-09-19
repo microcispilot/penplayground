@@ -6,7 +6,6 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
 import { PenMark } from '../components/AppHeader.js';
-import { ExpertCard, ShowMoreExpertsCard } from '../components/ExpertCard.js';
 import { PrivacyDialog } from '../components/PrivacyDialog.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
@@ -18,9 +17,7 @@ import { useApp } from '../lib/context.js';
  * Twelve is two comfortable screens of scrolling at every width we ship; past
  * that a horizontal rail stops being a glance and becomes a chore.
  */
-const EXPERT_ROW_LIMIT = 12;
 /** The persona the row always shows, third from the left. */
-const PINNED_EXPERT = { id: 'aristotle', index: 2 } as const;
 
 /** Shown while the public list is still empty: real topics, each one a session away. */
 const STARTERS: { topic: string; domain: string; promise: string }[] = [
@@ -120,26 +117,6 @@ export function Home() {
   }, [api, participant]);
 
   const expertById = useMemo(() => new Map(experts.map((e) => [e.id, e])), [experts]);
-  const featured = useMemo(() => {
-    // One per domain first, so the row reads as breadth, then fill.
-    const seen = new Set<string>();
-    const first: Expert[] = [];
-    const rest: Expert[] = [];
-    for (const e of experts) {
-      if (!e.portrait) continue;
-      if (seen.has(e.domain)) rest.push(e);
-      else {
-        seen.add(e.domain);
-        first.push(e);
-      }
-    }
-    const ordered = [...first, ...rest];
-    // One face is placed rather than ranked; everything else keeps its order.
-    const pinned = ordered.find((e) => e.id === PINNED_EXPERT.id);
-    const row = pinned ? ordered.filter((e) => e.id !== pinned.id) : ordered;
-    if (pinned) row.splice(Math.min(PINNED_EXPERT.index, row.length), 0, pinned);
-    return row.slice(0, EXPERT_ROW_LIMIT);
-  }, [experts]);
 
   const categories = useMemo(() => {
     const present = new Set((sessions ?? []).map((s) => s.domain));
@@ -217,12 +194,6 @@ export function Home() {
 
   /** True only while today's allowance or the day's capacity is used up. */
   const waiting = usage !== null && !usage.canStart;
-
-  const chooseExpert = (e: Expert) => {
-    setWithExpert(e);
-    if (!query.trim()) setQuery(e.specialties[0] ?? '');
-    inputRef.current?.focus();
-  };
 
   // Arriving from the Experts screen: that expert is already in the command bar.
   const requestedExpert = (location.state as { expertId?: string } | null)?.expertId ?? null;
@@ -368,47 +339,6 @@ export function Home() {
               .
             </p>
           ) : null}
-        </div>
-      </section>
-
-      {/* ── experts ──────────────────────────────────────────────────────── */}
-      <section className="border-t border-outline-variant/70 py-16">
-        <div className="mx-auto w-full max-w-[1280px] px-6">
-          <SectionBand>
-            <div className="min-w-0">
-              <h2 className="text-title-large">Taught by experts who never lose patience.</h2>
-              <p className="mt-2 max-w-[920px] text-body-medium text-on-surface-variant text-pretty">
-                100+ experts across science, software, coding, medicine, law, money, arts, and more.
-                They can teach you in your language.
-              </p>
-            </div>
-          </SectionBand>
-          <div
-            className="-mx-6 flex gap-4 overflow-x-auto px-6 pt-2 pb-5 [mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-56px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            data-testid="experts-row"
-          >
-            {experts.length === 0
-              ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
-                  <Skeleton key={k} className="aspect-[4/5] w-[196px] shrink-0 rounded-xl" />
-                ))
-              : [
-                  ...featured.map((e) => (
-                    <ExpertCard
-                      key={e.id}
-                      expert={e}
-                      portraitUrl={api.portraitUrl(e.portrait?.src, 192)}
-                      selected={withExpert?.id === e.id}
-                      onChoose={() => chooseExpert(e)}
-                      className="w-[196px] shrink-0"
-                    />
-                  )),
-                  <ShowMoreExpertsCard
-                    key="show-more"
-                    total={experts.length}
-                    className="w-[196px] shrink-0"
-                  />,
-                ]}
-          </div>
         </div>
       </section>
 

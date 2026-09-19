@@ -7,10 +7,8 @@ import {
   Download,
   Heart,
   History,
-  Moon,
   PlaySquare,
   Sparkles,
-  Sun,
   Tag,
   Users,
 } from 'lucide-react';
@@ -18,7 +16,6 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useLists } from '../lib/lists.js';
-import { isDarkTheme, useTheme } from '../lib/theme.js';
 import { PenMark } from './AppHeader.js';
 
 /** The domains the catalog teaches, in the order the sidebar lists them. */
@@ -110,7 +107,13 @@ function Row({ to, icon, label, rail, railLabel, end = false, count, tag, onNavi
           <span className="grid shrink-0 place-items-center">{icon}</span>
           <RowLabel rail={rail}>{rail ? (railLabel ?? label) : label}</RowLabel>
           {!rail && tag ? (
-            <span className="shrink-0 text-label-small text-on-surface-variant">{tag}</span>
+            // The plan a row belongs to, as a label rather than a second piece
+            // of prose. M3's badge shape — a filled tonal pill at
+            // `label-small`, the smallest role in the scale — so it reads as a
+            // marker beside the row's name and never competes with it.
+            <span className="shrink-0 rounded-full bg-surface-container-highest px-2 py-0.5 text-label-small font-normal text-on-surface-variant">
+              {tag}
+            </span>
           ) : null}
           {!rail && tag === undefined && count !== undefined && count > 0 ? (
             <span className="shrink-0 text-label-medium text-on-surface-variant tabular">
@@ -154,8 +157,6 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const counts = useLists((s) => s.counts);
-  const [theme, setTheme] = useTheme();
-  const dark = isDarkTheme(theme);
   const [topicsOpen, setTopicsOpen] = useState(() =>
     new URLSearchParams(location.search).has('topic'),
   );
@@ -307,29 +308,6 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
           tag="Professional"
           onNavigate={onNavigate}
         />
-
-        {rail ? null : (
-          <>
-            <Divider />
-            <SectionLabel rail={rail}>Settings</SectionLabel>
-            <button
-              type="button"
-              data-testid="sidebar-theme"
-              onClick={() => setTheme(dark ? 'light' : 'dark')}
-              className={rowClass(false, false)}
-            >
-              {dark ? (
-                <Sun size={19} className="shrink-0" />
-              ) : (
-                <Moon size={19} className="shrink-0" />
-              )}
-              <span className="flex-1 text-left text-label-large">Theme</span>
-              <span className="text-label-medium text-on-surface-variant">
-                {dark ? 'Dark' : 'Light'}
-              </span>
-            </button>
-          </>
-        )}
       </div>
 
       <span className="flex-1" />

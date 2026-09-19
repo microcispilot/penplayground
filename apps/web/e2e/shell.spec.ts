@@ -386,26 +386,21 @@ test.describe('shell screenshots', () => {
           },
           [token, theme] as const,
         );
-        await page.goto('/');
-        const row = page.getByTestId('experts-row');
-        await expect(row.getByTestId('expert-tile').first()).toBeVisible({ timeout: 20_000 });
-        // Twelve faces and one card that leads to the rest — never more.
-        await expect(row.getByTestId('expert-tile')).toHaveCount(12);
-        await expect(row.getByTestId('experts-show-more')).toHaveCount(1);
-        // Aristotle is the pinned third card: a free learner sees the plan's
-        // name on him, a Standard learner sees an ordinary tile. Asserting the
-        // tile rather than a count keeps this true if the catalogue re-tiers.
-        const aristotle = row.getByTestId('expert-tile').nth(2);
-        await expect(aristotle).toHaveAccessibleName(/Aristotle/);
+        // The Experts screen, not Home: the owner removed Home's row of twelve,
+        // so what is left to assert is the plan rule, on the page that still
+        // shows the cards.
+        await page.goto('/experts');
+        const grid = page.getByTestId('expert-tile');
+        await expect(grid.first()).toBeVisible({ timeout: 20_000 });
+        // A free learner sees the plan's name on a legend; a Standard learner
+        // sees an ordinary tile. By name, never by position — "third from the
+        // left" belonged to the row that is gone.
+        const aristotle = page.getByTestId('expert-tile').filter({ hasText: 'Aristotle' }).first();
+        await expect(aristotle).toBeVisible();
         await expect(aristotle.getByTestId('expert-plan-chip')).toHaveCount(who === 'free' ? 1 : 0);
         if (who === 'standard') await expect(aristotle).toHaveAttribute('title', /Aristotle/);
-        await row.scrollIntoViewIfNeeded();
-        await page.waitForTimeout(600);
-        await row.screenshot({ path: join(SCREENS_DIR, `experts-row-${who}-${theme}.png`) });
-        // And the end of the row, where the card that leads to all of them sits.
-        await row.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
         await page.waitForTimeout(400);
-        await row.screenshot({ path: join(SCREENS_DIR, `experts-row-end-${who}-${theme}.png`) });
+        await page.screenshot({ path: join(SCREENS_DIR, `experts-${who}-${theme}.png`) });
         await context.close();
       }
     }
