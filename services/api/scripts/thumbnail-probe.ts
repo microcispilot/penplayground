@@ -1,33 +1,29 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderSketchSvg } from '@pen/board/thumbnail';
-import type { Expert, LessonPlan, SelectionBand } from '@pen/contracts';
-import { ModelSessionMeta, normaliseSessionMeta, SessionMeta } from '@pen/contracts';
-import { OpenAILanguageModel } from '@pen/llm';
-import {
-  ExpertCatalog,
-  META_MAX_OUTPUT_TOKENS,
-  META_PURPOSE,
-  metaMessages,
-} from '@pen/session-engine';
-import { renderAsync } from '@resvg/resvg-js';
-import { loadThumbnailFont, THUMB_SIZES } from '../src/thumbnails.js';
+import { THUMBNAIL_SIZE, ThumbnailQuality } from '@pen/contracts';
+import { OpenAIImageModel } from '@pen/llm';
+import { THUMBNAIL_PURPOSE, thumbnailImagePrompt } from '@pen/session-engine';
+import { downscale, THUMB_SIZES } from '../src/thumbnails.js';
 
 /**
- * Draw a real thumbnail for a handful of topics and look at it.
+ * Generate real thumbnails for a handful of titles and look at them.
  *
  *   pnpm --filter @pen/api thumbnails:probe
  *   pnpm --filter @pen/api thumbnails:probe "Reading an ECG strip" "Kalman filters"
+ *   PEN_THUMBNAIL_QUALITY=medium pnpm --filter @pen/api thumbnails:probe
  *
- * The thumbnail prompt (`metaMessages`) is the only part of the product whose
- * output is a picture, and a picture cannot be asserted into being good. This
- * calls the real model with the real prompt, renders the SVG and the card PNG
- * exactly as a session would, writes both under `.pen-data/screens/` and
- * prints the spec it drew from — so a change to the prompt can be seen rather
- * than argued about. It touches no database and starts no room.
+ * The thumbnail is the one part of the product whose output is a picture, and
+ * a picture cannot be asserted into being good — that judgement is the
+ * owner's. This calls the real endpoint with the real prompt, writes the
+ * generation and both derived sizes under `.pen-data/screens/`, and prints
+ * what each one cost and weighed. It touches no database and starts no room.
+ *
+ * It bills to `OPENAI_API_KEY_PLATFORM`: a probe belongs to no learner, so it
+ * must not land on a plan key. Sessions bill to their host's plan instead
+ * (`services.imageFor`).
  */
 
-const DEFAULT_TOPICS = [
+const DEFAULT_TITLES = [
   'How Transformers work in LLMs',
   'Reading an ECG strip',
   'The Pythagorean theorem, proven three ways',
@@ -35,7 +31,6 @@ const DEFAULT_TOPICS = [
 ];
 
 const OUT = join(process.cwd(), '..', '..', '.pen-data', 'screens');
-const DATA = join(process.cwd(), 'data');
 
 const slug = (s: string) =>
   s
@@ -46,106 +41,58 @@ const slug = (s: string) =>
     .replace(/^-|-$/g, '')
     .slice(0, 48);
 
-/** A plausible plan for the topic: the card describes a lesson, so one has to exist. */
-function planFor(topic: string, band: SelectionBand): LessonPlan {
-  const titles = [
-    'What it is, in one picture',
-    'The mechanism, step by step',
-    'Where it goes wrong',
-    'Doing it yourself',
-    'What to remember',
-  ];
-  return {
-    title: topic,
-    promise: `Learn to explain ${topic} and use it yourself.`,
-    band,
-    seconds: 14 * 60,
-    segments: titles.map((title, index) => ({
-      index,
-      title,
-      goal: `${title} for ${topic}.`,
-      seconds: 168,
-      hasCheck: index === 1 || index === 3,
-    })),
-  };
-}
+const titles = process.argv.slice(2).length > 0 ? process.argv.slice(2) : DEFAULT_TITLES;
+const key = process.env.OPENAI_API_KEY_PLATFORM;
+if (!key)
+  throw new Error(
+    'OPENAI_API_KEY_PLATFORM is not set; this probe calls the real image endpoint and a probe belongs to no plan.',
+  );
+const quality = ThumbnailQuality.parse(process.env.PEN_THUMBNAIL_QUALITY ?? 'low');
 
-const topics = process.argv.slice(2).length > 0 ? process.argv.slice(2) : DEFAULT_TOPICS;
-const key = process.env.OPENAI_API_KEY_FREE ?? process.env.OPENAI_API_KEY_STANDARD;
-if (!key) throw new Error('OPENAI_API_KEY_FREE is not set; this probe calls the real model.');
-
-const model = new OpenAILanguageModel({
+const model = new OpenAIImageModel({
   apiKey: key,
-  model: process.env.PEN_LLM_OUTLINE_MODEL ?? process.env.PEN_LLM_MODEL ?? 'gpt-5-mini',
-  ...(process.env.PEN_LLM_BASE_URL ? { baseURL: process.env.PEN_LLM_BASE_URL } : {}),
-  reasoningEffort: 'none',
+  model: process.env.PEN_IMAGE_MODEL ?? 'gpt-image-1',
 });
 
-const catalog = ExpertCatalog.fromJson(
-  JSON.parse(readFileSync(join(DATA, 'experts', 'catalog.json'), 'utf8')),
-);
-const font = loadThumbnailFont();
 mkdirSync(OUT, { recursive: true });
-
-/** The teacher a topic would actually get: deterministic, free-plan, by domain. */
-function expertFor(topic: string): Expert {
-  const domain = /ecg|heart|clinical|medicine/i.test(topic)
-    ? 'health-law-civics'
-    : /theorem|maths|mathematics|proof|calculus/i.test(topic)
-      ? 'math-science-engineering'
-      : /rumi|poem|persian|language|history|philosoph/i.test(topic)
-        ? 'humanities-languages'
-        : 'computing-data';
-  return catalog.pickFor(domain, topic, { plan: 'free' });
-}
+const kb = (n: number) => `${(n / 1024).toFixed(0)} kB`;
 
 let spent = 0;
-for (const topic of topics) {
-  const expert = expertFor(topic);
-  const band: SelectionBand = 'beginner';
-  const started = Date.now();
-  const { value, usage } = await model.complete({
-    messages: metaMessages({ expert, band, topic, plan: planFor(topic, band), language: 'en-US' }),
-    schema: ModelSessionMeta,
-    schemaName: 'session_meta',
-    cacheKey: `probe:${expert.id}:${band}`,
-    maxOutputTokens: META_MAX_OUTPUT_TOKENS,
-    purpose: META_PURPOSE,
+for (const title of titles) {
+  const name = `thumb-${slug(title)}-${quality}`;
+  const { png, usage } = await model.generate({
+    prompt: thumbnailImagePrompt(title),
+    size: THUMBNAIL_SIZE,
+    quality,
+    purpose: THUMBNAIL_PURPOSE,
   });
   spent += usage.usd;
-  const meta = SessionMeta.parse(normaliseSessionMeta(value));
-  const name = `thumb-${slug(topic)}`;
-  const svg = renderSketchSvg(meta.thumbnail, font, {
-    width: THUMB_SIZES.card.width,
-    height: THUMB_SIZES.card.height,
-    seed: name,
-  });
-  writeFileSync(join(OUT, `${name}.svg`), svg.svg);
-  const png = await renderAsync(svg.svg, {
-    fitTo: { mode: 'width', value: THUMB_SIZES.card.width },
-  });
-  writeFileSync(join(OUT, `${name}.png`), png.asPng());
+  // Exactly as a session does it: one generation, every size downscaled from it.
+  const t0 = performance.now();
+  const [card, og] = await Promise.all([
+    downscale(png, THUMB_SIZES.card),
+    downscale(png, THUMB_SIZES.og),
+  ]);
+  const resizeMs = performance.now() - t0;
+  writeFileSync(join(OUT, `${name}-source.png`), png);
+  writeFileSync(join(OUT, `${name}-card.png`), card);
+  writeFileSync(join(OUT, `${name}-og.png`), og);
 
-  console.log(`\n── ${topic}`);
-  console.log(`   teacher   ${expert.displayName} (${expert.id})`);
-  console.log(`   card      ${meta.description}`);
+  console.log(`\n── ${title}`);
+  console.log(`   prompt    ${thumbnailImagePrompt(title).split('\n')[0]}`);
   console.log(
-    `   drawn     ${meta.thumbnail.elements.length} elements · ${svg.bytes} B svg · ` +
-      `${Math.round(Date.now() - started)} ms · $${usage.usd.toFixed(5)}`,
+    `   generated ${usage.totalMs} ms · ${usage.inputTokens} in / ${usage.outputTokens} out · $${usage.usd.toFixed(5)}`,
   );
-  if (svg.unsupportedChars.length) console.log(`   no glyph  ${svg.unsupportedChars.join(' ')}`);
-  for (const el of meta.thumbnail.elements) {
-    const where =
-      'x' in el
-        ? `(${el.x}, ${el.y})`
-        : 'x1' in el
-          ? `(${el.x1}, ${el.y1})→(${el.x2}, ${el.y2})`
-          : `${el.points.length} pts`;
-    const text = 'text' in el && el.text ? ` "${el.text}"` : '';
-    const size = el.kind === 'label' ? ` ${el.size}` : '';
-    const ink = 'ink' in el ? ` ${el.ink}` : ' highlight';
-    console.log(`     ${el.kind}${size}${ink} ${where}${text}`);
-  }
-  console.log(`   files     ${name}.svg · ${name}.png`);
+  console.log(
+    `   files     source ${THUMBNAIL_SIZE.width}×${THUMBNAIL_SIZE.height} ${kb(png.length)} · ` +
+      `card ${THUMB_SIZES.card.width}×${THUMB_SIZES.card.height} ${kb(card.length)} · ` +
+      `og ${THUMB_SIZES.og.width}×${THUMB_SIZES.og.height} ${kb(og.length)} · ` +
+      `${Math.round(resizeMs)} ms to downscale both`,
+  );
+  console.log(`             ${name}-{source,card,og}.png`);
 }
-console.log(`\ntotal ${topics.length} thumbnails · $${spent.toFixed(5)} · written to ${OUT}`);
+console.log(
+  `\n${titles.length} thumbnail${titles.length === 1 ? '' : 's'} · quality ${quality} · ` +
+    `$${spent.toFixed(5)} · ${titles.length} API call${titles.length === 1 ? '' : 's'} · written to ${OUT}`,
+);
+console.log('Whether they look right is the owner’s call; this script only proves they arrive.');

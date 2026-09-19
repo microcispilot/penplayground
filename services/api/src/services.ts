@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PlanCode } from '@pen/contracts';
+import type { KeyOwner, PlanCode } from '@pen/contracts';
 import {
   type Connection,
   connect,
@@ -11,8 +11,11 @@ import {
 } from '@pen/db';
 import {
   type CostMeter,
+  FakeImageModel,
   FakeLanguageModel,
+  type ImageModel,
   type LanguageModel,
+  OpenAIImageModel,
   OpenAILanguageModel,
   type Usage,
 } from '@pen/llm';
@@ -47,7 +50,8 @@ import { FileSessionMetaCache } from './meta-cache.js';
 import { captureWarning, observer } from './observability.js';
 import { SpendBreaker } from './spend.js';
 import { createRecognizer } from './stt.js';
-import { createSessionMetaJobs, loadThumbnailFont, ThumbnailStore } from './thumbnails.js';
+import { FileThumbnailImageCache } from './thumbnail-cache.js';
+import { createSessionMetaJobs, ThumbnailStore } from './thumbnails.js';
 import { ExpertVoices } from './voices.js';
 
 export interface Services {
@@ -78,6 +82,16 @@ export interface Services {
   analytics: Analytics;
   intake: TopicIntake;
   modelFor(plan: PlanCode): LanguageModel;
+  /** The image model for a host's plan — same key as `modelFor`, so a thumbnail bills where the lesson did. */
+  imageFor(plan: PlanCode): ImageModel;
+  /**
+   * The platform's own model, on `OPENAI_API_KEY_PLATFORM`: work that belongs
+   * to no learner — backfills, probes, prewarming. Never a session's work.
+   * Null when that key is not configured.
+   */
+  platformModel: LanguageModel | null;
+  /** The platform's own image model, same key and same rule. Null when it is not configured. */
+  platformImage: ImageModel | null;
   acquirer: KnowledgeAcquirer | null;
   /** Web search backend name (searxng | tavily | exa | none), for pricing what a pack hit saved. */
   searchProvider: string;
@@ -95,11 +109,11 @@ export interface Services {
   livekit: LiveKitRooms | null;
   /** Session thumbnails on disk (ADR-0013). */
   thumbnails: ThumbnailStore;
-  /** Cards already drawn, keyed by the lesson memo's scope (ADR-0013). */
+  /** Card copy already written, keyed by the lesson memo's scope (ADR-0013). */
   metaCache: FileSessionMetaCache;
-  /** The cheap model the card + sketch call runs on (the backfill uses the same one). */
-  metaModel: LanguageModel;
-  /** Background card copy + sketch jobs; rooms enqueue once their plan exists. */
+  /** Thumbnails already generated, keyed by the same scope (ADR-0021). */
+  thumbnailCache: FileThumbnailImageCache;
+  /** Background card copy + thumbnail jobs; rooms enqueue once their plan exists. */
   meta: SessionMetaJobs;
 }
 
@@ -224,10 +238,20 @@ export async function buildServices(
 
   const recognizer = createRecognizer(cfg);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
+  /** Which of the four keys a call runs on (`KeyOwner` in contracts says why they never fall back). */
+  const keyFor = (owner: KeyOwner): string | undefined =>
+    owner === 'platform'
+      ? cfg.OPENAI_API_KEY_PLATFORM
+      : owner === 'professional'
+        ? cfg.OPENAI_API_KEY_PROFESSIONAL
+        : owner === 'standard'
+          ? cfg.OPENAI_API_KEY_STANDARD
+          : cfg.OPENAI_API_KEY_FREE;
+
   const models = new Map<string, LanguageModel>();
-  /** One adapter per (plan key, model name); the fake provider serves every request from its scripts. */
-  const buildModel = (plan: PlanCode, modelName: string): LanguageModel => {
-    const cacheId = `${plan}:${modelName}`;
+  /** One adapter per (key owner, model name); the fake provider serves every request from its scripts. */
+  const buildModel = (owner: KeyOwner, modelName: string): LanguageModel => {
+    const cacheId = `${owner}:${modelName}`;
     const cached = models.get(cacheId);
     if (cached) return cached;
     let model: LanguageModel;
@@ -236,15 +260,10 @@ export async function buildServices(
         logger.warn('PEN_LLM_PROVIDER=fake: scripted demo lessons only (development only)');
       model = new FakeLanguageModel(demoScripts.scripts, demoScripts.completions);
     } else {
-      const key =
-        plan === 'professional'
-          ? cfg.OPENAI_API_KEY_PROFESSIONAL
-          : plan === 'standard'
-            ? cfg.OPENAI_API_KEY_STANDARD
-            : cfg.OPENAI_API_KEY_FREE;
+      const key = keyFor(owner);
       if (!key)
         throw new Error(
-          `No language-model key configured for plan "${plan}" (OPENAI_API_KEY_${plan.toUpperCase()})`,
+          `No language-model key configured for "${owner}" (OPENAI_API_KEY_${owner.toUpperCase()})`,
         );
       model = new OpenAILanguageModel({
         apiKey: key,
@@ -261,6 +280,41 @@ export async function buildServices(
     return model;
   };
   const modelFor = (plan: PlanCode): LanguageModel => buildModel(plan, cfg.PEN_LLM_MODEL);
+
+  const imageModels = new Map<string, ImageModel>();
+  /** One image adapter per key owner. Same keys, same rule: a learner's picture bills to their host's plan. */
+  const buildImage = (owner: KeyOwner): ImageModel => {
+    const cached = imageModels.get(owner);
+    if (cached) return cached;
+    let model: ImageModel;
+    if (cfg.PEN_LLM_PROVIDER === 'fake') {
+      model = new FakeImageModel();
+    } else {
+      const key = keyFor(owner);
+      if (!key)
+        throw new Error(
+          `No image key configured for "${owner}" (OPENAI_API_KEY_${owner.toUpperCase()})`,
+        );
+      model = new OpenAIImageModel({
+        apiKey: key,
+        model: cfg.PEN_IMAGE_MODEL,
+        ...(cfg.PEN_LLM_BASE_URL ? { baseURL: cfg.PEN_LLM_BASE_URL } : {}),
+        meter: costs,
+      });
+    }
+    imageModels.set(owner, model);
+    return model;
+  };
+  const imageFor = (plan: PlanCode): ImageModel => buildImage(plan);
+  // Built lazily on first use: a deployment without the platform key still boots,
+  // and only the work that actually belongs to nobody asks for it.
+  const hasPlatformKey = cfg.PEN_LLM_PROVIDER === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
+  const platformModel = hasPlatformKey ? buildModel('platform', cfg.PEN_LLM_OUTLINE_MODEL) : null;
+  const platformImage = hasPlatformKey ? buildImage('platform') : null;
+  if (!platformModel)
+    logger.info(
+      'OPENAI_API_KEY_PLATFORM is not set: backfills and probes have no key of their own',
+    );
 
   const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
   const db = await connect(cfg.DATABASE_URL, {
@@ -322,18 +376,27 @@ export async function buildServices(
       : cfg.EXA_API_KEY
         ? 'exa'
         : 'none';
-  const thumbnails = new ThumbnailStore(join(cfg.PEN_DATA_DIR, 'sessions'), loadThumbnailFont());
+  const thumbnails = new ThumbnailStore(join(cfg.PEN_DATA_DIR, 'sessions'));
   // The card of a lesson that was already taught (same topic, band, persona, language) is
-  // reused rather than drawn again — the lesson memo's rule, applied to the card (ADR-0013).
+  // reused rather than written again — the lesson memo's rule, applied to the card (ADR-0013)
+  // and to its picture (ADR-0021), so a repeat topic never pays for either twice.
   const metaCache = new FileSessionMetaCache(join(cfg.PEN_DATA_DIR, 'onten'));
-  // Card copy and sketches are house-account work on the cheapest model; when it is the session
-  // model (the default) the plan call's persona prefix is already in the prompt cache.
-  const metaModel = buildModel('free', cfg.PEN_LLM_OUTLINE_MODEL);
+  const thumbnailCache = new FileThumbnailImageCache(join(cfg.PEN_DATA_DIR, 'onten'));
+  /**
+   * The card copy runs on the cheap outline model and the picture on
+   * `gpt-image-1`, both on the HOST'S plan key — the same one that taught the
+   * lesson. The copy call also opens with the plan call's persona prefix, so
+   * when the outline model is the session model (the default) it hits the
+   * provider's prompt cache.
+   */
   const meta = createSessionMetaJobs({
-    model: metaModel,
+    modelFor: (owner) => buildModel(owner, cfg.PEN_LLM_OUTLINE_MODEL),
+    imageFor: buildImage,
+    quality: cfg.PEN_THUMBNAIL_QUALITY,
     store: thumbnails,
     sessions,
     cache: metaCache,
+    imageCache: thumbnailCache,
   });
   const base = {
     cfg,
@@ -355,6 +418,9 @@ export async function buildServices(
     analytics,
     intake,
     modelFor,
+    imageFor,
+    platformModel,
+    platformImage,
     costs,
     ads,
     spend,
@@ -364,7 +430,7 @@ export async function buildServices(
     livekit,
     thumbnails,
     metaCache,
-    metaModel,
+    thumbnailCache,
     meta,
   };
   const acquirer = opts.acquirerFactory ? opts.acquirerFactory(base) : null;

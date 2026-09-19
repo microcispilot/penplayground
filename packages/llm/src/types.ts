@@ -80,6 +80,50 @@ export interface LanguageModel {
   complete<T>(request: CompletionRequest<T>): Promise<{ value: T; usage: Usage }>;
 }
 
+// ── image generation ─────────────────────────────────────────────────────────
+
+/** The sizes `gpt-image-1` accepts; the caller passes one of them, never pixels of its own. */
+export interface ImageSize {
+  width: number;
+  height: number;
+}
+
+export interface ImageRequest {
+  prompt: string;
+  size: ImageSize;
+  quality: 'low' | 'medium' | 'high';
+  /** Free-form tag for the cost ledger ("session_thumbnail"). */
+  purpose: string;
+  signal?: AbortSignal;
+}
+
+/**
+ * A generation's usage, reported the way the provider reports it: the prompt
+ * is input tokens, the picture is output tokens. It extends `Usage` so one
+ * `CostMeter` totals model and image spend together; `cachedTokens` is always
+ * 0 (there is no prompt cache here) and `firstTokenMs` always null (the call
+ * is not streamed).
+ */
+export interface ImageUsage extends Usage {
+  /** Input tokens that were images. We never send one, so 0 — priced only so that changing never goes unbilled. */
+  imageInputTokens: number;
+}
+
+export interface GeneratedImage {
+  /** The picture as the provider returned it: PNG bytes at the requested size. */
+  png: Buffer;
+  usage: ImageUsage;
+}
+
+/**
+ * One picture from one prompt. Raster by nature — see `OpenAIImageModel` for
+ * why there is no vector variant to ask for.
+ */
+export interface ImageModel {
+  readonly id: string;
+  generate(request: ImageRequest): Promise<GeneratedImage>;
+}
+
 export interface CostMeter {
   record(usage: Usage & { purpose: string }): void;
 }

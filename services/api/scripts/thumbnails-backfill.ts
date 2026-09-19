@@ -1,25 +1,37 @@
 import type { LessonPlan, SelectionBand, SessionMeta } from '@pen/contracts';
-import { freshEstimateUsd, LessonPlan as LessonPlanSchema } from '@pen/contracts';
+import {
+  freshEstimateUsd,
+  freshThumbnailUsd,
+  LessonPlan as LessonPlanSchema,
+} from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import type { LessonMemoEntry } from '@pen/session-engine';
-import { planDigest, sessionMetaScope } from '@pen/session-engine';
+import { planDigest, sessionMetaScope, thumbnailDigest } from '@pen/session-engine';
 import { loadConfig } from '../src/config.js';
 import { buildServices } from '../src/services.js';
 import { createSessionMetaJobs, thumbnailPath } from '../src/thumbnails.js';
 
 /**
- * Cards and sketches for sessions that predate ADR-0013 (or whose background
- * job failed):
+ * Cards and thumbnails for sessions that have none — from before ADR-0013, or
+ * whose background job failed — and, with `--redraw`, for the hand-drawn
+ * sketches ADR-0021 replaced:
  *
  *   pnpm --filter @pen/api thumbnails:backfill                 every session without one
  *   pnpm --filter @pen/api thumbnails:backfill --limit 50      the 50 newest
  *   pnpm --filter @pen/api thumbnails:backfill --dry-run       what it would do, and what it would cost
+ *   pnpm --filter @pen/api thumbnails:backfill --redraw        also replace pre-ADR-0021 sketches
  *
- * It uses the same queue the rooms use, so it obeys the same concurrency cap
- * (two model calls at a time) and the same per-lesson cache: a topic that was
- * already drawn costs nothing here either. Sessions whose files are already on
- * disk are repaired (record patched) without any model call, and a session
- * that is still being taught is left to its own job.
+ * A backfill belongs to no learner, so it bills to `OPENAI_API_KEY_PLATFORM`
+ * and never to a host's plan key — the opposite of a live session, whose card
+ * and picture bill exactly where its lesson did. It uses the same queue the
+ * rooms use, so it obeys the same concurrency cap and the same per-lesson
+ * caches: a topic already written and already generated costs nothing here
+ * either. Sessions whose files are on disk are repaired (record patched) with
+ * no call at all, and a session still being taught is left to its own job.
+ *
+ * `--redraw` is the one that spends real money at scale: every session whose
+ * scope has no cached picture is a fresh generation. `--dry-run` prices it
+ * first, and the estimate is the number to look at before running it.
  *
  * The lesson the card describes comes from the lesson memo when one exists for
  * the session's scope; otherwise the record's own title and promise stand in.
@@ -27,13 +39,15 @@ import { createSessionMetaJobs, thumbnailPath } from '../src/thumbnails.js';
 interface Args {
   limit: number;
   dryRun: boolean;
+  redraw: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { limit: 500, dryRun: false };
+  const args: Args = { limit: 500, dryRun: false, redraw: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') args.dryRun = true;
+    else if (a === '--redraw') args.redraw = true;
     else if (a === '--limit') {
       const n = Number(argv[++i]);
       if (!Number.isFinite(n) || n <= 0) throw new Error('--limit needs a positive number');
@@ -43,7 +57,7 @@ function parseArgs(argv: string[]): Args {
       if (!Number.isFinite(n) || n <= 0) throw new Error('--limit needs a positive number');
       args.limit = Math.floor(n);
     } else if (a === '-h' || a === '--help') {
-      console.log('usage: thumbnails:backfill [--limit N] [--dry-run]');
+      console.log('usage: thumbnails:backfill [--limit N] [--dry-run] [--redraw]');
       process.exit(0);
     } else if (a !== undefined) throw new Error(`unknown argument: ${a}`);
   }
@@ -78,11 +92,26 @@ const cfg = loadConfig();
 const services = await buildServices(cfg);
 
 try {
-  const candidates = await services.sessions.listWithoutThumbnail(args.limit);
-  const model = services.metaModel.id;
+  // A backfill belongs to no learner, so it runs on the platform key and
+  // never on a plan key. `PLATFORM` is passed as the job's host plan, so the
+  // queue asks for that key for every call it makes here.
+  if (!services.platformModel || !services.platformImage)
+    throw new Error(
+      'OPENAI_API_KEY_PLATFORM is not set. A backfill belongs to no learner and must not bill a plan key.',
+    );
+  const platformModel = services.platformModel;
+  const platformImage = services.platformImage;
+  const candidates = args.redraw
+    ? [
+        ...(await services.sessions.listWithoutThumbnail(args.limit)),
+        ...(await services.sessions.listWithSketchThumbnail(args.limit)),
+      ].slice(0, args.limit)
+    : await services.sessions.listWithoutThumbnail(args.limit);
+  const model = platformModel.id;
   console.log(
-    `${candidates.length} session${candidates.length === 1 ? '' : 's'} without a sketch ` +
-      `(limit ${args.limit}, model ${model}, concurrency 2)`,
+    `${candidates.length} session${candidates.length === 1 ? '' : 's'} ` +
+      `${args.redraw ? 'without a picture or still showing a sketch' : 'without a picture'} ` +
+      `(limit ${args.limit}, copy ${model}, picture ${platformImage.id} ${cfg.PEN_THUMBNAIL_QUALITY}, concurrency 2)`,
   );
   if (candidates.length === 0) process.exit(0);
 
@@ -92,8 +121,10 @@ try {
     memo: boolean;
     /** Already on disk from an earlier run: patch the record, call nothing. */
     onDisk: boolean;
-    /** The cache already holds this lesson's card: it will cost nothing. */
+    /** The cache already holds this lesson's card copy: the text call costs nothing. */
     cached: boolean;
+    /** The cache already holds this lesson's picture: the generation costs nothing. */
+    pictureCached: boolean;
   }
   const jobs: Job[] = [];
   let skipped = 0;
@@ -114,40 +145,51 @@ try {
       ? await services.memo.find(record.canonicalId, record.band as SelectionBand, record.expertId)
       : null;
     const plan = planOf(record, memo);
-    const cached = record.canonicalId
-      ? (await services.metaCache.get({
-          scope: sessionMetaScope({
-            canonicalId: record.canonicalId,
-            band: record.band,
-            expertId: record.expertId,
-            language: record.language,
-          }),
-          planDigest: planDigest(plan),
-        })) !== null
+    const scope = record.canonicalId
+      ? sessionMetaScope({
+          canonicalId: record.canonicalId,
+          band: record.band,
+          expertId: record.expertId,
+          language: record.language,
+        })
+      : null;
+    const cached = scope
+      ? (await services.metaCache.get({ scope, planDigest: planDigest(plan) })) !== null
+      : false;
+    const pictureCached = scope
+      ? (await services.thumbnailCache.get({ scope, titleDigest: thumbnailDigest(plan) })) !== null
       : false;
     jobs.push({
       record,
       plan,
       memo: memo !== null,
-      onDisk: services.thumbnails.ready(record.id),
+      // A redraw is deliberate: the files on disk are the sketch we are replacing.
+      onDisk: !args.redraw && services.thumbnails.ready(record.id),
       cached,
+      pictureCached,
     });
   }
 
-  const toGenerate = jobs.filter((j) => !j.onDisk && !j.cached).length;
-  const estimate = toGenerate * freshEstimateUsd('sessionMeta', model);
+  const pending = jobs.filter((j) => !j.onDisk);
+  // The picture is ~97 % of the bill, so it is priced separately: a run where
+  // every copy is cached but no picture is still an expensive run.
+  const copiesToWrite = pending.filter((j) => !j.cached).length;
+  const picturesToDraw = pending.filter((j) => !j.pictureCached).length;
+  const estimate =
+    copiesToWrite * freshEstimateUsd('sessionMeta', model) +
+    picturesToDraw * freshThumbnailUsd(platformImage.id, cfg.PEN_THUMBNAIL_QUALITY);
   console.log(
     `  ${jobs.filter((j) => j.onDisk).length} already rendered · ` +
-      `${jobs.filter((j) => !j.onDisk && j.cached).length} served by the cache · ` +
-      `${toGenerate} to generate · ${jobs.filter((j) => j.memo).length} with a memo plan · ` +
-      `${skipped} skipped`,
+      `${pending.length - picturesToDraw} pictures served by the cache · ` +
+      `${picturesToDraw} pictures to generate · ${copiesToWrite} card copies to write · ` +
+      `${jobs.filter((j) => j.memo).length} with a memo plan · ${skipped} skipped`,
   );
   console.log(`  estimated cost: ${usd(estimate)}`);
 
   if (args.dryRun) {
     for (const j of jobs)
       console.log(
-        `  would ${j.onDisk ? 'repair  ' : j.cached ? 'reuse   ' : 'generate'} ${j.record.id}  ` +
+        `  would ${j.onDisk ? 'repair  ' : j.pictureCached ? 'reuse   ' : 'generate'} ${j.record.id}  ` +
           `${j.record.language}  ${j.plan.segments.length} seg  ${j.record.title.slice(0, 48)}`,
       );
     console.log('dry run: nothing was written.');
@@ -160,29 +202,37 @@ try {
   let repaired = 0;
   const done = new Set<string>();
   const jobsQueue = createSessionMetaJobs({
-    model: services.metaModel,
+    // Every job here is the platform's, whatever plan the session's host is on.
+    modelFor: () => platformModel,
+    imageFor: () => platformImage,
+    quality: cfg.PEN_THUMBNAIL_QUALITY,
     store: services.thumbnails,
     sessions: services.sessions,
     cache: services.metaCache,
+    imageCache: services.thumbnailCache,
     onUsage: (_input, usage) => {
       spent += usage.usd;
     },
     onDone: (input, result) => {
       done.add(input.sessionId);
-      if (result.reused) reused += 1;
+      if (result.image?.reused ?? result.reused) reused += 1;
       else generated += 1;
+      const bytes = result.image
+        ? `${Math.round(result.image.png.length / 1024)} kB`
+        : 'no picture';
       console.log(
-        `  ${result.reused ? 'reused  ' : 'drew    '} ${input.sessionId}  ` +
-          `${usd(result.usage.usd)}  ${Math.round(result.ms)} ms  ` +
-          `${result.meta.thumbnail.elements.length} elements`,
+        `  ${result.image?.reused ? 'reused  ' : 'drew    '} ${input.sessionId}  ` +
+          `${usd(result.usage.usd + (result.image?.usage?.usd ?? 0))}  ` +
+          `${Math.round(result.ms)} ms  ${bytes}`,
       );
     },
   });
 
   /**
-   * Two jobs run at a time, so two sessions on the same lesson would both draw
-   * the same card before either reaches the cache. One session per lesson goes
-   * first; everything else follows and is served from what that wrote.
+   * Two jobs run at a time, so two sessions on the same lesson would both pay
+   * for the same picture before either reached the cache. One session per
+   * lesson goes first; everything else follows and is served from what that
+   * one wrote.
    */
   const scopeOf = (job: Job) =>
     job.record.canonicalId
@@ -224,6 +274,7 @@ try {
         topic: job.record.topic,
         plan: job.plan,
         language: job.record.language,
+        billTo: 'platform',
         ...(job.record.canonicalId ? { canonicalId: job.record.canonicalId } : {}),
         cacheKey: `pen:lesson:${expert.id}:${job.record.band}`,
       });

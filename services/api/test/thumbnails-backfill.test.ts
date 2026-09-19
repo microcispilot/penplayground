@@ -10,9 +10,13 @@ import { THUMB_FILES } from '../src/thumbnails.js';
 
 /**
  * `pnpm --filter @pen/api thumbnails:backfill` as the operator runs it: a real
- * process, a real (file-backed) database, the fake model. The dry run must
- * touch nothing and still price the work; the real run must leave a sketch on
- * disk and a patched record for every session that had none.
+ * process, a real (file-backed) database, the fake providers. The dry run must
+ * touch nothing and still price the work; the real run must leave a generated
+ * picture and both derived sizes on disk, plus a patched record, for every
+ * session that had none. `--redraw` must find the pre-ADR-0021 sketches too.
+ *
+ * A backfill belongs to no learner, so every call it makes is on the platform
+ * key; `PEN_LLM_PROVIDER=fake` supplies it here.
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, '..', 'scripts', 'thumbnails-backfill.ts');
@@ -95,14 +99,16 @@ afterAll(() => {
 describe('thumbnails:backfill', () => {
   it('--dry-run lists the work and its price, and writes nothing', async () => {
     const { stdout } = await backfill('--dry-run');
-    expect(stdout).toMatch(/3 sessions without a sketch \(limit 500, model fake, concurrency 2\)/);
+    expect(stdout).toMatch(
+      /3 sessions without a picture \(limit 500, copy fake, picture fake low, concurrency 2\)/,
+    );
     expect(stdout).toMatch(/skip s_backfill_04 {2}still live/);
-    expect(stdout).toMatch(/2 to generate/);
+    expect(stdout).toMatch(/2 pictures to generate · 2 card copies to write/);
     expect(stdout).toMatch(/estimated cost: \$0\.0000/);
     expect(stdout).toMatch(/would generate s_backfill_01 {2}en-US {2}3 seg/);
     expect(stdout).toMatch(/would generate s_backfill_02/);
     expect(stdout).toMatch(/dry run: nothing was written\./);
-    expect(existsSync(join(dataDir, 'sessions', 's_backfill_01', THUMB_FILES.svg))).toBe(false);
+    expect(existsSync(join(dataDir, 'sessions', 's_backfill_01', THUMB_FILES.source))).toBe(false);
     await withDb(async (repo) => {
       expect((await repo.get('s_backfill_01'))?.thumbnail).toBeNull();
     });
@@ -110,7 +116,7 @@ describe('thumbnails:backfill', () => {
 
   it('--limit bounds the walk', async () => {
     const { stdout } = await backfill('--dry-run', '--limit', '1');
-    expect(stdout).toMatch(/1 session without a sketch \(limit 1,/);
+    expect(stdout).toMatch(/1 session without a picture \(limit 1,/);
   }, 120_000);
 
   it('draws what is missing, reuses the second session on the same lesson, and patches the records', async () => {
@@ -120,12 +126,14 @@ describe('thumbnails:backfill', () => {
     expect(stdout).toMatch(/reused\s+s_backfill_0[12]/);
     expect(stdout).toMatch(/done: 1 drawn, 1 reused, 0 repaired, 0 failed/);
     for (const id of ['s_backfill_01', 's_backfill_02']) {
-      for (const file of Object.values(THUMB_FILES))
+      for (const file of [THUMB_FILES.source, THUMB_FILES.card, THUMB_FILES.og, THUMB_FILES.meta])
         expect(existsSync(join(dataDir, 'sessions', id, file)), `${id}/${file}`).toBe(true);
+      // Nothing draws a sketch any more.
+      expect(existsSync(join(dataDir, 'sessions', id, THUMB_FILES.svg)), id).toBe(false);
     }
     await withDb(async (repo) => {
       const one = await repo.get('s_backfill_01');
-      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.svg');
+      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.png');
       expect(one?.description).toMatch(/attention/i);
       expect(one?.keywords).toContain('transformers');
       // The live one was never touched.
@@ -135,8 +143,22 @@ describe('thumbnails:backfill', () => {
 
   it('is idempotent: a second run has nothing left to draw', async () => {
     const { stdout } = await backfill();
-    expect(stdout).toMatch(/1 session without a sketch/);
+    expect(stdout).toMatch(/1 session without a picture/);
     expect(stdout).toMatch(/done: 0 drawn, 0 reused, 0 repaired, 0 failed/);
+  }, 120_000);
+
+  /**
+   * The sessions the owner is actually looking at: taught before ADR-0021 and
+   * still showing a hand-drawn sketch. They are invisible to a plain run — the
+   * record has a thumbnail — and `--redraw` is the only thing that finds them.
+   */
+  it('--redraw finds a session still showing a pre-ADR-0021 sketch', async () => {
+    const plain = await backfill('--dry-run');
+    expect(plain.stdout).not.toMatch(/s_backfill_03/);
+    const { stdout } = await backfill('--dry-run', '--redraw');
+    expect(stdout).toMatch(/still showing a sketch/);
+    expect(stdout).toMatch(/s_backfill_03/);
+    expect(stdout).toMatch(/dry run: nothing was written\./);
   }, 120_000);
 
   it('repairs a record whose files are already on disk without calling the model', async () => {
@@ -149,7 +171,7 @@ describe('thumbnails:backfill', () => {
     expect(stdout).toMatch(/done: 0 drawn, 0 reused, 1 repaired, 0 failed/);
     await withDb(async (repo) => {
       const one = await repo.get('s_backfill_01');
-      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.svg');
+      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.png');
       expect(one?.description).toMatch(/attention/i);
     });
   }, 120_000);

@@ -1,8 +1,32 @@
-import type { CostLine, LessonPlan, ModelSessionMeta, StageSample } from '@pen/contracts';
-import { FakeLanguageModel, type LanguageModel, type Usage } from '@pen/llm';
+import type {
+  CostLine,
+  KeyOwner,
+  LessonPlan,
+  ModelSessionMeta,
+  StageSample,
+  ThumbnailQuality,
+} from '@pen/contracts';
+import { imagePriceUsd, THUMBNAIL_SIZE } from '@pen/contracts';
+import {
+  FakeImageModel,
+  FakeLanguageModel,
+  type GeneratedImage,
+  type ImageModel,
+  type ImageRequest,
+  type LanguageModel,
+  type Usage,
+} from '@pen/llm';
 import { describe, expect, it, vi } from 'vitest';
-import { META_PURPOSE, type SessionMetaInput, SessionMetaJobs } from '../src/meta.js';
-import { metaMessages } from '../src/prompts.js';
+import {
+  META_PURPOSE,
+  type SessionMetaInput,
+  SessionMetaJobs,
+  type SessionMetaJobsOptions,
+  THUMBNAIL_PURPOSE,
+  type ThumbnailImageCacheKey,
+  type ThumbnailImageCachePort,
+} from '../src/meta.js';
+import { metaMessages, thumbnailImagePrompt } from '../src/prompts.js';
 import type { RoomObserver } from '../src/transport.js';
 import { expert } from './fixtures.js';
 
@@ -17,30 +41,22 @@ const plan: LessonPlan = {
   seconds: 150,
 };
 
-const input = (sessionId = 's_0001'): SessionMetaInput => ({
+const input = (sessionId = 's_0001', over: Partial<SessionMetaInput> = {}): SessionMetaInput => ({
   sessionId,
   expert,
   band: 'beginner',
   topic: 'How Transformers work in LLMs',
   plan,
   language: 'en-US',
+  billTo: 'free',
   cacheKey: 'pen:ada-okonkwo:beginner',
+  ...over,
 });
 
 const scripted: ModelSessionMeta = {
   description: 'See how tokens become vectors and how attention scores queries against keys.',
-  keywords: ['transformers', 'attention', 'tokens', 'softmax'],
+  keywords: ['transformers', 'attention', 'tokens', 'transformers', '  '],
   category: 'computing-data',
-  thumbnail: {
-    elements: [
-      { kind: 'label', text: 'Attention', x: 0, y: 0, w: 6, size: 'lg', ink: 'accent' },
-      { kind: 'box', x: 0, y: 2, w: 2, h: 1, text: 'the', ink: 'ink' },
-      { kind: 'box', x: 3, y: 2, w: 2, h: 1, text: 'cat', ink: 'ink' },
-      { kind: 'arrow', x1: 2, y1: 2.5, x2: 3, y2: 2.5, text: '', ink: 'accent' },
-      // Out of grid on purpose: the job clamps, it does not reject.
-      { kind: 'bars', x: 8, y: 2, w: 9, h: 9, values: [20, 80, 40], ink: 'ink' },
-    ],
-  },
 };
 
 const fake = () => new FakeLanguageModel([], [{ purpose: META_PURPOSE, value: scripted }]);
@@ -81,23 +97,101 @@ class ControlledModel implements LanguageModel {
   }
 }
 
+/** An image model that records every call and can be made to fail. */
+class CountingImageModel implements ImageModel {
+  readonly id = 'counting';
+  readonly requests: ImageRequest[] = [];
+  constructor(private readonly plan: Array<'ok' | 'fail'> = []) {}
+  async generate(request: ImageRequest): Promise<GeneratedImage> {
+    const step = this.plan[this.requests.length] ?? 'ok';
+    this.requests.push(request);
+    if (step === 'fail') throw new Error('IMAGE_NO_OUTPUT: 0 images returned');
+    return {
+      png: Buffer.from([0x89, 0x50, 0x4e, 0x47, this.requests.length]),
+      usage: {
+        model: 'gpt-image-1',
+        inputTokens: 52,
+        imageInputTokens: 0,
+        cachedTokens: 0,
+        outputTokens: 400,
+        usd: imagePriceUsd('gpt-image-1', 52, 0, 400),
+        firstTokenMs: null,
+        totalMs: 11_000,
+      },
+    };
+  }
+  get calls(): number {
+    return this.requests.length;
+  }
+}
+
+class MemoryImageCache implements ThumbnailImageCachePort {
+  private readonly entries = new Map<
+    string,
+    { png: Buffer; usd: number; model: string; quality: ThumbnailQuality; titleDigest: string }
+  >();
+  async get(key: ThumbnailImageCacheKey) {
+    const hit = this.entries.get(key.scope);
+    if (!hit || hit.titleDigest !== key.titleDigest) return null;
+    return { png: hit.png, usd: hit.usd, model: hit.model, quality: hit.quality };
+  }
+  async put(
+    key: ThumbnailImageCacheKey,
+    value: { png: Buffer; usd: number; model: string; quality: ThumbnailQuality },
+  ) {
+    this.entries.set(key.scope, { ...value, titleDigest: key.titleDigest });
+  }
+  get size(): number {
+    return this.entries.size;
+  }
+}
+
+/** The options every test needs, with a working image model and no cache. */
+function options(over: Partial<SessionMetaJobsOptions> = {}): SessionMetaJobsOptions {
+  return {
+    modelFor: () => fake(),
+    imageFor: () => new FakeImageModel(),
+    quality: 'low',
+    onResult: vi.fn(),
+    retryDelayMs: 0,
+    ...over,
+  };
+}
+
 describe('metaMessages', () => {
-  it('opens with the same persona and level prefix as the plan prompt', () => {
+  it('opens with the same persona and level prefix as the plan prompt, and asks only for copy', () => {
     const m = metaMessages(input());
     const system = m[0]?.content ?? '';
     expect(system.startsWith('YOU ARE Ada Okonkwo, Deep Learning Expert.')).toBe(true);
     expect(system).toContain('LEARNER LEVEL: beginner');
-    expect(system).toContain('12 × 7 grid');
+    expect(system).toContain('description');
+    expect(system).toContain('keywords');
+    // The sketch vocabulary is gone: nothing here can ask for a drawing any more.
+    for (const word of ['grid', 'sketch', 'thumbnail', 'whiteboard', 'arrow', 'highlight'])
+      expect(system.toLowerCase()).not.toContain(word);
     expect(m[1]?.content).toContain('SESSION: "How Transformers work in LLMs"');
     expect(m[1]?.content).toContain('Session language: en-US');
   });
 });
 
+describe('thumbnailImagePrompt', () => {
+  it('is the owner’s three lines, with the session title quoted into the first', () => {
+    expect(thumbnailImagePrompt('Reading an ECG strip')).toBe(
+      'Design a realistic thumbnail for a YouTube video titled "Reading an ECG strip".\n' +
+        'Not crowded: one clear subject, plenty of empty space, no text.\n' +
+        'Hyper realistic photography, natural light, shallow depth of field.',
+    );
+  });
+});
+
 describe('SessionMetaJobs', () => {
-  it('makes one completion, clamps the sketch and hands over a validated SessionMeta', async () => {
+  it('writes the card copy and generates exactly one picture, and hands both over', async () => {
     const onResult = vi.fn();
     const onUsage = vi.fn();
-    const jobs = new SessionMetaJobs({ model: fake(), onResult, onUsage, retryDelayMs: 0 });
+    const image = new CountingImageModel();
+    const jobs = new SessionMetaJobs(
+      options({ onResult, onUsage, imageFor: () => image, modelFor: () => fake() }),
+    );
     expect(jobs.enqueue(input())).toBe(true);
     // Never blocks the caller: the job runs after enqueue returns.
     expect(onResult).not.toHaveBeenCalled();
@@ -106,30 +200,112 @@ describe('SessionMetaJobs', () => {
     const [, result] = onResult.mock.calls[0] ?? [];
     expect(result.attempts).toBe(1);
     expect(result.meta.description).toBe(scripted.description);
-    expect(result.meta.keywords).toEqual(['transformers', 'attention', 'tokens', 'softmax']);
+    // Normalised: the duplicate and the blank are gone.
+    expect(result.meta.keywords).toEqual(['transformers', 'attention', 'tokens']);
     expect(result.meta.category).toBe('computing-data');
-    const bars = result.meta.thumbnail.elements.find((e: { kind: string }) => e.kind === 'bars');
-    expect(bars).toMatchObject({ x: 8, y: 2, w: 4, h: 5, values: [0.25, 1, 0.5] });
-    expect(onUsage).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ purpose: META_PURPOSE }),
-    );
+    // ONE generation per session, at the one size we ever ask for.
+    expect(image.calls).toBe(1);
+    expect(image.requests[0]?.size).toEqual(THUMBNAIL_SIZE);
+    expect(image.requests[0]?.quality).toBe('low');
+    expect(image.requests[0]?.prompt).toBe(thumbnailImagePrompt(plan.title));
+    expect(result.image.png.subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    expect(result.image.reused).toBe(false);
+    expect(onUsage.mock.calls.map(([, u]) => u.purpose).sort()).toEqual([
+      META_PURPOSE,
+      THUMBNAIL_PURPOSE,
+    ]);
   });
 
-  it('records the call on the session telemetry port: one llm sample and cost lines under session_meta', async () => {
+  it('honours the quality setting on the generation it asks for', async () => {
+    const image = new CountingImageModel();
+    const jobs = new SessionMetaJobs(options({ quality: 'medium', imageFor: () => image }));
+    jobs.enqueue(input());
+    await jobs.idle();
+    expect(image.requests[0]?.quality).toBe('medium');
+  });
+
+  /**
+   * Change #2: every call a background job makes bills to the HOST'S plan key,
+   * the one the lesson ran on. A free learner's card must never be drawn on a
+   * paying tier's budget, and `platform` is only ever asked for by work that
+   * belongs to no learner at all.
+   */
+  describe('bills to the key the job says it belongs to', () => {
+    const asked = (billTo: KeyOwner) => {
+      const owners: { text: KeyOwner[]; image: KeyOwner[] } = { text: [], image: [] };
+      const image = new CountingImageModel();
+      const jobs = new SessionMetaJobs(
+        options({
+          modelFor: (owner) => {
+            owners.text.push(owner);
+            return fake();
+          },
+          imageFor: (owner) => {
+            owners.image.push(owner);
+            return image;
+          },
+        }),
+      );
+      jobs.enqueue(input(`s_${billTo}`, { billTo }));
+      return jobs.idle().then(() => owners);
+    };
+
+    for (const plan of ['free', 'standard', 'professional'] as const) {
+      it(`a ${plan} host's card copy and picture both ask for the ${plan} key`, async () => {
+        const owners = await asked(plan);
+        expect(owners.text).toEqual([plan]);
+        expect(owners.image).toEqual([plan]);
+      });
+    }
+
+    it('a platform job (the backfill) asks for the platform key and no plan key', async () => {
+      const owners = await asked('platform');
+      expect(owners.text).toEqual(['platform']);
+      expect(owners.image).toEqual(['platform']);
+    });
+
+    it('never falls back from one plan key to another', async () => {
+      const seen: KeyOwner[] = [];
+      const jobs = new SessionMetaJobs(
+        options({
+          modelFor: (owner) => {
+            seen.push(owner);
+            return fake();
+          },
+          imageFor: (owner) => {
+            seen.push(owner);
+            return new FakeImageModel();
+          },
+        }),
+      );
+      jobs.enqueue(input('s_a', { billTo: 'professional' }));
+      jobs.enqueue(input('s_b', { billTo: 'free' }));
+      await jobs.idle();
+      expect(seen.filter((o) => o === 'professional')).toHaveLength(2);
+      expect(seen.filter((o) => o === 'free')).toHaveLength(2);
+      expect(seen).not.toContain('platform');
+      expect(seen).not.toContain('standard');
+    });
+  });
+
+  it('records both calls on the session telemetry port: one llm sample, one image sample, cost lines for each', async () => {
     const samples: StageSample[] = [];
     const costs: CostLine[] = [];
     const telemetry = {
-      sample: (input: StageSample) => void samples.push(input),
+      sample: (s: StageSample) => void samples.push(s),
       cost: (line: CostLine) => void costs.push(line),
       error: () => undefined,
     };
-    const jobs = new SessionMetaJobs({ model: new ControlledModel(['ok']), onResult: vi.fn() });
+    const jobs = new SessionMetaJobs(
+      options({
+        modelFor: () => new ControlledModel(['ok']),
+        imageFor: () => new CountingImageModel(),
+      }),
+    );
     jobs.enqueue({ ...input(), telemetry });
     await jobs.idle();
-    expect(samples).toHaveLength(1);
-    expect(samples[0]).toMatchObject({
-      stage: 'llm',
+    expect(samples.map((s) => s.stage).sort()).toEqual(['image', 'llm']);
+    expect(samples.find((s) => s.stage === 'llm')).toMatchObject({
       ok: true,
       meta: {
         purpose: META_PURPOSE,
@@ -139,15 +315,145 @@ describe('SessionMetaJobs', () => {
         tokensOut: 200,
       },
     });
+    expect(samples.find((s) => s.stage === 'image')).toMatchObject({
+      ok: true,
+      meta: {
+        purpose: THUMBNAIL_PURPOSE,
+        model: 'gpt-image-1',
+        quality: 'low',
+        size: '1536x1024',
+        tokensOut: 400,
+        reused: false,
+      },
+    });
+    // The picture's price is in the session ledger like any other provider call.
     expect(costs.map((c) => [c.component, c.unit, c.units])).toEqual([
       ['llm', 'tokens_in', 100],
       ['llm', 'tokens_cached', 400],
       ['llm', 'tokens_out', 200],
+      ['image', 'tokens_in', 52],
+      ['image', 'tokens_out', 400],
     ]);
-    for (const c of costs) expect(c.meta).toMatchObject({ purpose: META_PURPOSE, reused: false });
+    const imageUsd = costs.filter((c) => c.component === 'image').reduce((n, c) => n + c.usd, 0);
+    expect(imageUsd).toBeCloseTo(imagePriceUsd('gpt-image-1', 52, 0, 400), 9);
+    for (const c of costs)
+      expect(c.meta).toMatchObject({ reused: false, purpose: expect.any(String) });
   });
 
-  it('retries once on failure and succeeds on the second attempt', async () => {
+  /**
+   * Change #1's reuse requirement: a topic taught before must show its
+   * picture again rather than pay for it again, and must say what that saved.
+   */
+  describe('reuse', () => {
+    const withScope = (sessionId: string) =>
+      input(sessionId, { canonicalId: 'en.how-transformers-work' });
+
+    it('generates once for a scope and reuses the bytes for every session after', async () => {
+      const image = new CountingImageModel();
+      const imageCache = new MemoryImageCache();
+      const results: unknown[] = [];
+      const jobs = new SessionMetaJobs(
+        options({
+          imageFor: () => image,
+          imageCache,
+          concurrency: 1,
+          onResult: (_i, r) => void results.push(r),
+        }),
+      );
+      jobs.enqueue(withScope('s_first'));
+      await jobs.idle();
+      jobs.enqueue(withScope('s_second'));
+      jobs.enqueue(withScope('s_third'));
+      await jobs.idle();
+      // One generation for three sessions.
+      expect(image.calls).toBe(1);
+      expect(imageCache.size).toBe(1);
+      const [first, second, third] = results as Array<{
+        image: { reused: boolean; png: Buffer; savedUsd: number; usage: unknown };
+        savedUsd: number;
+      }>;
+      expect(first?.image.reused).toBe(false);
+      expect(first?.image.savedUsd).toBe(0);
+      for (const later of [second, third]) {
+        expect(later?.image.reused).toBe(true);
+        expect(later?.image.usage).toBeNull();
+        // The same bytes, so the same picture — every size is derived from them.
+        expect(later?.image.png).toEqual(first?.image.png);
+        // Exactly what the original generation cost, not an estimate.
+        expect(later?.image.savedUsd).toBeCloseTo(imagePriceUsd('gpt-image-1', 52, 0, 400), 9);
+        expect(later?.savedUsd).toBeGreaterThanOrEqual(later?.image.savedUsd ?? 0);
+      }
+    });
+
+    it('reports a reused picture as an image sample with savedUsd and no cost lines', async () => {
+      const samples: StageSample[] = [];
+      const costs: CostLine[] = [];
+      const telemetry = {
+        sample: (s: StageSample) => void samples.push(s),
+        cost: (l: CostLine) => void costs.push(l),
+        error: () => undefined,
+      };
+      const imageCache = new MemoryImageCache();
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => new CountingImageModel(), imageCache, concurrency: 1 }),
+      );
+      jobs.enqueue(withScope('s_one'));
+      await jobs.idle();
+      samples.length = 0;
+      costs.length = 0;
+      jobs.enqueue({ ...withScope('s_two'), telemetry });
+      await jobs.idle();
+      const sample = samples.find((s) => s.stage === 'image');
+      expect(sample?.meta.reused).toBe(true);
+      expect(sample?.meta.savedUsd).toBeCloseTo(imagePriceUsd('gpt-image-1', 52, 0, 400), 9);
+      // Nothing was bought, so nothing is charged.
+      expect(costs.filter((c) => c.component === 'image')).toEqual([]);
+    });
+
+    it('generates again when the title changed, because the title is the whole prompt', async () => {
+      const image = new CountingImageModel();
+      const imageCache = new MemoryImageCache();
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => image, imageCache, concurrency: 1 }),
+      );
+      jobs.enqueue(withScope('s_a'));
+      await jobs.idle();
+      jobs.enqueue({
+        ...withScope('s_b'),
+        plan: { ...plan, title: 'Attention, from scratch' },
+      });
+      await jobs.idle();
+      expect(image.calls).toBe(2);
+      expect(image.requests[1]?.prompt).toContain('Attention, from scratch');
+    });
+
+    it('does not reuse across scopes: a different lesson gets its own picture', async () => {
+      const image = new CountingImageModel();
+      const imageCache = new MemoryImageCache();
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => image, imageCache, concurrency: 1 }),
+      );
+      jobs.enqueue(withScope('s_a'));
+      await jobs.idle();
+      jobs.enqueue(input('s_b', { canonicalId: 'en.kalman-filters' }));
+      await jobs.idle();
+      expect(image.calls).toBe(2);
+    });
+
+    it('pays every time when the session never resolved to a canonical topic', async () => {
+      const image = new CountingImageModel();
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => image, imageCache: new MemoryImageCache(), concurrency: 1 }),
+      );
+      jobs.enqueue(input('s_a'));
+      await jobs.idle();
+      jobs.enqueue(input('s_b'));
+      await jobs.idle();
+      expect(image.calls).toBe(2);
+    });
+  });
+
+  it('retries the copy once on failure and succeeds on the second attempt', async () => {
     const model = new ControlledModel(['fail', 'ok']);
     const onResult = vi.fn();
     const onFailure = vi.fn();
@@ -157,14 +463,9 @@ describe('SessionMetaJobs', () => {
       event: (name) => void events.push(name),
       error: (area) => void events.push(`error:${area}`),
     };
-    const jobs = new SessionMetaJobs({
-      model,
-      onResult,
-      onFailure,
-      sleep,
-      observer,
-      retryDelayMs: 7,
-    });
+    const jobs = new SessionMetaJobs(
+      options({ modelFor: () => model, onResult, onFailure, sleep, observer, retryDelayMs: 7 }),
+    );
     jobs.enqueue(input());
     await jobs.idle();
     expect(model.calls).toBe(2);
@@ -172,10 +473,11 @@ describe('SessionMetaJobs', () => {
     expect(onResult).toHaveBeenCalledTimes(1);
     expect(onResult.mock.calls[0]?.[1].attempts).toBe(2);
     expect(onFailure).not.toHaveBeenCalled();
-    expect(events).toEqual(['session_meta.queued', 'session_meta.retry', 'session_meta.done']);
+    expect(events).toContain('session_meta.retry');
+    expect(events).toContain('session_meta.done');
   });
 
-  it('gives up after two failures, reports once and calls onFailure', async () => {
+  it('gives up on the copy after two failures, reports once and calls onFailure', async () => {
     const model = new ControlledModel(['fail', 'fail']);
     const onResult = vi.fn();
     const onFailure = vi.fn();
@@ -184,7 +486,9 @@ describe('SessionMetaJobs', () => {
       event: () => undefined,
       error: (area) => void errors.push(area),
     };
-    const jobs = new SessionMetaJobs({ model, onResult, onFailure, observer, retryDelayMs: 0 });
+    const jobs = new SessionMetaJobs(
+      options({ modelFor: () => model, onResult, onFailure, observer }),
+    );
     jobs.enqueue(input());
     await jobs.idle();
     expect(model.calls).toBe(2);
@@ -194,15 +498,45 @@ describe('SessionMetaJobs', () => {
     expect(errors).toEqual(['session_meta.failed']);
   });
 
+  it('keeps the copy when the picture fails twice, and hands over no image', async () => {
+    const image = new CountingImageModel(['fail', 'fail']);
+    const onResult = vi.fn();
+    const errors: string[] = [];
+    const jobs = new SessionMetaJobs(
+      options({
+        imageFor: () => image,
+        onResult,
+        observer: { event: () => undefined, error: (area) => void errors.push(area) },
+      }),
+    );
+    jobs.enqueue(input());
+    await jobs.idle();
+    expect(image.calls).toBe(2);
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult.mock.calls[0]?.[1].image).toBeNull();
+    expect(onResult.mock.calls[0]?.[1].meta.description).toBe(scripted.description);
+    expect(errors).toEqual(['session_thumbnail.failed']);
+  });
+
+  it('keeps a picture it paid for even when the copy fails, so the next session gets it free', async () => {
+    const image = new CountingImageModel();
+    const imageCache = new MemoryImageCache();
+    const jobs = new SessionMetaJobs(
+      options({
+        modelFor: () => new ControlledModel(['fail', 'fail']),
+        imageFor: () => image,
+        imageCache,
+      }),
+    );
+    jobs.enqueue(input('s_lost', { canonicalId: 'en.how-transformers-work' }));
+    await jobs.idle();
+    expect(imageCache.size).toBe(1);
+  });
+
   it('treats an invalid completion as a failure worth one retry', async () => {
     const broken = new FakeLanguageModel([], [{ purpose: META_PURPOSE, value: { nope: true } }]);
     const onFailure = vi.fn();
-    const jobs = new SessionMetaJobs({
-      model: broken,
-      onResult: vi.fn(),
-      onFailure,
-      retryDelayMs: 0,
-    });
+    const jobs = new SessionMetaJobs(options({ modelFor: () => broken, onFailure }));
     jobs.enqueue(input());
     await jobs.idle();
     expect(onFailure).toHaveBeenCalledTimes(1);
@@ -211,11 +545,9 @@ describe('SessionMetaJobs', () => {
   it('caps concurrency at two and drains the rest in order', async () => {
     const model = new ControlledModel(['hold', 'hold', 'hold', 'hold']);
     const done: string[] = [];
-    const jobs = new SessionMetaJobs({
-      model,
-      onResult: (i) => void done.push(i.sessionId),
-      retryDelayMs: 0,
-    });
+    const jobs = new SessionMetaJobs(
+      options({ modelFor: () => model, onResult: (i) => void done.push(i.sessionId) }),
+    );
     for (const id of ['a', 'b', 'c', 'd']) jobs.enqueue(input(id));
     await new Promise((r) => setTimeout(r, 0));
     expect(jobs.active).toBe(2);
@@ -232,7 +564,7 @@ describe('SessionMetaJobs', () => {
 
   it('ignores a duplicate session while it is queued or running', async () => {
     const model = new ControlledModel(['hold']);
-    const jobs = new SessionMetaJobs({ model, onResult: vi.fn(), retryDelayMs: 0 });
+    const jobs = new SessionMetaJobs(options({ modelFor: () => model }));
     expect(jobs.enqueue(input('x'))).toBe(true);
     expect(jobs.enqueue(input('x'))).toBe(false);
     model.release();
@@ -241,26 +573,30 @@ describe('SessionMetaJobs', () => {
     expect(jobs.enqueue(input('x'))).toBe(true);
   });
 
-  it('reports a consumer failure without retrying the model call', async () => {
+  it('reports a consumer failure without retrying either call', async () => {
     const model = new ControlledModel(['ok']);
+    const image = new CountingImageModel();
     const errors: string[] = [];
-    const jobs = new SessionMetaJobs({
-      model,
-      onResult: () => {
-        throw new Error('disk full');
-      },
-      observer: { event: () => undefined, error: (area) => void errors.push(area) },
-      retryDelayMs: 0,
-    });
+    const jobs = new SessionMetaJobs(
+      options({
+        modelFor: () => model,
+        imageFor: () => image,
+        onResult: () => {
+          throw new Error('disk full');
+        },
+        observer: { event: () => undefined, error: (area) => void errors.push(area) },
+      }),
+    );
     jobs.enqueue(input());
     await jobs.idle();
     expect(model.calls).toBe(1);
+    expect(image.calls).toBe(1);
     expect(errors).toEqual(['session_meta.consume']);
   });
 
   it('close() drops queued work and refuses new jobs', async () => {
     const model = new ControlledModel(['hold', 'ok']);
-    const jobs = new SessionMetaJobs({ model, onResult: vi.fn(), concurrency: 1, retryDelayMs: 0 });
+    const jobs = new SessionMetaJobs(options({ modelFor: () => model, concurrency: 1 }));
     jobs.enqueue(input('a'));
     jobs.enqueue(input('b'));
     jobs.close();

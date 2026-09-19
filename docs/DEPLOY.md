@@ -383,15 +383,25 @@ pnpm --filter @pen/web e2e rooms           # host + guest in two Chromium proces
 
 ## Session thumbnails and card copy
 
-Every session gets a description, keywords and a whiteboard sketch from one cheap background
-model call (ADR-0013). Two things in the deploy surface:
+Every session gets a description, keywords and a category from one cheap background model call
+(ADR-0013), and a picture from one `gpt-image-1` generation (ADR-0021). Both bill to the HOST'S
+plan key, the same one the lesson ran on. Four things in the deploy surface:
 
+- **The generation.** Always 1536 × 1024, quality `PEN_THUMBNAIL_QUALITY` (default `low`:
+  400 image tokens, ~11 s, $0.0163 — `medium` is 1568 tokens, ~18 s, $0.063). **One call per
+  session**: `source.png` is kept and the 640 × 360 card and the 1200 × 630 Open Graph image
+  are downscaled from it, so adding a size never costs anything. Budget ~3.8 MB of disk per
+  session for the three files (source 2.0 MB, og 1.3 MB, card 0.4 MB, measured).
 - **The card cache.** `<data>/onten/session-meta-cache.json`, beside the lesson memo, keyed by
   the memo's own scope (canonical topic + band + persona + language) and the plan it describes.
-  The second session on a topic reuses the first one's card with zero model calls and records
+  The second session on a topic reuses the first one's copy with zero model calls and records
   what that saved (`reused: true`, `savedUsd` on its `llm` stage sample, so it shows up in
-  Insights and in `/api/stats/reuse`). A re-planned lesson misses and is drawn again. The file
-  holds one entry per scope, capped at 1000; deleting it only costs a redraw.
+  Insights and in `/api/stats/reuse`). A re-planned lesson misses and is written again. The file
+  holds one entry per scope, capped at 1000; deleting it only costs a rewrite.
+- **The picture cache.** `<data>/onten/thumbnail-images/`, same scope, keyed by the session
+  title (the whole prompt). A repeat session on a topic gets the first one's bytes for nothing
+  and reports it on its `image` stage sample. Capped at 1 GB, oldest out first; deleting it
+  costs $0.0163 per lesson to regenerate, so back it up with the memo.
 - **Backfill.** Sessions from before ADR-0013 (and any whose background job failed) get their
   card from:
 
@@ -399,12 +409,16 @@ model call (ADR-0013). Two things in the deploy surface:
   pnpm --filter @pen/api thumbnails:backfill --dry-run     # what it would do, and what it costs
   pnpm --filter @pen/api thumbnails:backfill --limit 50    # the 50 newest without one
   pnpm --filter @pen/api thumbnails:backfill               # everything
+  pnpm --filter @pen/api thumbnails:backfill --redraw      # also replace pre-ADR-0021 sketches
   ```
 
-  It walks the session index, skips sessions that are still live, repairs records whose files
-  are already on disk without calling anything, and runs the rest through the same queue the
-  rooms use — two model calls at a time, one session per lesson first so the others are served
-  from the cache. It prints a line per session and the total spend. On the host, run it inside
+  A backfill belongs to no learner, so it runs on `OPENAI_API_KEY_PLATFORM` and refuses to
+  start without it. It walks the session index, skips sessions that are still live, repairs
+  records whose files are already on disk without calling anything, and runs the rest through
+  the same queue the rooms use — two jobs at a time, one session per lesson first so the others
+  are served from the caches. It prints a line per session and the total spend. **`--redraw`
+  is the expensive one**: every lesson without a cached picture is a fresh $0.0163 generation,
+  so price it with `--dry-run` first. On the host, run it inside
   the api container: `docker compose exec api node dist/main.js` has no backfill entry point, so
   run it from a workstation against the production database, or `docker compose run --rm api
   node --import tsx scripts/thumbnails-backfill.ts --dry-run` on an image built with sources.

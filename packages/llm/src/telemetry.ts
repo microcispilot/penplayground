@@ -1,19 +1,31 @@
 import type { LessonEvent, TelemetryPort } from '@pen/contracts';
-import { llmCostLines } from '@pen/contracts';
+import { imageCostLines, llmCostLines } from '@pen/contracts';
 import type {
   CompletionRequest,
   EventStream,
   EventStreamRequest,
+  GeneratedImage,
+  ImageModel,
+  ImageRequest,
   LanguageModel,
   Usage,
 } from './types.js';
 
 /** A stable, content-free code from a thrown error ("LLM_REFUSAL: …" → "LLM_REFUSAL"). */
 export function llmErrorCode(error: unknown): string {
+  return errorCode('LLM', error);
+}
+
+/** The same, for the image endpoint ("IMAGE_NOT_PNG: …" → "IMAGE_NOT_PNG"); a 429 becomes "IMAGE_ERROR". */
+export function imageErrorCode(error: unknown): string {
+  return errorCode('IMAGE', error);
+}
+
+function errorCode(prefix: 'LLM' | 'IMAGE', error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const head = message.split(':')[0]?.trim() ?? '';
-  const code = /^[A-Z][A-Z0-9_]{2,60}$/.test(head) ? head : 'LLM_ERROR';
-  return code.startsWith('LLM_') ? code : `LLM_${code}`.slice(0, 80);
+  const code = /^[A-Z][A-Z0-9_]{2,60}$/.test(head) ? head : `${prefix}_ERROR`;
+  return code.startsWith(`${prefix}_`) ? code : `${prefix}_${code}`.slice(0, 80);
 }
 
 /**
@@ -88,6 +100,59 @@ export function withTelemetry(model: LanguageModel, telemetry: TelemetryPort): L
             model: model.id,
             firstTokenMs: -1,
             code: llmErrorCode(error),
+          },
+        });
+        throw error;
+      }
+    },
+  };
+}
+
+/**
+ * The same wrap for the image model: one `image` stage sample and two cost
+ * lines (the prompt in, the picture out) per generation, so a session's card
+ * picture is priced in its ledger exactly like every other provider call.
+ * A failure is a sample with `ok: false` and a code; the caller that catches
+ * the error owns the Sentry capture.
+ */
+export function withImageTelemetry(model: ImageModel, telemetry: TelemetryPort): ImageModel {
+  return {
+    id: model.id,
+    async generate(request: ImageRequest): Promise<GeneratedImage> {
+      const startedAt = Date.now();
+      try {
+        const result = await model.generate(request);
+        const { usage } = result;
+        telemetry.sample({
+          stage: 'image',
+          ms: usage.totalMs,
+          ok: true,
+          startedAt,
+          meta: {
+            purpose: request.purpose,
+            model: usage.model,
+            quality: request.quality,
+            size: `${request.size.width}x${request.size.height}`,
+            tokensIn: usage.inputTokens,
+            tokensOut: usage.outputTokens,
+            bytes: result.png.length,
+            usd: usage.usd,
+            reused: false,
+          },
+        });
+        for (const line of imageCostLines(usage, { purpose: request.purpose, reused: false }))
+          telemetry.cost(line);
+        return result;
+      } catch (error) {
+        telemetry.sample({
+          stage: 'image',
+          ms: Date.now() - startedAt,
+          ok: false,
+          startedAt,
+          meta: {
+            purpose: request.purpose,
+            model: model.id,
+            code: imageErrorCode(error),
           },
         });
         throw error;

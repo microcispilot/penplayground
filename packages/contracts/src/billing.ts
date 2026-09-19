@@ -3,6 +3,18 @@ import { z } from 'zod';
 export const PlanCode = z.enum(['free', 'standard', 'professional']);
 export type PlanCode = z.infer<typeof PlanCode>;
 
+/**
+ * Whose budget a provider call belongs to, and therefore which of the four
+ * OpenAI keys runs it. The three plans are a learner's work, chosen by the
+ * HOST'S plan and never falling back to one another — that is how spend is
+ * attributed and how one tier's rate limit is kept out of another's way.
+ * `platform` is the odd one out: work that belongs to no learner at all —
+ * backfills, probes, prewarming. A session's work, background jobs included,
+ * is never billed to it.
+ */
+export const KeyOwner = z.enum([...PlanCode.options, 'platform']);
+export type KeyOwner = z.infer<typeof KeyOwner>;
+
 export const Entitlement = z.enum([
   'no_ads',
   'rooms', // host multi-participant sessions

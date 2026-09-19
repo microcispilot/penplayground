@@ -8,6 +8,7 @@ export {
 } from './lesson-memo.js';
 export {
   type CachedSessionMeta,
+  type CachedThumbnailImage,
   META_MAX_OUTPUT_TOKENS,
   META_PURPOSE,
   planDigest,
@@ -17,7 +18,12 @@ export {
   SessionMetaJobs,
   type SessionMetaJobsOptions,
   type SessionMetaResult,
+  type SessionThumbnail,
   sessionMetaScope,
+  THUMBNAIL_PURPOSE,
+  type ThumbnailImageCacheKey,
+  type ThumbnailImageCachePort,
+  thumbnailDigest,
 } from './meta.js';
 export {
   type Metrics,
@@ -41,6 +47,7 @@ export {
   metaMessages,
   type SegmentOutline,
   SPEECH_RULES,
+  thumbnailImagePrompt,
 } from './prompts.js';
 export {
   type AdOutcome,

@@ -3,16 +3,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Expert, LessonPlan, SessionMeta } from '@pen/contracts';
 import { freshEstimateUsd } from '@pen/contracts';
-import { FakeLanguageModel } from '@pen/llm';
+import { FakeImageModel, FakeLanguageModel } from '@pen/llm';
 import { planDigest, SessionMetaJobs, sessionMetaScope } from '@pen/session-engine';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { demoScripts } from '../src/demo-scripts.js';
 import { FileSessionMetaCache, META_CACHE_FILE } from '../src/meta-cache.js';
 
 /**
- * The per-lesson card cache (ADR-0013): the second session on a topic reuses
- * the first one's description and sketch with zero model calls, and a lesson
- * that changed is drawn again.
+ * The per-lesson card-copy cache (ADR-0013): the second session on a topic
+ * reuses the first one's description with zero model calls, and a lesson that
+ * changed is written again. The picture has its own cache next door
+ * (`thumbnail-cache.test.ts`).
  */
 let dir: string;
 beforeEach(() => {
@@ -41,14 +42,11 @@ const expert: Expert = {
   gender: 'woman',
 };
 
-/** A card is a description plus a sketch; the eviction case only needs a valid one. */
+/** The eviction case only needs one valid card. */
 const card: SessionMeta = {
   description: 'A card.',
   keywords: ['a', 'b', 'c'],
   category: 'computing-data',
-  thumbnail: {
-    elements: [{ kind: 'label', text: 'Attention', x: 0, y: 0, w: 6, size: 'lg', ink: 'accent' }],
-  },
 };
 
 const plan: LessonPlan = {
@@ -84,6 +82,7 @@ const input = (
   topic: 'How Transformers work in LLMs',
   plan,
   language: 'en-US',
+  billTo: 'free' as const,
   canonicalId: 'en.how-transformers-work-in-llms',
   cacheKey: 'pen:lesson:ada:beginner',
   ...over,
@@ -118,7 +117,9 @@ async function runJobs(opts: {
   results: Array<{ sessionId: string; reused: boolean; savedUsd: number; meta: SessionMeta }>;
 }) {
   return new SessionMetaJobs({
-    model: opts.model,
+    modelFor: () => opts.model,
+    imageFor: () => new FakeImageModel(),
+    quality: 'low',
     cache: opts.cache,
     onResult: (i, r) => {
       opts.results.push({
@@ -155,7 +156,7 @@ describe('the card cache', () => {
     expect(results[1]?.reused).toBe(true);
     // The same card, and an honest account of what not drawing it saved.
     expect(results[1]?.meta.description).toBe(results[0]?.meta.description);
-    expect(results[1]?.meta.thumbnail).toEqual(results[0]?.meta.thumbnail);
+    expect(results[1]?.meta.keywords).toEqual(results[0]?.meta.keywords);
     // Nothing was billed, and what the call would have cost is recorded instead.
     expect(results[1]?.savedUsd).toBeCloseTo(freshEstimateUsd('sessionMeta', 'gpt-5.6-luna'), 10);
     expect(results[1]?.savedUsd).toBeGreaterThan(0);
