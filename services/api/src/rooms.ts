@@ -25,6 +25,7 @@ import type { WebSocket } from 'ws';
 import { detectSpokenLanguage } from './language.js';
 import { observer, scopedObserver } from './observability.js';
 import type { Services } from './services.js';
+import type { EndReason } from './stats/derive.js';
 import { computeTelemetry, sessionEndedProperties, stageProperties } from './telemetry.js';
 
 /**
@@ -396,7 +397,7 @@ export class RoomRegistry {
     if (seat) live.room.leave(seat.participantId);
   }
 
-  async end(sessionId: string): Promise<void> {
+  async end(sessionId: string, reason: EndReason = 'host'): Promise<void> {
     const live = this.rooms.get(sessionId);
     if (!live) return;
     await live.room.end();
@@ -448,6 +449,14 @@ export class RoomRegistry {
       recap: state.recap ?? [],
       questions: live.room.backlog().filter((c) => c.event.type === 'note').length,
     });
+    // Hand this session's ledger to the statistics queue (ADR-0027). A map
+    // write and nothing more: the derivation itself happens on `main`'s drain
+    // loop, seconds later, so no report ever shares the connection with a
+    // lesson's own last writes.
+    this.services.deriver.enqueue(sessionId, {
+      completed: state.mode === 'complete',
+      endReason: reason,
+    });
     // Keep the ended room around briefly so late "state" reads succeed, then release.
     setTimeout(() => this.rooms.delete(sessionId), 60_000);
   }
@@ -470,7 +479,10 @@ export class RoomRegistry {
           plan: live.plan,
           minutes: PLAN_LIMITS[live.plan].maxSessionMinutes,
         });
-      if (idle || tooLong) void this.end(id);
+      // Which of the two closed it is the difference between "they walked
+      // away" and "their plan's hour ran out", and the statistics keep them apart.
+      if (tooLong) void this.end(id, 'length_ceiling');
+      else if (idle) void this.end(id, 'idle');
     }
   }
 }

@@ -1,6 +1,7 @@
-import type { InteractionName, InteractionProps } from '@pen/contracts';
+import type { InteractionName, InteractionProps, VisitAction } from '@pen/contracts';
 import type { PostHog } from 'posthog-js';
 import type { Monitor, Platform } from '../platform/types.js';
+import { noteLessonPlaying, noteVisitAction } from './visits.js';
 
 /**
  * Client analytics (ADR-0011). Page views and typed interaction events; no
@@ -159,7 +160,42 @@ export function setRoomReporter(
 /** The learner clicked Start: remembered so the room can measure click → first audible audio. */
 export function markStartClicked(): void {
   startClickedAt = Date.now();
+  // The one action that is a decision rather than a screen: it is what turns
+  // a visit into a lesson, and the visit conversion rate is built on it.
+  noteVisitAction('session_started');
 }
+
+/**
+ * The interactions that are also visit counters (ADR-0027). Kept here rather
+ * than at each call site so a new screen cannot forget one, and deliberately
+ * a small closed map: a visit counts what a person decided to do, not
+ * everything that happened to them.
+ */
+const VISIT_COUNTERS: Partial<Record<InteractionName, VisitAction>> = {
+  replay_started: 'replay_started',
+  download_requested: 'download_requested',
+};
+
+/**
+ * Whether a lesson is audible right now, which is the one state in which
+ * sitting perfectly still counts as engagement (ADR-0027). Derived from the
+ * events the room and the replay already send, rather than from a new signal
+ * nobody would remember to send: the expert starts talking, or a paused
+ * lesson resumes, and it is on; the learner pauses, leaves, ends, or walks to
+ * another screen, and it is off.
+ */
+const LESSON_AUDIBLE: Partial<Record<InteractionName, boolean>> = {
+  first_audio: true,
+  answer_started: true,
+  resume: true,
+  pause: false,
+  leave: false,
+  end: false,
+  recap_shown: false,
+};
+
+/** The two screens a lesson can be audible on; any other screen turns it off. */
+const LESSON_SCREENS = new Set(['room', 'replay']);
 
 /** Consumes the Start click (once) when it is recent enough to belong to this room visit. */
 export function takeStartClickedAt(maxAgeMs = 90_000): number | null {
@@ -181,6 +217,13 @@ export function trackInteraction(
     report?: boolean;
   } = {},
 ): void {
+  const counter = VISIT_COUNTERS[event];
+  if (counter) noteVisitAction(counter, context.sessionId ?? undefined);
+  const audible = LESSON_AUDIBLE[event];
+  if (audible !== undefined) noteLessonPlaying(audible);
+  // Leaving the room or the replay ends it however the learner left.
+  if (event === 'screen_shown' && !LESSON_SCREENS.has(String(props.screen ?? context.screen)))
+    noteLessonPlaying(false);
   const enriched: Record<string, string | number | boolean> = { ...props, screen: context.screen };
   if (context.sessionId) enriched.sessionId = context.sessionId;
   if (context.role) enriched.role = context.role;

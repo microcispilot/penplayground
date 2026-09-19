@@ -18,6 +18,7 @@ import { trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 import { dirOf, useDocumentLanguage } from '../lib/locale.js';
 import { useSeo } from '../lib/seo.js';
+import { noteVisitAction } from '../lib/visits.js';
 
 const LedgerResponse = z.object({
   session: SessionRecordSchema,
@@ -505,6 +506,10 @@ export function SessionPage() {
                   variant="secondary"
                   leading={<Share2 size={14} />}
                   onClick={() => {
+                    // Counted against the session, so "how often was this
+                    // shared" is answerable (ADR-0027); no URL is sent, only
+                    // that it happened and for which session.
+                    noteVisitAction('share_copied', id);
                     if (navigator.share)
                       void navigator.share({ title: s?.title ?? 'Pen Playground', url: shareUrl });
                     else void navigator.clipboard?.writeText(shareUrl);

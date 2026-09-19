@@ -42,7 +42,25 @@ export async function startLesson(
 ): Promise<void> {
   await page.goto(`${UI_WEB}/`);
   await page.getByLabel('What do you want to learn?').fill(topic);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  /*
+   * Click until it takes. Home refuses to start a lesson before the anonymous
+   * bearer has come back — it says "Connecting to Pen Playground…" and does
+   * nothing else — and the input is on screen a couple of hundred
+   * milliseconds before that answer is. A single click into that window
+   * leaves the page on Home and every assertion below waiting for a board
+   * nobody asked for, which is a five-minute timeout and a mystery. A learner
+   * would click again; so does this.
+   */
+  const start = page.getByRole('button', { name: 'Start', exact: true });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await start.click();
+    try {
+      await page.waitForURL(/\/room\//, { timeout: 3_000 });
+      break;
+    } catch {
+      if (attempt === 4) throw new Error('Start never opened a room');
+    }
+  }
   // The board is a lazy chunk: wait for the paper, not just the route.
   await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });

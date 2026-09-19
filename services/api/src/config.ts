@@ -195,6 +195,35 @@ export const Env = z.object({
 
   /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
   PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().max(1_000).default(5),
+  /**
+   * Statistics and reports (ADR-0027). `PEN_ADMIN_EMAILS` above is the same
+   * list the operations console uses (ADR-0026) — one set of people who may
+   * see `/api/admin/*`, not two. `PEN_ADMIN_TOKEN` is the machine equivalent,
+   * for a scheduled export or a probe, and is ignored below 32 characters.
+   */
+  PEN_ADMIN_TOKEN: z.string().optional(),
+  /**
+   * Count visits — including visitors who never sign in — and the engaged
+   * time they spend. 0 turns the ingest off entirely: `POST /api/visits`
+   * still answers, and writes nothing.
+   */
+  PEN_VISIT_STATS: z
+    .enum(['0', '1', 'true', 'false'])
+    .default('1')
+    .transform((v) => v === '1' || v === 'true'),
+  /**
+   * Read `CF-IPCountry` / `X-Geo-Country` / `X-Geo-Region` / `X-Geo-City`
+   * from the proxy in front of us. Off by default, and it must stay off
+   * unless the edge really does set them and strips what a client sent:
+   * otherwise a visitor can choose their own country. Today nothing in
+   * `deploy/` sets them, so the country comes from the browser's own
+   * timezone and every row says so (`site_visits.geo_source`).
+   */
+  PEN_TRUST_GEO_HEADERS: z
+    .enum(['0', '1', 'true', 'false'])
+    .default('0')
+    .transform((v) => v === '1' || v === 'true'),
+
   /** Largest JSON body any route accepts. Every route here is small; 64 KB is generous. */
   PEN_MAX_BODY_BYTES: z.coerce
     .number()

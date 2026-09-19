@@ -14,6 +14,7 @@ export * from './pricing.js';
 export * from './reactions.js';
 export * from './runtime-config.js';
 export * from './session.js';
+export * from './stats.js';
 export * from './telemetry.js';
 export * from './thumbnail.js';
 export * from './wire.js';

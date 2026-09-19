@@ -50,6 +50,7 @@ import {
   sitemapXml,
 } from './seo.js';
 import { DATA_DIR, type Services } from './services.js';
+import { registerStatsRoutes } from './stats/routes.js';
 import { aggregateReuse, computeTelemetry } from './telemetry.js';
 import { THUMB_CONTENT_TYPE, THUMB_FILES, THUMB_SIZES, type ThumbnailKind } from './thumbnails.js';
 import { publicUrl } from './urls.js';
@@ -431,7 +432,19 @@ export function buildApp(services: Services): App {
     if (body.data.analyticsOptOut !== undefined) {
       row = await services.participants.setAnalyticsOptOut(claims.sub, body.data.analyticsOptOut);
       services.analytics.setOptOut(claims.sub, body.data.analyticsOptOut);
-      observer.event('privacy.analytics_choice', { optOut: body.data.analyticsOptOut });
+      // Turning it off erases the visits already counted, not only the next
+      // ones: "not counted at all" cannot mean "counted until you noticed"
+      // (ADR-0018, ADR-0027). Never fatal to the setting itself.
+      const removed = body.data.analyticsOptOut
+        ? await services.stats.removeVisits(claims.sub).catch((error: unknown) => {
+            observer.error('stats.remove_visits', error);
+            return 0;
+          })
+        : 0;
+      observer.event('privacy.analytics_choice', {
+        optOut: body.data.analyticsOptOut,
+        visitsRemoved: removed,
+      });
     }
     if (body.data.pace !== undefined)
       row = await services.participants.setPace(claims.sub, clampPace(body.data.pace));
@@ -515,6 +528,11 @@ export function buildApp(services: Services): App {
             anonymous: claims.anonymous,
           }),
       sessions,
+      // Everything the statistics hold about this person (ADR-0027). Their
+      // sessions' derived rows are facts about the sessions above; these are
+      // the rows about *them*, and a data export that left them out would be
+      // an incomplete answer to "everything you hold about me".
+      visits: await services.stats.visitsOf(claims.sub).catch(() => []),
       note: 'Recorded audio is not included; open a session to replay it.',
     });
   });
@@ -532,6 +550,11 @@ export function buildApp(services: Services): App {
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
     const ids = await services.sessions.idsForHost(claims.sub);
     for (const id of ids) await endAndErase(id);
+    // Visits and the subscription's history are theirs as well; the sessions
+    // above took their derived rows with them (ADR-0027).
+    await services.stats
+      .removeParticipant(claims.sub)
+      .catch((error: unknown) => observer.error('stats.remove_participant', error));
     const removed = await services.participants.remove(claims.sub);
     services.analytics.setOptOut(claims.sub, true);
     observer.event('privacy.account_deleted', { sessions: ids.length, removed });
@@ -977,6 +1000,13 @@ export function buildApp(services: Services): App {
     services.exports.forget(sessionId);
     services.ledger.remove(sessionId);
     await services.sessions.remove(sessionId);
+    // The statistics are derived from what was just erased, so they go too
+    // (ADR-0027). A failure here must not turn a deletion into an error the
+    // learner sees: the row is orphaned, and the backfill's own cleanup
+    // catches it.
+    await services.stats
+      .removeSession(sessionId)
+      .catch((error: unknown) => observer.error('stats.remove_session', error, { sessionId }));
   };
 
   const Visibility = z.object({ visibility: z.enum(['public', 'private']) });
@@ -1477,6 +1507,18 @@ export function buildApp(services: Services): App {
     if (!email || !adminEmails.has(email)) return null;
     return { id: row.id, name: row.name, email };
   };
+
+  /**
+   * Statistics and reports (ADR-0027): the visit beacon, and every admin-only
+   * aggregate behind the same allow-list as the console above. Registered
+   * here rather than beside the other routes so it shares that one `admin`
+   * check, and `bearer` — which is what keeps the analytics opt-out current.
+   */
+  registerStatsRoutes(app, {
+    services,
+    bearer,
+    isAdmin: async (header) => (await admin(header)) !== null,
+  });
 
   /**
    * Whether this bearer may open the admin app, and who it belongs to. The

@@ -8,6 +8,7 @@ import { initSentry, observer, startCronHeartbeat } from './observability.js';
 import { ReadinessProbe } from './readiness.js';
 import { seedPacks } from './seed-packs.js';
 import { buildServices, DATA_DIR } from './services.js';
+import { STATS_DRAIN_MS } from './stats/deriver.js';
 
 const cfg = loadConfig();
 const sentry = initSentry(cfg);
@@ -31,7 +32,27 @@ const server = serve({ fetch: app.fetch, port: cfg.PEN_PORT }, (info) => {
 });
 injectWebSocket(server);
 
-const sweeper = setInterval(() => rooms.sweep(), 60_000);
+const sweeper = setInterval(() => {
+  rooms.sweep();
+  // Visits that stopped sending are closed on the same minute as idle rooms,
+  // so a report never has to treat "still open" as a special case (ADR-0027).
+  void services.visits.sweep(Date.now());
+}, 60_000);
+
+/**
+ * Finished sessions become rows here and nowhere else (ADR-0027): off every
+ * request path, off every room's teardown, one session at a time, and never
+ * able to fail anything but itself.
+ */
+const statsDrain = setInterval(() => {
+  void services.deriver
+    .drain()
+    .then((n) => {
+      if (n > 0) logger.debug({ evt: 'stats.drained', sessions: n });
+    })
+    .catch((error: unknown) => observer.error('stats.drain', error));
+}, STATS_DRAIN_MS);
+statsDrain.unref();
 
 // Dead-man's switch: the same readiness the healthcheck asks for, reported to
 // Sentry Crons every few minutes. Silence (a crashed or wedged process) is an
@@ -63,10 +84,12 @@ if (warmer) {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
+    clearInterval(statsDrain);
     stopHeartbeat?.();
     services.config.stop();
     services.exports.close();
     services.meta.close();
+    services.deriver.close();
     logger.info({ signal }, 'shutting down');
     server.close(
       () =>

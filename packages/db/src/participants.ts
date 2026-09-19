@@ -154,10 +154,37 @@ export class ParticipantRepository {
     id: string,
     plan: ParticipantRow['plan'],
     stripeCustomerId?: string,
+    /**
+     * What Stripe's price and subscription say beyond the plan code. `plan`
+     * alone cannot tell a monthly subscriber from a yearly one, and that split
+     * is most of what the owner's subscription statistics are (ADR-0027).
+     * Omitted fields are left as they were, so a webhook that does not carry
+     * an interval never erases one that did.
+     */
+    billing?: {
+      interval?: 'month' | 'year' | null;
+      status?: string | null;
+      since?: Date;
+    },
   ): Promise<void> {
     await this.db
       .update(participants)
-      .set({ plan, ...(stripeCustomerId ? { stripeCustomerId } : {}) })
+      .set({
+        plan,
+        ...(stripeCustomerId ? { stripeCustomerId } : {}),
+        ...(billing?.interval !== undefined ? { planInterval: billing.interval } : {}),
+        ...(billing?.status !== undefined ? { planStatus: billing.status } : {}),
+        ...(billing?.since !== undefined ? { planSince: billing.since } : {}),
+      })
       .where(eq(participants.id, id));
+  }
+
+  /** Everyone who has turned analytics off: the visit ingest checks this set. */
+  async optedOutIds(): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: participants.id })
+      .from(participants)
+      .where(eq(participants.analyticsOptOut, true));
+    return rows.map((r) => r.id);
   }
 }
