@@ -27,7 +27,7 @@ export function PenMark({ size = 22, className }: { size?: number; className?: s
         strokeWidth="1.2"
         strokeLinecap="round"
       />
-      <circle cx="17.5" cy="5" r="2.6" fill="var(--color-primary)" />
+      <circle cx="17.5" cy="5" r="2.6" fill="var(--color-primary-fixed)" />
     </svg>
   );
 }
@@ -165,7 +165,8 @@ export function AppHeader({
         ) : (
           <button
             type="button"
-            className="state-layer ml-1 flex h-9 items-center rounded-full bg-primary-container px-4 text-label-large text-on-primary-container"
+            /* M3 filled button: for a signed-out visitor this is the highest-emphasis action on the page, and the only place the chrome carries the brand. */
+            className="state-layer ml-1 flex h-9 items-center rounded-full bg-primary-fixed px-4 text-label-large text-on-primary-fixed"
             onClick={() => setNaming(true)}
             data-testid="account-chip"
           >

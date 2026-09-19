@@ -4,7 +4,8 @@ import { type APIRequestContext, expect, type Page, test } from '@playwright/tes
 import { endSession, startLesson, UI_WEB, useTheme, waitForInk } from './ui-helpers.js';
 
 /**
- * The brand review: six families, two themes, six screens, one width.
+ * The brand review: the chosen brand and five alternatives, two themes, six
+ * screens, one width.
  *
  * The owner asked for "a real better branding colour, something youtubish",
  * and a colour is not a thing anyone can decide from a hex. This spec produces
@@ -15,12 +16,17 @@ import { endSession, startLesson, UI_WEB, useTheme, waitForInk } from './ui-help
  * one screen differ in colour and in nothing else. Flip between them and you
  * are looking at the decision rather than at the noise.
  *
- * The board matters more than the chrome here. Every sketch an expert draws is
- * drawn in `--color-ink-accent`, and a red app around teal drawings reads as
- * two products — that is the reason teal survived the last brand review. So
- * each family in `tokens.css` re-tunes the ink, and `theBoardIsDrawnInTheBrand`
- * below proves it on the live board before the picture is taken: a candidate
- * whose board still draws teal is not a candidate, and this spec will say so
+ * The decision has since been made — the red in `@theme` is `brand` below,
+ * reached by removing the attribute — and the spec is kept rather than
+ * deleted, because the next brand question deserves the same pictures and
+ * because a regression in the chosen one shows up here first.
+ *
+ * The board matters more than the chrome. Every sketch an expert draws is
+ * drawn in `--color-ink-accent`, and a page in one hue around drawings in
+ * another reads as two products. So every family in `tokens.css` declares its
+ * own ink, and `theBoardIsDrawnInTheBrand` below proves it on the live board
+ * before the picture is taken: a candidate whose board is still painted in
+ * some other family's ink is not a candidate, and this spec will say so
  * rather than quietly photographing one.
  *
  *   pnpm --filter @pen/web exec playwright test e2e/ui-brand.spec.ts --project=chromium
@@ -37,20 +43,29 @@ const WIDTH = 1440;
 const HEIGHT = 900;
 
 /**
- * `teal` first and last in spirit: it is the control, and every comparison
- * needs one. It is reached by *removing* the attribute, because teal is not a
- * family in `tokens.css` — it is the default that `@theme` declares.
+ * `brand` first: it is what a learner sees, and every comparison needs the
+ * shipping thing in it. It is reached by *removing* the attribute, because
+ * the brand is not a family in `tokens.css` — it is what `@theme` declares.
+ * `teal` is what the platform was before it, kept as a family so the change
+ * stays reversible and so a rendered-before-the-rebrand board has its ink.
  */
-const FAMILIES = ['teal', 'youtube', 'vermilion', 'coral', 'ember', 'signal'] as const;
+const FAMILIES = ['brand', 'teal', 'youtube', 'vermilion', 'coral', 'ember'] as const;
 type Family = (typeof FAMILIES)[number];
 const THEMES = ['light', 'dark'] as const;
 
-/** Teal's ink, the value `@theme` pins (tokens.css: "#008EAA, the brand teal"). */
-const TEAL_INK = 'oklch(0.597 0.107 218.3)';
+/** The board's ink under each family, as `tokens.css` declares it. */
+const INK: Record<Family, string> = {
+  brand: 'oklch(0.592 0.228 29.3)', // #E62117
+  teal: 'oklch(0.597 0.107 218.3)', // #008EAA
+  youtube: 'oklch(0.628 0.258 29.2)',
+  vermilion: 'oklch(0.592 0.228 29.3)',
+  coral: 'oklch(0.632 0.225 28.5)',
+  ember: 'oklch(0.592 0.228 29.3)',
+};
 
 async function applyFamily(page: Page, family: Family): Promise<void> {
   await page.evaluate((name) => {
-    if (name === 'teal') document.documentElement.removeAttribute('data-brand');
+    if (name === 'brand') document.documentElement.removeAttribute('data-brand');
     else document.documentElement.setAttribute('data-brand', name);
   }, family);
   // Colour transitions in the design system are --duration-base (200 ms).
@@ -62,8 +77,8 @@ async function applyFamily(page: Page, family: Family): Promise<void> {
  *
  * Two separate claims. The first is that the cascade took the attribute. The
  * second is the one this whole exercise turns on: that a shape already drawn
- * on the live board is now painted in the candidate's ink rather than in
- * teal — the sketches are SVG filled with `var(--color-ink-accent)`
+ * on the live board is now painted in this family's ink and not in some other
+ * family's — the sketches are SVG filled with `var(--color-ink-accent)`
  * (packages/board/src/shapes/ink-text.tsx, ink-stroke.tsx), so a brand that
  * re-tunes the token repaints the drawing without re-teaching the lesson.
  */
@@ -71,8 +86,7 @@ async function theBoardIsDrawnInTheBrand(page: Page, family: Family): Promise<vo
   const declared = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-ink-accent').trim(),
   );
-  if (family === 'teal') expect(declared).toBe(TEAL_INK);
-  else expect(declared, `${family} must re-tune the board ink`).not.toBe(TEAL_INK);
+  expect(declared, `${family} must draw the board in its own ink`).toBe(INK[family]);
 
   /*
    * What the ink resolves to, and what the drawing is actually painted in.
@@ -199,6 +213,32 @@ test.describe('brand candidates, side by side', () => {
     });
 
     /**
+     * The owner's instruction, checked on the rendered page rather than in
+     * the stylesheet: "the same red youtubish colour like what is used in
+     * sign in to be used both for dark and light". Sign in is the button
+     * they pointed at, so Sign in is what this reads — and it reads the
+     * computed background, which is the only thing that survives the whole
+     * cascade, Tailwind's generated utilities included.
+     */
+    test(`Sign in is the brand red itself in ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width: WIDTH, height: HEIGHT });
+      await useTheme(page, theme);
+      await page.goto(`${UI_WEB}/`);
+      const signIn = page.getByRole('button', { name: 'Sign in' });
+      await expect(signIn).toBeVisible({ timeout: 30_000 });
+      const [painted, declared] = await Promise.all([
+        signIn.evaluate((el) => getComputedStyle(el).backgroundColor),
+        page.evaluate(() =>
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-primary-fixed')
+            .trim(),
+        ),
+      ]);
+      expect(declared, 'the brand hex the owner chose').toBe('#e62117');
+      expect(painted, `Sign in in ${theme}`).toBe('rgb(230, 33, 23)');
+    });
+
+    /**
      * The room gets a test of its own because it costs a real lesson: the
      * expert has to teach long enough to put ink on the board before a
      * candidate's ink means anything. One lesson serves all five families,
@@ -215,11 +255,11 @@ test.describe('brand candidates, side by side', () => {
       await page.waitForTimeout(6_000);
       await everyFamily(page, 'room', theme, (family) => theBoardIsDrawnInTheBrand(page, family));
 
-      // Five families, five inks: the board is not merely repainting, it is
-      // repainting differently. (Four distinct reds plus teal would be five;
-      // what must never happen is a candidate silently drawing teal.)
+      // The board is not merely repainting, it is repainting differently: the
+      // brand and the platform it replaced must never resolve to one ink, or
+      // the attribute is doing nothing and every shot above is the same shot.
       expect(new Set(seen.values()).size, `inks seen: ${[...seen].join(', ')}`).toBeGreaterThan(1);
-      expect(seen.get('teal')).not.toBe(seen.get('youtube'));
+      expect(seen.get('brand')).not.toBe(seen.get('teal'));
 
       /*
        * And the same lesson once it is saved — the picture that shows what a

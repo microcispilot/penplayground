@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../cn.js';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'neutral' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -32,10 +32,21 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const base =
   'state-layer inline-flex items-center justify-center gap-2 whitespace-nowrap select-none rounded-full transition-[background-color,color,box-shadow,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)] disabled:opacity-disabled disabled:cursor-not-allowed active:scale-[0.985]';
 
+/**
+ * `primary` fills in `primary-fixed`, not `primary`: a filled button is one of
+ * the surfaces that carries the brand, and the brand is the one hex that does
+ * not change between themes (tokens.css, "The brand red, in M3's two halves").
+ * `primary` itself stays the toned role, for the label of a text or outlined
+ * button, where it has to clear 4.5:1 against the page.
+ */
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-on-primary',
+  primary: 'bg-primary-fixed text-on-primary-fixed',
   secondary: 'bg-transparent text-primary border border-outline',
   ghost: 'bg-transparent text-primary',
+  // M3's filled-tonal button. For an action that is decisive but not a
+  // mistake — ending a session you meant to end — which is why it is not
+  // `danger`: this product does not paint ordinary states in alarm colours.
+  neutral: 'bg-surface-container-highest text-on-surface',
   danger: 'bg-error text-on-error',
 };
 

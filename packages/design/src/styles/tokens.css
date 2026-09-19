@@ -13,17 +13,20 @@
  *            (`-increased` and `xxl` are the Expressive additions, 20/32/48 px)
  *   · state  `@material/web@2.5.0` → tokens/versions/v0_192/_md-sys-state.scss
  *   · colour `@material/material-color-utilities@0.4.0` — tonal spot, read
- *            through `MaterialDynamicColors`, seeded with the brand teal
- *            #008EAA. Neither package is a dependency of this repo: they
- *            generate these values, and the values are the artefact.
+ *            through `MaterialDynamicColors`. Neither package is a dependency
+ *            of this repo: they generate these values, and the values are the
+ *            artefact.
  *
  *            `packages/design/scripts/brand.ts` is that generator, and it can
- *            re-derive every colour below from its seed — run it on #008EAA
- *            with `--full` and it prints this file's `@theme` roles hex for
- *            hex. `test/brand-generator.test.ts` asserts that; adding a brand
- *            family is now a command rather than an afternoon.
+ *            re-derive every seeded family below — run it on #008EAA with
+ *            `--full` and it prints the teal family hex for hex.
+ *            `test/brand-generator.test.ts` asserts that; adding a seeded
+ *            brand family is a command rather than an afternoon.
  *            `test/design-system.test.ts` re-measures every pair that carries
  *            text, under every family.
+ *
+ *            The *default* family is the one exception, and it is deliberate:
+ *            see "the brand red" below.
  *
  * Two owner constraints shape the colour, and both are honoured inside M3's
  * own machinery rather than around it:
@@ -34,12 +37,17 @@
  *   would have made every dark panel read as lacquered blue-grey; that is the
  *   look this replaces.)
  *
- *   Teal. Every board sketch is drawn in teal ink, so the primary palette is
- *   seeded from #008EAA and the ink tokens further down are pinned to the same
- *   tone. A different hue would make the session page read as two brands —
- *   which is why the candidate families at the bottom of this file re-tune the
- *   ink as well as the chrome. Teal is the default and the control; nothing in
- *   its blocks has moved.
+ *   The brand red. #E62117 — not generated, pinned, and carried by
+ *   `primary-fixed` so it is the same hex in light and dark. M3's tonal
+ *   ladder cannot carry a saturated red: tonal spot caps primary chroma at 36
+ *   against a red seed's 90–113, and every variant puts dark-mode primary at
+ *   tone 80, which is #ffb4a8 — the error role to within ΔE 0.004. The four
+ *   generated red families at the bottom of this file are the evidence.
+ *   `primary` stays toned per theme because text has to be readable and no
+ *   single colour can be; the containers under both are the same chroma-0
+ *   greys as every other surface, and error moves to magenta. The board ink
+ *   moves with the brand: a page in one hue around sketches in another reads
+ *   as two products.
  */
 @import "tailwindcss/theme" layer(theme);
 
@@ -196,28 +204,51 @@
    * The dark scheme re-assigns exactly these names further down.
    * ────────────────────────────────────────────────────────────────────── */
 
-  /* primary: the brand teal #008EAA through M3's tonal-spot variant */
-  --color-primary: #00677c;
+  /*
+   * The brand red, in M3's two halves.
+   *
+   * `primary-fixed` is the brand itself: #E62117, the same hex in both
+   * themes, and M3's own role for a colour that must not change between them.
+   * It fills the mark, Sign in and Start — the three places that say "this is
+   * Pen" — and it is what the board draws in.
+   *
+   * `primary` is the same red made readable, and it cannot be one hex: no
+   * colour whatsoever clears 4.5:1 against both #ffffff and #353535 — the
+   * arithmetic forbids it, for teal as much as for red. So the role that
+   * carries *text* (links, a tab underline, a speaker's name, a ghost button)
+   * is toned per theme, while the role that carries the *brand* is not.
+   */
+  --color-primary: #c00003;
   --color-on-primary: #ffffff;
-  --color-primary-container: #b2ebff;
-  --color-on-primary-container: #004e5e;
-  --color-inverse-primary: #86d1e9;
+  --color-primary-container: #e8e8e8;
+  --color-on-primary-container: #1b1b1b;
+  --color-inverse-primary: #ff7a6e;
+  --color-primary-fixed: #e62117;
+  --color-on-primary-fixed: #ffffff;
 
-  /* secondary: M3's calmer companion — the fill under a selected nav row */
-  --color-secondary: #4b626a;
+  /* secondary: the fill under a selected nav row — neutral, so the red stays the only hue. */
+  --color-secondary: #474747;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #cee7f0;
-  --color-on-secondary-container: #344a51;
+  --color-secondary-container: #e2e2e2;
+  --color-on-secondary-container: #1b1b1b;
 
   --color-tertiary: #585c7e;
   --color-on-tertiary: #ffffff;
   --color-tertiary-container: #dfe0ff;
   --color-on-tertiary-container: #414465;
 
-  --color-error: #ba1a1a;
+  /*
+   * error: magenta, not red. M3's own error is #ba1a1a — one degree of hue
+   * from the brand and 1.1:1 against it. What error cannot be is the brand.
+   * Seeded from #B0008A rather than from a rose: a rose error is only ΔE
+   * 0.095 from this red in OKLab, inside the 0.15 that the separation gate
+   * calls "shades of one another". At hue 341 it clears the gate in both
+   * themes (0.175 light, 0.157 dark) and still reads as something gone wrong.
+   */
+  --color-error: #b1008b;
   --color-on-error: #ffffff;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  --color-error-container: #ffd8ec;
+  --color-on-error-container: #88006a;
 
   /*
    * Surfaces. Chroma 0: a panel lifts off the page by lightness alone, which
@@ -281,12 +312,13 @@
   --color-paper: oklch(0.975 0.008 80);
   --color-paper-grid: oklch(0.285 0.062 247.7 / 16%);
   --color-ink: oklch(0.27 0.055 248);
-  --color-ink-accent: oklch(0.597 0.107 218.3); /* #008EAA, the brand teal */
-  --color-ink-warn: oklch(0.47 0.173 20.4);
+  --color-ink-accent: oklch(0.592 0.228 29.3); /* #E62117, the brand red, 4.25:1 on paper */
+  /* Warn is amber, not red: the brand took red's hue, and two reds on one sheet are one red. */
+  --color-ink-warn: oklch(0.457 0.15 62);
   --color-ink-muted: oklch(0.58 0.03 247);
   --color-ink-highlight: oklch(0.88 0.12 90 / 55%);
-  /* A live voice on that same board; teal for the same reason as the ink. */
-  --color-speaking: oklch(0.66 0.1 216);
+  /* A live voice on that same board; the brand red for the same reason as the ink. */
+  --color-speaking: oklch(0.655 0.212 29.3);
   /*
    * The expert orb's pulse (`@keyframes ring`). Two tokens rather than one
    * because a keyframe cannot add an alpha to a colour it was handed, and the
@@ -295,8 +327,8 @@
    * ink, so a family that re-tunes the board re-tunes the pulse with it, and
    * `packages/design/scripts/brand.ts` emits all four together.
    */
-  --color-ring-pulse: oklch(0.597 0.107 218.3 / 45%);
-  --color-ring-pulse-out: oklch(0.597 0.107 218.3 / 0%);
+  --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
+  --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
 
   /*
    * Captions sit on the board, and the board is always paper. These three are
@@ -418,23 +450,23 @@
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-primary: #86d1e9;
-    --color-on-primary: #003642;
-    --color-primary-container: #004e5e;
-    --color-on-primary-container: #b2ebff;
-    --color-inverse-primary: #00677c;
-    --color-secondary: #b2cad3;
-    --color-on-secondary: #1d343b;
-    --color-secondary-container: #344a51;
-    --color-on-secondary-container: #cee7f0;
+    --color-primary: #ff7a6e;
+    --color-on-primary: #690001;
+    --color-primary-container: #2a2a2a;
+    --color-on-primary-container: #e2e2e2;
+    --color-inverse-primary: #c00003;
+    --color-secondary: #c6c6c6;
+    --color-on-secondary: #1b1b1b;
+    --color-secondary-container: #353535;
+    --color-on-secondary-container: #e2e2e2;
     --color-tertiary: #c1c4eb;
     --color-on-tertiary: #2a2e4d;
     --color-tertiary-container: #414465;
     --color-on-tertiary-container: #dfe0ff;
-    --color-error: #ffb4ab;
-    --color-on-error: #690005;
-    --color-error-container: #93000a;
-    --color-on-error-container: #ffdad6;
+    --color-error: #ffaedd;
+    --color-on-error: #60004a;
+    --color-error-container: #88006a;
+    --color-on-error-container: #ffd8ec;
     --color-surface: #131313;
     --color-surface-dim: #131313;
     --color-surface-bright: #393939;
@@ -465,23 +497,23 @@
   }
 }
 :root[data-theme="dark"] {
-  --color-primary: #86d1e9;
-  --color-on-primary: #003642;
-  --color-primary-container: #004e5e;
-  --color-on-primary-container: #b2ebff;
-  --color-inverse-primary: #00677c;
-  --color-secondary: #b2cad3;
-  --color-on-secondary: #1d343b;
-  --color-secondary-container: #344a51;
-  --color-on-secondary-container: #cee7f0;
+  --color-primary: #ff7a6e;
+  --color-on-primary: #690001;
+  --color-primary-container: #2a2a2a;
+  --color-on-primary-container: #e2e2e2;
+  --color-inverse-primary: #c00003;
+  --color-secondary: #c6c6c6;
+  --color-on-secondary: #1b1b1b;
+  --color-secondary-container: #353535;
+  --color-on-secondary-container: #e2e2e2;
   --color-tertiary: #c1c4eb;
   --color-on-tertiary: #2a2e4d;
   --color-tertiary-container: #414465;
   --color-on-tertiary-container: #dfe0ff;
-  --color-error: #ffb4ab;
-  --color-on-error: #690005;
-  --color-error-container: #93000a;
-  --color-on-error-container: #ffdad6;
+  --color-error: #ffaedd;
+  --color-on-error: #60004a;
+  --color-error-container: #88006a;
+  --color-on-error-container: #ffd8ec;
   --color-surface: #131313;
   --color-surface-dim: #131313;
   --color-surface-bright: #393939;
@@ -513,20 +545,19 @@
 
 /* ── brand: the one attribute that changes the platform's colour ──────────
  *
- * Teal is the brand and lives in `@theme` above; it is what the board is drawn
- * in, so it is not a preference. Two other families are kept declared for the
- * day the owner wants to see the platform in them — `<html data-brand="green">`
- * — each generated the same way, from the same M3 tonal-spot variant seeded
- * with the brand colour (green #78BE21, forest #2D5652).
+ * The brand red lives in `@theme` above and needs no attribute. Everything
+ * below is a family: `<html data-brand="green">` swaps the platform's hue at
+ * runtime, which is what makes a brand review possible and what makes this
+ * one reversible — `data-brand="teal"` is the platform exactly as it was.
  *
- * A family re-declares the primary and secondary roles and nothing else. The
- * surfaces do not move: they are chroma-0 neutrals and are the same under
- * every brand, which is the whole point of a matte page.
- *
- * Three things stay teal on purpose, because they belong to the board rather
- * than to the app: `--color-ink-accent`, `--color-speaking`, and the teal in
- * `@keyframes ring`. Changing the brand for good means re-tuning those and
- * re-rendering the sketches.
+ * green #78BE21 and forest #2D5652 are M3 tonal-spot output for their seeds,
+ * and they re-declare the primary and secondary roles and nothing else: the
+ * surfaces are chroma-0 neutrals and are the same under every brand, which is
+ * the whole point of a matte page. They predate the rule that a family must
+ * also re-tune the board, and they are recorded as such rather than excused —
+ * choosing either for real means re-tuning `--color-ink-accent`,
+ * `--color-speaking` and the orb's pulse with it, and re-rendering the
+ * sketches already on disk.
  */
 :root[data-brand="green"] {
   --color-primary: #4b662c;
@@ -534,10 +565,16 @@
   --color-primary-container: #cceda4;
   --color-on-primary-container: #344e16;
   --color-inverse-primary: #b0d18b;
+  --color-primary-fixed: #4b662c;
+  --color-on-primary-fixed: #ffffff;
   --color-secondary: #57624a;
   --color-on-secondary: #ffffff;
   --color-secondary-container: #dbe7c8;
   --color-on-secondary-container: #404a33;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 }
 :root[data-brand="green"]:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
@@ -550,6 +587,10 @@
     --color-on-secondary: #2a331e;
     --color-secondary-container: #404a33;
     --color-on-secondary-container: #dbe7c8;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
   }
 }
 :root[data-brand="green"][data-theme="dark"] {
@@ -562,6 +603,10 @@
   --color-on-secondary: #2a331e;
   --color-secondary-container: #404a33;
   --color-on-secondary-container: #dbe7c8;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
 }
 
 :root[data-brand="forest"] {
@@ -570,10 +615,16 @@
   --color-primary-container: #9df2e9;
   --color-on-primary-container: #00504b;
   --color-inverse-primary: #81d5cd;
+  --color-primary-fixed: #006a64;
+  --color-on-primary-fixed: #ffffff;
   --color-secondary: #4a6360;
   --color-on-secondary: #ffffff;
   --color-secondary-container: #cce8e4;
   --color-on-secondary-container: #324b49;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 }
 :root[data-brand="forest"]:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
@@ -586,6 +637,10 @@
     --color-on-secondary: #1c3532;
     --color-secondary-container: #324b49;
     --color-on-secondary-container: #cce8e4;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
   }
 }
 :root[data-brand="forest"][data-theme="dark"] {
@@ -598,9 +653,13 @@
   --color-on-secondary: #1c3532;
   --color-secondary-container: #324b49;
   --color-on-secondary-container: #cce8e4;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
 }
 
-/* ── candidate families: a red brand, and what it costs ──────────────────
+/* ── the four reds that were not chosen, and why ─────────────────────────
  *
  * Four families generated for one decision — "something youtubish" — and kept
  * so the decision can be re-examined rather than re-argued. Every one is
@@ -634,8 +693,13 @@
  * magenta — the only family in this file that moves them. It buys ΔE 0.043 in
  * dark and 0.095 in light. Better by ten times; still a quarter of teal.
  *
- * None of this decides anything. It is the evidence the owner asked for, and
- * whether a red page reads as Pen Playground is theirs to say.
+ * The owner's answer, looking at all four rendered: the red was right and the
+ * palette was not. The brown-orange pill these families put under a selected
+ * nav row — secondary-container, #5d3f3b and #653d28, M3's "calmer companion"
+ * to a red — was the specific thing rejected, and the Sign in pill at #930002
+ * was the specific thing kept. So the brand in `@theme` is that red, held at
+ * one value across both themes, with every container around it neutral. These
+ * four are what it was measured against.
  */
 
 :root[data-brand="youtube"] {
@@ -648,6 +712,10 @@
   --color-on-secondary: #ffffff;
   --color-secondary-container: #ffdad4;
   --color-on-secondary-container: #5d3f3b;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 
   /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
   --color-ink-accent: oklch(0.628 0.258 29.2); /* #ff0000 at 3.72:1 on paper */
@@ -668,6 +736,10 @@
     --color-on-secondary: #442925;
     --color-secondary-container: #5d3f3b;
     --color-on-secondary-container: #ffdad4;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
   }
 }
 :root[data-brand="youtube"][data-theme="dark"] {
@@ -680,6 +752,10 @@
   --color-on-secondary: #442925;
   --color-secondary-container: #5d3f3b;
   --color-on-secondary-container: #ffdad4;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
 }
 
 :root[data-brand="vermilion"] {
@@ -692,6 +768,10 @@
   --color-on-secondary: #ffffff;
   --color-secondary-container: #ffdad5;
   --color-on-secondary-container: #5d3f3b;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 
   /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
   --color-ink-accent: oklch(0.592 0.228 29.3); /* #e62117 at 4.25:1 on paper */
@@ -712,6 +792,10 @@
     --color-on-secondary: #442925;
     --color-secondary-container: #5d3f3b;
     --color-on-secondary-container: #ffdad5;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
   }
 }
 :root[data-brand="vermilion"][data-theme="dark"] {
@@ -724,6 +808,10 @@
   --color-on-secondary: #442925;
   --color-secondary-container: #5d3f3b;
   --color-on-secondary-container: #ffdad5;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
 }
 
 :root[data-brand="coral"] {
@@ -736,6 +824,10 @@
   --color-on-secondary: #ffffff;
   --color-secondary-container: #ffdad5;
   --color-on-secondary-container: #5d3f3b;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 
   /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
   --color-ink-accent: oklch(0.632 0.225 28.5); /* #ff4438 at 3.59:1 on paper */
@@ -756,6 +848,10 @@
     --color-on-secondary: #442926;
     --color-secondary-container: #5d3f3b;
     --color-on-secondary-container: #ffdad5;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
   }
 }
 :root[data-brand="coral"][data-theme="dark"] {
@@ -768,6 +864,10 @@
   --color-on-secondary: #442926;
   --color-secondary-container: #5d3f3b;
   --color-on-secondary-container: #ffdad5;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
 }
 
 :root[data-brand="ember"] {
@@ -826,108 +926,72 @@
   --color-on-error-container: #ffd9e1;
 }
 
-/* ── signal: the candidate that answers the question the others could not ──
+/* ── teal: what the platform was, kept so the change can be undone ────────
  *
- * The first four families asked "what does M3 make of a red seed?" and the
- * answer, measured, was: not a red. Tonal spot flattens it; vibrant saves the
- * light scheme and not the dark one; every red arrives in dark mode as
- * #ffb4a8, the error role to within ΔE 0.004. Four candidates, one outcome.
+ * #008EAA was the brand from the first commit to the day the owner chose red,
+ * and every sketch rendered before that day is drawn in it. It is declared
+ * here rather than deleted for two reasons: a rendered board is a file on
+ * disk and cannot be re-tinted by a stylesheet, and a brand decision that
+ * cannot be reversed in one attribute is not a decision, it is a migration.
  *
- * So this one asks the other question — "what does YouTube actually do?" —
- * and the answer is not a red palette at all. YouTube's chrome is neutral.
- * Grey chips, grey rails, grey active states; the red is the mark, the
- * subscribe button and the progress bar, and nothing else. The red reads as
- * red *because* nothing around it is tinted. A red that spreads into every
- * container is the thing that turns pale, both in M3's arithmetic and in the
- * eye.
- *
- * `signal` is therefore the only family here that is not generator output
- * pasted whole. Two deliberate departures, both away from M3's defaults and
- * both the reason it looks like what was asked for:
- *
- *   The red does not lighten in the dark. M3 puts primary at tone 80 in dark
- *   schemes, which is what makes every red brand pale salmon there. This pins
- *   it instead: #cc0000 in light, #e62117 in dark — one step up for the darker
- *   ground, still unmistakably the same red. Both carry white at 5.89:1 and
- *   4.57:1, and both clear 3:1 against every surface they sit on (light 5.59
- *   and 5.07; dark 4.07, 3.61 and 3.14).
- *
- *   The containers are neutral. `primary-container` and `secondary-container`
- *   are the sidebar's active pill, the filter chips, the header nav, the
- *   pagination and Sign in — the surfaces that made the other four families a
- *   pale rose page. Here they are the same chroma-0 greys the rest of the
- *   platform is built from, at 14.06:1 and 11.08:1. The red is left to
- *   `bg-primary`: Start, the ask-send button, the lesson progress bar, the
- *   replay scrubber, the board's ink. Five places, and they are the five that
- *   matter.
- *
- * Error still moves to magenta, for the reason ember moved it: #cc0000 against
- * M3's #ba1a1a is 1.1:1 and one degree of hue. What error cannot be is the
- * brand. What the brand costs, in exchange, is the three places the app spends
- * red on ordinary states — End, liked, the ad lane — which have to become
- * neutral, brand and tertiary respectively. That is a product decision, not a
- * token one, and it is not made here.
+ * These are the exact values `@theme` held, moved rather than regenerated —
+ * `packages/design/test/brand-generator.test.ts` still re-derives every one
+ * of them from #008EAA through the generator, which is the proof they came
+ * across intact.
  */
-:root[data-brand="signal"] {
-  --color-primary: #cc0000;
+:root[data-brand="teal"] {
+  --color-primary: #00677c;
   --color-on-primary: #ffffff;
-  --color-primary-container: #e8e8e8;
-  --color-on-primary-container: #1b1b1b;
-  --color-inverse-primary: #ff897d;
-  --color-secondary: #474747;
+  --color-primary-container: #b2ebff;
+  --color-on-primary-container: #004e5e;
+  --color-inverse-primary: #86d1e9;
+  --color-primary-fixed: #00677c;
+  --color-on-primary-fixed: #ffffff;
+  --color-secondary: #4b626a;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #e2e2e2;
-  --color-on-secondary-container: #1b1b1b;
-  --color-error: #ba025c;
+  --color-secondary-container: #cee7f0;
+  --color-on-secondary-container: #344a51;
+  --color-error: #ba1a1a;
   --color-on-error: #ffffff;
-  --color-error-container: #ffd9e1;
-  --color-on-error-container: #8f0045;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 
-  /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
-  --color-ink-accent: oklch(0.531 0.218 29.2); /* #cc0000 at 5.48:1 on paper */
-  --color-speaking: oklch(0.594 0.203 29.2);
-  /* Warn moves to amber: the brand took its hue (9° apart), and two reds on one sheet are one red. */
-  --color-ink-warn: oklch(0.457 0.15 62);
-  --color-ring-pulse: oklch(0.531 0.218 29.2 / 45%);
-  --color-ring-pulse-out: oklch(0.531 0.218 29.2 / 0%);
+  /* The board, as it was: teal ink, and warn back on red because teal left red free. */
+  --color-ink-accent: oklch(0.597 0.107 218.3); /* #008EAA at 3.59:1 on paper */
+  --color-speaking: oklch(0.66 0.1 216);
+  --color-ink-warn: oklch(0.47 0.173 20.4);
+  --color-ring-pulse: oklch(0.597 0.107 218.3 / 45%);
+  --color-ring-pulse-out: oklch(0.597 0.107 218.3 / 0%);
 }
-:root[data-brand="signal"]:not([data-theme="light"]) {
+:root[data-brand="teal"]:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-primary: #e62117;
-    --color-on-primary: #ffffff;
-    --color-primary-container: #2a2a2a;
-    --color-on-primary-container: #e2e2e2;
-    --color-inverse-primary: #cc0000;
-    --color-secondary: #c6c6c6;
-    --color-on-secondary: #1b1b1b;
-    --color-secondary-container: #353535;
-    --color-on-secondary-container: #e2e2e2;
-    --color-error: #ffb1c5;
-    --color-on-error: #65002f;
-    --color-error-container: #8f0045;
-    --color-on-error-container: #ffd9e1;
-    --color-ink-accent: oklch(0.592 0.228 29.3);
-    --color-speaking: oklch(0.655 0.212 29.3);
-    --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
-    --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
+    --color-primary: #86d1e9;
+    --color-on-primary: #003642;
+    --color-primary-container: #004e5e;
+    --color-on-primary-container: #b2ebff;
+    --color-inverse-primary: #00677c;
+    --color-secondary: #b2cad3;
+    --color-on-secondary: #1d343b;
+    --color-secondary-container: #344a51;
+    --color-on-secondary-container: #cee7f0;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
   }
 }
-:root[data-brand="signal"][data-theme="dark"] {
-  --color-primary: #e62117;
-  --color-on-primary: #ffffff;
-  --color-primary-container: #2a2a2a;
-  --color-on-primary-container: #e2e2e2;
-  --color-inverse-primary: #cc0000;
-  --color-secondary: #c6c6c6;
-  --color-on-secondary: #1b1b1b;
-  --color-secondary-container: #353535;
-  --color-on-secondary-container: #e2e2e2;
-  --color-error: #ffb1c5;
-  --color-on-error: #65002f;
-  --color-error-container: #8f0045;
-  --color-on-error-container: #ffd9e1;
-  --color-ink-accent: oklch(0.592 0.228 29.3);
-  --color-speaking: oklch(0.655 0.212 29.3);
-  --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
-  --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
+:root[data-brand="teal"][data-theme="dark"] {
+  --color-primary: #86d1e9;
+  --color-on-primary: #003642;
+  --color-primary-container: #004e5e;
+  --color-on-primary-container: #b2ebff;
+  --color-inverse-primary: #00677c;
+  --color-secondary: #b2cad3;
+  --color-on-secondary: #1d343b;
+  --color-secondary-container: #344a51;
+  --color-on-secondary-container: #cee7f0;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
 }

@@ -400,7 +400,7 @@ export function BottomBar(p: BottomBarProps) {
             <Ellipsis size={18} />
           </IconButton>
         </IconButtonGroup>
-        <Button variant="danger" size="sm" onClick={p.onLeave} className="shrink-0">
+        <Button variant="neutral" size="sm" onClick={p.onLeave} className="shrink-0">
           {p.isHost ? 'End' : 'Leave'}
         </Button>
       </div>

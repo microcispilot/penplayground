@@ -26,7 +26,9 @@ const IDLE: Record<ControlSurface, string> = {
   paper: 'bg-on-paper-chip text-on-paper hover:bg-white',
 };
 const LIKED: Record<ControlSurface, string> = {
-  page: 'bg-error-container text-on-error-container',
+  // The brand, not the error role: liking something is the warmest ordinary
+  // state in the product, and under a red brand the error role is a magenta.
+  page: 'bg-primary-fixed text-on-primary-fixed',
   paper: 'bg-on-paper-chip text-on-paper-liked',
 };
 const SAVED: Record<ControlSurface, string> = {

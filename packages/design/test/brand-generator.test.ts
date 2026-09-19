@@ -72,6 +72,7 @@ const FAMILIES = [
 
 /** Seed and variant for each family, read from the comment that records them. */
 const SEEDS: Record<string, { seed: string; variant?: 'vibrant'; error?: string }> = {
+  teal: { seed: '#008EAA' },
   green: { seed: '#78BE21' },
   forest: { seed: '#2D5652' },
   youtube: { seed: '#FF0000' },
@@ -97,7 +98,6 @@ try {
       }),
     );
   }
-  schemes.set('teal', await generate('#008EAA'));
 } catch (error) {
   unavailable = `@material/material-color-utilities@0.4.0 is ${existsSync(MCU_CACHE) ? 'cached but broken' : 'not cached and could not be fetched'}: ${String(error)}`;
   process.stderr.write(`\n  ! brand-generator: scheme tests skipped — ${unavailable}\n`);
@@ -106,27 +106,18 @@ try {
 describe('the generator re-derives the stylesheet it did not write', () => {
   it('found the families it is meant to be checking', () => {
     expect(FAMILIES).toEqual(
-      expect.arrayContaining(['green', 'forest', 'youtube', 'vermilion', 'coral', 'ember']),
+      expect.arrayContaining(['teal', 'green', 'forest', 'youtube', 'vermilion', 'coral', 'ember']),
     );
   });
 
   /**
-   * The default family lives in `@theme`, not in a `[data-brand]` block, and
-   * it is the one nobody generated: these are the hand-pasted values from
-   * before this script existed. Reproducing them is the whole proof.
+   * Teal was the platform's colour from the first commit until the brand
+   * review, and its values were hand-pasted long before this script existed.
+   * They now live in `[data-brand="teal"]` rather than `@theme`, moved and
+   * not regenerated — so re-deriving them from #008EAA below is both the
+   * generator's proof and the proof they survived the move intact.
    */
   describe.skipIf(unavailable !== null)('against the oracle', () => {
-    it('reproduces the teal @theme roles, hex for hex', () => {
-      const scheme = schemes.get('teal');
-      if (!scheme) throw new Error('no teal scheme');
-      for (const theme of ['light', 'dark'] as const) {
-        const block = themeBlock(theme);
-        for (const [role, hex] of Object.entries(scheme[theme])) {
-          expect(declared(block, role), `teal/${theme} --color-${role}`).toBe(hex);
-        }
-      }
-    });
-
     it.each(Object.keys(SEEDS))('reproduces every role the %s family declares', (name) => {
       const scheme = schemes.get(name);
       if (!scheme) throw new Error(`no ${name} scheme`);
@@ -135,6 +126,10 @@ describe('the generator re-derives the stylesheet it did not write', () => {
         for (const role of [...block.matchAll(/--color-([a-z-]+):/g)].map((m) => m[1] as string)) {
           // The board tokens are OKLCH and are checked by their own rule below.
           if (/^(ink|speaking|ring)/.test(role)) continue;
+          // `primary-fixed` is a deliberate deviation, not M3's role of that
+          // name: M3's is a tone-90 container, ours is the brand fill. It has
+          // its own assertions under "the brand red" below.
+          if (/^(primary-fixed|on-primary-fixed)$/.test(role)) continue;
           expect(scheme[theme][role], `${name}/${theme} --color-${role}`).toBe(
             declared(block, role),
           );
@@ -177,13 +172,14 @@ function parseOklch(raw: string): { l: number; c: number; h: number } {
 describe('every family draws its own board', () => {
   /**
    * The rule the whole exercise turned on: an app in one hue around sketches
-   * in another reads as two products. Teal is exempt because teal *is* the
-   * ink — it is what the pinned `@theme` value already says.
+   * in another reads as two products. So a family declares its own board, and
+   * the ink it declares is its *own* hue — not merely a different one from
+   * the brand's, which was the older form of this assertion and which stopped
+   * saying anything the day the brand itself became a red.
    */
-  it.each(FAMILIES)('%s re-tunes the ink rather than leaving the board teal', (brand) => {
+  it.each(FAMILIES)('%s draws the board in its own hue', (brand) => {
     const block = familyBlock(brand, 'light');
     const ink = declared(block, 'ink-accent');
-    const pinned = declared(themeBlock('light'), 'ink-accent');
     if (brand === 'green' || brand === 'forest') {
       // Declared before this rule existed and kept as they were: the two
       // families nobody is choosing between. Recorded, not excused.
@@ -191,10 +187,21 @@ describe('every family draws its own board', () => {
       return;
     }
     expect(ink, `${brand} --color-ink-accent`).toBeDefined();
-    expect(ink).not.toBe(pinned);
+    const chrome = oklchFromHex(declared(block, 'primary') ?? '');
+    expect(
+      hueGap(parseOklch(ink ?? '').h, chrome.h),
+      `${brand}: ink ${ink} vs primary ${declared(block, 'primary')}`,
+    ).toBeLessThan(10);
     expect(declared(block, 'speaking'), `${brand} --color-speaking`).toBeDefined();
     expect(declared(block, 'ring-pulse'), `${brand} --color-ring-pulse`).toBeDefined();
     expect(declared(block, 'ring-pulse-out'), `${brand} --color-ring-pulse-out`).toBeDefined();
+  });
+
+  /** And the default, which is not a family: the same rule, read from `@theme`. */
+  it('the default brand draws the board in its own hue', () => {
+    const ink = declared(themeBlock('light'), 'ink-accent') ?? '';
+    const chrome = oklchFromHex(declared(themeBlock('light'), 'primary') ?? '');
+    expect(hueGap(parseOklch(ink).h, chrome.h), `ink ${ink}`).toBeLessThan(10);
   });
 
   /**
@@ -275,8 +282,8 @@ describe('the maths under the generator', () => {
   });
 
   it('reads the teal ink back as the seed it was written from', () => {
-    // tokens.css: "--color-ink-accent: oklch(0.597 0.107 218.3); /* #008EAA */"
-    const pinned = parseOklch(declared(themeBlock('light'), 'ink-accent') ?? '');
+    // tokens.css, [data-brand="teal"]: "--color-ink-accent: oklch(0.597 0.107 218.3)"
+    const pinned = parseOklch(declared(familyBlock('teal', 'light'), 'ink-accent') ?? '');
     const seed = oklchFromHex('#008eaa');
     expect(pinned.l).toBeCloseTo(seed.l, 2);
     expect(pinned.c).toBeCloseTo(seed.c, 2);
@@ -301,7 +308,7 @@ describe('the maths under the generator', () => {
     expect(speaking.c).toBeLessThan(ink.c);
     expect(speaking.h).toBe(ink.h);
     // Within a rounding step of the value tokens.css has carried by hand.
-    const pinned = parseOklch(declared(themeBlock('light'), 'speaking') ?? '');
+    const pinned = parseOklch(declared(familyBlock('teal', 'light'), 'speaking') ?? '');
     expect(speaking.l).toBeCloseTo(pinned.l, 2);
     expect(speaking.c).toBeCloseTo(pinned.c, 2);
   });
@@ -332,28 +339,41 @@ describe('the maths under the generator', () => {
   });
 });
 
-// ── signal: the family the generator did not write ──────────────────────────
+// ── the brand red: the default the generator did not write ────────────────
 
 /**
- * `signal` is the one family in `tokens.css` that departs from M3 on purpose,
- * so it is the one family the generator cannot vouch for. These assertions
- * are what stands in for the oracle: they read the departures back out of the
- * stylesheet and check that each one is still doing the thing it was made to
- * do. Nothing here restates a hex the file does not declare.
+ * The brand red is the one scheme in `tokens.css` that departs from M3 on
+ * purpose, so it is the one scheme the generator cannot vouch for. These
+ * assertions are what stands in for the oracle: they read the departures back
+ * out of the stylesheet and check that each one is still doing the thing it
+ * was made to do. Nothing here restates a hex the file does not declare.
  *
- * Read together with the block comment above `[data-brand="signal"]`, which
- * says why each departure exists.
+ * Read together with "the brand red" in the header comment, which says why
+ * each departure exists.
  */
-describe('signal keeps its red, and keeps everything else grey', () => {
+describe('the brand red keeps its red, and keeps everything else grey', () => {
   const rgb = (hex: string) => rgbFromOklch(oklchFromHex(hex));
-  const primary = (theme: 'light' | 'dark') =>
-    declared(familyBlock('signal', theme), 'primary') ?? '';
+  /**
+   * The brand is `primary-fixed`, not `primary`. `primary` is the toned role
+   * that carries text and has to clear 4.5:1 on both themes' surfaces, which
+   * no single hex can do; `primary-fixed` is the hex the owner chose, and the
+   * one a person sees on the mark, on Sign in and on Start.
+   */
+  const brand = (theme: 'light' | 'dark') =>
+    declared(themeBlock(theme), 'primary-fixed') ??
+    declared(themeBlock('light'), 'primary-fixed') ??
+    '';
+  const onBrand = (theme: 'light' | 'dark') =>
+    declared(themeBlock(theme), 'on-primary-fixed') ??
+    declared(themeBlock('light'), 'on-primary-fixed') ??
+    '';
+  const primary = (theme: 'light' | 'dark') => declared(themeBlock(theme), 'primary') ?? '';
 
   /**
-   * The finding the family exists to answer: M3 puts primary at tone 80 in a
-   * dark scheme, and a red at tone 80 is #ffb4a8 — a salmon with barely a
-   * tenth of the seed's chroma. Measured against its neighbours in the file:
-   * the three tonal-spot reds all land there, and signal does not.
+   * The finding the four candidate families exist to record: M3 puts primary
+   * at tone 80 in a dark scheme, and a red at tone 80 is #ffb4a8 — a salmon
+   * with barely a tenth of the seed's chroma. Measured against them: all four
+   * land there, and the brand does not.
    */
   it('does not go pale in the dark the way every generated red does', () => {
     const chroma = (brand: string) =>
@@ -361,54 +381,73 @@ describe('signal keeps its red, and keeps everything else grey', () => {
     for (const pale of ['youtube', 'vermilion', 'coral', 'ember']) {
       expect(chroma(pale), `${pale} dark primary`).toBeLessThan(0.11);
     }
-    expect(chroma('signal'), 'signal dark primary').toBeGreaterThan(0.18);
-  });
-
-  it('is the same red in both themes, not two different colours', () => {
-    expect(
-      hueGap(oklchFromHex(primary('light')).h, oklchFromHex(primary('dark')).h),
-      `${primary('light')} vs ${primary('dark')}`,
-    ).toBeLessThan(5);
-  });
-
-  /** A filled button's label is body-sized, so 3:1 is not the bar here. */
-  it.each(['light', 'dark'] as const)('%s: its label is readable on it', (theme) => {
-    const block = familyBlock('signal', theme);
-    const on = declared(block, 'on-primary') ?? '';
-    expect(contrast(rgb(primary(theme)), rgb(on)), `${on} on ${primary(theme)}`).toBeGreaterThan(
-      4.5,
-    );
+    expect(oklchFromHex(brand('dark')).c, 'the brand in dark').toBeGreaterThan(0.18);
   });
 
   /**
-   * The mark, the focus ring and the progress bar are drawn in primary
-   * directly, on whichever of the neutral surfaces they happen to sit on.
-   * 3:1 is WCAG's bar for a non-text control, and it has to hold on all of
-   * them, not on the lightest one.
+   * The owner's instruction, in one assertion: "the same red youtubish colour
+   * ... to be used both for dark and light". Not a near match — the same hex.
+   */
+  /**
+   * "Fixed" is not a naming convention here — it is the absence of a second
+   * declaration. The dark blocks must not re-declare it, or a later edit can
+   * make the two themes drift without any test noticing.
+   */
+  it('is one hex, because the dark scheme never redeclares it', () => {
+    expect(declared(themeBlock('dark'), 'primary-fixed')).toBeUndefined();
+    expect(declared(themeBlock('dark'), 'on-primary-fixed')).toBeUndefined();
+    expect(brand('dark')).toBe(brand('light'));
+  });
+
+  /**
+   * And the reason `primary` is allowed to differ: it carries text, and the
+   * arithmetic forbids one hex from clearing 4.5:1 against both #ffffff and
+   * #353535 — a bound no choice of hue can buy its way past.
+   */
+  it('no colour at all could have carried text in both themes', () => {
+    const lightest = rgb(declared(themeBlock('light'), 'surface-container-lowest') ?? '');
+    const brightest = rgb(declared(themeBlock('dark'), 'surface-container-highest') ?? '');
+    for (const hex of [brand('light'), primary('light'), primary('dark'), '#000000', '#ffffff']) {
+      const worst = Math.min(contrast(rgb(hex), lightest), contrast(rgb(hex), brightest));
+      expect(worst, `${hex} against both extremes`).toBeLessThan(4.5);
+    }
+  });
+
+  /** Sign in and Start are filled in the brand and labelled in `on-primary-fixed`. */
+  it.each(['light', 'dark'] as const)('%s: its label is readable on it', (theme) => {
+    const on = onBrand(theme);
+    expect(contrast(rgb(brand(theme)), rgb(on)), `${on} on ${brand(theme)}`).toBeGreaterThan(4.5);
+  });
+
+  /**
+   * Sign in, the mark, the focus ring and the progress bar are drawn in
+   * primary directly, on whichever of the neutral surfaces they happen to sit
+   * on. 3:1 is WCAG's bar for a non-text control, and it has to hold on all of
+   * them, not on the lightest one. This is the reason the red is #e62117 and
+   * not the brighter #cc0000, which fails it at 2.80:1 on `surface-container`.
    */
   it.each(['light', 'dark'] as const)('%s: it reads on every surface it sits on', (theme) => {
-    const surfaces = ['surface', 'surface-container', 'surface-container-high'];
-    for (const role of surfaces) {
+    for (const role of ['surface', 'surface-container', 'surface-container-high']) {
       const ground = declared(themeBlock(theme), role) ?? '';
       expect(
-        contrast(rgb(primary(theme)), rgb(ground)),
-        `${theme} primary ${primary(theme)} on --color-${role} ${ground}`,
+        contrast(rgb(brand(theme)), rgb(ground)),
+        `${theme} brand ${brand(theme)} on --color-${role} ${ground}`,
       ).toBeGreaterThan(3);
     }
   });
 
   /**
-   * The point of the family. The sidebar pill, the chips, the header nav and
-   * Sign in are containers; if they carry hue, the page turns rose and the
-   * red stops reading as red. Every one of them is a platform grey, declared
-   * nowhere but in the theme block itself.
+   * The point of the whole scheme, and the thing the owner rejected in the
+   * candidates: the sidebar pill, the chips, the header nav and the
+   * pagination are containers, and M3's "calmer companion" to a red is a
+   * brown. If they carry hue the page turns brown-rose and the red stops
+   * reading as red. Every one of them is a platform grey.
    */
   it.each(['light', 'dark'] as const)('%s: the containers are the platform greys', (theme) => {
-    const block = familyBlock('signal', theme);
-    const theme_ = themeBlock(theme);
+    const block = themeBlock(theme);
     const neutral = new Set(
       ['surface-container-high', 'surface-container-highest', 'surface-container', 'on-surface']
-        .map((role) => declared(theme_, role))
+        .map((role) => declared(block, role))
         .filter((hex): hex is string => hex !== undefined),
     );
     for (const role of [
@@ -428,10 +467,40 @@ describe('signal keeps its red, and keeps everything else grey', () => {
    * the only reason a red brand is possible at all.
    */
   it.each(['light', 'dark'] as const)('%s: error is not the brand', (theme) => {
-    const error = declared(familyBlock('signal', theme), 'error') ?? '';
+    const error = declared(themeBlock(theme), 'error') ?? '';
     expect(
       oklabDistance(primary(theme), error),
       `primary ${primary(theme)} vs error ${error}`,
     ).toBeGreaterThan(0.1);
+  });
+
+  /** Teal is kept so the change is reversible; a family that lost a role is not a way back. */
+  it.each(['light', 'dark'] as const)('%s: teal still declares every role it replaced', (theme) => {
+    const brand = themeBlock(theme);
+    const teal = familyBlock('teal', theme);
+    for (const role of [
+      'primary',
+      'on-primary',
+      'primary-container',
+      'on-primary-container',
+      'inverse-primary',
+      'secondary',
+      'on-secondary',
+      'secondary-container',
+      'on-secondary-container',
+      'error',
+      'on-error',
+      'error-container',
+      'on-error-container',
+    ]) {
+      expect(declared(teal, role), `teal/${theme} --color-${role}`).toBeDefined();
+    }
+    // The `on-` roles are white or near-black under either brand; only the
+    // roles that carry hue prove the family is actually a different platform.
+    for (const role of ['primary', 'primary-container', 'secondary-container', 'error']) {
+      expect(declared(teal, role), `teal/${theme} --color-${role} is still the brand's`).not.toBe(
+        declared(brand, role),
+      );
+    }
   });
 });

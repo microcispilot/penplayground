@@ -310,7 +310,7 @@ export function Home() {
             <button
               type="submit"
               disabled={!query.trim() || starting || waiting}
-              className="state-layer group ml-1 flex h-12 shrink-0 items-center gap-2 rounded-full bg-primary px-4 text-label-large text-on-primary sm:px-6 transition-[transform,opacity] duration-[var(--duration-fast)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-disabled"
+              className="state-layer group ml-1 flex h-12 shrink-0 items-center gap-2 rounded-full bg-primary-fixed px-4 text-label-large text-on-primary-fixed sm:px-6 transition-[transform,opacity] duration-[var(--duration-fast)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-disabled"
             >
               {starting ? 'Starting…' : 'Start'}
               <ArrowRight

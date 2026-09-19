@@ -85,14 +85,17 @@ function parseColour(raw: string): { rgb: Rgb; alpha: number } {
  * it lands, which is the only way a growing set of candidates stays honest.
  */
 const BRANDS: readonly string[] = [
-  'teal',
+  // `default` is not an attribute: it is the brand red in `@theme`, which is
+  // what a page shows when no family is selected. Teal, which used to be
+  // that, is now one of the families discovered below.
+  'default',
   ...new Set(
     [...TOKENS.matchAll(/:root\[data-brand="([a-z-]+)"\] \{/g)].map((m) => m[1] as string),
   ),
 ];
 
 function block(brand: string, theme: 'light' | 'dark'): string {
-  if (brand === 'teal') {
+  if (brand === 'default') {
     return theme === 'light'
       ? TOKENS.slice(0, TOKENS.indexOf('/* ── dark scheme'))
       : TOKENS.slice(
@@ -112,19 +115,19 @@ function block(brand: string, theme: 'light' | 'dark'): string {
 function token(
   name: string,
   theme: 'light' | 'dark' = 'light',
-  brand: string = 'teal',
+  brand: string = 'default',
 ): { rgb: Rgb; alpha: number } {
-  for (const source of brand === 'teal' ? [brand] : [brand, 'teal']) {
+  for (const source of brand === 'default' ? [brand] : [brand, 'default']) {
     const found = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(block(source, theme));
     if (found?.[1]) return parseColour(found[1]);
   }
   // Surfaces and board tokens do not vary by theme for a brand family; fall back
-  // to the default family's block for that theme.
-  const found = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(block('teal', theme));
+  // to the default's block for that theme.
+  const found = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(block('default', theme));
   if (!found?.[1]) throw new Error(`${brand}/${theme} is missing --color-${name}`);
   return parseColour(found[1]);
 }
-const rgb = (name: string, theme: 'light' | 'dark' = 'light', brand: string = 'teal') =>
+const rgb = (name: string, theme: 'light' | 'dark' = 'light', brand: string = 'default') =>
   token(name, theme, brand).rgb;
 
 // ── the scales, against Google's own numbers ────────────────────────────────
@@ -332,7 +335,7 @@ describe('the two dark blocks agree', () => {
     '%s says the same thing to a chosen dark theme and to an OS dark one',
     (brand) => {
       const selector =
-        brand === 'teal'
+        brand === 'default'
           ? ':root[data-theme="dark"],\n:root:not([data-theme="light"])'
           : `:root[data-brand="${brand}"]:not([data-theme="light"])`;
       const at = TOKENS.indexOf(selector);
@@ -497,6 +500,8 @@ describe('a brand role and an error role have to be two colours', () => {
    */
   const RECORDED: Record<string, readonly [number, number]> = {
     //         light   dark
+    // The brand: a red that had to move the error role to hue 341 to get here.
+    default: [0.175, 0.157],
     teal: [0.279, 0.17],
     green: [0.232, 0.148],
     forest: [0.273, 0.171],
@@ -527,7 +532,7 @@ describe('a brand role and an error role have to be two colours', () => {
    */
   it('the shipping default keeps the brand and the error role apart', () => {
     for (const theme of ['light', 'dark'] as const) {
-      expect(separation('teal', theme), `teal/${theme}`).toBeGreaterThan(0.15);
+      expect(separation('default', theme), `default/${theme}`).toBeGreaterThan(0.15);
     }
   });
 
@@ -589,8 +594,12 @@ describe('caption contrast on the board', () => {
     expect(contrast(over(WHITE, CAPTION_BG, 0.85), CAPTION_BG)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('the ink the board is drawn in is still the brand teal', () => {
-    expect(decl('--color-ink-accent')).toBe('oklch(0.597 0.107 218.3)');
+  it('the ink the board is drawn in is the brand red, and teal still has its own', () => {
+    expect(decl('--color-ink-accent')).toBe('oklch(0.592 0.228 29.3)');
+    expect(
+      /--color-ink-accent:\s*([^;]+);/.exec(block('teal', 'light'))?.[1]?.trim(),
+      'the teal family keeps the ink every sketch before the rebrand was drawn in',
+    ).toBe('oklch(0.597 0.107 218.3)');
   });
 
   it('knows a failing pair when it sees one', () => {
