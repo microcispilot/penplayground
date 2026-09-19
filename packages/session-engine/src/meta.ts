@@ -28,16 +28,23 @@ import { metaMessages, thumbnailImagePrompt } from './prompts.js';
 import { type RoomObserver, SILENT_OBSERVER } from './transport.js';
 
 /**
- * Background session metadata (ADR-0013, amended by ADR-0021): once a room
- * has its plan, two independent background calls produce the catalogue card.
+ * Background session metadata (ADR-0013, amended by ADR-0021 and ADR-0022):
+ * once a room has its plan, two background calls produce the catalogue card.
  *
- *   the copy     one cheap structured-output call → description, keywords, category
- *   the picture  one `gpt-image-1` generation from the session title
+ *   the copy     one cheap structured-output call → description, keywords,
+ *                category, and the picture's subject
+ *   the picture  one `gpt-image-1` generation from the title and that subject
  *
- * They are independent, so they run together and fail apart: a session whose
- * picture never arrives still gets its copy, and vice versa. Each retries once.
- * The queue never blocks a session — `enqueue` returns at once — and bounds the
- * fan-out so a burst of new sessions cannot starve the turn loop's budget.
+ * They still fail apart — a session whose picture never arrives keeps its
+ * copy, and a copy that never arrives still leaves a paid-for picture in the
+ * cache — but they are no longer quite independent: the picture wants the
+ * subject the copy call names (ADR-0022), so a generation waits for it. The
+ * dependency is one-way and optional. The cache lookup happens first and needs
+ * nothing, so a reused picture waits for nothing; and a copy that fails or
+ * names nothing usable yields `''`, which is ADR-0021's title-only prompt.
+ * Each call retries once. The queue never blocks a session — `enqueue` returns
+ * at once — and bounds the fan-out so a burst of new sessions cannot starve
+ * the turn loop's budget.
  *
  * **Both calls bill to the host's plan key**, the one the lesson itself ran on
  * (`input.billTo`). A free learner's card must not be drawn on a paying
@@ -90,6 +97,12 @@ export interface SessionThumbnail {
   reused: boolean;
   /** What generating it fresh would have cost (0 when it was generated). */
   savedUsd: number;
+  /**
+   * Wall time from the job being dequeued to these bytes being in hand — so
+   * since ADR-0022 it includes the wait for the copy call's `subject`, which
+   * `session_thumbnail.done` reports separately as `copyWaitMs`. The
+   * generation's own duration is `usage.totalMs`; the two differ by design.
+   */
   ms: number;
   attempts: number;
 }
@@ -252,6 +265,18 @@ const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_RETRY_DELAY_MS = 1500;
 const ATTEMPTS = 2;
 
+/** What the copy half of a job produced; the picture half reads `meta.subject` off it. */
+type CopyResult =
+  | {
+      ok: true;
+      meta: SessionMeta;
+      usage: Usage;
+      attempts: number;
+      reused: boolean;
+      savedUsd: number;
+    }
+  | { ok: false; error: unknown; attempts: number };
+
 export class SessionMetaJobs {
   private readonly queue: SessionMetaInput[] = [];
   private readonly known = new Set<string>();
@@ -374,20 +399,7 @@ export class SessionMetaJobs {
   }
 
   /** The card copy: cache, else up to two attempts on the host's plan key. */
-  private async copy(
-    input: SessionMetaInput,
-    started: number,
-  ): Promise<
-    | {
-        ok: true;
-        meta: SessionMeta;
-        usage: Usage;
-        attempts: number;
-        reused: boolean;
-        savedUsd: number;
-      }
-    | { ok: false; error: unknown; attempts: number }
-  > {
+  private async copy(input: SessionMetaInput, started: number): Promise<CopyResult> {
     const key = cacheKeyOf(input);
     if (key) {
       const hit = await this.copyFromCache(input, key, started);
@@ -500,14 +512,34 @@ export class SessionMetaJobs {
   }
 
   /**
+   * The thing to point a camera at (ADR-0022), waited for only once a
+   * generation is certain. Never rejects and never throws: a copy call that
+   * failed, or that named nothing a lens could find, is worth a title-only
+   * picture and not worth losing one over.
+   */
+  private async subjectFrom(copy: Promise<CopyResult>): Promise<string> {
+    try {
+      const result = await copy;
+      return result.ok ? result.meta.subject : '';
+    } catch {
+      return '';
+    }
+  }
+
+  /**
    * The picture: cache, else up to two generations on the host's plan key.
    * Exactly one API call per session that misses the cache — every rendered
    * size is a downscale of the bytes it returns, never a second generation.
    * A failure is not fatal: the session keeps its deterministic placeholder.
+   *
+   * The cache is consulted before `copy` is awaited, so a reused picture costs
+   * nothing and waits for nothing. Only a generation waits, and only for the
+   * one field it needs.
    */
   private async picture(
     input: SessionMetaInput,
     started: number,
+    copy: Promise<CopyResult>,
   ): Promise<SessionThumbnail | null> {
     const key = imageKeyOf(input);
     if (key) {
@@ -516,7 +548,10 @@ export class SessionMetaJobs {
     }
     const base = this.o.imageFor(input.billTo);
     const model = input.telemetry ? withImageTelemetry(base, input.telemetry) : base;
-    const prompt = thumbnailImagePrompt(input.plan.title);
+    const waitFrom = this.now();
+    const subject = await this.subjectFrom(copy);
+    const copyWaitMs = this.now() - waitFrom;
+    const prompt = thumbnailImagePrompt(input.plan.title, subject);
     for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
       try {
         const { png, usage } = await model.generate({
@@ -550,6 +585,11 @@ export class SessionMetaJobs {
           quality: this.o.quality,
           outputTokens: usage.outputTokens,
           usd: usage.usd,
+          // Whether the camera was given something to point at, and what the
+          // wait for it cost. `subject: false` on a run of sessions is the
+          // signal that ADR-0022's field has stopped arriving.
+          subject: subject.length > 0,
+          copyWaitMs: Math.round(copyWaitMs),
         });
         return {
           png,
@@ -581,12 +621,13 @@ export class SessionMetaJobs {
 
   private async run(input: SessionMetaInput): Promise<void> {
     const started = this.now();
-    // Copy and picture are independent calls to two different endpoints; run
-    // them together so the card is ready as soon as the slower of the two is.
-    const [copy, image] = await Promise.all([
-      this.copy(input, started),
-      this.picture(input, started),
-    ]);
+    // Two calls to two different endpoints, started together. The picture is
+    // handed the copy's promise rather than its result: it checks its own
+    // cache first — a reused picture is ready at max(copy, cache read) — and
+    // joins the copy only if it is actually going to generate, in which case
+    // the card is ready at copy + generation (ADR-0022).
+    const copying = this.copy(input, started);
+    const [copy, image] = await Promise.all([copying, this.picture(input, started, copying)]);
     if (!copy.ok) {
       // Without copy there is no card to store. The picture is not lost: it is
       // already in the image cache, so the next session on this lesson gets it free.

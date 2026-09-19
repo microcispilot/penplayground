@@ -6,7 +6,7 @@ import type {
   StageSample,
   ThumbnailQuality,
 } from '@pen/contracts';
-import { imagePriceUsd, THUMBNAIL_SIZE } from '@pen/contracts';
+import { imagePriceUsd, META_MAX_SUBJECT_CHARS, THUMBNAIL_SIZE } from '@pen/contracts';
 import {
   FakeImageModel,
   FakeLanguageModel,
@@ -57,9 +57,11 @@ const scripted: ModelSessionMeta = {
   description: 'See how tokens become vectors and how attention scores queries against keys.',
   keywords: ['transformers', 'attention', 'tokens', 'transformers', '  '],
   category: 'computing-data',
+  subject: 'a brass clock escapement, gears meshing, side light',
 };
 
-const fake = () => new FakeLanguageModel([], [{ purpose: META_PURPOSE, value: scripted }]);
+const fake = (over: Partial<ModelSessionMeta> = {}) =>
+  new FakeLanguageModel([], [{ purpose: META_PURPOSE, value: { ...scripted, ...over } }]);
 
 const usage = (): Usage => ({
   model: 'fake',
@@ -166,11 +168,38 @@ describe('metaMessages', () => {
     expect(system).toContain('LEARNER LEVEL: beginner');
     expect(system).toContain('description');
     expect(system).toContain('keywords');
-    // The sketch vocabulary is gone: nothing here can ask for a drawing any more.
-    for (const word of ['grid', 'sketch', 'thumbnail', 'whiteboard', 'arrow', 'highlight'])
+    // The sketch vocabulary is gone: nothing here can ask for a drawing any
+    // more. (A whiteboard is named once, in ADR-0022's list of surfaces the
+    // photographic subject must NOT be — the opposite of asking for one — so
+    // the guard is the ops themselves, which nothing may mention.)
+    for (const word of ['grid', 'sketch', 'thumbnail', 'arrow', 'highlight'])
       expect(system.toLowerCase()).not.toContain(word);
     expect(m[1]?.content).toContain('SESSION: "How Transformers work in LLMs"');
     expect(m[1]?.content).toContain('Session language: en-US');
+  });
+
+  /**
+   * ADR-0022. The field rides on the call that was already being made, so the
+   * picture still costs exactly one generation and the copy exactly one
+   * completion. What the prompt must carry is the *reason*: a camera cannot
+   * point at an abstraction, and given one it letters a diagram instead.
+   */
+  it('asks for a photographable subject, and says why a camera needs one', () => {
+    const system = metaMessages(input())[0]?.content ?? '';
+    expect(system).toContain('- subject:');
+    expect(system.toLowerCase()).toContain('camera cannot point at an abstraction');
+    expect(system).toContain('noun phrase');
+    // English regardless of the session language: the image prompt is English.
+    expect(system).toContain('Write the subject in English');
+    // Measured: two of five probe generations came back with rendered
+    // characters — "$1.99" on price tags, pseudo-writing on task cards — and
+    // both times the model had named a surface made to be read. The text
+    // model is where that is refused; the image prompt still names nothing.
+    for (const surface of ['price tag', 'whiteboard', 'sign', 'packaging', 'screen'])
+      expect(system).toContain(surface);
+    expect(system).toContain('surface made to be read');
+    // Still exactly two messages — one call, not two.
+    expect(metaMessages(input())).toHaveLength(2);
   });
 });
 
@@ -181,6 +210,36 @@ describe('thumbnailImagePrompt', () => {
         'Not crowded: one clear subject, plenty of empty space, no text.\n' +
         'Hyper realistic photography, natural light, shallow depth of field.',
     );
+  });
+
+  it('adds the subject as one line and leaves the owner’s three untouched', () => {
+    expect(
+      thumbnailImagePrompt('Reading an ECG strip', 'a nurse’s hands smoothing a paper ECG trace'),
+    ).toBe(
+      'Design a realistic thumbnail for a YouTube video titled "Reading an ECG strip".\n' +
+        'Photograph this: a nurse’s hands smoothing a paper ECG trace.\n' +
+        'Not crowded: one clear subject, plenty of empty space, no text.\n' +
+        'Hyper realistic photography, natural light, shallow depth of field.',
+    );
+  });
+
+  it('falls back to the title-only prompt when there is no subject', () => {
+    const titleOnly = thumbnailImagePrompt('Reading an ECG strip');
+    for (const missing of ['', undefined]) {
+      expect(thumbnailImagePrompt('Reading an ECG strip', missing)).toBe(titleOnly);
+      expect(thumbnailImagePrompt('Reading an ECG strip', missing).split('\n')).toHaveLength(3);
+    }
+  });
+
+  /**
+   * The two negative fixes that were tried against the real endpoint and
+   * failed (ADR-0022): the second one made the lettering worse, because
+   * naming a thing to an image model summons it. Nothing here may name one.
+   */
+  it('names nothing it does not want photographed', () => {
+    const prompt = thumbnailImagePrompt('How Transformers work in LLMs', 'a brass escapement');
+    for (const summoned of ['paper', 'whiteboard', 'screen', 'printout', 'diagram', 'chart'])
+      expect(prompt.toLowerCase()).not.toContain(summoned);
   });
 });
 
@@ -207,13 +266,145 @@ describe('SessionMetaJobs', () => {
     expect(image.calls).toBe(1);
     expect(image.requests[0]?.size).toEqual(THUMBNAIL_SIZE);
     expect(image.requests[0]?.quality).toBe('low');
-    expect(image.requests[0]?.prompt).toBe(thumbnailImagePrompt(plan.title));
+    expect(image.requests[0]?.prompt).toBe(thumbnailImagePrompt(plan.title, scripted.subject));
     expect(result.image.png.subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     expect(result.image.reused).toBe(false);
     expect(onUsage.mock.calls.map(([, u]) => u.purpose).sort()).toEqual([
       META_PURPOSE,
       THUMBNAIL_PURPOSE,
     ]);
+  });
+
+  /**
+   * ADR-0022: the picture is built around the thing the copy call named, and
+   * survives every way that field can fail to arrive. The fallback is not a
+   * degraded mode — it is exactly the prompt ADR-0021 shipped.
+   */
+  describe('the subject the camera points at', () => {
+    const promptFor = async (over: Partial<SessionMetaJobsOptions> = {}) => {
+      const image = new CountingImageModel();
+      const jobs = new SessionMetaJobs(options({ imageFor: () => image, ...over }));
+      jobs.enqueue(input());
+      await jobs.idle();
+      return { prompt: image.requests[0]?.prompt ?? '', image };
+    };
+
+    it('builds the generation around the subject the copy call named', async () => {
+      const { prompt } = await promptFor();
+      expect(prompt).toContain('Photograph this: a brass clock escapement, gears meshing');
+      expect(prompt).toContain('titled "How Transformers work in LLMs"');
+      expect(prompt).toBe(thumbnailImagePrompt(plan.title, scripted.subject));
+    });
+
+    it('is still one call to each endpoint: the field rides on the copy call', async () => {
+      const model = new ControlledModel(['ok']);
+      const { image } = await promptFor({ modelFor: () => model });
+      expect(model.calls).toBe(1);
+      expect(image.calls).toBe(1);
+    });
+
+    for (const [why, subject] of [
+      ['the model left it empty', ''],
+      ['the model sent only whitespace', '   \n  '],
+      ['the model sent nothing a lens could find', '— "" …'],
+    ] as const)
+      it(`falls back to the title-only prompt when ${why}`, async () => {
+        const { prompt, image } = await promptFor({ modelFor: () => fake({ subject }) });
+        expect(prompt).toBe(thumbnailImagePrompt(plan.title));
+        expect(prompt.split('\n')).toHaveLength(3);
+        // A missing field costs a worse picture, never the picture.
+        expect(image.calls).toBe(1);
+      });
+
+    it('falls back to the title-only prompt when the copy call fails outright', async () => {
+      const image = new CountingImageModel();
+      const onFailure = vi.fn();
+      const jobs = new SessionMetaJobs(
+        options({
+          modelFor: () => new ControlledModel(['fail', 'fail']),
+          imageFor: () => image,
+          onFailure,
+        }),
+      );
+      jobs.enqueue(input());
+      await jobs.idle();
+      expect(onFailure).toHaveBeenCalledTimes(1);
+      // The copy is gone; the picture is not, and it was still paid for once.
+      expect(image.calls).toBe(1);
+      expect(image.requests[0]?.prompt).toBe(thumbnailImagePrompt(plan.title));
+    });
+
+    it('cuts a scene-length subject back to a subject before it reaches the prompt', async () => {
+      const scene = `${'a weathered brass sextant on a chart table '.repeat(6)}at dawn`;
+      const { prompt } = await promptFor({ modelFor: () => fake({ subject: scene }) });
+      const line = prompt.split('\n')[1] ?? '';
+      expect(line.startsWith('Photograph this: a weathered brass sextant')).toBe(true);
+      expect(line.length).toBeLessThanOrEqual('Photograph this: .'.length + META_MAX_SUBJECT_CHARS);
+      expect(prompt.split('\n')).toHaveLength(4);
+    });
+
+    /**
+     * The cache lookup happens before the copy is awaited, so a lesson whose
+     * picture already exists never pays the copy call's latency for a field
+     * it is not going to use.
+     */
+    it('does not wait for the copy call when the picture comes off the cache', async () => {
+      const image = new CountingImageModel();
+      const imageCache = new MemoryImageCache();
+      const scoped = (id: string) => input(id, { canonicalId: 'en.how-transformers-work' });
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => image, imageCache, concurrency: 1 }),
+      );
+      jobs.enqueue(scoped('s_first'));
+      await jobs.idle();
+      // The copy call now never resolves; the picture must arrive anyway.
+      const held = new ControlledModel(['hold']);
+      const results: Array<{ image: { reused: boolean } | null }> = [];
+      const second = new SessionMetaJobs(
+        options({
+          modelFor: () => held,
+          imageFor: () => image,
+          imageCache,
+          concurrency: 1,
+          onResult: (_i, r) => void results.push(r),
+        }),
+      );
+      second.enqueue(scoped('s_second'));
+      await vi.waitFor(() => expect(held.held).toBe(1));
+      // One generation for both sessions, and the second one is not blocked on the copy.
+      expect(image.calls).toBe(1);
+      held.release();
+      await second.idle();
+      expect(results[0]?.image?.reused).toBe(true);
+    });
+
+    it('reports whether the camera was given a subject, and what waiting for it cost', async () => {
+      const events: Array<{ name: string; data: Record<string, unknown> }> = [];
+      const observer: RoomObserver = {
+        event: (name, data) => void events.push({ name, data }),
+        error: () => undefined,
+      };
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => new CountingImageModel(), observer }),
+      );
+      jobs.enqueue(input());
+      await jobs.idle();
+      const done = events.find((e) => e.name === 'session_thumbnail.done');
+      expect(done?.data.subject).toBe(true);
+      expect(done?.data.copyWaitMs).toEqual(expect.any(Number));
+
+      events.length = 0;
+      const blind = new SessionMetaJobs(
+        options({
+          modelFor: () => fake({ subject: '' }),
+          imageFor: () => new CountingImageModel(),
+          observer,
+        }),
+      );
+      blind.enqueue(input('s_blind'));
+      await blind.idle();
+      expect(events.find((e) => e.name === 'session_thumbnail.done')?.data.subject).toBe(false);
+    });
   });
 
   it('honours the quality setting on the generation it asks for', async () => {

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { KeyOwner, SessionMeta } from '@pen/contracts';
 import {
@@ -16,24 +16,25 @@ import {
   type SessionMetaResult,
   type ThumbnailImageCachePort,
 } from '@pen/session-engine';
-import { renderAsync } from '@resvg/resvg-js';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { safeId } from './ledger.js';
 import { observer } from './observability.js';
 
 /**
- * Session thumbnails on disk (ADR-0013, amended by ADR-0021): next to the
- * ledger, under `<data>/sessions/<id>/`:
+ * Session thumbnails on disk (ADR-0013, amended by ADR-0021 and ADR-0022):
+ * next to the ledger, under `<data>/sessions/<id>/`:
  *
  *   source.png  the generation as `gpt-image-1` returned it, 1536 × 1024
- *   thumb.png   640 × 360 for the card
- *   og.png      1200 × 630 for Open Graph
+ *   thumb.webp  640 × 360 for the card
+ *   og.jpg      1200 × 630 for Open Graph
  *   meta.json   the SessionMeta that produced them, with usage and timings
  *
  * **One generation, every size.** The API is billed per generation, not per
  * pixel, so a session calls it exactly once and both rendered files — and any
  * size we add later — are downscales of `source.png`. That is why the source
- * is kept: a new size must never mean a new call.
+ * is kept as the model returned it, and why it stays PNG: it is the master the
+ * others are re-derived from, never a file a browser is sent.
  *
  * **Raster, not vector.** A vector would scale to any size from one file,
  * which is the property we want, but the picture is a photograph and a
@@ -42,21 +43,36 @@ import { observer } from './observability.js';
  * replaced. Keeping the largest raster and downscaling gives the same
  * "generate once, use at every size" property without pretending.
  *
- * Downscaling goes through resvg's **async** entry point on purpose. The
- * synchronous one runs the whole render on the event loop, and a session's
- * two PNGs are ~250 ms of it — long enough to stall every live room's audio
- * fan-out at once, which a load run at 50 concurrent sessions showed as
- * ~160 ms stalls on a trivial request (`services/api/scripts/load.ts`).
- * `renderAsync` runs on libuv's threadpool, so the loop keeps turning and the
- * PCM keeps flowing while the picture is resized.
+ * **Two formats, for two audiences** (ADR-0022). PNG is a lossless format for
+ * flat colour, and a photograph is neither: across five real generations the
+ * 640 × 360 card averaged 442 kB as PNG and 15 kB as WebP, so a row of twenty
+ * went from ~8.6 MB to ~0.3 MB. The card is WebP, which every browser
+ * that can run this app decodes. The Open Graph image is **JPEG**, not WebP,
+ * on purpose: the only place Meta enumerates formats for `og:image` is the
+ * `og:image:type` row of its Webmasters guide, and it lists `image/jpeg`,
+ * `image/gif` and `image/png` — WebP is not documented as supported, and an
+ * unfurl that silently shows nothing is not worth the kilobytes.
+ * (developers.facebook.com/docs/sharing/webmasters/, read 2026-09-18.)
+ *
+ * Both derivations run through `sharp`, whose `toBuffer()` does the decode,
+ * resize and encode on libuv's threadpool rather than the event loop. That
+ * guard is not incidental: a load run at 50 concurrent sessions showed the
+ * synchronous path stalling a trivial request by ~160 ms
+ * (`services/api/scripts/load.ts`), which is a live room's audio fan-out.
  */
 
-export type ThumbnailKind = 'card' | 'og' | 'source' | 'svg';
+/**
+ * The variants a request can ask for. `cardPng` and `ogPng` are what sessions
+ * rendered before ADR-0022 have on disk; their records still point at
+ * `thumb.png`, so the route keeps serving those files until a backfill
+ * replaces them. Nothing writes one any more.
+ */
+export type ThumbnailKind = 'card' | 'og' | 'source' | 'svg' | 'cardPng' | 'ogPng';
 
 export const THUMB_FILES: Record<ThumbnailKind | 'meta', string> = {
   source: 'source.png',
-  card: 'thumb.png',
-  og: 'og.png',
+  card: 'thumb.webp',
+  og: 'og.jpg',
   meta: 'meta.json',
   /**
    * Sessions drawn before ADR-0021 have a hand-drawn sketch here and their
@@ -66,7 +82,18 @@ export const THUMB_FILES: Record<ThumbnailKind | 'meta', string> = {
    * gives it a picture.
    */
   svg: 'thumb.svg',
+  cardPng: 'thumb.png',
+  ogPng: 'og.png',
 };
+
+/** The variants a session writes today; the rest are only ever read. */
+export const DERIVED_KINDS = ['card', 'og'] as const;
+export type DerivedKind = (typeof DERIVED_KINDS)[number];
+
+/** A variant that can be made again from `source.png` if it is missing. */
+export function isDerived(kind: ThumbnailKind): kind is DerivedKind {
+  return (DERIVED_KINDS as readonly ThumbnailKind[]).includes(kind);
+}
 
 export const THUMB_SIZES = {
   card: { width: 640, height: 360 },
@@ -75,20 +102,61 @@ export const THUMB_SIZES = {
 } as const;
 
 export const THUMB_CONTENT_TYPE: Record<ThumbnailKind, string> = {
-  card: 'image/png',
-  og: 'image/png',
+  card: 'image/webp',
+  og: 'image/jpeg',
   source: 'image/png',
   svg: 'image/svg+xml',
+  cardPng: 'image/png',
+  ogPng: 'image/png',
 };
+
+/**
+ * Encoder quality per derived size. It is the one knob either encoder has that
+ * is a taste call dressed as a number, so it is named rather than inlined; the
+ * bytes it buys are measured in ADR-0022. Everything else is the encoder's own
+ * default, which is what a default is for.
+ */
+const ENCODE = {
+  card: { quality: 82 },
+  og: { quality: 82 },
+} as const;
 
 /** The public path a record stores once its thumbnail is ready. */
 export function thumbnailPath(sessionId: string): string {
   return `/api/sessions/${encodeURIComponent(sessionId)}/${THUMB_FILES.card}`;
 }
 
+/**
+ * The byte counts `meta.json` records. Version 2 called all three of them
+ * PNGs, because they were; the card is WebP and the Open Graph image is JPEG
+ * from ADR-0022 on, so the names stop saying PNG and a v2 file is read through
+ * the old ones. Nothing is rewritten on read: a card whose numbers are stale
+ * is a card, and the backfill is where files get re-derived.
+ */
+const RenderBytes = z.preprocess(
+  (raw) => {
+    if (raw === null || typeof raw !== 'object') return raw;
+    const r = raw as Record<string, unknown>;
+    return {
+      sourceBytes: r.sourceBytes ?? r.sourcePngBytes,
+      cardBytes: r.cardBytes ?? r.cardPngBytes,
+      ogBytes: r.ogBytes ?? r.ogPngBytes,
+      resizeMs: r.resizeMs,
+    };
+  },
+  z.object({
+    sourceBytes: z.number().int(),
+    cardBytes: z.number().int(),
+    ogBytes: z.number().int(),
+    /** Time spent deriving the two rendered files from the source, ms. */
+    resizeMs: z.number(),
+  }),
+);
+
 /** What `meta.json` holds; validated on read so a hand-edited file cannot break a request. */
 export const StoredSessionMeta = z.object({
-  version: z.literal(2),
+  /** 3 since ADR-0022 (thumb.webp + og.jpg); 2 is read, never written. */
+  version: z.union([z.literal(2), z.literal(3)]),
   sessionId: z.string(),
   createdAt: z.number().int(),
   meta: SessionMetaSchema,
@@ -120,20 +188,14 @@ export const StoredSessionMeta = z.object({
     })
     .nullable()
     .default(null),
-  render: z.object({
-    sourcePngBytes: z.number().int(),
-    cardPngBytes: z.number().int(),
-    ogPngBytes: z.number().int(),
-    /** Time spent downscaling the source into the two rendered files, ms. */
-    resizeMs: z.number(),
-  }),
+  render: RenderBytes,
 });
 export type StoredSessionMeta = z.infer<typeof StoredSessionMeta>;
 
 export interface WrittenThumbnail {
-  sourcePngBytes: number;
-  cardPngBytes: number;
-  ogPngBytes: number;
+  sourceBytes: number;
+  cardBytes: number;
+  ogBytes: number;
   resizeMs: number;
 }
 
@@ -165,24 +227,21 @@ export class ThumbnailStore {
     const dir = this.dir(sessionId);
     mkdirSync(dir, { recursive: true });
     const t0 = performance.now();
-    const [cardPng, ogPng] = await Promise.all([
-      downscale(png, THUMB_SIZES.card),
-      downscale(png, THUMB_SIZES.og),
-    ]);
+    const [card, og] = await Promise.all([derive(png, 'card'), derive(png, 'og')]);
     const resizeMs = performance.now() - t0;
     // The source first, the card last: the card's presence is what "ready"
     // means, so a crash mid-write never advertises a half set.
-    writeFileSync(join(dir, THUMB_FILES.source), png);
-    writeFileSync(join(dir, THUMB_FILES.og), ogPng);
-    writeFileSync(join(dir, THUMB_FILES.card), cardPng);
+    writeAtomic(join(dir, THUMB_FILES.source), png);
+    writeAtomic(join(dir, THUMB_FILES.og), og);
+    writeAtomic(join(dir, THUMB_FILES.card), card);
     const written: WrittenThumbnail = {
-      sourcePngBytes: png.length,
-      cardPngBytes: cardPng.length,
-      ogPngBytes: ogPng.length,
+      sourceBytes: png.length,
+      cardBytes: card.length,
+      ogBytes: og.length,
       resizeMs,
     };
     const stored: StoredSessionMeta = {
-      version: 2,
+      version: 3,
       sessionId,
       createdAt: Date.now(),
       meta,
@@ -214,7 +273,7 @@ export class ThumbnailStore {
     const dir = this.dir(sessionId);
     mkdirSync(dir, { recursive: true });
     const stored: StoredSessionMeta = {
-      version: 2,
+      version: 3,
       sessionId,
       createdAt: Date.now(),
       meta,
@@ -223,7 +282,7 @@ export class ThumbnailStore {
       reused: provenance.reused ?? false,
       savedUsd: provenance.savedUsd ?? 0,
       image: null,
-      render: { sourcePngBytes: 0, cardPngBytes: 0, ogPngBytes: 0, resizeMs: 0 },
+      render: { sourceBytes: 0, cardBytes: 0, ogBytes: 0, resizeMs: 0 },
     };
     writeFileSync(join(dir, THUMB_FILES.meta), JSON.stringify(stored));
   }
@@ -235,15 +294,61 @@ export class ThumbnailStore {
   async file(sessionId: string, kind: ThumbnailKind): Promise<string | null> {
     const p = join(this.dir(sessionId), THUMB_FILES[kind]);
     if (existsSync(p)) return p;
-    // The source is the only thing that cannot be re-derived, and a sketch
-    // from before ADR-0021 has no renderer left; both are simply absent.
-    if (kind === 'source' || kind === 'svg') return null;
+    // Three kinds cannot be made: the source is the only thing that is not
+    // derivable, a sketch from before ADR-0021 has no renderer left, and the
+    // PNG pair from before ADR-0022 is deliberately never written again — the
+    // route serves those two only for the records that still point at them.
+    if (!isDerived(kind)) return null;
     const sourcePath = join(this.dir(sessionId), THUMB_FILES.source);
     if (!existsSync(sourcePath)) return null;
-    // On the request path, so doubly worth keeping off the loop.
-    writeFileSync(p, await downscale(readFileSync(sourcePath), THUMB_SIZES[kind]));
+    // On the request path, so doubly worth keeping off the loop — and written
+    // through a rename, because that is where concurrent readers are.
+    writeAtomic(p, await derive(readFileSync(sourcePath), kind));
     observer.event('thumbnail.resize_on_demand', { kind });
     return p;
+  }
+
+  /**
+   * Re-derive both rendered sizes from a source that is already on disk, in
+   * today's formats. This is what moves a session written under ADR-0021 to a
+   * WebP card, and it costs **nothing**: the generation is the whole bill and
+   * it was paid once, for these exact bytes. Null when there is no source to
+   * derive from — a pre-ADR-0021 sketch has none, and inventing one would mean
+   * a new call.
+   *
+   * The PNG pair it supersedes is **kept**. `og.png` was the `og:image` on
+   * every share page ever posted, and an unfurl cache re-fetches that URL
+   * without re-scraping the page; deleting it would turn a picture that is
+   * already in someone's Slack into a 404. They cost ~1.7 MB a session on a
+   * disk the RUNBOOK budgets, and nothing links to them but the past.
+   */
+  async reencode(sessionId: string): Promise<WrittenThumbnail | null> {
+    const dir = this.dir(sessionId);
+    const sourcePath = join(dir, THUMB_FILES.source);
+    if (!existsSync(sourcePath)) return null;
+    const png = readFileSync(sourcePath);
+    const t0 = performance.now();
+    const [card, og] = await Promise.all([derive(png, 'card'), derive(png, 'og')]);
+    const resizeMs = performance.now() - t0;
+    writeAtomic(join(dir, THUMB_FILES.og), og);
+    writeAtomic(join(dir, THUMB_FILES.card), card);
+    const written: WrittenThumbnail = {
+      sourceBytes: png.length,
+      cardBytes: card.length,
+      ogBytes: og.length,
+      resizeMs,
+    };
+    // The card's provenance — what it cost, which model drew it — is unchanged
+    // and must survive; only the byte counts and the version are now wrong.
+    const stored = this.meta(sessionId);
+    if (stored)
+      writeAtomic(
+        join(dir, THUMB_FILES.meta),
+        Buffer.from(
+          JSON.stringify({ ...stored, version: 3, render: written } satisfies StoredSessionMeta),
+        ),
+      );
+    return written;
   }
 
   meta(sessionId: string): StoredSessionMeta | null {
@@ -266,25 +371,41 @@ export class ThumbnailStore {
 }
 
 /**
- * One generated raster → one rendered size, on libuv's threadpool.
- *
- * resvg is an SVG rasteriser, so the picture is wrapped in a one-element SVG
- * of the target size and drawn with `preserveAspectRatio="xMidYMid slice"`:
- * scale to fill, crop what overflows, centred. The source is 3:2 and the card
- * is 16:9, so a slice keeps the subject and loses a little sky — which is
- * what a thumbnail wants, where a letterbox would give back bars.
+ * Write-then-rename, the way the lesson-memo cache does it
+ * (`meta-cache.ts`). Two things make it necessary here rather than merely
+ * tidy: `file()` runs on the request path, so a reader can arrive between a
+ * truncate and the bytes and stream a short body under a `Content-Length`
+ * taken a moment earlier; and two crawlers hitting the same missing `og.jpg`
+ * derive it concurrently. A rename is atomic, so either the old file or the
+ * whole new one is there, never half of one.
  */
-export async function downscale(
-  png: Buffer,
-  size: { width: number; height: number },
-): Promise<Buffer> {
-  const href = `data:image/png;base64,${png.toString('base64')}`;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">` +
-    `<image x="0" y="0" width="${size.width}" height="${size.height}" ` +
-    `preserveAspectRatio="xMidYMid slice" href="${href}"/></svg>`;
-  const rendered = await renderAsync(svg, { fitTo: { mode: 'width', value: size.width } });
-  return rendered.asPng();
+function writeAtomic(path: string, bytes: Buffer): void {
+  const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+  writeFileSync(tmp, bytes);
+  renameSync(tmp, path);
+}
+
+/**
+ * One generated raster → one rendered size, in the format that size is served
+ * in, on libuv's threadpool.
+ *
+ * `fit: 'cover'` with the default centre position is exactly the SVG
+ * `preserveAspectRatio="xMidYMid slice"` this replaced: scale to fill, crop
+ * what overflows, centred. The source is 3:2 and the card is 16:9, so a cover
+ * keeps the subject and loses a little sky — which is what a thumbnail wants,
+ * where a letterbox would give back bars.
+ */
+export async function derive(png: Buffer, kind: DerivedKind): Promise<Buffer> {
+  const size = THUMB_SIZES[kind];
+  const resized = sharp(png).resize(size.width, size.height, {
+    fit: 'cover',
+    position: 'centre',
+  });
+  return kind === 'card'
+    ? resized.webp(ENCODE.card).toBuffer()
+    : // Progressive + mozjpeg because an Open Graph image is fetched once by a
+      // crawler and then shown at full width: bytes matter more than encode ms.
+      resized.jpeg({ ...ENCODE.og, progressive: true, mozjpeg: true }).toBuffer();
 }
 
 /**
@@ -360,9 +481,9 @@ export function createSessionMetaJobs(deps: {
       observer.event('thumbnail.ready', {
         sessionId: input.sessionId,
         billTo: input.billTo,
-        sourcePngBytes: written?.sourcePngBytes ?? 0,
-        cardPngBytes: written?.cardPngBytes ?? 0,
-        ogPngBytes: written?.ogPngBytes ?? 0,
+        sourceBytes: written?.sourceBytes ?? 0,
+        cardBytes: written?.cardBytes ?? 0,
+        ogBytes: written?.ogBytes ?? 0,
         resizeMs: Math.round(written?.resizeMs ?? 0),
         imageMs: Math.round(image?.ms ?? 0),
         usd: result.usage.usd + (image?.usage?.usd ?? 0),

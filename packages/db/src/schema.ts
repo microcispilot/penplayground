@@ -76,7 +76,11 @@ export const sessions = pgTable(
     questions: integer('questions').notNull().default(0),
     recap: jsonb('recap').$type<string[]>().notNull().default([]),
     views: integer('views').notNull().default(0),
-    /** Relative URL of the rendered sketch (`/api/sessions/<id>/thumb.svg`); null until the background job lands (ADR-0013). */
+    /**
+     * Relative URL of the session's card picture (`/api/sessions/<id>/thumb.webp`
+     * since ADR-0022; `thumb.png` and `thumb.svg` on older records, both still
+     * served); null until the background job lands (ADR-0013).
+     */
     thumbnail: text('thumbnail'),
     /** `${lang}.${slug}` from the Onten registry: groups same-intent sessions for reuse statistics. */
     canonicalId: text('canonical_id'),

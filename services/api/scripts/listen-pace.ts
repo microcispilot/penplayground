@@ -116,7 +116,12 @@ async function speak(
       event: (name, data) => {
         if (name === 'tts.first_chunk') console.log(`  first chunk after ${data.ms} ms`);
       },
-      error: (area, error) => fail(new Error(`${area}: ${String(error)}`)),
+      error: (area, error) => {
+        // `RoomObserver.error` answers with a Sentry event id; this probe has
+        // none, and returning `fail`'s void would not type as one.
+        fail(new Error(`${area}: ${String(error)}`));
+        return null;
+      },
     },
     pace: () => pace,
     onComplete: () => done(),

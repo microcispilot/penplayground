@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,7 +133,7 @@ describe('thumbnails:backfill', () => {
     }
     await withDb(async (repo) => {
       const one = await repo.get('s_backfill_01');
-      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.png');
+      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.webp');
       expect(one?.description).toMatch(/attention/i);
       expect(one?.keywords).toContain('transformers');
       // The live one was never touched.
@@ -171,7 +171,7 @@ describe('thumbnails:backfill', () => {
     expect(stdout).toMatch(/done: 0 drawn, 0 reused, 1 repaired, 0 failed/);
     await withDb(async (repo) => {
       const one = await repo.get('s_backfill_01');
-      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.png');
+      expect(one?.thumbnail).toBe('/api/sessions/s_backfill_01/thumb.webp');
       expect(one?.description).toMatch(/attention/i);
     });
   }, 120_000);
@@ -179,4 +179,75 @@ describe('thumbnails:backfill', () => {
   it('refuses an argument it does not understand', async () => {
     await expect(backfill('--nope')).rejects.toThrow(/unknown argument/);
   }, 120_000);
+
+  /**
+   * `--reencode` (ADR-0022): the pass that moves ADR-0021's PNG cards onto
+   * WebP and JPEG. It is the one mode that cannot spend anything — every
+   * session it touches already has the generation that paid for it — so the
+   * test that matters is that no provider is asked for anything at all.
+   */
+  describe('--reencode', () => {
+    it('will not run alongside --redraw, so a free pass is never mistaken for a paid one', async () => {
+      await expect(backfill('--redraw', '--reencode')).rejects.toThrow(
+        /--redraw generates and --reencode never does/,
+      );
+    }, 120_000);
+
+    it('re-derives a PNG card into WebP + JPEG, repoints the record, and spends nothing', async () => {
+      // Put s_backfill_01 back where ADR-0021 left it: a record pointing at
+      // `thumb.png`, with `source.png` still beside it.
+      const dir = join(dataDir, 'sessions', 's_backfill_01');
+      expect(existsSync(join(dir, THUMB_FILES.source))).toBe(true);
+      copyFileSync(join(dir, THUMB_FILES.card), join(dir, THUMB_FILES.cardPng));
+      copyFileSync(join(dir, THUMB_FILES.og), join(dir, THUMB_FILES.ogPng));
+      rmSync(join(dir, THUMB_FILES.card));
+      rmSync(join(dir, THUMB_FILES.og));
+      await withDb(async (repo) => {
+        await repo.patch('s_backfill_01', {
+          thumbnail: '/api/sessions/s_backfill_01/thumb.png',
+        });
+      });
+
+      const dry = await backfill('--reencode', '--dry-run');
+      expect(dry.stdout).toMatch(/1 session still on a PNG card/);
+      expect(dry.stdout).toMatch(/would re-encode\s+s_backfill_01/);
+      expect(existsSync(join(dir, THUMB_FILES.card))).toBe(false);
+
+      const { stdout } = await backfill('--reencode');
+      expect(stdout).toMatch(/no API calls, \$0\.0000/);
+      expect(stdout).toMatch(/re-encoded s_backfill_01/);
+      expect(stdout).toMatch(/done: 1 re-encoded, 0 without a source · .*spent \$0\.0000/);
+      expect(existsSync(join(dir, THUMB_FILES.card))).toBe(true);
+      expect(existsSync(join(dir, THUMB_FILES.og))).toBe(true);
+      // The pair it supersedes stays: those URLs are in unfurl caches.
+      expect(existsSync(join(dir, THUMB_FILES.cardPng))).toBe(true);
+      expect(existsSync(join(dir, THUMB_FILES.ogPng))).toBe(true);
+      await withDb(async (repo) => {
+        expect((await repo.get('s_backfill_01'))?.thumbnail).toBe(
+          '/api/sessions/s_backfill_01/thumb.webp',
+        );
+      });
+      // Idempotent: nothing points at a PNG any more, so there is nothing left.
+      expect((await backfill('--reencode')).stdout).toMatch(/0 sessions still on a PNG card/);
+    }, 120_000);
+
+    it('skips a session whose source is gone rather than inventing one', async () => {
+      await withDb(async (repo) => {
+        await repo.upsert(
+          record('s_backfill_05', { thumbnail: '/api/sessions/s_backfill_05/thumb.png' }),
+        );
+      });
+      const dry = await backfill('--reencode', '--dry-run');
+      expect(dry.stdout).toMatch(/would skip\s+s_backfill_05\s+\(no source\.png\)/);
+      const { stdout } = await backfill('--reencode');
+      expect(stdout).toMatch(/skip s_backfill_05\s+no source\.png to derive from/);
+      expect(stdout).toMatch(/done: 0 re-encoded, 1 without a source/);
+      // Its record is untouched: the card it has is the only one it can have.
+      await withDb(async (repo) => {
+        expect((await repo.get('s_backfill_05'))?.thumbnail).toBe(
+          '/api/sessions/s_backfill_05/thumb.png',
+        );
+      });
+    }, 120_000);
+  });
 });

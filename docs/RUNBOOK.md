@@ -372,10 +372,16 @@ concurrency, not a leak.
 ## 8. Disk
 
 `/data` grows with every session: ledger, audio, thumbnails, and MP4 exports.
-Since ADR-0021 a session's thumbnail is a photograph, not a 20 kB SVG: budget
-~3.8 MB per session for `source.png` + `og.png` + `thumb.png` (measured
-2.0 / 1.3 / 0.4 MB), plus one ~2 MB picture per lesson in
-`data/onten/thumbnail-images/` (capped at 1 GB, oldest out first).
+Since ADR-0021 a session's thumbnail is a photograph, not a 20 kB SVG, and
+since ADR-0022 only the master is stored losslessly: budget ~2.0 MB per session
+for `source.png` + `og.jpg` + `thumb.webp` (measured 1.9 MB / 49 kB / 15 kB),
+plus one ~2 MB picture per lesson in `data/onten/thumbnail-images/` (capped at
+1 GB, oldest out first). Sessions written before ADR-0022 also carry the
+~1.9 MB PNG pair they were served as; `thumbnails:backfill --reencode` adds the
+~64 kB WebP/JPEG pair beside it for nothing and repoints the record, and
+**keeps** the PNGs, because `og.png` is the URL already sitting in every unfurl
+cache that has ever seen the share page. Deleting them is a separate decision
+and there is no flag for it.
 
 ```sh
 df -h /srv

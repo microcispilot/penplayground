@@ -29,8 +29,17 @@ const StoredEntry = z.object({
 });
 type StoredEntry = z.infer<typeof StoredEntry>;
 
+/**
+ * Version 2 since ADR-0022. The bump is the invalidation: a version-1 file
+ * fails this parse and `load()` treats an unreadable file as a cold cache, so
+ * every card written before the copy call learned to name a photographic
+ * subject is written again. Without it a scope cached earlier would replay
+ * `subject: ''` for good — the entry parses fine, because the field defaults —
+ * and its thumbnail would silently keep the title-only prompt. One cheap copy
+ * call per scope (~$0.0002) is the whole price of not having that.
+ */
 const StoredFile = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   entries: z.record(z.string(), StoredEntry),
 });
 
@@ -88,7 +97,7 @@ export class FileSessionMetaCache implements SessionMetaCachePort {
       entries.delete(oldest.value);
     }
     const snapshot = JSON.stringify({
-      version: 1,
+      version: 2,
       entries: Object.fromEntries(entries),
     } satisfies z.input<typeof StoredFile>);
     this.writing = this.writing.then(() => {

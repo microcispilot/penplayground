@@ -15,14 +15,13 @@ import { build, type Plugin } from 'esbuild';
  *   @electric-sql/pglite   wasm + data assets located via import.meta.url
  *   postgres               native-ish socket/TLS handling, dynamic requires
  *   ws (+ bufferutil, utf-8-validate)   optional native add-ons
- *   sharp                  native (not used today; kept external in case a package pulls it in)
+ *   sharp                  native (napi) image codec; derives the WebP card and JPEG og image
  *   pino / pino-pretty     worker-thread transports resolved from pino's own location
  *   @sentry/node           module require hooks and lazy instrumentation requires
  *   undici                 large CJS with optional `node:sqlite`/dispatcher requires
  *   playwright(-core)      locates browsers and its driver relative to its own package
  *   fasttext.wasm.js       loads its .wasm and the lid.176 model relative to its own package
  *   google-auth-library    gaxios/gcp-metadata reach for optional peers at runtime
- *   @resvg/resvg-js        native (napi) rasteriser, used to downscale thumbnail PNGs
  *
  * Output: dist/main.js (+ .map, meta.json) and dist/drizzle (migrations copied beside the bundle).
  *
@@ -50,7 +49,6 @@ const EXTERNAL = [
   'playwright-core',
   'fasttext.wasm.js',
   'google-auth-library',
-  '@resvg/resvg-js',
 ];
 
 const externalPackages: Plugin = {

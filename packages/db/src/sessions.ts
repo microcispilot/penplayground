@@ -71,6 +71,23 @@ export class SessionRepository {
       .limit(limit);
   }
 
+  /**
+   * Sessions whose card is still the PNG ADR-0021 wrote (`thumb.png`), newest
+   * first: what `thumbnails:backfill --reencode` walks. Their generation is
+   * already paid for and still on disk as `source.png`, so moving them to a
+   * WebP card is a re-derivation and not a call — which is why they are a
+   * separate list from `--redraw`'s sketches, which have nothing to derive
+   * from. Matching on the stored path is what makes them findable.
+   */
+  async listWithPngThumbnail(limit = 100): Promise<SessionRecord[]> {
+    return this.db
+      .select()
+      .from(sessions)
+      .where(like(sessions.thumbnail, '%.png'))
+      .orderBy(desc(sessions.startedAt))
+      .limit(limit);
+  }
+
   async listForHost(hostId: string): Promise<SessionRecord[]> {
     return this.db
       .select()
