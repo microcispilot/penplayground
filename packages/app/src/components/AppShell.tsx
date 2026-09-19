@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <aside
           data-testid="sidebar-aside"
           className={cn(
-            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 border-r border-line/70 bg-chrome lg:block',
+            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 border-r border-outline-variant/70 bg-surface-container-low lg:block',
             rail ? 'w-[72px]' : 'w-[240px]',
           )}
         >
@@ -82,8 +82,10 @@ export function ShellPage({
       <div className="mx-auto w-full max-w-[1100px]">
         <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-[clamp(1.6rem,2.4vw,2rem)] tracking-[-0.028em]">{title}</h2>
-            {intro ? <p className="mt-2 max-w-[620px] text-[15px] text-fg-2">{intro}</p> : null}
+            <h2 className="text-headline-small">{title}</h2>
+            {intro ? (
+              <p className="mt-2 max-w-[620px] text-body-medium text-on-surface-variant">{intro}</p>
+            ) : null}
           </div>
           {actions}
         </div>

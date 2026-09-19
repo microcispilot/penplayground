@@ -13,39 +13,74 @@
   }
   body {
     margin: 0;
-    background: var(--color-bg);
-    color: var(--color-fg);
+    background: var(--color-surface);
+    color: var(--color-on-surface);
     font-family: var(--font-sans);
-    font-size: var(--text-base);
-    line-height: 1.5;
+    /* body-medium: the page's default voice in M3. */
+    font-size: var(--text-body-medium);
+    line-height: var(--text-body-medium--line-height);
+    letter-spacing: var(--text-body-medium--letter-spacing);
     font-feature-settings: "tnum" 0;
+  }
+  /*
+   * A heading with no role class still lands on a role rather than on the
+   * browser's 2em default. Any `text-<role>` utility overrides all four.
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 0;
   }
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    font-weight: var(--display-weight, 500);
-    letter-spacing: var(--display-tracking, -0.02em);
-    line-height: 1.06;
-    margin: 0;
+  }
+  h1 {
+    font-size: var(--text-headline-large);
+    line-height: var(--text-headline-large--line-height);
+    letter-spacing: var(--text-headline-large--letter-spacing);
+    font-weight: var(--text-headline-large--font-weight);
+  }
+  h2 {
+    font-size: var(--text-headline-small);
+    line-height: var(--text-headline-small--line-height);
+    letter-spacing: var(--text-headline-small--letter-spacing);
+    font-weight: var(--text-headline-small--font-weight);
+  }
+  h3 {
+    font-size: var(--text-title-large);
+    line-height: var(--text-title-large--line-height);
+    letter-spacing: var(--text-title-large--letter-spacing);
+    font-weight: var(--text-title-large--font-weight);
   }
   h4,
   h5,
   h6 {
     font-family: var(--font-sans);
-    font-weight: 600;
-    margin: 0;
+    font-size: var(--text-title-medium);
+    line-height: var(--text-title-medium--line-height);
+    letter-spacing: var(--text-title-medium--letter-spacing);
+    font-weight: var(--text-title-medium--font-weight);
   }
   :focus {
     outline: none;
   }
+  /*
+   * M3's focus ring: 3 px of `secondary`, 2 px outward.
+   * (@material/web focus/internal/focus-ring-styles.css — colour
+   * `--md-sys-color-secondary`, width 3px, outward-offset 2px.)
+   */
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 3px solid var(--color-secondary);
     outline-offset: 2px;
-    border-radius: var(--radius-xs);
   }
   ::selection {
-    background: var(--color-accent-soft);
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
   }
   button,
   input,
@@ -65,6 +100,44 @@
   }
 }
 
+/*
+ * The M3 state layer. A control does not swap colour on hover; it lays its own
+ * foreground over itself at a fixed opacity — 8 % hovered, 12 % focused or
+ * pressed (tokens/versions/v0_192/_md-sys-state.scss). `isolation: isolate`
+ * plus `z-index: -1` puts the layer above the control's own background and
+ * below its label, so one utility works on a filled, tonal, outlined or plain
+ * control without knowing which it is.
+ */
+@utility state-layer {
+  position: relative;
+  isolation: isolate;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  &:hover::after {
+    opacity: calc(var(--state-hover) / 100%);
+  }
+  &:focus-visible::after {
+    opacity: calc(var(--state-focus) / 100%);
+  }
+  &:active::after {
+    opacity: calc(var(--state-pressed) / 100%);
+  }
+  &:disabled::after,
+  &[aria-disabled="true"]::after {
+    opacity: 0;
+  }
+}
+
 @utility paper {
   background-color: var(--color-paper);
   background-image: radial-gradient(circle, var(--color-paper-grid) 1px, transparent 1px);
@@ -76,6 +149,7 @@
 @utility text-pretty {
   text-wrap: pretty;
 }
+/* M3's outlined variants draw one hairline in `outline-variant`. */
 @utility hairline {
-  box-shadow: 0 0 0 1px var(--color-line);
+  box-shadow: 0 0 0 1px var(--color-outline-variant);
 }

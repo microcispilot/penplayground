@@ -1,105 +1,290 @@
 /*
- * Pen Playground design tokens (ADR-0007). Semantic names only; components never
- * use raw colour values. Palette sources: navy #0C2C47, green #2D5652, yellow
- * #E2A54D, aqua #97D3CD, pink #EFEAE6, mint #E4F2EA, teal #008EAA, red #A6192E,
- * lime #78BE21 — converted to OKLCH so ramps share one lightness scale.
+ * Pen Playground design tokens — Material Design 3 (M3), Expressive update.
+ *
+ * The system is M3's, not a house scale: the fifteen typescale roles, the M3
+ * shape scale, M3's colour roles generated from our own teal, M3 elevation and
+ * M3 state-layer opacities. Components name a *role* ("title-medium",
+ * "corner-large", "surface-container-high"), never a number.
+ *
+ * Provenance — every number below was read out of Google's own packages, not
+ * from memory:
+ *   · type   `@material/web@2.5.0` → tokens/versions/v0_192/_md-sys-typescale.scss
+ *   · shape  `@material/web@2.5.0` → tokens/versions/v0_192/_md-sys-shape.scss
+ *            (`-increased` and `xxl` are the Expressive additions, 20/32/48 px)
+ *   · state  `@material/web@2.5.0` → tokens/versions/v0_192/_md-sys-state.scss
+ *   · colour `@material/material-color-utilities@0.4.0` — `SchemeTonalSpot`
+ *            seeded with the brand teal #008EAA, read through
+ *            `MaterialDynamicColors`. Neither package is a dependency of this
+ *            repo: they generated these values once, and the values are the
+ *            artefact. `packages/design/test/design-system.test.ts` re-measures
+ *            every pair that carries text.
+ *
+ * Two owner constraints shape the colour, and both are honoured inside M3's
+ * own machinery rather than around it:
+ *
+ *   Matte. The neutral and neutral-variant tonal palettes are generated at
+ *   chroma 0 instead of M3's default 6 and 8. Surfaces therefore separate by
+ *   *value* alone — no tint, no wash, no sheen. (M3's own teal-tinted neutrals
+ *   would have made every dark panel read as lacquered blue-grey; that is the
+ *   look this replaces.)
+ *
+ *   Teal. Every board sketch is drawn in teal ink, so the primary palette is
+ *   seeded from #008EAA and the ink tokens at the bottom of this file are
+ *   pinned to the same tone. A different hue would make the session page read
+ *   as two brands.
  */
 @import "tailwindcss/theme" layer(theme);
 
 @theme {
-  /* ── brand primitives ─────────────────────────────────────────────── */
-  --color-navy-900: oklch(0.2 0.05 248);
-  --color-navy-800: oklch(0.285 0.062 247.7); /* #0C2C47 */
-  --color-navy-700: oklch(0.36 0.065 247);
-  --color-navy-600: oklch(0.45 0.065 246);
-  --color-teal-800: oklch(0.458 0.058 220.3); /* #2E5F6E */
-  --color-teal-600: oklch(0.597 0.107 218.3); /* #008EAA */
-  --color-teal-500: oklch(0.66 0.1 216);
-  --color-teal-400: oklch(0.766 0.068 211.8); /* #7FBFCC */
-  --color-teal-200: oklch(0.901 0.021 219.7); /* #D0E2E8 */
-  --color-forest-700: oklch(0.422 0.047 187.4); /* #2D5652 */
-  --color-aqua-400: oklch(0.824 0.062 188.3); /* #97D3CD */
-  --color-mint-100: oklch(0.948 0.018 161.1); /* #E4F2EA */
-  --color-yellow-500: oklch(0.763 0.126 73.7); /* #E2A54D */
-  --color-yellow-300: oklch(0.88 0.08 80);
-  --color-pink-100: oklch(0.94 0.008 61.4); /* #EFEAE6 */
-  --color-lime-600: oklch(0.727 0.191 131.9); /* #78BE21 */
-  --color-lime-700: oklch(0.531 0.131 132.2); /* #4E7B1E */
-  --color-lime-300: oklch(0.854 0.117 128.5);
-  --color-red-800: oklch(0.33 0.099 20.3); /* #5E1A1F */
-  --color-red-600: oklch(0.47 0.173 20.4); /* #A6192E */
-  --color-red-400: oklch(0.639 0.104 11.8); /* #C2707B */
-  --color-red-200: oklch(0.878 0.027 11.9);
+  /* ──────────────────────────────────────────────────────────────────────
+   * Type — the M3 typescale, all fifteen roles.
+   *
+   * The t-shirt scale (`text-sm`, `text-xl`, …) is cleared: a size is chosen
+   * by asking what the text *is*, not how big it should be. Roles carry their
+   * own line-height, tracking and weight, exactly as the M3 tokens pair them.
+   *
+   * Emphasis is the Expressive "emphasized" set: the same metrics one weight
+   * step heavier (`--md-ref-typeface-weight-*`: regular 400 → medium 500 →
+   * bold 700), which is what `md-typescale-*-prominent` does in
+   * @material/web. Reach for it with `font-medium` / `font-bold` beside the
+   * role, or with the `-emphasized` roles below where the pair is fixed.
+   *
+   * Display is deliberately hard to reach. Nothing on a page a learner reads
+   * every day should need it.
+   * ────────────────────────────────────────────────────────────────────── */
+  --text-*: initial;
 
-  /* ── semantic (light) ─────────────────────────────────────────────── */
-  --color-bg: oklch(0.985 0.005 80);
-  --color-bg-elevated: oklch(1 0 0);
-  --color-surface: oklch(0.965 0.008 75);
-  --color-surface-2: oklch(0.935 0.01 75);
-  --color-line: oklch(0.285 0.062 247.7 / 12%);
-  --color-line-strong: oklch(0.285 0.062 247.7 / 24%);
-  --color-fg: oklch(0.24 0.045 248);
-  --color-fg-2: oklch(0.45 0.035 247);
-  /* 0.52, not 0.6: at 0.6 this muted tone measured 3.77:1 on --color-bg and
-     3.25:1 on --color-surface-2, i.e. below WCAG AA for the small secondary
-     text it is used for. 0.52 clears 4.5:1 on every surface it lands on. */
-  --color-fg-3: oklch(0.52 0.025 245);
-  /* The accent family is the brand's, and the brand is switchable: these five
-     are re-declared per family at the bottom of this file. See "brand accent". */
-  --color-accent: oklch(0.597 0.107 218.3); /* #008eaa */
-  /* 0.46: the accent wherever it carries or sits under text. At 0.5 it measured
-     4.39:1 as a label on --color-accent-soft over --color-surface — under AA for
-     the small pill text it is used for. --color-accent itself stays the brand
-     tone for strokes, fills and dots, which need 3:1, not 4.5:1. */
-  --color-accent-strong: oklch(0.46 0.1 219);
-  --color-accent-pressed: oklch(0.4 0.095 219);
-  --color-accent-soft: oklch(0.597 0.107 218.3 / 14%);
-  --color-on-accent: oklch(0.99 0.005 220);
+  --text-display-large: 3.5625rem;
+  --text-display-large--line-height: 4rem;
+  --text-display-large--letter-spacing: -0.015625rem;
+  --text-display-large--font-weight: 400;
+  --text-display-medium: 2.8125rem;
+  --text-display-medium--line-height: 3.25rem;
+  --text-display-medium--letter-spacing: 0rem;
+  --text-display-medium--font-weight: 400;
+  --text-display-small: 2.25rem;
+  --text-display-small--line-height: 2.75rem;
+  --text-display-small--letter-spacing: 0rem;
+  --text-display-small--font-weight: 400;
+
+  --text-headline-large: 2rem;
+  --text-headline-large--line-height: 2.5rem;
+  --text-headline-large--letter-spacing: 0rem;
+  --text-headline-large--font-weight: 400;
+  --text-headline-medium: 1.75rem;
+  --text-headline-medium--line-height: 2.25rem;
+  --text-headline-medium--letter-spacing: 0rem;
+  --text-headline-medium--font-weight: 400;
+  --text-headline-small: 1.5rem;
+  --text-headline-small--line-height: 2rem;
+  --text-headline-small--letter-spacing: 0rem;
+  --text-headline-small--font-weight: 400;
+
+  --text-title-large: 1.375rem;
+  --text-title-large--line-height: 1.75rem;
+  --text-title-large--letter-spacing: 0rem;
+  --text-title-large--font-weight: 400;
+  --text-title-medium: 1rem;
+  --text-title-medium--line-height: 1.5rem;
+  --text-title-medium--letter-spacing: 0.009375rem;
+  --text-title-medium--font-weight: 500;
+  --text-title-small: 0.875rem;
+  --text-title-small--line-height: 1.25rem;
+  --text-title-small--letter-spacing: 0.00625rem;
+  --text-title-small--font-weight: 500;
+
+  --text-body-large: 1rem;
+  --text-body-large--line-height: 1.5rem;
+  --text-body-large--letter-spacing: 0.03125rem;
+  --text-body-large--font-weight: 400;
+  --text-body-medium: 0.875rem;
+  --text-body-medium--line-height: 1.25rem;
+  --text-body-medium--letter-spacing: 0.015625rem;
+  --text-body-medium--font-weight: 400;
+  --text-body-small: 0.75rem;
+  --text-body-small--line-height: 1rem;
+  --text-body-small--letter-spacing: 0.025rem;
+  --text-body-small--font-weight: 400;
+
+  --text-label-large: 0.875rem;
+  --text-label-large--line-height: 1.25rem;
+  --text-label-large--letter-spacing: 0.00625rem;
+  --text-label-large--font-weight: 500;
+  --text-label-medium: 0.75rem;
+  --text-label-medium--line-height: 1rem;
+  --text-label-medium--letter-spacing: 0.03125rem;
+  --text-label-medium--font-weight: 500;
+  --text-label-small: 0.6875rem;
+  --text-label-small--line-height: 1rem;
+  --text-label-small--letter-spacing: 0.03125rem;
+  --text-label-small--font-weight: 500;
+
+  /* The emphasized set: same metrics, one weight step up. */
+  --text-headline-large-emphasized: 2rem;
+  --text-headline-large-emphasized--line-height: 2.5rem;
+  --text-headline-large-emphasized--letter-spacing: 0rem;
+  --text-headline-large-emphasized--font-weight: 500;
+  --text-headline-medium-emphasized: 1.75rem;
+  --text-headline-medium-emphasized--line-height: 2.25rem;
+  --text-headline-medium-emphasized--letter-spacing: 0rem;
+  --text-headline-medium-emphasized--font-weight: 500;
+  --text-headline-small-emphasized: 1.5rem;
+  --text-headline-small-emphasized--line-height: 2rem;
+  --text-headline-small-emphasized--letter-spacing: 0rem;
+  --text-headline-small-emphasized--font-weight: 500;
+  --text-title-large-emphasized: 1.375rem;
+  --text-title-large-emphasized--line-height: 1.75rem;
+  --text-title-large-emphasized--letter-spacing: 0rem;
+  --text-title-large-emphasized--font-weight: 500;
+  --text-title-medium-emphasized: 1rem;
+  --text-title-medium-emphasized--line-height: 1.5rem;
+  --text-title-medium-emphasized--letter-spacing: 0.009375rem;
+  --text-title-medium-emphasized--font-weight: 700;
+  --text-label-large-emphasized: 0.875rem;
+  --text-label-large-emphasized--line-height: 1.25rem;
+  --text-label-large-emphasized--letter-spacing: 0.00625rem;
+  --text-label-large-emphasized--font-weight: 700;
+  --text-label-medium-emphasized: 0.75rem;
+  --text-label-medium-emphasized--line-height: 1rem;
+  --text-label-medium-emphasized--letter-spacing: 0.03125rem;
+  --text-label-medium-emphasized--font-weight: 700;
 
   /*
-   * The shell's own furniture. A page is content; the sidebar, the footer and
-   * a section's header row are the frame around it, and they say so by sitting
-   * one small step off the page rather than by drawing more lines. The step
-   * carries a trace of the accent (4–8 % in oklab), so the frame warms to
-   * whichever brand family is active instead of going grey — which is what
-   * made the platform read as lifeless.
+   * One family at two optical sizes. M3 names a brand face and a plain face;
+   * Apple and Google both set headlines in their UI face at its display size
+   * rather than in a second voice, and so do we.
+   *
+   * Note for the record: M3's tracking above is drawn for Roboto. This stack
+   * resolves to SF Pro on macOS/iOS and Segoe UI on Windows, and those faces
+   * carry a little optical tracking of their own. The values are M3's, kept as
+   * M3 wrote them; retuning them is one line here if the owner wants it.
    */
-  /* No accent mixed in: the frame is a step in value from the page, not a tint. */
-  --color-chrome: color-mix(in oklab, var(--color-fg) 4%, var(--color-surface));
-  --color-band: color-mix(in oklab, var(--color-fg) 6%, var(--color-surface));
-  --color-warm: var(--color-yellow-500);
-  --color-warm-soft: oklch(0.763 0.126 73.7 / 18%);
-  --color-success: var(--color-lime-700);
-  --color-success-soft: oklch(0.727 0.191 131.9 / 16%);
-  --color-danger: var(--color-red-600);
-  --color-danger-soft: oklch(0.47 0.173 20.4 / 12%);
-  --color-presence: oklch(0.72 0.14 160); /* live / listening green */
-  --color-presence-soft: oklch(0.72 0.14 160 / 16%);
-  --color-speaking: var(--color-teal-500);
-  /* Hero and section washes: brand tints at low opacity, readable on both
-     themes. The first one is mixed from the accent, so the hero's light is
-     the brand's light whichever family is active; the warm and the neutral
-     stay fixed, because a wash of one hue only reads as a wash next to one
-     that is not. */
-  --color-wash-aqua: color-mix(in srgb, var(--color-accent) 24%, transparent);
-  --color-wash-yellow: oklch(0.9 0.07 85 / 30%);
-  --color-wash-pink: oklch(0.94 0.008 61.4 / 90%);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto,
+    "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI",
+    Roboto, "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
 
-  /* ── the board is always paper ────────────────────────────────────── */
+  /* ──────────────────────────────────────────────────────────────────────
+   * Shape — the M3 corner scale. `rounded-full` is Tailwind's own and is the
+   * Expressive default for anything that reads as a control: buttons, chips,
+   * segmented selectors, nav rows, FABs.
+   * ────────────────────────────────────────────────────────────────────── */
+  --radius-*: initial;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-lg-increased: 20px;
+  --radius-xl: 28px;
+  --radius-xl-increased: 32px;
+  --radius-xxl: 48px;
+
+  /* ──────────────────────────────────────────────────────────────────────
+   * Colour — M3 system roles, light. Generated: see the header.
+   * The dark scheme re-assigns exactly these names further down.
+   * ────────────────────────────────────────────────────────────────────── */
+
+  /* primary: the brand teal #008EAA through M3's tonal-spot variant */
+  --color-primary: #00677c;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #b2ebff;
+  --color-on-primary-container: #004e5e;
+  --color-inverse-primary: #86d1e9;
+
+  /* secondary: M3's calmer companion — the fill under a selected nav row */
+  --color-secondary: #4b626a;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #cee7f0;
+  --color-on-secondary-container: #344a51;
+
+  --color-tertiary: #585c7e;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #dfe0ff;
+  --color-on-tertiary-container: #414465;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /*
+   * Surfaces. Chroma 0: a panel lifts off the page by lightness alone, which
+   * is what "matte" means here. The ladder is M3's — the page is `surface`,
+   * and anything that sits on it names the container it belongs to.
+   */
+  --color-surface: #f9f9f9;
+  --color-surface-dim: #dadada;
+  --color-surface-bright: #f9f9f9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f3f3;
+  --color-surface-container: #eeeeee;
+  --color-surface-container-high: #e8e8e8;
+  --color-surface-container-highest: #e2e2e2;
+
+  --color-on-surface: #1b1b1b;
+  --color-on-surface-variant: #474747;
+  /*
+   * Not an M3 role: M3 gives text two levels and makes the third by dropping a
+   * size. This product has a genuine third — a timestamp under a title that is
+   * already under a heading — and collapsing it onto `on-surface-variant` made
+   * three ranks read as two. It is neutral tone 40 (light) / 65 (dark) from
+   * the same generated palette, and it clears 4.5:1 on every surface in the
+   * ladder including `surface-container-highest`.
+   */
+  --color-on-surface-dim: #5e5e5e;
+
+  --color-outline: #777777;
+  --color-outline-variant: #c6c6c6;
+
+  --color-inverse-surface: #303030;
+  --color-inverse-on-surface: #f1f1f1;
+  --color-scrim: #000000;
+
+  /*
+   * Custom colours, as M3 adds them: a source hue run through the same tonal
+   * machinery and exposed as the same four roles.
+   *   presence — a live microphone, a learner listening   (source #3fbf86)
+   *   warm     — an approaching limit, a gentle heads-up   (source #E2A54D)
+   *   success  — something finished cleanly                (source #78BE21)
+   */
+  --color-presence: #006c46;
+  --color-on-presence: #ffffff;
+  --color-presence-container: #7ffabc;
+  --color-on-presence-container: #002112;
+  --color-warm: #835500;
+  --color-on-warm: #ffffff;
+  --color-warm-container: #ffddb4;
+  --color-on-warm-container: #291800;
+  --color-success: #3e6a00;
+  --color-on-success: #ffffff;
+  --color-success-container: #acf758;
+  --color-on-success-container: #0f2000;
+
+  /* ──────────────────────────────────────────────────────────────────────
+   * The board is always paper, in both themes and under every brand.
+   * These are unchanged, on purpose: a session's sketch is rendered once,
+   * server-side, into a file, and a reader on another theme must see the same
+   * picture. Teal ink is pinned to the brand tone rather than to `primary`.
+   * ────────────────────────────────────────────────────────────────────── */
   --color-paper: oklch(0.975 0.008 80);
   --color-paper-grid: oklch(0.285 0.062 247.7 / 16%);
   --color-ink: oklch(0.27 0.055 248);
-  --color-ink-accent: var(--color-teal-600);
-  --color-ink-warn: var(--color-red-600);
+  --color-ink-accent: oklch(0.597 0.107 218.3); /* #008EAA, the brand teal */
+  --color-ink-warn: oklch(0.47 0.173 20.4);
   --color-ink-muted: oklch(0.58 0.03 247);
   --color-ink-highlight: oklch(0.88 0.12 90 / 55%);
+  /* A live voice on that same board; teal for the same reason as the ink. */
+  --color-speaking: oklch(0.66 0.1 216);
 
   /*
    * Captions sit on the board, and the board is always paper. These three are
    * measured, not chosen by eye: composited over --color-paper they give white
-   * body text 11.3:1 and each speaker name better than 7:1, so the line stays
-   * readable at a glance and clears WCAG AA (4.5:1) with room to spare.
-   * packages/design/test/caption-contrast.test.ts holds the measurement.
+   * body text 11.3:1 and each speaker name better than 7:1.
+   * packages/design/test/design-system.test.ts holds the measurement.
    */
   --color-caption-scrim: oklch(0.12 0 0 / 78%);
   --color-caption-expert: oklch(0.88 0.07 214);
@@ -109,72 +294,51 @@
    * Controls that float on the board. A session card's thumbnail is paper too,
    * so the like and save chips there cannot follow the theme the way a page
    * control does: in dark they would put theme-light ink on a permanently
-   * light sheet (measured at 1.5–2.5:1 before these existed). Fixed, and
-   * measured over --color-paper in caption-contrast.test.ts.
+   * light sheet (measured at 1.5–2.5:1 before these existed).
    */
   --color-on-paper-chip: oklch(1 0 0 / 88%);
   --color-on-paper: oklch(0.38 0.03 247);
   --color-on-paper-liked: oklch(0.47 0.173 20.4);
   --color-on-paper-saved: oklch(0.46 0.1 219);
 
-  /* ── type ─────────────────────────────────────────────────────────── */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto,
-    "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  /* The display face is the same family at its display optical size: Apple and Google both
-     set headlines in their UI face, heavier and tighter, rather than in a second voice. */
-  --font-display:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI",
-    Roboto, "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --display-weight: 600;
-  --display-tracking: -0.035em;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
-
-  --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-base: 0.9375rem;
-  --text-md: 1.0625rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.625rem;
-  --text-2xl: 2.125rem;
-  --text-3xl: clamp(2.125rem, 4.4vw, 3.375rem);
-
-  /* ── shape, elevation, motion ─────────────────────────────────────── */
-  --radius-xs: 4px;
-  --radius-sm: 7px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 22px;
-  --radius-full: 999px;
-
-  --shadow-card: 0 1px 2px oklch(0.2 0.05 248 / 6%), 0 8px 24px oklch(0.2 0.05 248 / 8%);
-  --shadow-float:
-    0 1px 0 oklch(1 0 0 / 60%) inset, 0 1px 2px oklch(0.2 0.05 248 / 6%),
-    0 12px 40px oklch(0.2 0.05 248 / 12%), 0 0 0 1px oklch(0.285 0.062 247.7 / 8%);
+  /* ──────────────────────────────────────────────────────────────────────
+   * Elevation — M3's own two-part shadow, evaluated at each level from the
+   * formula in @material/web's elevation-styles.css. Level 0 draws nothing:
+   * in M3 a flat component separates by container tone, not by a line.
+   * ────────────────────────────────────────────────────────────────────── */
+  --shadow-level1: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-level2: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --shadow-level3: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
+  --shadow-level4: 0 2px 3px 0 rgb(0 0 0 / 0.3), 0 6px 10px 4px rgb(0 0 0 / 0.15);
+  --shadow-level5: 0 4px 4px 0 rgb(0 0 0 / 0.3), 0 8px 12px 6px rgb(0 0 0 / 0.15);
   /*
-    The ask field, and only it. Every other elevation here draws an edge — an
-    inset highlight in light, a hairline ring in dark — which on a field sitting
-    in the middle of the hero reads as a stray line above the input rather than
-    as depth. This one is depth alone.
-  */
-  --shadow-ask: 0 1px 2px oklch(0.2 0.05 248 / 6%), 0 12px 40px oklch(0.2 0.05 248 / 12%);
-  --shadow-lift: 0 2px 4px oklch(0.2 0.05 248 / 8%), 0 22px 48px oklch(0.2 0.05 248 / 16%);
-  --shadow-pop: 0 2px 6px oklch(0.2 0.05 248 / 12%), 0 18px 44px oklch(0.2 0.05 248 / 22%);
-  --shadow-board: 0 0 0 1px var(--color-line-strong), 0 18px 44px oklch(0.2 0.05 248 / 28%);
-  /*
-   * A session thumbnail. The sketch is paper in both themes, so on a light
-   * page it would otherwise float edgeless: a hairline draws the picture's
-   * boundary and a short, soft shadow lifts it off the page — the separation
-   * YouTube gives a video still, at the scale a card is actually read.
+   * A session thumbnail is a picture of paper, so on a light page it would
+   * float edgeless: a hairline draws the picture's boundary and M3 level 1
+   * lifts it. Product-specific on purpose — it is the only place a shadow and
+   * a border are both needed.
    */
-  --shadow-thumb:
-    0 0 0 1px oklch(0.285 0.062 247.7 / 11%), 0 1px 2px oklch(0.2 0.05 248 / 7%),
-    0 6px 16px oklch(0.2 0.05 248 / 10%);
-  --shadow-thumb-hover:
-    0 0 0 1px oklch(0.285 0.062 247.7 / 14%), 0 2px 4px oklch(0.2 0.05 248 / 9%),
-    0 12px 28px oklch(0.2 0.05 248 / 16%);
+  --shadow-thumb: 0 0 0 1px var(--color-outline-variant), var(--shadow-level1);
+  --shadow-thumb-hover: 0 0 0 1px var(--color-outline), var(--shadow-level2);
+  /* The board itself: paper, so it needs the same boundary at room scale. */
+  --shadow-board: 0 0 0 1px var(--color-outline-variant), var(--shadow-level2);
 
+  /* ──────────────────────────────────────────────────────────────────────
+   * State layers — M3's opacities. A control tints itself with its own
+   * foreground rather than swapping to a second colour.
+   * ────────────────────────────────────────────────────────────────────── */
+  --state-hover: 8%;
+  --state-focus: 12%;
+  --state-pressed: 12%;
+  --state-dragged: 16%;
+
+  /*
+   * Disabled, M3's way: the control keeps its shape and loses contrast —
+   * 38 % for anything that carries meaning, 12 % for the container under it.
+   */
+  --opacity-disabled: 0.38;
+  --opacity-disabled-container: 0.12;
+
+  /* ── motion ───────────────────────────────────────────────────────────── */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --duration-fast: 120ms;
@@ -223,160 +387,197 @@
   }
 }
 
-/* ── dark theme: same names, re-assigned ──────────────────────────────── */
+/* ── dark scheme: the same role names, re-assigned ───────────────────────
+ *
+ * Written twice on purpose — once for a learner who chose dark, once inside
+ * `prefers-color-scheme` for one who did not — and the two copies are compared
+ * against each other in packages/design/test/design-system.test.ts, because
+ * two hand-kept copies drift.
+ */
 :root {
   color-scheme: light dark;
 }
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    /*
-      Matte, not lacquered. These were a blue-tinted dark whose chroma caught
-      the light and read as a sheen across every panel; they are darker now and
-      nearly neutral, so a surface separates from the page by value alone.
-    */
-    --color-bg: oklch(0.14 0.006 250);
-    --color-bg-elevated: oklch(0.18 0.007 250);
-    --color-surface: oklch(0.17 0.007 250);
-    --color-surface-2: oklch(0.22 0.008 250);
-    --color-line: oklch(0.92 0.01 250 / 10%);
-    --color-line-strong: oklch(0.92 0.01 250 / 18%);
-    --color-fg: oklch(0.93 0.008 250);
-    --color-fg-2: oklch(0.7 0.015 250);
-    /* 0.64, not 0.52: the dark tone measured 3.48:1 on --color-bg. */
-    --color-fg-3: oklch(0.64 0.015 250);
-    --color-accent: oklch(0.72 0.1 214);
-    --color-accent-strong: oklch(0.8 0.08 212);
-    --color-accent-pressed: oklch(0.68 0.1 214);
-    --color-accent-soft: oklch(0.72 0.1 214 / 16%);
-    --color-on-accent: oklch(0.16 0.03 240);
-    --color-warm-soft: oklch(0.763 0.126 73.7 / 22%);
-    --color-success: var(--color-lime-300);
-    --color-success-soft: oklch(0.727 0.191 131.9 / 18%);
-    --color-danger: var(--color-red-400);
-    --color-danger-soft: oklch(0.47 0.173 20.4 / 22%);
-    --shadow-card: 0 0 0 1px oklch(1 0 0 / 6%), 0 10px 28px oklch(0 0 0 / 45%);
-    --shadow-float: 0 0 0 1px oklch(1 0 0 / 10%), 0 12px 40px oklch(0 0 0 / 50%);
-    --shadow-ask: 0 12px 40px oklch(0 0 0 / 50%);
-    --shadow-lift: 0 0 0 1px oklch(1 0 0 / 10%), 0 22px 48px oklch(0 0 0 / 60%);
-    --shadow-pop: 0 0 0 1px oklch(1 0 0 / 8%), 0 20px 50px oklch(0 0 0 / 60%);
-    --shadow-board: 0 0 0 1px oklch(1 0 0 / 10%), 0 18px 44px oklch(0 0 0 / 50%);
-    --shadow-thumb:
-      0 0 0 1px oklch(1 0 0 / 13%), 0 2px 6px oklch(0 0 0 / 40%), 0 8px 20px oklch(0 0 0 / 34%);
-    --shadow-thumb-hover:
-      0 0 0 1px oklch(1 0 0 / 20%), 0 4px 10px oklch(0 0 0 / 46%), 0 14px 32px oklch(0 0 0 / 42%);
-    --color-wash-aqua: color-mix(in srgb, var(--color-accent) 17%, transparent);
-    --color-wash-yellow: oklch(0.7 0.1 80 / 14%);
-    --color-wash-pink: oklch(0.3 0.02 300 / 40%);
+    --color-primary: #86d1e9;
+    --color-on-primary: #003642;
+    --color-primary-container: #004e5e;
+    --color-on-primary-container: #b2ebff;
+    --color-inverse-primary: #00677c;
+    --color-secondary: #b2cad3;
+    --color-on-secondary: #1d343b;
+    --color-secondary-container: #344a51;
+    --color-on-secondary-container: #cee7f0;
+    --color-tertiary: #c1c4eb;
+    --color-on-tertiary: #2a2e4d;
+    --color-tertiary-container: #414465;
+    --color-on-tertiary-container: #dfe0ff;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
+    --color-surface: #131313;
+    --color-surface-dim: #131313;
+    --color-surface-bright: #393939;
+    --color-surface-container-lowest: #0e0e0e;
+    --color-surface-container-low: #1b1b1b;
+    --color-surface-container: #1f1f1f;
+    --color-surface-container-high: #2a2a2a;
+    --color-surface-container-highest: #353535;
+    --color-on-surface: #e2e2e2;
+    --color-on-surface-variant: #c6c6c6;
+    --color-on-surface-dim: #9e9e9e;
+    --color-outline: #919191;
+    --color-outline-variant: #474747;
+    --color-inverse-surface: #e2e2e2;
+    --color-inverse-on-surface: #303030;
+    --color-presence: #61dda1;
+    --color-on-presence: #003822;
+    --color-presence-container: #005234;
+    --color-on-presence-container: #7ffabc;
+    --color-warm: #fbbb60;
+    --color-on-warm: #452b00;
+    --color-warm-container: #633f00;
+    --color-on-warm-container: #ffddb4;
+    --color-success: #92da3e;
+    --color-on-success: #1e3700;
+    --color-success-container: #2d5000;
+    --color-on-success-container: #acf758;
   }
 }
 :root[data-theme="dark"] {
-  --color-bg: oklch(0.14 0.006 250);
-  --color-bg-elevated: oklch(0.18 0.007 250);
-  --color-surface: oklch(0.17 0.007 250);
-  --color-surface-2: oklch(0.22 0.008 250);
-  --color-line: oklch(0.92 0.01 250 / 10%);
-  --color-line-strong: oklch(0.92 0.01 250 / 18%);
-  --color-fg: oklch(0.93 0.008 250);
-  --color-fg-2: oklch(0.7 0.015 250);
-  --color-fg-3: oklch(0.64 0.015 250);
-  --color-accent: oklch(0.72 0.1 214);
-  --color-accent-strong: oklch(0.8 0.08 212);
-  --color-accent-pressed: oklch(0.68 0.1 214);
-  --color-accent-soft: oklch(0.72 0.1 214 / 16%);
-  --color-on-accent: oklch(0.16 0.03 240);
-  --color-warm-soft: oklch(0.763 0.126 73.7 / 22%);
-  --color-success: var(--color-lime-300);
-  --color-success-soft: oklch(0.727 0.191 131.9 / 18%);
-  --color-danger: var(--color-red-400);
-  --color-danger-soft: oklch(0.47 0.173 20.4 / 22%);
-  --shadow-card: 0 0 0 1px oklch(1 0 0 / 6%), 0 10px 28px oklch(0 0 0 / 45%);
-  --shadow-float: 0 0 0 1px oklch(1 0 0 / 10%), 0 12px 40px oklch(0 0 0 / 50%);
-  --shadow-ask: 0 12px 40px oklch(0 0 0 / 50%);
-  --shadow-lift: 0 0 0 1px oklch(1 0 0 / 10%), 0 22px 48px oklch(0 0 0 / 60%);
-  --shadow-pop: 0 0 0 1px oklch(1 0 0 / 8%), 0 20px 50px oklch(0 0 0 / 60%);
-  --shadow-board: 0 0 0 1px oklch(1 0 0 / 10%), 0 18px 44px oklch(0 0 0 / 50%);
-  --shadow-thumb:
-    0 0 0 1px oklch(1 0 0 / 13%), 0 2px 6px oklch(0 0 0 / 40%), 0 8px 20px oklch(0 0 0 / 34%);
-  --shadow-thumb-hover:
-    0 0 0 1px oklch(1 0 0 / 20%), 0 4px 10px oklch(0 0 0 / 46%), 0 14px 32px oklch(0 0 0 / 42%);
-  --color-wash-aqua: color-mix(in srgb, var(--color-accent) 17%, transparent);
-  --color-wash-yellow: oklch(0.7 0.1 80 / 14%);
-  --color-wash-pink: oklch(0.3 0.02 300 / 40%);
+  --color-primary: #86d1e9;
+  --color-on-primary: #003642;
+  --color-primary-container: #004e5e;
+  --color-on-primary-container: #b2ebff;
+  --color-inverse-primary: #00677c;
+  --color-secondary: #b2cad3;
+  --color-on-secondary: #1d343b;
+  --color-secondary-container: #344a51;
+  --color-on-secondary-container: #cee7f0;
+  --color-tertiary: #c1c4eb;
+  --color-on-tertiary: #2a2e4d;
+  --color-tertiary-container: #414465;
+  --color-on-tertiary-container: #dfe0ff;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-surface: #131313;
+  --color-surface-dim: #131313;
+  --color-surface-bright: #393939;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-surface-container-low: #1b1b1b;
+  --color-surface-container: #1f1f1f;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353535;
+  --color-on-surface: #e2e2e2;
+  --color-on-surface-variant: #c6c6c6;
+  --color-on-surface-dim: #9e9e9e;
+  --color-outline: #919191;
+  --color-outline-variant: #474747;
+  --color-inverse-surface: #e2e2e2;
+  --color-inverse-on-surface: #303030;
+  --color-presence: #61dda1;
+  --color-on-presence: #003822;
+  --color-presence-container: #005234;
+  --color-on-presence-container: #7ffabc;
+  --color-warm: #fbbb60;
+  --color-on-warm: #452b00;
+  --color-warm-container: #633f00;
+  --color-on-warm-container: #ffddb4;
+  --color-success: #92da3e;
+  --color-on-success: #1e3700;
+  --color-success-container: #2d5000;
+  --color-on-success-container: #acf758;
 }
 
-/* ── brand accent: the one line that changes the platform's colour ────────
+/* ── brand: the one attribute that changes the platform's colour ──────────
  *
- * Teal is the default and lives in `@theme` above. Two other brand families
- * are declared here; switching to one is a single attribute on the document
- * element — `<html data-brand="green">` — or, to make it the product's
- * colour for good, one line in the host that renders `PenApp`.
+ * Teal is the brand and lives in `@theme` above; it is what the board is drawn
+ * in, so it is not a preference. Two other families are kept declared for the
+ * day the owner wants to see the platform in them — `<html data-brand="green">`
+ * — each generated the same way, from the same M3 tonal-spot variant seeded
+ * with the brand colour (green #78BE21, forest #2D5652).
  *
- * A family declares the same five roles in light and in dark and nothing
- * else. The page's own furniture follows it — the sidebar and the footer
- * (`--color-chrome`), a section's header band (`--color-band`) and the hero's
- * wash (`--color-wash-aqua`) are all mixed from `--color-accent` — as does
- * every control, link and active row that names an accent token. Each family
- * is measured in `packages/design/test/caption-contrast.test.ts`: a brand
- * nobody can read is not a brand we can ship.
+ * A family re-declares the primary and secondary roles and nothing else. The
+ * surfaces do not move: they are chroma-0 neutrals and are the same under
+ * every brand, which is the whole point of a matte page.
  *
  * Three things stay teal on purpose, because they belong to the board rather
- * than to the app: `--color-ink-accent` (a session's sketch is rendered once,
- * server-side, into a file, and must not change colour under a reader on
- * another brand), `--color-speaking`, and the teal in `@keyframes ring` —
- * both of which mark a live voice on that same board. Changing the brand for
- * good means re-tuning those and re-rendering the sketches.
+ * than to the app: `--color-ink-accent`, `--color-speaking`, and the teal in
+ * `@keyframes ring`. Changing the brand for good means re-tuning those and
+ * re-rendering the sketches.
  */
-
-/* green — the brand lime #78BE21. On a light page the readable member of the
-   family is deeper than the logo tone; the logo tone itself carries the soft
-   tint and the dark theme, where it is at its best. */
 :root[data-brand="green"] {
-  --color-accent: oklch(0.6 0.17 132);
-  --color-accent-strong: oklch(0.46 0.13 132);
-  --color-accent-pressed: oklch(0.4 0.125 132);
-  --color-accent-soft: oklch(0.727 0.191 131.9 / 16%);
-  --color-on-accent: oklch(0.99 0.01 130);
+  --color-primary: #4b662c;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #cceda4;
+  --color-on-primary-container: #344e16;
+  --color-inverse-primary: #b0d18b;
+  --color-secondary: #57624a;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #dbe7c8;
+  --color-on-secondary-container: #404a33;
 }
 :root[data-brand="green"]:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-accent: oklch(0.78 0.15 132);
-    --color-accent-strong: oklch(0.86 0.12 132);
-    --color-accent-pressed: oklch(0.72 0.15 132);
-    --color-accent-soft: oklch(0.78 0.15 132 / 18%);
-    --color-on-accent: oklch(0.2 0.05 135);
+    --color-primary: #b0d18b;
+    --color-on-primary: #1e3702;
+    --color-primary-container: #344e16;
+    --color-on-primary-container: #cceda4;
+    --color-inverse-primary: #4b662c;
+    --color-secondary: #bfcbad;
+    --color-on-secondary: #2a331e;
+    --color-secondary-container: #404a33;
+    --color-on-secondary-container: #dbe7c8;
   }
 }
 :root[data-brand="green"][data-theme="dark"] {
-  --color-accent: oklch(0.78 0.15 132);
-  --color-accent-strong: oklch(0.86 0.12 132);
-  --color-accent-pressed: oklch(0.72 0.15 132);
-  --color-accent-soft: oklch(0.78 0.15 132 / 18%);
-  --color-on-accent: oklch(0.2 0.05 135);
+  --color-primary: #b0d18b;
+  --color-on-primary: #1e3702;
+  --color-primary-container: #344e16;
+  --color-on-primary-container: #cceda4;
+  --color-inverse-primary: #4b662c;
+  --color-secondary: #bfcbad;
+  --color-on-secondary: #2a331e;
+  --color-secondary-container: #404a33;
+  --color-on-secondary-container: #dbe7c8;
 }
 
-/* forest — the brand deep green #2D5652, which is `--color-accent-strong`
-   here exactly as it is drawn in the palette. */
 :root[data-brand="forest"] {
-  --color-accent: oklch(0.5 0.058 187.4);
-  --color-accent-strong: oklch(0.422 0.047 187.4);
-  --color-accent-pressed: oklch(0.36 0.042 187.4);
-  --color-accent-soft: oklch(0.5 0.058 187.4 / 16%);
-  --color-on-accent: oklch(0.99 0.005 190);
+  --color-primary: #006a64;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #9df2e9;
+  --color-on-primary-container: #00504b;
+  --color-inverse-primary: #81d5cd;
+  --color-secondary: #4a6360;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #cce8e4;
+  --color-on-secondary-container: #324b49;
 }
 :root[data-brand="forest"]:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-accent: oklch(0.76 0.06 187.4);
-    --color-accent-strong: oklch(0.84 0.05 187.4);
-    --color-accent-pressed: oklch(0.7 0.06 187.4);
-    --color-accent-soft: oklch(0.76 0.06 187.4 / 18%);
-    --color-on-accent: oklch(0.18 0.03 195);
+    --color-primary: #81d5cd;
+    --color-on-primary: #003733;
+    --color-primary-container: #00504b;
+    --color-on-primary-container: #9df2e9;
+    --color-inverse-primary: #006a64;
+    --color-secondary: #b0ccc8;
+    --color-on-secondary: #1c3532;
+    --color-secondary-container: #324b49;
+    --color-on-secondary-container: #cce8e4;
   }
 }
 :root[data-brand="forest"][data-theme="dark"] {
-  --color-accent: oklch(0.76 0.06 187.4);
-  --color-accent-strong: oklch(0.84 0.05 187.4);
-  --color-accent-pressed: oklch(0.7 0.06 187.4);
-  --color-accent-soft: oklch(0.76 0.06 187.4 / 18%);
-  --color-on-accent: oklch(0.18 0.03 195);
+  --color-primary: #81d5cd;
+  --color-on-primary: #003733;
+  --color-primary-container: #00504b;
+  --color-on-primary-container: #9df2e9;
+  --color-inverse-primary: #006a64;
+  --color-secondary: #b0ccc8;
+  --color-on-secondary: #1c3532;
+  --color-secondary-container: #324b49;
+  --color-on-secondary-container: #cce8e4;
 }

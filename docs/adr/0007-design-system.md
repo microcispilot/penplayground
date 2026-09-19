@@ -1,6 +1,6 @@
 # ADR-0007: Design system — "Pen" tokens in OKLCH from the approved palette; board is always paper
 
-Status: accepted · 2026-09-16
+Status: superseded in part by ADR-0023 · accepted 2026-09-16
 
 ## Context
 The user supplied palettes: navy #0C2C47, green #2D5652, yellow #E2A54D, aqua
@@ -49,3 +49,17 @@ example that green one"). Two changes follow, and they are deliberately small.
 - `--shadow-thumb` / `--shadow-thumb-hover` give a session thumbnail a hairline
   and a short shadow. The sketch is paper in both themes, so on a light page
   it had no edge at all.
+
+
+## Superseded 2026-09-19 — Material Design 3 is the system
+
+ADR-0023 replaces the type scale, the shape scale, the shadows and the colour
+role names decided here with Material Design 3's own, generated from the same
+teal. What survives from this ADR: the board is always light paper with a
+dotted grid whatever the theme, its ink is pinned to the brand teal, and the
+motion tokens (120 / 200 / 320 / 550 ms with one ease, reduced-motion
+respected). The switchable brand family survives too, re-expressed as M3's
+`primary` / `secondary` roles rather than the five `--color-accent-*` tokens
+named above, and measured now in `packages/design/test/design-system.test.ts`.
+The display serif named here was never adopted; headings are set in the UI
+face at its display optical size.

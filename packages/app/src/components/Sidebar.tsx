@@ -57,22 +57,23 @@ interface RowProps {
   onNavigate?: (() => void) | undefined;
 }
 
-/** The one row look, shared by the links and by Topics (which is not a route of its own). */
+/**
+ * The one row look, shared by the links and by Topics (which is not a route of
+ * its own). This is M3's navigation-drawer item:
+ *
+ *   @material/web tokens/versions/v0_192/_md-comp-navigation-drawer.scss
+ *     active indicator `secondary-container` at `corner-full`, active label
+ *     and icon `on-secondary-container`, inactive `on-surface-variant`,
+ *     label `label-large`.
+ *
+ * The filled pill *is* the indicator, which is why the tinted bar that used to
+ * run down the left edge is gone: two marks for one state is one too many.
+ */
 function rowClass(rail: boolean, active: boolean): string {
   return cn(
-    'group relative flex items-center gap-3.5 rounded-[var(--radius-md)] transition-colors duration-[var(--duration-fast)]',
-    rail ? 'mx-1 flex-col gap-1.5 px-0.5 py-3 text-center' : 'px-3 py-2',
-    active ? 'bg-accent-soft text-accent-strong' : 'text-fg-2 hover:bg-fg/[0.05] hover:text-fg',
-  );
-}
-
-/** The tinted bar down the left edge of the active row (expanded only). */
-function ActiveMark() {
-  return (
-    <span
-      aria-hidden
-      className="absolute top-1.5 bottom-1.5 -left-2 w-[3px] rounded-full bg-accent-strong"
-    />
+    'state-layer group relative flex items-center gap-3.5 rounded-full transition-colors duration-[var(--duration-fast)]',
+    rail ? 'mx-1 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 px-4',
+    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant',
   );
 }
 
@@ -82,7 +83,7 @@ function RowLabel({ rail, children }: { rail: boolean; children: ReactNode }) {
     <span
       className={cn(
         'min-w-0 truncate',
-        rail ? 'w-full text-[10px] leading-tight' : 'flex-1 text-[14px] font-medium',
+        rail ? 'w-full text-label-small leading-tight' : 'flex-1 text-label-large',
       )}
     >
       {children}
@@ -104,16 +105,17 @@ function Row({ to, icon, label, rail, railLabel, end = false, count, tag, onNavi
       onClick={onNavigate}
       className={({ isActive }) => rowClass(rail, isActive)}
     >
-      {({ isActive }) => (
+      {() => (
         <>
-          {!rail && isActive ? <ActiveMark /> : null}
           <span className="grid shrink-0 place-items-center">{icon}</span>
           <RowLabel rail={rail}>{rail ? (railLabel ?? label) : label}</RowLabel>
           {!rail && tag ? (
-            <span className="shrink-0 text-[11px] font-medium text-fg-3">{tag}</span>
+            <span className="shrink-0 text-label-small text-on-surface-variant">{tag}</span>
           ) : null}
           {!rail && tag === undefined && count !== undefined && count > 0 ? (
-            <span className="shrink-0 text-[12px] text-fg-3 tabular">{count}</span>
+            <span className="shrink-0 text-label-medium text-on-surface-variant tabular">
+              {count}
+            </span>
           ) : null}
         </>
       )}
@@ -124,7 +126,7 @@ function Row({ to, icon, label, rail, railLabel, end = false, count, tag, onNavi
 function SectionLabel({ children, rail }: { children: ReactNode; rail: boolean }) {
   if (rail) return null;
   return (
-    <div className="px-3 pt-4 pb-1.5 text-[11px] font-semibold tracking-[0.07em] text-fg-3 uppercase">
+    <div className="px-4 pt-4 pb-1.5 text-label-small tracking-wider text-on-surface-variant uppercase">
       {children}
     </div>
   );
@@ -132,7 +134,7 @@ function SectionLabel({ children, rail }: { children: ReactNode; rail: boolean }
 
 /** A quiet horizontal rule between sections. */
 function Divider() {
-  return <div className="my-2 border-t border-line" aria-hidden />;
+  return <div className="my-2 border-t border-outline-variant" aria-hidden />;
 }
 
 /**
@@ -209,14 +211,14 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
               type="button"
               aria-expanded={topicsOpen}
               onClick={() => setTopicsOpen((v) => !v)}
-              className="flex items-center gap-3.5 rounded-[var(--radius-md)] px-3 py-2 text-fg-2 transition-colors duration-[var(--duration-fast)] hover:bg-fg/[0.05] hover:text-fg"
+              className={rowClass(false, false)}
             >
               <Tag size={19} className="shrink-0" />
-              <span className="flex-1 text-left text-[14px] font-medium">Topics</span>
+              <span className="flex-1 text-left text-label-large">Topics</span>
               <ChevronDown
                 size={15}
                 className={cn(
-                  'shrink-0 text-fg-3 transition-transform duration-[var(--duration-base)]',
+                  'shrink-0 text-on-surface-dim transition-transform duration-[var(--duration-base)]',
                   topicsOpen && 'rotate-180',
                 )}
               />
@@ -232,10 +234,10 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                       onNavigate?.();
                     }}
                     className={cn(
-                      'rounded-[var(--radius-sm)] px-3 py-1.5 text-left text-[13px] transition-colors',
+                      'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
-                        ? 'bg-accent-soft font-medium text-accent-strong'
-                        : 'text-fg-2 hover:bg-fg/[0.05] hover:text-fg',
+                        ? 'bg-secondary-container text-on-secondary-container'
+                        : 'text-on-surface-variant',
                     )}
                   >
                     {d.label}
@@ -314,15 +316,17 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
               type="button"
               data-testid="sidebar-theme"
               onClick={() => setTheme(dark ? 'light' : 'dark')}
-              className="flex items-center gap-3.5 rounded-[var(--radius-md)] px-3 py-2 text-fg-2 transition-colors duration-[var(--duration-fast)] hover:bg-fg/[0.05] hover:text-fg"
+              className={rowClass(false, false)}
             >
               {dark ? (
                 <Sun size={19} className="shrink-0" />
               ) : (
                 <Moon size={19} className="shrink-0" />
               )}
-              <span className="flex-1 text-left text-[14px] font-medium">Theme</span>
-              <span className="text-[12px] text-fg-3">{dark ? 'Dark' : 'Light'}</span>
+              <span className="flex-1 text-left text-label-large">Theme</span>
+              <span className="text-label-medium text-on-surface-variant">
+                {dark ? 'Dark' : 'Light'}
+              </span>
             </button>
           </>
         )}
@@ -337,15 +341,15 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
 function SidebarFooter({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   return (
     <div
-      className="mt-6 flex flex-col gap-2 border-t border-line px-3 pt-4 text-[12px] text-fg-3"
+      className="mt-6 flex flex-col gap-2 border-t border-outline-variant px-4 pt-4 text-body-small text-on-surface-dim"
       data-testid="sidebar-footer"
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <NavLink to="/terms" onClick={onNavigate} className="hover:text-fg">
+        <NavLink to="/terms" onClick={onNavigate} className="hover:text-on-surface">
           Terms
         </NavLink>
         <span aria-hidden>·</span>
-        <NavLink to="/privacy" onClick={onNavigate} className="hover:text-fg">
+        <NavLink to="/privacy" onClick={onNavigate} className="hover:text-on-surface">
           Privacy
         </NavLink>
       </div>
@@ -382,7 +386,7 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         type="button"
         tabIndex={-1}
         aria-label="Close the sidebar"
-        className="absolute inset-0 w-full cursor-default bg-navy-900/45 backdrop-blur-[1px]"
+        className="absolute inset-0 w-full cursor-default bg-scrim/45 backdrop-blur-[1px]"
         onClick={onClose}
       />
       <div
@@ -391,11 +395,13 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         role="dialog"
         aria-modal="true"
         aria-label="Sections"
-        className="animate-rise absolute inset-y-0 left-0 w-[268px] bg-chrome shadow-pop outline-none"
+        // M3 modal navigation drawer: `surface-container-low`, `corner-large` on
+        // the trailing edge only, elevation level 1 over the scrim.
+        className="animate-rise absolute inset-y-0 left-0 w-[268px] rounded-e-lg bg-surface-container-low shadow-level1 outline-none"
       >
         <div className="flex h-16 items-center gap-2 px-5">
           <PenMark />
-          <span className="font-display text-[19px] font-medium tracking-[-0.03em]">Pen</span>
+          <span className="font-display text-title-large font-medium tracking-[-0.03em]">Pen</span>
         </div>
         <Sidebar className="h-[calc(100%-4rem)]" onNavigate={onClose} />
       </div>

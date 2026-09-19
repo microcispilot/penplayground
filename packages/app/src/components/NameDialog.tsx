@@ -71,14 +71,16 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
       title={signedIn ? 'Your account' : 'How should we call you?'}
     >
       {signedIn && participant ? (
-        <div className="mb-4 flex items-center gap-3 rounded-[var(--radius-lg)] bg-surface-2 p-3">
+        <div className="mb-4 flex items-center gap-3 rounded-lg bg-surface-container-high p-3">
           <Avatar name={participant.name} src={participant.avatarUrl} hue={218} size={44} ring />
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">{participant.name}</p>
             {participant.email ? (
-              <p className="truncate text-sm text-fg-2">{participant.email}</p>
+              <p className="truncate text-body-medium text-on-surface-variant">
+                {participant.email}
+              </p>
             ) : (
-              <p className="text-sm text-fg-2">Signed in with Google</p>
+              <p className="text-body-medium text-on-surface-variant">Signed in with Google</p>
             )}
           </div>
           <Button
@@ -137,25 +139,25 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
           </Button>
         </div>
       </form>
-      <div className="mt-5 border-t border-line pt-4">
+      <div className="mt-5 border-t border-outline-variant pt-4">
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md text-sm text-fg-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-fg hover:decoration-accent"
+          className="inline-flex items-center gap-2 rounded-md text-body-medium text-on-surface-variant underline decoration-outline underline-offset-4 transition-colors hover:text-on-surface hover:decoration-primary"
           onClick={() => setPrivacyOpen(true)}
         >
           <ShieldCheck size={14} aria-hidden />
           Privacy choices
         </button>
-        <p className="mt-1.5 text-[13px] text-fg-3 text-pretty">
+        <p className="mt-1.5 text-body-medium text-on-surface-dim text-pretty">
           See what we collect, and turn analytics off if you would rather not be counted.
         </p>
       </div>
 
       {/* Deleting is rare and permanent, so it lives at the bottom, stated plainly and without alarm. */}
-      <div className="mt-4 border-t border-line pt-4">
+      <div className="mt-4 border-t border-outline-variant pt-4">
         {confirmingDelete ? (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-fg-2 text-pretty">
+            <p className="text-body-medium text-on-surface-variant text-pretty">
               This removes your account and every session you started, including their recordings.
               It cannot be undone. Subscriptions are managed separately in billing.
             </p>
@@ -197,7 +199,7 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
         ) : (
           <button
             type="button"
-            className="rounded-md text-sm text-fg-3 underline decoration-line-strong underline-offset-4 transition-colors hover:text-danger hover:decoration-danger"
+            className="rounded-md text-body-medium text-on-surface-dim underline decoration-outline underline-offset-4 transition-colors hover:text-error hover:decoration-error"
             data-testid="delete-account"
             onClick={() => setConfirmingDelete(true)}
           >
@@ -209,8 +211,8 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
       <PrivacyDialog open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
 
       {googleOffered ? (
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="mb-3 text-sm text-fg-2">
+        <div className="mt-5 border-t border-outline-variant pt-4">
+          <p className="mb-3 text-body-medium text-on-surface-variant">
             Keep your sessions on every device — sign in and this name and everything you have
             started come with you.
           </p>
@@ -221,7 +223,7 @@ export function NameDialog({ open, onClose }: { open: boolean; onClose: () => vo
             data-testid="google-signin"
           />
           {googleProblem ? (
-            <p className="mt-2 text-center text-sm text-danger" role="alert">
+            <p className="mt-2 text-center text-body-medium text-error" role="alert">
               {googleProblem}
             </p>
           ) : null}

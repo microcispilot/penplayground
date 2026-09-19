@@ -62,9 +62,9 @@ export function ExpertCard({
 }: ExpertCardProps) {
   const { locked, planName } = useExpertLock(expert);
   const shell = cn(
-    'group relative aspect-[4/5] overflow-hidden rounded-[var(--radius-xl)] bg-surface-2 text-left shadow-card',
-    'transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-lift',
-    selected === true && 'ring-[3px] ring-accent ring-offset-2 ring-offset-bg',
+    'group relative aspect-[4/5] overflow-hidden rounded-xl bg-surface-container-high text-left shadow-level1',
+    'transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-level3',
+    selected === true && 'ring-[3px] ring-primary ring-offset-2 ring-offset-bg',
     className,
   );
   const inner = (
@@ -94,21 +94,21 @@ export function ExpertCard({
       />
       {locked && planName ? (
         <span
-          className="absolute top-2.5 left-2.5 rounded-full bg-bg-elevated/92 px-2 py-[3px] text-[11px] font-medium text-fg backdrop-blur"
+          className="absolute top-2.5 left-2.5 rounded-full bg-surface-container/92 px-2 py-[3px] text-label-small font-medium text-on-surface backdrop-blur"
           data-testid="expert-plan-chip"
         >
           {planName}
         </span>
       ) : null}
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-3.5 text-white">
-        <span className="text-[15px] font-medium leading-tight tracking-[-0.01em]">
-          {expert.displayName}
+        <span className="text-body-medium font-medium leading-tight">{expert.displayName}</span>
+        <span className="line-clamp-2 text-body-small leading-snug text-white/75">
+          {expert.role}
         </span>
-        <span className="line-clamp-2 text-[12px] leading-snug text-white/75">{expert.role}</span>
         {locked && planName ? (
-          <span className="mt-1 text-[11px] text-white/70">Included with {planName}</span>
+          <span className="mt-1 text-label-small text-white/70">Included with {planName}</span>
         ) : domainLabel ? (
-          <span className="mt-1 text-[11px] text-white/60">{domainLabel}</span>
+          <span className="mt-1 text-label-small text-white/60">{domainLabel}</span>
         ) : null}
       </div>
       <span className="absolute top-2.5 right-2.5 grid size-8 place-items-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
@@ -156,16 +156,16 @@ export function ShowMoreExpertsCard({ total, className }: { total: number; class
       to="/experts"
       data-testid="experts-show-more"
       className={cn(
-        'group relative flex aspect-[4/5] flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-chrome text-center shadow-card hairline',
-        'transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-lift',
+        'group relative flex aspect-[4/5] flex-col items-center justify-center gap-3 rounded-xl bg-surface-container-low text-center shadow-level1 hairline',
+        'transition-[transform,box-shadow] duration-[var(--duration-slow)] ease-[var(--ease-out)] hover:-translate-y-1 hover:shadow-level3',
         className,
       )}
     >
-      <span className="grid size-11 place-items-center rounded-full bg-accent-soft text-accent-strong transition-transform duration-[var(--duration-base)] group-hover:translate-x-0.5">
+      <span className="grid size-11 place-items-center rounded-full bg-primary-container text-on-primary-container transition-transform duration-[var(--duration-base)] group-hover:translate-x-0.5">
         <ArrowRight size={20} />
       </span>
-      <span className="px-4 text-[14px] font-medium text-fg">Show more</span>
-      <span className="px-4 text-[12px] text-fg-3">
+      <span className="px-4 text-label-large font-medium text-on-surface">Show more</span>
+      <span className="px-4 text-body-small text-on-surface-dim">
         {total > 0 ? `All ${total} experts` : 'All experts'}
       </span>
     </Link>

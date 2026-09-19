@@ -46,7 +46,7 @@ export function Sheet({
         aria-label={`Close ${title}`}
         tabIndex={-1}
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-navy-900/45 [animation:rise_var(--duration-base)_var(--ease-out)_both]"
+        className="absolute inset-0 cursor-default bg-scrim/45 [animation:rise_var(--duration-base)_var(--ease-out)_both]"
       />
       <div
         ref={panelRef}
@@ -55,17 +55,19 @@ export function Sheet({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          'relative max-h-[82vh] w-full animate-rise overflow-y-auto rounded-t-[var(--radius-xl)] bg-bg-elevated px-3 pt-2 shadow-pop outline-none',
+          // M3 bottom sheet: `surface-container-low`, `corner-extra-large`
+          // on the top edge only, elevation level 1 (the scrim does the rest).
+          'relative max-h-[82vh] w-full animate-rise overflow-y-auto rounded-t-xl bg-surface-container-low px-3 pt-2 shadow-level1 outline-none',
           // Clears the home indicator on a phone and the bar on a tablet.
           'pb-[max(1rem,env(safe-area-inset-bottom))]',
           className,
         )}
       >
-        <div className="mx-auto mt-1 mb-3 h-1 w-9 rounded-full bg-line-strong" aria-hidden />
+        <div className="mx-auto mt-1 mb-3 h-1 w-9 rounded-full bg-outline-variant" aria-hidden />
         <h2
           id={titleId}
           className={cn(
-            'mb-2 px-1 text-[11px] font-medium tracking-[0.08em] text-fg-3 uppercase',
+            'mb-2 px-1 text-label-small tracking-widest text-on-surface-dim uppercase',
             !heading && 'sr-only',
           )}
         >
@@ -103,14 +105,18 @@ export function SheetRow({
       aria-pressed={pressed}
       data-testid={testId}
       className={cn(
-        'flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-3 text-left transition-colors duration-[var(--duration-fast)] focus-visible:outline-accent disabled:opacity-45',
-        pressed ? 'bg-accent-soft text-accent-strong' : 'text-fg hover:bg-surface-2',
+        // M3 list item inside a sheet: `corner-full` when it carries a
+        // selection, `on-secondary-container` when it does.
+        'state-layer flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-left transition-colors duration-[var(--duration-fast)] disabled:opacity-disabled',
+        pressed ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface',
       )}
     >
       {icon ? <span className="grid size-5 shrink-0 place-items-center">{icon}</span> : null}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px]">{label}</span>
-        {hint ? <span className="block truncate text-[12.5px] text-fg-3">{hint}</span> : null}
+        <span className="block truncate text-body-medium">{label}</span>
+        {hint ? (
+          <span className="block truncate text-body-small text-on-surface-dim">{hint}</span>
+        ) : null}
       </span>
     </button>
   );

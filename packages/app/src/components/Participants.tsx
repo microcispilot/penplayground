@@ -55,13 +55,13 @@ export function VoiceAvatar({
         className={cn(
           'transition-shadow duration-[var(--duration-fast)]',
           voice === 'speaking' &&
-            'shadow-[0_0_0_2px_var(--color-surface),0_0_0_4px_var(--color-presence)]',
+            'shadow-[0_0_0_2px_var(--color-surface-container-low),0_0_0_4px_var(--color-presence)]',
           voice === 'muted' && 'opacity-60',
         )}
       />
       {voice === 'muted' ? (
         <span
-          className="absolute -right-0.5 -bottom-0.5 grid size-3.5 place-items-center rounded-full bg-warm text-on-accent ring-2 ring-surface"
+          className="absolute -right-0.5 -bottom-0.5 grid size-3.5 place-items-center rounded-full bg-warm text-on-primary ring-2 ring-surface-container-low"
           aria-hidden
         >
           <MicOff size={8} />
@@ -148,14 +148,14 @@ function rosterOrder(
 }
 
 const CARD_BASE =
-  'relative flex items-center justify-center overflow-hidden rounded-[var(--radius-lg)] bg-surface-2 transition-[box-shadow,background-color] duration-[var(--duration-base)] ease-[var(--ease-out)]';
+  'relative flex items-center justify-center overflow-hidden rounded-lg bg-surface-container-high transition-[box-shadow,background-color] duration-[var(--duration-base)] ease-[var(--ease-out)]';
 
 /** The ring that says "this one has the room": bright and glowing while audible, quiet while merely holding the floor. */
 function ringFor(presence: ParticipantPresence): string {
   if (presence === 'speaking')
-    return 'shadow-[0_0_0_2px_var(--color-accent),0_0_0_7px_var(--color-accent-soft)]';
-  if (presence === 'floor') return 'shadow-[0_0_0_2px_var(--color-accent-soft)]';
-  return 'shadow-[0_0_0_1px_var(--color-line)]';
+    return 'shadow-[0_0_0_2px_var(--color-primary),0_0_0_7px_var(--color-primary-container)]';
+  if (presence === 'floor') return 'shadow-[0_0_0_2px_var(--color-primary-container)]';
+  return 'shadow-[0_0_0_1px_var(--color-outline-variant)]';
 }
 
 /**
@@ -196,7 +196,7 @@ function NamePill({
 }) {
   if (compact)
     return (
-      <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-center justify-center gap-1 rounded-full bg-bg-elevated/88 px-2 py-0.5 text-[10.5px] font-medium text-fg backdrop-blur-[6px] hairline">
+      <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-center justify-center gap-1 rounded-full bg-surface-container/88 px-2 py-0.5 text-label-small font-medium text-on-surface backdrop-blur-[6px] hairline">
         {speaking ? <SpeakingGlyph /> : null}
         <span className="min-w-0 truncate" dir="auto">
           {name}
@@ -204,12 +204,12 @@ function NamePill({
       </span>
     );
   return (
-    <span className="pointer-events-none absolute end-11 bottom-2 start-2 flex min-w-0 items-center gap-1.5 rounded-full bg-bg-elevated/88 px-2.5 py-1 text-[11.5px] text-fg backdrop-blur-[6px] hairline">
+    <span className="pointer-events-none absolute end-11 bottom-2 start-2 flex min-w-0 items-center gap-1.5 rounded-full bg-surface-container/88 px-2.5 py-1 text-label-small text-on-surface backdrop-blur-[6px] hairline">
       {speaking ? <SpeakingGlyph /> : null}
       <span className="min-w-0 truncate font-medium" dir="auto">
         {name}
       </span>
-      <span className="shrink-0 text-fg-3">({note})</span>
+      <span className="shrink-0 text-on-surface-dim">({note})</span>
     </span>
   );
 }
@@ -230,10 +230,12 @@ function CardControl({
 }) {
   const className = cn(
     'absolute top-2 end-2 grid size-7 place-items-center rounded-full backdrop-blur-[6px] transition-colors duration-[var(--duration-fast)]',
-    tone === 'live' && 'bg-presence-soft text-presence shadow-[0_0_0_1px_var(--color-presence)]',
-    tone === 'warn' && 'bg-warm-soft text-warm shadow-[0_0_0_1px_var(--color-warm)]',
-    tone === 'quiet' && 'bg-bg-elevated/88 text-fg-2 hairline',
-    onClick && 'hover:text-fg focus-visible:outline-accent',
+    tone === 'live' &&
+      'bg-presence-container text-on-presence-container shadow-[0_0_0_1px_var(--color-presence)]',
+    tone === 'warn' &&
+      'bg-warm-container text-on-warm-container shadow-[0_0_0_1px_var(--color-warm)]',
+    tone === 'quiet' && 'bg-surface-container/88 text-on-surface-variant hairline',
+    onClick && 'hover:text-on-surface focus-visible:outline-primary',
   );
   if (!onClick)
     return (
@@ -413,7 +415,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
             and putting them at h2 put two of them above the page's own. */}
         <h6
           id={`${listId}-heading`}
-          className="shrink-0 whitespace-nowrap text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase"
+          className="shrink-0 whitespace-nowrap text-label-small font-semibold tracking-widest text-on-surface-dim uppercase"
         >
           On the call
         </h6>
@@ -428,7 +430,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
           aria-controls={`${listId}-body`}
           aria-label={p.sectionOpen ? 'Hide on the call' : 'Show on the call'}
           onClick={p.onToggleSection}
-          className="grid size-6 shrink-0 place-items-center rounded-full text-fg-2 transition-colors duration-[var(--duration-fast)] hover:bg-surface-2 hover:text-fg focus-visible:outline-accent"
+          className="grid size-6 shrink-0 place-items-center rounded-full text-on-surface-variant transition-colors duration-[var(--duration-fast)] hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-primary"
         >
           <ChevronDown
             size={14}
@@ -486,7 +488,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
               aria-expanded={open}
               aria-controls={listId}
               onClick={() => setOpen((v) => !v)}
-              className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-[12px] text-fg-2 transition-colors duration-[var(--duration-fast)] hover:bg-surface-2 hover:text-fg focus-visible:outline-accent"
+              className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-body-small text-on-surface-variant transition-colors duration-[var(--duration-fast)] hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-primary"
             >
               <span className="truncate tabular">
                 {hidden > 0 ? `+${hidden} more` : 'Everyone on the call'}
@@ -506,7 +508,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
 
       {open && p.sectionOpen ? (
         <div id={listId} className="mt-1 px-3">
-          <ul className="flex max-h-[240px] flex-col gap-0.5 overflow-auto rounded-[var(--radius-md)] bg-surface-2/60 p-1">
+          <ul className="flex max-h-[240px] flex-col gap-0.5 overflow-auto rounded-md bg-surface-container-high/60 p-1">
             {people.map((person) => {
               const voice = voiceOf(person, p.selfId, p.audio);
               const presence = presenceOf(person);
@@ -515,23 +517,23 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
               return (
                 <li
                   key={person.id}
-                  className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5"
+                  className="flex items-center gap-2.5 rounded-sm px-2 py-1.5"
                   data-testid={`participant-${person.id}`}
                   data-voice={voice}
                 >
                   <VoiceAvatar p={person} voice={voice} size={28} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-[13px] text-fg" dir="auto">
+                      <span className="truncate text-body-medium text-on-surface" dir="auto">
                         {person.name}
-                        {isSelf ? <span className="text-fg-3"> (you)</span> : null}
+                        {isSelf ? <span className="text-on-surface-dim"> (you)</span> : null}
                       </span>
                       {host ? <Pill tone="accent">Host</Pill> : null}
                     </div>
                     <div
                       className={cn(
-                        'text-[11px]',
-                        presence === 'speaking' ? 'text-presence' : 'text-fg-3',
+                        'text-label-small',
+                        presence === 'speaking' ? 'text-presence' : 'text-on-surface-dim',
                       )}
                     >
                       {voiceOn ? VOICE_LABEL[voice] : presenceLabel(presence, host)}

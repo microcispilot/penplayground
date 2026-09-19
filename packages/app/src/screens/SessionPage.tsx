@@ -224,7 +224,7 @@ function ExportControl({
       </span>
       {detail ? (
         <span
-          className={cn('text-xs', failed ? 'text-danger' : 'text-fg-3')}
+          className={cn('text-body-small', failed ? 'text-error' : 'text-on-surface-dim')}
           role={failed ? 'alert' : undefined}
         >
           {detail}
@@ -260,8 +260,8 @@ function OwnerControls({
   const isPublic = session.visibility === 'public';
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-lg)] bg-surface-2 px-4 py-3 text-sm">
-      <span className="text-fg-2">
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-container-high px-4 py-3 text-body-medium">
+      <span className="text-on-surface-variant">
         {isPublic
           ? 'Anyone with the link can watch this.'
           : 'Only you can watch this — it is not listed and the link will not open for anyone else.'}
@@ -445,7 +445,7 @@ export function SessionPage() {
     return (
       <div className="grid flex-1 place-items-center px-7 py-24">
         <div className="flex flex-col items-center gap-3 text-center">
-          <p className="text-md">{error}</p>
+          <p className="text-body-large">{error}</p>
           <Button variant="primary" onClick={() => navigate('/')}>
             Back to Explore
           </Button>
@@ -467,11 +467,15 @@ export function SessionPage() {
             {/* Phone width: the actions wrap under the title rather than
                 running off the side of the page. */}
             <div className="mt-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-              <div className="min-w-0 flex-1">
-                <h2 className="tracking-[-0.025em]" lang={lang} dir={dir}>
+              {/* A basis, not just `flex-1`: M3's buttons are wider than the
+                  ones they replace, and with a zero basis the title column
+                  collapsed to four words a line rather than letting the row
+                  wrap. */}
+              <div className="min-w-0 flex-1 basis-[18rem]">
+                <h2 lang={lang} dir={dir}>
                   {s?.title ?? <Skeleton className="h-7 w-72" />}
                 </h2>
-                <p className="mt-1.5 text-sm text-fg-2">
+                <p className="mt-1.5 text-body-medium text-on-surface-variant">
                   {s
                     ? `${relativeDay(s.startedAt)} · ${live ? 'live now' : formatDuration(s.durationMs)} · ${s.views} view${s.views === 1 ? '' : 's'}`
                     : ''}
@@ -520,7 +524,7 @@ export function SessionPage() {
                 onDeleted={() => navigate('/sessions')}
               />
             ) : null}
-            <div className="mt-6 flex gap-1 border-b border-line" role="tablist">
+            <div className="mt-6 flex gap-1 border-b border-outline-variant" role="tablist">
               {(isHost
                 ? (['recap', 'transcript', 'insights'] as const)
                 : (['recap', 'transcript'] as const)
@@ -531,8 +535,12 @@ export function SessionPage() {
                   role="tab"
                   aria-selected={tab === t}
                   className={cn(
-                    'px-3 py-2 text-sm',
-                    tab === t ? 'border-b-2 border-accent text-fg' : 'text-fg-2 hover:text-fg',
+                    // M3 primary tab: `label-large`, a 3 px `primary`
+                    // indicator, `on-surface-variant` when it is not the one.
+                    'state-layer rounded-t-sm px-4 py-2.5 text-label-large',
+                    tab === t
+                      ? 'border-b-[3px] border-primary text-primary'
+                      : 'border-b-[3px] border-transparent text-on-surface-variant',
                   )}
                   onClick={() => setParams(t === 'recap' ? {} : { tab: t })}
                 >
@@ -544,7 +552,7 @@ export function SessionPage() {
               telemetry ? (
                 <Insights telemetry={telemetry} />
               ) : telemetryError ? (
-                <p className="mt-5 text-sm text-danger" role="alert">
+                <p className="mt-5 text-body-medium text-error" role="alert">
                   {telemetryError}
                 </p>
               ) : (
@@ -557,16 +565,16 @@ export function SessionPage() {
             ) : tab === 'recap' ? (
               <div className="mt-5 flex flex-col gap-6">
                 <section>
-                  <h6 className="mb-2.5 text-fg-2">What was covered</h6>
+                  <h6 className="mb-2.5 text-on-surface-variant">What was covered</h6>
                   {s?.recap.length ? (
                     <ul className="flex flex-col gap-2" lang={lang} dir={dir}>
                       {s.recap.map((r) => (
                         <li
                           key={r}
-                          className="flex items-start gap-2.5 text-sm leading-[1.5] text-fg-2"
+                          className="flex items-start gap-2.5 text-body-medium text-on-surface-variant"
                         >
                           <span
-                            className="mt-2 size-[5px] shrink-0 rounded-full bg-accent"
+                            className="mt-2 size-[5px] shrink-0 rounded-full bg-primary"
                             aria-hidden
                           />
                           {r}
@@ -574,27 +582,27 @@ export function SessionPage() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-fg-3">
+                    <p className="text-body-medium text-on-surface-dim">
                       {live ? 'The recap appears when the session ends.' : 'No recap was recorded.'}
                     </p>
                   )}
                 </section>
                 <section>
-                  <h6 className="mb-2.5 text-fg-2">Questions asked</h6>
+                  <h6 className="mb-2.5 text-on-surface-variant">Questions asked</h6>
                   {questions.length === 0 ? (
-                    <p className="text-sm text-fg-3">No questions were asked.</p>
+                    <p className="text-body-medium text-on-surface-dim">No questions were asked.</p>
                   ) : (
                     <div className="flex flex-col gap-3">
                       {questions.map((q) => (
                         <div
                           key={`${q.question}-${q.headline}`}
-                          className="border-accent-strong border-s-2 ps-[11px]"
+                          className="border-primary border-s-2 ps-[11px]"
                           // A note carries the language the learner asked in.
                           lang={q.language}
                           dir={dirOf(q.language)}
                         >
-                          <p className="text-sm text-fg">{q.question}</p>
-                          <p className="text-[13px] text-fg-2">
+                          <p className="text-body-medium text-on-surface">{q.question}</p>
+                          <p className="text-body-medium text-on-surface-variant">
                             {q.headline} — {q.detail}
                           </p>
                         </div>
@@ -606,27 +614,27 @@ export function SessionPage() {
             ) : (
               <div className="mt-5 flex flex-col gap-3">
                 {transcript.length === 0 ? (
-                  <p className="text-sm text-fg-3">Nothing was said yet.</p>
+                  <p className="text-body-medium text-on-surface-dim">Nothing was said yet.</p>
                 ) : null}
                 {transcript.map((l, i) => (
                   <div
                     // biome-ignore lint/suspicious/noArrayIndexKey: transcript lines are append-only and never reorder
                     key={`${l.t}-${i}`}
                     className={cn(
-                      'flex gap-3 text-sm leading-[1.5]',
-                      l.who === 'learner' && 'text-fg',
+                      'flex gap-3 text-body-medium',
+                      l.who === 'learner' && 'text-on-surface',
                     )}
                   >
                     <span
                       className={cn(
-                        'w-24 shrink-0 text-xs',
-                        l.who === 'expert' ? 'text-accent-strong' : 'text-presence',
+                        'w-24 shrink-0 text-body-small',
+                        l.who === 'expert' ? 'text-primary' : 'text-presence',
                       )}
                     >
                       {l.name}
                     </span>
                     <span
-                      className={cn('min-w-0', l.who === 'expert' ? 'text-fg-2' : '')}
+                      className={cn('min-w-0', l.who === 'expert' ? 'text-on-surface-variant' : '')}
                       // Either speaker may have used another language: the line decides its own.
                       dir="auto"
                     >
@@ -639,7 +647,7 @@ export function SessionPage() {
           </div>
           <aside className="flex flex-col gap-4">
             {data?.expert ? (
-              <div className="flex items-center gap-3 rounded-[var(--radius-lg)] bg-surface p-4 hairline">
+              <div className="flex items-center gap-3 rounded-lg bg-surface-container-low p-4 hairline">
                 <Avatar
                   name={data.expert.displayName}
                   src={api.portraitUrl(data.expert.portrait?.src)}
@@ -647,7 +655,7 @@ export function SessionPage() {
                 />
                 <div className="min-w-0">
                   <div className="font-medium">{data.expert.displayName}</div>
-                  <div className="text-xs text-fg-3">{data.expert.role}</div>
+                  <div className="text-body-small text-on-surface-dim">{data.expert.role}</div>
                   <div className="mt-1">
                     <Pill tone="accent">AI expert</Pill>
                   </div>
@@ -655,12 +663,12 @@ export function SessionPage() {
               </div>
             ) : null}
             {s ? (
-              <div className="rounded-[var(--radius-lg)] bg-surface p-4 text-sm hairline">
-                <div className="mb-2 text-xs font-medium tracking-[0.08em] text-fg-3 uppercase">
+              <div className="rounded-lg bg-surface-container-low p-4 text-body-medium hairline">
+                <div className="mb-2 text-body-small font-medium tracking-wider text-on-surface-dim uppercase">
                   Share
                 </div>
                 <code
-                  className="block truncate rounded-[var(--radius-sm)] bg-surface-2 px-2 py-1 text-xs"
+                  className="block truncate rounded-sm bg-surface-container-high px-2 py-1 text-body-small"
                   data-testid="share-url"
                 >
                   {shareUrl}

@@ -135,7 +135,9 @@ export function ExpertOrb({
           </span>
         )}
       </div>
-      {caption ? <span className="text-xs text-fg-2">{caption}</span> : null}
+      {caption ? (
+        <span className="text-label-medium text-on-surface-variant">{caption}</span>
+      ) : null}
       <style>{`
         .pen-orb-ripple { border: 2px solid; animation: pen-orb-ripple 800ms var(--ease-out) infinite; pointer-events: none; }
         [data-presence='speaking'] .pen-orb-ripple { animation-duration: 650ms; }

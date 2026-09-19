@@ -87,7 +87,7 @@ export function ReactionPicker({
           aria-label="Send a reaction"
           data-testid="reaction-row"
           onKeyDown={onRowKey}
-          className="absolute end-0 bottom-[calc(100%+10px)] z-[20] flex animate-rise items-center gap-0.5 rounded-full bg-bg-elevated p-1 shadow-pop hairline"
+          className="absolute end-0 bottom-[calc(100%+10px)] z-[20] flex animate-rise items-center gap-0.5 rounded-full bg-surface-container p-1 shadow-level3 hairline"
         >
           {REACTIONS.map((emoji) => (
             <button
@@ -101,7 +101,7 @@ export function ReactionPicker({
                 onReact(emoji);
                 setOpen(false);
               }}
-              className="grid size-9 place-items-center rounded-[var(--radius-sm)] text-[20px] leading-none transition-[background-color,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:scale-110 hover:bg-surface-2 focus-visible:outline-accent motion-reduce:hover:scale-100"
+              className="grid size-9 place-items-center rounded-sm text-title-large leading-none transition-[background-color,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:scale-110 hover:bg-surface-container-high focus-visible:outline-primary motion-reduce:hover:scale-100"
             >
               <span aria-hidden>{emoji}</span>
             </button>
@@ -113,7 +113,7 @@ export function ReactionPicker({
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         aria-expanded={open}
-        className={cn(open && 'bg-surface-2 text-fg')}
+        className={cn(open && 'bg-surface-container-high text-on-surface')}
         data-testid="reaction-toggle"
       >
         <Smile size={17} />
@@ -147,14 +147,19 @@ export function ReactionPills({ reactions }: { reactions: LiveReaction[] }) {
           key={r.id}
           data-testid="reaction-pill"
           data-emoji={r.emoji}
-          className="pen-reaction flex items-center gap-1.5 rounded-full bg-bg-elevated/92 py-0.5 pe-2.5 ps-0.5 shadow-card backdrop-blur-[6px] hairline"
+          className="pen-reaction flex items-center gap-1.5 rounded-full bg-surface-container/92 py-0.5 pe-2.5 ps-0.5 shadow-level1 backdrop-blur-[6px] hairline"
         >
           {/* The face, proud of the pill's edge: whose reaction this is, at a glance. */}
-          <Avatar name={r.name} hue={r.hue} size={20} className="-ms-1.5 ring-2 ring-bg-elevated" />
+          <Avatar
+            name={r.name}
+            hue={r.hue}
+            size={20}
+            className="-ms-1.5 ring-2 ring-surface-container"
+          />
           <span
             role="img"
             aria-label={`${r.name} reacted — ${REACTION_LABEL[r.emoji]}`}
-            className="text-[15px] leading-none"
+            className="text-body-medium leading-none"
           >
             {r.emoji}
           </span>

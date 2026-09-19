@@ -51,17 +51,17 @@ export function NotFound() {
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden px-6 py-16">
       <div className="flex w-full max-w-[560px] flex-col items-center text-center">
-        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-[18px] bg-bg-elevated text-fg shadow-float">
+        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-lg-increased bg-surface-container text-on-surface shadow-level2">
           <PenMark size={28} />
         </span>
         <h1
-          className="animate-rise text-[clamp(1.9rem,4vw,2.6rem)] leading-[1.05] tracking-[-0.03em] text-fg text-pretty"
+          className="animate-rise text-headline-medium text-on-surface text-pretty"
           style={{ animationDelay: '60ms' }}
         >
           This page wandered off
         </h1>
         <p
-          className="animate-rise mt-4 max-w-[420px] text-[16px] leading-[1.55] text-fg-2 text-pretty"
+          className="animate-rise mt-4 max-w-[420px] text-body-large text-on-surface-variant text-pretty"
           style={{ animationDelay: '120ms' }}
         >
           The link may be old, or the session was private. What you came to learn is still one
@@ -70,15 +70,15 @@ export function NotFound() {
 
         <form
           className={cn(
-            'animate-rise mt-8 flex min-h-[58px] w-full items-center gap-1 rounded-[18px] bg-bg-elevated p-2 pl-4 shadow-float transition-shadow duration-[var(--duration-base)]',
-            'focus-within:shadow-[var(--shadow-lift),0_0_0_2px_var(--color-accent)]',
+            'animate-rise mt-8 flex min-h-[58px] w-full items-center gap-1 rounded-lg-increased bg-surface-container p-2 pl-4 shadow-level2 transition-shadow duration-[var(--duration-base)]',
+            'focus-within:shadow-[var(--shadow-level3),0_0_0_2px_var(--color-primary)]',
           )}
           style={{ animationDelay: '180ms' }}
           onSubmit={(e) => void start(e)}
         >
-          <Search size={18} className="shrink-0 text-fg-3" aria-hidden />
+          <Search size={18} className="shrink-0 text-on-surface-dim" aria-hidden />
           <input
-            className="h-11 min-w-0 flex-1 bg-transparent px-3 text-[16px] text-fg caret-accent outline-none placeholder:text-fg-3"
+            className="h-11 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface caret-primary outline-none placeholder:text-on-surface-dim"
             placeholder="Try “how Transformers work in LLMs”"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
@@ -98,13 +98,13 @@ export function NotFound() {
         </form>
 
         <div
-          className="animate-rise mt-7 flex items-center gap-2 text-sm"
+          className="animate-rise mt-7 flex items-center gap-2 text-body-medium"
           style={{ animationDelay: '240ms' }}
         >
           <Button variant="ghost" onClick={() => navigate('/')}>
             Back to Explore
           </Button>
-          <span className="text-fg-3" aria-hidden>
+          <span className="text-on-surface-dim" aria-hidden>
             ·
           </span>
           <Button variant="ghost" onClick={() => navigate('/sessions')}>

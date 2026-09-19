@@ -43,7 +43,7 @@ export function Avatar({
       aria-label={name}
       className={cn(
         'grid shrink-0 place-items-center overflow-hidden rounded-full font-medium text-white',
-        ring && 'ring-2 ring-surface',
+        ring && 'ring-2 ring-surface-container-low',
         className,
       )}
       style={{ ...style, fontSize: Math.round(size * 0.4) }}

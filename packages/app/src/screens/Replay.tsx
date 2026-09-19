@@ -286,7 +286,7 @@ export function Replay() {
     return (
       <div className="grid min-h-screen place-items-center px-7">
         <div className="flex flex-col items-center gap-3 text-center">
-          <p className="text-md">{error}</p>
+          <p className="text-body-large">{error}</p>
           <Button variant="primary" onClick={() => navigate('/')}>
             Back to Explore
           </Button>
@@ -297,7 +297,7 @@ export function Replay() {
 
   const presence = !started ? 'idle' : paused ? 'paused' : ui.speaking ? 'speaking' : 'idle';
   const stage = (
-    <div className="relative min-h-0 flex-1 overflow-hidden rounded-[6px] shadow-board">
+    <div className="relative min-h-0 flex-1 overflow-hidden rounded-sm shadow-board">
       <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
       <div className="absolute right-3 bottom-3 z-[6]">
         <ExpertOrb
@@ -310,7 +310,7 @@ export function Replay() {
       <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
       {exportMode ? null : <ReplayNotice notice={ui.notice} />}
       {!started && !exportMode ? (
-        <div className="absolute inset-0 z-[9] grid place-items-center bg-navy-900/60">
+        <div className="absolute inset-0 z-[9] grid place-items-center bg-scrim/60">
           <Button
             variant="primary"
             size="lg"
@@ -328,7 +328,7 @@ export function Replay() {
   if (exportMode) {
     // Only the board, captions and orb reach the recording; the curtain is the sync marker.
     return (
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-bg [&>div]:rounded-none [&>div]:shadow-none">
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-surface [&>div]:rounded-none [&>div]:shadow-none">
         {stage}
         <div
           ref={curtainRef}
@@ -344,9 +344,9 @@ export function Replay() {
   const timeline = session?.timeline ?? null;
   const totalMs = timeline?.totalMs ?? 0;
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-bg">
+    <div className="flex h-dvh flex-col overflow-hidden bg-surface">
       <div className="flex min-h-0 flex-1 p-2 sm:p-3 lg:p-4">{stage}</div>
-      <div className="shrink-0 border-t border-line bg-surface px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] sm:px-3.5">
+      <div className="shrink-0 border-t border-outline-variant bg-surface-container-low px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] sm:px-3.5">
         <ReplayScrubber
           positionMs={scrubbing ?? position}
           totalMs={totalMs}
@@ -369,10 +369,13 @@ export function Replay() {
           >
             {paused ? <Play size={14} /> : <Pause size={14} />}
           </IconButton>
-          <span className="shrink-0 text-sm text-fg-2 tabular" data-testid="replay-clock">
+          <span
+            className="shrink-0 text-body-medium text-on-surface-variant tabular"
+            data-testid="replay-clock"
+          >
             {formatClock(scrubbing ?? position)} / {formatClock(totalMs)}
           </span>
-          <span className="hidden min-w-0 flex-1 truncate text-sm sm:block">{title}</span>
+          <span className="hidden min-w-0 flex-1 truncate text-body-medium sm:block">{title}</span>
           <span className="flex-1 sm:hidden" />
           <Pill tone="accent" className="hidden sm:inline-flex">
             Replay

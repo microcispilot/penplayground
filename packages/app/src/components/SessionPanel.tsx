@@ -100,8 +100,10 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-      {dot ? <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden /> : null}
-      <h6 className="text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase">{label}</h6>
+      {dot ? <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden /> : null}
+      <h6 className="text-label-small font-semibold tracking-widest text-on-surface-dim uppercase">
+        {label}
+      </h6>
       {trailing}
       <span className="flex-1" />
       <button
@@ -111,7 +113,7 @@ function SectionHeader({
         aria-controls={controls}
         aria-label={open ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
         onClick={onToggle}
-        className="grid size-6 shrink-0 place-items-center rounded-full text-fg-2 transition-colors duration-[var(--duration-fast)] hover:bg-surface-2 hover:text-fg focus-visible:outline-accent"
+        className="grid size-6 shrink-0 place-items-center rounded-full text-on-surface-variant transition-colors duration-[var(--duration-fast)] hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-primary"
       >
         <ChevronDown
           size={14}
@@ -142,7 +144,7 @@ function Line({
       <article
         data-role="system"
         data-kind={m.kind}
-        className="px-2 py-1 text-center text-[11.5px] leading-[1.5] text-fg-3"
+        className="px-2 py-1 text-center text-label-small text-on-surface-dim"
       >
         {m.text}
       </article>
@@ -153,28 +155,27 @@ function Line({
       data-kind={m.kind}
       {...(m.live ? { 'data-live': 'true' } : {})}
       className={cn(
-        'rounded-[var(--radius-md)] px-3 py-2.5 transition-colors duration-[var(--duration-fast)]',
+        'rounded-md px-3 py-2.5 transition-colors duration-[var(--duration-fast)]',
         m.live
-          ? 'border border-dashed border-accent/45 bg-accent-soft/35'
-          : 'bg-surface-2/70 hairline',
+          ? 'border border-dashed border-primary/45 bg-primary-container/35'
+          : 'bg-surface-container-high/70 hairline',
       )}
     >
-      <p className="text-[13.5px] leading-[1.5] text-fg text-pretty">
+      <p className="text-body-medium text-on-surface text-pretty">
         <span
           dir="auto"
-          className={cn(
-            'font-medium',
-            m.role === 'expert' ? 'text-accent-strong' : 'text-presence',
-          )}
+          className={cn('font-medium', m.role === 'expert' ? 'text-primary' : 'text-presence')}
         >
           {m.speaker}
         </span>{' '}
-        <span className={cn(m.live && 'text-fg-2 italic')}>
+        <span className={cn(m.live && 'text-on-surface-variant italic')}>
           {m.text}
           {m.live ? '…' : ''}
         </span>
       </p>
-      <p className="mt-1 text-[11px] text-fg-3">{formatElapsed(m.at, now, locale)}</p>
+      <p className="mt-1 text-label-small text-on-surface-dim">
+        {formatElapsed(m.at, now, locale)}
+      </p>
     </article>
   );
 }
@@ -209,7 +210,7 @@ function Conversation({
       className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {shown.length === 0 ? (
-        <p className="m-auto max-w-[30ch] px-4 text-center text-[12.5px] leading-[1.55] text-fg-3">
+        <p className="m-auto max-w-[30ch] px-4 text-center text-body-small text-on-surface-dim">
           Nothing here yet. {expertFirstName} starts in a moment — jump in whenever, out loud or
           here.
         </p>
@@ -245,15 +246,15 @@ function Composer({
     setText('');
   };
   return (
-    <form className="shrink-0 border-t border-line px-3 pt-2.5 pb-3" onSubmit={submit}>
+    <form className="shrink-0 border-t border-outline-variant px-3 pt-2.5 pb-3" onSubmit={submit}>
       <div
         className={cn(
-          'flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pe-1 ps-4 transition-[box-shadow,opacity] duration-[var(--duration-fast)] hairline',
-          disabled ? 'opacity-60' : 'focus-within:shadow-[0_0_0_2px_var(--color-accent)]',
+          'flex items-center gap-1.5 rounded-full bg-surface-container-high py-1 pe-1 ps-4 transition-[box-shadow,opacity] duration-[var(--duration-fast)] hairline',
+          disabled ? 'opacity-60' : 'focus-within:shadow-[0_0_0_2px_var(--color-primary)]',
         )}
       >
         <input
-          className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] text-fg outline-none placeholder:text-fg-3 disabled:cursor-not-allowed"
+          className="h-8 min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-dim disabled:cursor-not-allowed"
           placeholder={disabled ? 'Back in a moment…' : `Ask ${expertFirstName} — or just talk`}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -280,13 +281,17 @@ function Composer({
           title="Send"
           disabled={disabled || text.trim() === ''}
           data-testid="composer-send"
-          className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-strong text-on-accent transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-accent-pressed active:scale-[0.96] focus-visible:outline-accent disabled:bg-surface disabled:text-fg-3 disabled:active:scale-100"
+          className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-primary active:scale-[0.96] focus-visible:outline-primary disabled:bg-surface-container-low disabled:text-on-surface-dim disabled:active:scale-100"
         >
           <ArrowUp size={16} aria-hidden />
         </button>
       </div>
       {note ? (
-        <p id={noteId} className="mt-1.5 px-1 text-[11.5px] text-fg-3" data-testid="composer-note">
+        <p
+          id={noteId}
+          className="mt-1.5 px-1 text-label-small text-on-surface-dim"
+          data-testid="composer-note"
+        >
           {note}
         </p>
       ) : null}
@@ -416,7 +421,7 @@ export function SessionPanel(p: SessionPanelProps) {
         aria-label={p.open ? 'Hide the session panel' : 'Show the session panel'}
         title={p.open ? 'Hide the session panel' : 'Show the session panel'}
         onClick={p.onToggle}
-        className="grid h-16 w-6 place-items-center rounded-full bg-surface-2 text-fg-2 transition-colors duration-[var(--duration-fast)] hairline hover:bg-surface hover:text-fg focus-visible:outline-accent"
+        className="grid h-16 w-6 place-items-center rounded-full bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-fast)] hairline hover:bg-surface-container-low hover:text-on-surface focus-visible:outline-primary"
       >
         <ChevronRight
           size={16}
@@ -439,10 +444,10 @@ export function SessionPanel(p: SessionPanelProps) {
       aria-label="Session panel"
       {...(drawer ? { role: 'dialog' as const, 'aria-modal': true, tabIndex: -1 } : {})}
       className={cn(
-        'flex h-full shrink-0 border-s border-line bg-bg outline-none',
+        'flex h-full shrink-0 border-s border-outline-variant bg-surface outline-none',
         'transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-out)]',
         drawer
-          ? 'w-full max-w-[min(420px,92%)] shadow-pop'
+          ? 'w-full max-w-[min(420px,92%)] shadow-level3'
           : p.open
             ? // A small laptop gives the board back the 50 px a wide screen can spare.
               'w-[340px] xl:w-[390px]'
@@ -462,7 +467,7 @@ export function SessionPanel(p: SessionPanelProps) {
         aria-label="Close the session panel"
         tabIndex={-1}
         onClick={close}
-        className="absolute inset-0 cursor-default bg-navy-900/45 [animation:rise_var(--duration-base)_var(--ease-out)_both]"
+        className="absolute inset-0 cursor-default bg-scrim/45 [animation:rise_var(--duration-base)_var(--ease-out)_both]"
       />
       <div className="relative animate-rise">{surface}</div>
     </div>

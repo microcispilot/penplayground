@@ -143,6 +143,7 @@ export function PaceMenu({
         aria-describedby={disabled && tip ? tipId : undefined}
         title={disabled ? disabledReason : `${label}: ${formatPace(value)}`}
         data-testid="pace-pill"
+        data-state={open ? 'on' : 'default'}
         onClick={() => {
           if (disabled) return;
           setOpen((o) => !o);
@@ -153,12 +154,12 @@ export function PaceMenu({
         onFocus={() => setTip(true)}
         onBlur={() => setTip(false)}
         className={cn(
-          'inline-flex h-8 min-w-[52px] select-none items-center justify-center gap-1 rounded-[var(--radius-sm)] px-2.5 text-[12.5px] font-medium tabular transition-colors duration-[var(--duration-fast)] focus-visible:outline-accent',
+          'inline-flex h-8 min-w-[52px] select-none items-center justify-center gap-1 rounded-full px-3 text-label-medium tabular transition-colors duration-[var(--duration-fast)]',
           disabled
-            ? 'cursor-not-allowed bg-surface text-fg-3 opacity-60 hairline'
+            ? 'cursor-not-allowed bg-surface-container-low text-on-surface-dim opacity-60 hairline'
             : open
-              ? 'bg-accent-soft text-accent-strong shadow-[0_0_0_1px_var(--color-accent)]'
-              : 'bg-surface text-fg hairline hover:bg-surface-2',
+              ? 'bg-primary-container text-on-primary-container'
+              : 'bg-surface-container-low text-on-surface hairline hover:bg-surface-container-high',
         )}
       >
         <span>{formatPace(value)}</span>
@@ -167,7 +168,7 @@ export function PaceMenu({
             size={12}
             aria-hidden
             className={cn(
-              'text-fg-3 transition-transform duration-[var(--duration-fast)]',
+              'text-on-surface-dim transition-transform duration-[var(--duration-fast)]',
               open && 'rotate-180',
             )}
           />
@@ -177,7 +178,7 @@ export function PaceMenu({
         <div
           id={tipId}
           role="tooltip"
-          className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-[20] -translate-x-1/2 whitespace-nowrap rounded-[var(--radius-sm)] bg-fg px-2.5 py-1.5 text-[11.5px] text-bg shadow-pop animate-rise"
+          className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-[20] -translate-x-1/2 whitespace-nowrap rounded-sm bg-on-surface px-2.5 py-1.5 text-label-small text-surface shadow-level3 animate-rise"
         >
           {disabledReason}
         </div>
@@ -187,9 +188,9 @@ export function PaceMenu({
           id={menuId}
           aria-label={label}
           onKeyDown={onMenuKey}
-          className="absolute right-0 bottom-[calc(100%+8px)] z-[20] m-0 w-[188px] min-w-0 rounded-[var(--radius-md)] border-0 bg-bg-elevated p-1 shadow-pop hairline animate-rise"
+          className="absolute right-0 bottom-[calc(100%+8px)] z-[20] m-0 w-[188px] min-w-0 rounded-md border-0 bg-surface-container p-1 shadow-level3 hairline animate-rise"
         >
-          <legend className="float-left w-full px-2.5 pt-1.5 pb-1 text-[10px] font-medium tracking-[0.1em] text-fg-3 uppercase">
+          <legend className="float-left w-full px-2.5 pt-1.5 pb-1 text-label-small font-medium tracking-widest text-on-surface-dim uppercase">
             {label}
           </legend>
           {PACE_PRESETS.map((preset, i) => {
@@ -205,17 +206,17 @@ export function PaceMenu({
                 data-testid={`pace-option-${preset}`}
                 onClick={() => pick(preset)}
                 className={cn(
-                  'flex h-8 w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 text-left text-[13px] transition-colors duration-[var(--duration-fast)] focus-visible:outline-accent',
+                  'state-layer flex h-8 w-full items-center gap-2 rounded-full px-3 text-left text-label-large transition-colors duration-[var(--duration-fast)]',
                   selected
-                    ? 'bg-accent-soft text-accent-strong'
-                    : 'text-fg hover:bg-surface-2 focus-visible:bg-surface-2',
+                    ? 'bg-secondary-container text-on-secondary-container'
+                    : 'text-on-surface',
                 )}
               >
                 <span className="w-10 font-medium tabular">{formatPace(preset)}</span>
                 <span
                   className={cn(
-                    'flex-1 text-[12px]',
-                    selected ? 'text-accent-strong' : 'text-fg-3',
+                    'flex-1 text-body-small',
+                    selected ? 'text-on-secondary-container' : 'text-on-surface-dim',
                   )}
                 >
                   {describe(preset)}

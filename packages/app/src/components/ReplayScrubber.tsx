@@ -96,7 +96,7 @@ export function ReplayScrubber({
     <div className={cn('relative w-full', className)} data-testid="replay-scrubber">
       {tipMs !== null && !disabled ? (
         <div
-          className="pointer-events-none absolute bottom-[calc(100%+10px)] z-[10] -translate-x-1/2 whitespace-nowrap rounded-[var(--radius-sm)] bg-fg px-2 py-1 text-[11.5px] text-bg shadow-pop"
+          className="pointer-events-none absolute bottom-[calc(100%+10px)] z-[10] -translate-x-1/2 whitespace-nowrap rounded-sm bg-on-surface px-2 py-1 text-label-small text-surface shadow-level3"
           style={{ left: `${pct(tipMs, totalMs)}%` }}
           data-testid="scrubber-tooltip"
         >
@@ -137,18 +137,26 @@ export function ReplayScrubber({
           }
         }}
         className={cn(
-          'group relative flex h-5 w-full cursor-pointer touch-none items-center focus-visible:outline-accent',
+          'group relative flex h-5 w-full cursor-pointer touch-none items-center focus-visible:outline-primary',
           disabled && 'cursor-default opacity-50',
         )}
       >
-        <div className="relative h-1 w-full rounded-full bg-line-strong">
+        {/*
+          M3's slider: a 4 px `corner-full` track, inactive in
+          `surface-container-highest`, active in `primary`, with a `primary`
+          handle. (@material/web tokens/versions/v0_192/_md-comp-slider.scss)
+          The handle is 12 px rather than M3's 20: this scrubber sits in a
+          20 px row under the board, and a 20 px knob would be taller than
+          the row it lives in.
+        */}
+        <div className="relative h-1 w-full rounded-full bg-surface-container-highest">
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-fg-3/45"
+            className="absolute inset-y-0 left-0 rounded-full bg-outline/45"
             style={{ width: `${pct(bufferedMs, totalMs)}%` }}
             data-testid="scrubber-buffered"
           />
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-accent"
+            className="absolute inset-y-0 left-0 rounded-full bg-primary"
             style={{ width: `${pct(shown, totalMs)}%` }}
             data-testid="scrubber-played"
           />
@@ -158,7 +166,7 @@ export function ReplayScrubber({
                 key={c.segment}
                 aria-hidden
                 title={c.title}
-                className="absolute top-[-1px] h-[6px] w-[2px] rounded-full bg-bg/80"
+                className="absolute top-[-1px] h-[6px] w-[2px] rounded-full bg-on-primary/80"
                 style={{ left: `${pct(c.startMs, totalMs)}%` }}
                 data-testid="scrubber-tick"
               />
@@ -166,7 +174,7 @@ export function ReplayScrubber({
           )}
           <span
             aria-hidden
-            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent shadow-card transition-transform duration-[var(--duration-fast)] group-hover:scale-125"
+            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-level1 transition-transform duration-[var(--duration-fast)] group-hover:scale-125"
             style={{ left: `${pct(shown, totalMs)}%` }}
           />
         </div>

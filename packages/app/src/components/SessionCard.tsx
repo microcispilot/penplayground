@@ -77,7 +77,7 @@ export function SessionThumb({
         // own light, so the frame needs its own edge either way: a hairline and
         // a short shadow, the way a video still sits above the page on YouTube
         // (--shadow-thumb, tokens.css).
-        'overflow-hidden rounded-[var(--radius-md)] shadow-[var(--shadow-thumb)]',
+        'overflow-hidden rounded-md shadow-[var(--shadow-thumb)]',
         className,
       )}
       data-testid="session-thumb"
@@ -113,7 +113,7 @@ export function BoardThumb({ seed, className }: { seed: string; className?: stri
   const ink = 'oklch(0.27 0.055 248)';
   const accent = 'oklch(0.597 0.107 218.3)';
   return (
-    <div className={cn('paper overflow-hidden rounded-[var(--radius-md)]', className)}>
+    <div className={cn('paper overflow-hidden rounded-md', className)}>
       <svg
         viewBox="0 0 320 180"
         className="absolute inset-0 h-full w-full"
@@ -208,7 +208,7 @@ export function SessionCard({
       button is exactly the container's box its own focus ring still draws
       around the whole card. This is the arrangement YouTube uses.
     */
-    <div className="group relative flex flex-col gap-3 rounded-[var(--radius-lg)] text-left">
+    <div className="group relative flex flex-col gap-3 rounded-lg text-left">
       {/*
         z-10, not z-0: the thumbnail's own wrapper is positioned and comes
         later in the tree, so at the same level it would paint over this and
@@ -220,7 +220,7 @@ export function SessionCard({
       <button
         type="button"
         data-testid="session-card-open"
-        className="absolute inset-0 z-10 cursor-pointer rounded-[var(--radius-lg)] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4"
+        className="absolute inset-0 z-10 cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4"
         onClick={onOpen}
       >
         <span className="sr-only">{session.title}</span>
@@ -231,7 +231,7 @@ export function SessionCard({
           className="absolute inset-0 transition-[transform,box-shadow] duration-[var(--duration-base)] group-hover:scale-[1.01] group-hover:shadow-[var(--shadow-thumb-hover)]"
         />
         <CardActions session={session} className="z-20" />
-        <span className="absolute right-2 bottom-2 rounded-[5px] bg-navy-900/85 px-1.5 py-0.5 text-xs text-white tabular">
+        <span className="absolute right-2 bottom-2 rounded-sm bg-scrim/85 px-1.5 py-0.5 text-body-small text-white tabular">
           {formatDuration(session.durationMs || session.segments * 90_000)}
         </span>
       </div>
@@ -246,13 +246,13 @@ export function SessionCard({
       <div className="flex gap-3">
         <Avatar name={expertName} src={portraitUrl} size={36} />
         <div className="flex min-w-0 flex-col gap-[3px]">
-          <span className="line-clamp-2 text-[15.5px] font-medium leading-[1.3] tracking-[-0.014em] text-fg">
+          <span className="line-clamp-2 text-title-small font-medium text-on-surface">
             {session.title}
           </span>
-          <span className="truncate text-[12.5px] font-medium leading-[1.35] text-fg-2">
+          <span className="truncate text-body-small font-medium text-on-surface-variant">
             {expertName}
           </span>
-          <span className="line-clamp-2 text-[13.5px] leading-[1.46] font-normal text-fg-3 text-pretty">
+          <span className="line-clamp-2 text-body-medium font-normal text-on-surface-dim text-pretty">
             {session.description || session.promise || session.topic}
           </span>
         </div>

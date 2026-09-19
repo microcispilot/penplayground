@@ -1,4 +1,4 @@
-import { cn, useToast } from '@pen/design';
+import { ButtonGroup, cn, useToast } from '@pen/design';
 import { Bookmark, Heart } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { SessionRecord } from '../api/client.js';
@@ -8,8 +8,8 @@ import { likesShown, useLists } from '../lib/lists.js';
 type Size = 'sm' | 'md';
 
 const BOX: Record<Size, string> = {
-  sm: 'h-8 gap-1.5 px-2.5 text-[12.5px]',
-  md: 'h-9 gap-2 px-3 text-[13px]',
+  sm: 'h-8 gap-1.5 px-2.5 text-label-medium',
+  md: 'h-9 gap-2 px-3 text-label-large',
 };
 const ICON: Record<Size, number> = { sm: 15, md: 16 };
 
@@ -22,15 +22,15 @@ export type ControlSurface = 'page' | 'paper';
 
 /** Idle / liked / saved skins, per surface. The paper ones are fixed tokens (tokens.css). */
 const IDLE: Record<ControlSurface, string> = {
-  page: 'bg-fg/[0.06] text-fg-2 hover:bg-fg/[0.1] hover:text-fg',
+  page: 'state-layer bg-on-surface/[0.06] text-on-surface-variant',
   paper: 'bg-on-paper-chip text-on-paper hover:bg-white',
 };
 const LIKED: Record<ControlSurface, string> = {
-  page: 'bg-danger-soft text-danger',
+  page: 'bg-error-container text-on-error-container',
   paper: 'bg-on-paper-chip text-on-paper-liked',
 };
 const SAVED: Record<ControlSurface, string> = {
-  page: 'bg-accent-soft text-accent-strong',
+  page: 'bg-primary-container text-on-primary-container',
   paper: 'bg-on-paper-chip text-on-paper-saved',
 };
 
@@ -66,7 +66,7 @@ export function LikeButton({
       aria-label={liked ? `Liked · ${count}` : `Like · ${count}`}
       title={liked ? 'Remove from Liked' : 'Like'}
       className={cn(
-        'inline-flex items-center rounded-full font-medium transition-colors duration-[var(--duration-fast)]',
+        'inline-flex items-center rounded-full transition-colors duration-[var(--duration-fast)]',
         BOX[size],
         liked ? LIKED[surface] : IDLE[surface],
         className,
@@ -112,7 +112,7 @@ export function SaveButton({
       aria-label={saved ? 'Saved to Learn later' : 'Save to Learn later'}
       title={saved ? 'Remove from Learn later' : 'Save to Learn later'}
       className={cn(
-        'inline-flex items-center rounded-full font-medium transition-colors duration-[var(--duration-fast)]',
+        'inline-flex items-center rounded-full transition-colors duration-[var(--duration-fast)]',
         BOX[size],
         saved ? SAVED[surface] : IDLE[surface],
         className,
@@ -147,16 +147,17 @@ export function CardActions({
 }) {
   const marked = useLists((s) => s.likedIds.has(session.id) || s.savedIds.has(session.id));
   return (
-    <div
+    <ButtonGroup
       data-testid="card-actions"
+      aria-label="Like and save"
       className={cn(
-        'absolute top-2 left-2 flex gap-1.5 transition-opacity duration-[var(--duration-base)]',
+        'absolute top-2 left-2 shadow-level1 transition-opacity duration-[var(--duration-base)]',
         marked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         className,
       )}
     >
-      <LikeButton session={session} size="sm" surface="paper" className="shadow-card" />
-      <SaveButton session={session} size="sm" surface="paper" className="shadow-card" />
-    </div>
+      <LikeButton session={session} size="sm" surface="paper" />
+      <SaveButton session={session} size="sm" surface="paper" />
+    </ButtonGroup>
   );
 }
