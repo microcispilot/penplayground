@@ -127,11 +127,17 @@ export type DeviceType = z.infer<typeof DeviceType>;
  * guess as a measurement.
  *
  * `edge`     a geo header a trusted proxy set (`PEN_TRUST_GEO_HEADERS=1`).
- *            The only source that can give region and city.
+ *            The only source that can give region and city, and the only one
+ *            derived from the address — by the edge, which has the database
+ *            for it (ADR-0028).
  * `timezone` the browser's own IANA zone mapped to a country. Coarse, and
  *            wrong for anyone travelling or behind a VPN, but it costs no new
- *            dependency and no IP address is stored to get it.
+ *            dependency and no lookup.
  * `none`     nothing was available.
+ *
+ * The visit's own `ip_address` is never a source here. Turning an address
+ * into a country needs a geo database this deployment does not have, and
+ * guessing one from the address would be inventing a location (ADR-0028).
  */
 export const GeoSource = z.enum(['edge', 'timezone', 'none']);
 export type GeoSource = z.infer<typeof GeoSource>;
@@ -159,8 +165,22 @@ export const VisitBeacon = z.object({
   visitId: z.string().min(8).max(64),
   /** IANA zone (`Europe/Berlin`): the country signal, and the clock that "hour of day" is read in. */
   timezone: z.string().max(64).nullish(),
-  /** `navigator.language`, the tag only. */
+  /** `navigator.language`, the tag only. The server falls back to `Accept-Language` when this is absent. */
   language: z.string().max(16).nullish(),
+  /**
+   * The screen, the window and the pixel density, as the browser reports them
+   * (ADR-0028). Sent once, on the first beacon, and every one of them is a
+   * property `window` hands any script that asks — none opens a permission
+   * prompt and none can be refused. They answer "what is this being read on",
+   * which the device class alone cannot: a phone-width window on a desktop
+   * and a tablet are the same `deviceType` and a different layout problem.
+   */
+  screenWidth: z.number().int().positive().max(65_535).nullish(),
+  screenHeight: z.number().int().positive().max(65_535).nullish(),
+  viewportWidth: z.number().int().positive().max(65_535).nullish(),
+  viewportHeight: z.number().int().positive().max(65_535).nullish(),
+  /** `window.devicePixelRatio`; 1 on a plain display, 2 or 3 on a retina one. */
+  devicePixelRatio: z.number().positive().max(16).nullish(),
   /** Host of `document.referrer`, first beacon only. Never the path, never the query. */
   referrerHost: z.string().max(120).nullish(),
   /** `utm_source` / `utm_medium` / `utm_campaign`, first beacon only. */

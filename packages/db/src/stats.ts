@@ -190,7 +190,12 @@ export class StatsRepository {
     await this.db.delete(planEvents).where(eq(planEvents.participantId, participantId));
   }
 
-  /** What `GET /api/me/export` hands the caller about their own visits. */
+  /**
+   * What `GET /api/me/export` hands the caller about their own visits — every
+   * column, the address and the raw `User-Agent` included (ADR-0028). It is
+   * their data and an access request should not be answered with less than
+   * the truth; rows past the retention period simply carry nulls there.
+   */
   async visitsOf(participantId: string, limit = 1_000): Promise<Array<Record<string, unknown>>> {
     return this.db
       .select()
@@ -248,6 +253,18 @@ export class StatsRepository {
         os: v.os,
         browser: v.browser,
         browserMajor: v.browserMajor,
+        // The identifiers and the machine's measurements are written once,
+        // by the beacon that created the row, and never touched again: the
+        // conflict branch below leaves them alone, so a visit's address is
+        // the address it began at and the retention sweep's clearing of one
+        // can never be undone by a late beacon (ADR-0028).
+        userAgent: v.userAgent,
+        screenWidth: v.screenWidth,
+        screenHeight: v.screenHeight,
+        viewportWidth: v.viewportWidth,
+        viewportHeight: v.viewportHeight,
+        devicePixelRatio: v.devicePixelRatio,
+        ipAddress: v.ipAddress,
         country: v.country,
         region: v.region,
         city: v.city,
@@ -320,6 +337,38 @@ export class StatsRepository {
     return rows.length;
   }
 
+  /**
+   * Forget the two identifiers on visits older than `olderThan`, and nothing
+   * else (ADR-0028).
+   *
+   * This is the whole of the retention promise: the address and the raw
+   * `User-Agent` are set to null, and every derived column — device class,
+   * OS, browser, country, screen, the counts, the engaged time — is left
+   * exactly as it was. A report over last year is unchanged by this having
+   * run; only the ability to point at a machine is gone.
+   *
+   * `site_visits_identifier_idx` is partial on exactly this predicate, so a
+   * sweep that finds nothing is an index probe rather than a table scan, and
+   * a row leaves the index the moment it is cleared. Returns how many rows
+   * were cleared.
+   */
+  async clearVisitIdentifiers(olderThan: number): Promise<number> {
+    const rows = await this.db
+      .update(siteVisits)
+      .set({ ipAddress: null, userAgent: null })
+      .where(
+        and(
+          lt(siteVisits.startedAt, olderThan),
+          sql`(${siteVisits.ipAddress} is not null or ${siteVisits.userAgent} is not null)`,
+        ),
+      )
+      // `returning()` with no projection, as `closeStaleVisits` does: the
+      // union of drivers this repository runs on does not type the narrowed
+      // form, and the rows are already bounded by the predicate above.
+      .returning();
+    return rows.length;
+  }
+
   // ── engagement after the session ends ──────────────────────────────────────
   async recordEngagement(sessionId: string, kind: EngagementKind, now: number): Promise<void> {
     const column = sessionEngagement[kind];
@@ -388,6 +437,15 @@ export interface VisitBeaconWrite {
   os: string | null;
   browser: string | null;
   browserMajor: number | null;
+  /** The raw string the parsed columns came from; null when the request carried none. */
+  userAgent: string | null;
+  screenWidth: number | null;
+  screenHeight: number | null;
+  viewportWidth: number | null;
+  viewportHeight: number | null;
+  devicePixelRatio: number | null;
+  /** Validated and normalised by the caller; never a header value taken on trust. */
+  ipAddress: string | null;
   country: string | null;
   region: string | null;
   city: string | null;

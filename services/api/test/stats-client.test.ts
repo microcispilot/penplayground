@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { adminToken, MIN_ADMIN_TOKEN_LENGTH, machineIsAdmin, secretMatches } from '../src/admin.js';
+import { normaliseAddress, visitAddress } from '../src/stats/address.js';
 import {
   countryForTimezone,
   knownTimezoneCount,
@@ -247,5 +248,51 @@ describe('the machine way into the reports', () => {
     expect(secretMatches(null, 'anything')).toBe(false);
     expect(secretMatches('k'.repeat(40), undefined)).toBe(false);
     expect(secretMatches('', '')).toBe(false);
+  });
+});
+
+describe('the address a visit is recorded against', () => {
+  const req = (h: Record<string, string>) => ({ header: (name: string) => h[name.toLowerCase()] });
+
+  it('uses the same header the per-IP session cap trusts, and the same fallback', () => {
+    // `X-Real-IP` is our own edge speaking, and it wins over anything a
+    // client can put in `X-Forwarded-For` — exactly as `clientKey` decides it.
+    expect(visitAddress(req({ 'x-real-ip': '203.0.113.7', 'x-forwarded-for': '10.9.9.9' }))).toBe(
+      '203.0.113.7',
+    );
+    // Only the first hop of `X-Forwarded-For`, and only when there is no `X-Real-IP`.
+    expect(visitAddress(req({ 'x-forwarded-for': '198.51.100.9, 10.0.0.1, 10.0.0.2' }))).toBe(
+      '198.51.100.9',
+    );
+    // No edge in front: nothing is recorded rather than a made-up address.
+    expect(visitAddress(req({}))).toBeNull();
+  });
+
+  it('keeps IPv6 in full, and writes an IPv4-mapped one as the IPv4 it is', () => {
+    expect(visitAddress(req({ 'x-real-ip': '2001:db8:85a3::8a2e:370:7334' }))).toBe(
+      '2001:db8:85a3::8a2e:370:7334',
+    );
+    expect(normaliseAddress('2001:DB8::1')).toBe('2001:db8::1');
+    expect(normaliseAddress('::1')).toBe('::1');
+    expect(normaliseAddress('::ffff:203.0.113.7')).toBe('203.0.113.7');
+    // One spelling per machine: a port, brackets and a zone index all go.
+    expect(normaliseAddress('203.0.113.7:54321')).toBe('203.0.113.7');
+    expect(normaliseAddress('[2001:db8::1]:443')).toBe('2001:db8::1');
+    expect(normaliseAddress('fe80::1%eth0')).toBe('fe80::1');
+  });
+
+  it('records nothing at all for a header that is not an address', () => {
+    for (const value of [
+      '',
+      '   ',
+      'unknown',
+      'localhost',
+      'not an ip',
+      '999.1.1.1',
+      'x'.repeat(64),
+    ])
+      expect(normaliseAddress(value), value).toBeNull();
+    expect(normaliseAddress(null)).toBeNull();
+    expect(normaliseAddress(undefined)).toBeNull();
   });
 });

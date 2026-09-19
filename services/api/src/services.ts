@@ -468,9 +468,19 @@ export async function buildServices(
     optedOut: (id) => analytics.optedOutOf(id),
     trustGeoHeaders: cfg.PEN_TRUST_GEO_HEADERS,
     enabled: cfg.PEN_VISIT_STATS,
+    identifierRetentionMs: cfg.PEN_VISIT_IDENTIFIER_DAYS * 86_400_000,
     onError: (area, error, detail) => observer.error(area, error, detail),
   });
   if (!cfg.PEN_VISIT_STATS) logger.info('visit statistics disabled (PEN_VISIT_STATS=0)');
+  // Said at boot, because "how long do we keep an address" is a question
+  // somebody will ask about the running deployment rather than about the
+  // repository (ADR-0028). Never logs an address, here or anywhere.
+  logger.info(
+    { days: cfg.PEN_VISIT_IDENTIFIER_DAYS },
+    cfg.PEN_VISIT_IDENTIFIER_DAYS > 0
+      ? 'visit identifiers (address, raw User-Agent) are cleared after PEN_VISIT_IDENTIFIER_DAYS'
+      : 'visit identifiers are not stored (PEN_VISIT_IDENTIFIER_DAYS=0), and existing ones are cleared',
+  );
   await loadLanguageId();
   const intake = new TopicIntake(() => modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
   const renderer = new PlaywrightRenderer({

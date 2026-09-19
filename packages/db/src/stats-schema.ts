@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -280,9 +281,16 @@ export const sessionEngagement = pgTable(
  *
  * `active_ms` is engaged time as `VisitBeacon` defines it, never wall time.
  *
- * No IP address is stored. `country` comes from a trusted edge header where
- * one exists and otherwise from the browser's own IANA timezone, and
- * `geo_source` says which — see `docs/STATISTICS.md`.
+ * `country` comes from a trusted edge header where one exists and otherwise
+ * from the browser's own IANA timezone, and `geo_source` says which. Region
+ * and city arrive only from an edge that computes them; nothing here derives
+ * a place from the address — see `docs/STATISTICS.md`.
+ *
+ * **`ip_address` and `user_agent` are the two identifiers in this table**
+ * (ADR-0028), and the only two columns anything ever removes. A sweep clears
+ * both from rows older than `PEN_VISIT_IDENTIFIER_DAYS` and leaves every
+ * derived column and every count standing, so the statistics outlive the
+ * identifiers behind them.
  */
 export const siteVisits = pgTable(
   'site_visits',
@@ -309,11 +317,37 @@ export const siteVisits = pgTable(
     campaignMedium: text('campaign_medium'),
     campaignName: text('campaign_name'),
 
-    // who with — parsed from the User-Agent and the UA client hints; never the raw string
+    // who with — parsed from the User-Agent and the UA client hints
     deviceType: text('device_type').notNull().default('unknown'),
     os: text('os'),
     browser: text('browser'),
     browserMajor: smallint('browser_major'),
+    /**
+     * The raw `User-Agent`, kept beside the parsed columns for the questions
+     * the parser did not anticipate. The reports group by the parsed ones;
+     * this is what you read when a device class looks wrong. Cleared by the
+     * retention sweep (ADR-0028).
+     */
+    userAgent: text('user_agent'),
+
+    // the machine, as the browser reports it without being asked for permission
+    /** The display, in CSS pixels; `screen.width` / `screen.height`. */
+    screenWidth: integer('screen_width'),
+    screenHeight: integer('screen_height'),
+    /** The window the page actually had; `innerWidth` / `innerHeight`. */
+    viewportWidth: integer('viewport_width'),
+    viewportHeight: integer('viewport_height'),
+    /** `devicePixelRatio`: 1 on a plain display, 2 or 3 on a retina one. */
+    devicePixelRatio: doublePrecision('device_pixel_ratio'),
+
+    /**
+     * The client address the edge reported, resolved exactly as the per-IP
+     * session limit resolves it (`clientKey`, `X-Real-IP` then the first
+     * `X-Forwarded-For` hop). IPv4 in dotted quad, IPv6 lowercased; anything
+     * that is not an address is null rather than a string nobody can use.
+     * Cleared by the retention sweep (ADR-0028).
+     */
+    ipAddress: text('ip_address'),
 
     // where — see `GeoSource`
     country: text('country'),
@@ -345,6 +379,17 @@ export const siteVisits = pgTable(
     index('site_visits_participant_idx').on(t.participantId, t.startedAt),
     index('site_visits_country_idx').on(t.country, t.startedAt),
     index('site_visits_device_idx').on(t.deviceType, t.startedAt),
+    /**
+     * The retention sweep's index, and the reason it costs nothing to run
+     * every hour forever: it is *partial*, so it holds only the rows that
+     * still carry an identifier. Once a row has been swept it leaves the
+     * index, and the sweep's "anything older than the cutoff still holding
+     * one?" is a lookup against an index that stays roughly the size of the
+     * retention window rather than of the whole table (ADR-0028).
+     */
+    index('site_visits_identifier_idx')
+      .on(t.startedAt)
+      .where(sql`${t.ipAddress} is not null or ${t.userAgent} is not null`),
   ],
 );
 

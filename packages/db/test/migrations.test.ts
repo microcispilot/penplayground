@@ -151,6 +151,24 @@ describe('upgrading a database that already exists', () => {
     const names = (columns.rows as Array<{ column_name: string }>).map((r) => r.column_name);
     expect(names).toContain('plan_interval');
     expect(names).toContain('plan_status');
+    // 0010's columns on a table 0009 created: the identifiers, and what the
+    // browser reports about the machine (ADR-0028).
+    const visitColumns = await db.execute(
+      sql`select column_name from information_schema.columns where table_name = 'site_visits'`,
+    );
+    const visitNames = (visitColumns.rows as Array<{ column_name: string }>).map(
+      (r) => r.column_name,
+    );
+    for (const column of [
+      'ip_address',
+      'user_agent',
+      'screen_width',
+      'screen_height',
+      'viewport_width',
+      'viewport_height',
+      'device_pixel_ratio',
+    ])
+      expect(visitNames, `${column} was not added`).toContain(column);
     const kept = await db.execute(sql`select name from participants where id = 'p_before'`);
     expect((kept.rows as Array<{ name: string }>)[0]?.name).toBe('Ada');
 

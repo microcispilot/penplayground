@@ -435,6 +435,22 @@ describe('when people learn', () => {
   });
 });
 
+/**
+ * One visit row, straight out of the table. The reports deliberately never
+ * select the two identifier columns, so the only honest way to assert on
+ * them is to read the row.
+ */
+async function visitRow(id: string): Promise<Record<string, unknown> | undefined> {
+  const res: unknown = await services.db.db.execute(
+    `select * from site_visits where id = '${id.replace(/'/g, "''")}'`,
+  );
+  // `execute()` yields `{ rows }` on PGlite and a bare array on postgres-js.
+  const rows = (Array.isArray(res) ? res : ((res as { rows?: unknown[] }).rows ?? [])) as Array<
+    Record<string, unknown>
+  >;
+  return rows[0];
+}
+
 describe('visits, including the ones nobody signed in for', () => {
   const beacon = (patch: Partial<VisitBeacon> & { visitId: string }): VisitBeacon =>
     ({
@@ -542,6 +558,103 @@ describe('visits, including the ones nobody signed in for', () => {
     expect((body.session as unknown as Record<string, number>).shares).toBe(1);
   });
 
+  it('records the address the edge reported, for IPv4 and for IPv6, with the raw string', async () => {
+    await send(beacon({ visitId: 'v_address_v4_1' }), { 'x-real-ip': '203.0.113.7' });
+    await send(beacon({ visitId: 'v_address_v6_1' }), {
+      'x-real-ip': '2001:db8:85a3::8a2e:370:7334',
+    });
+    // The header a client can forge loses to the one our own edge sets.
+    await send(beacon({ visitId: 'v_address_fwd1' }), {
+      'x-forwarded-for': '198.51.100.9, 10.0.0.1',
+    });
+
+    expect(await visitRow('v_address_v4_1')).toMatchObject({
+      ip_address: '203.0.113.7',
+      user_agent: expect.stringContaining('iPhone'),
+    });
+    expect((await visitRow('v_address_v6_1'))?.ip_address).toBe('2001:db8:85a3::8a2e:370:7334');
+    expect((await visitRow('v_address_fwd1'))?.ip_address).toBe('198.51.100.9');
+    // The parsed columns are still there beside the raw string, and still
+    // what the reports group by.
+    expect(await visitRow('v_address_v4_1')).toMatchObject({
+      device_type: 'mobile',
+      os: 'iOS',
+      browser: 'Safari',
+    });
+  });
+
+  it('keeps what the browser volunteers about the machine, and no location', async () => {
+    await send(
+      beacon({
+        visitId: 'v_machine_0001',
+        screenWidth: 390,
+        screenHeight: 844,
+        viewportWidth: 390,
+        viewportHeight: 664,
+        devicePixelRatio: 3,
+      }),
+      { 'x-real-ip': '203.0.113.20' },
+    );
+    expect(await visitRow('v_machine_0001')).toMatchObject({
+      screen_width: 390,
+      screen_height: 844,
+      viewport_width: 390,
+      viewport_height: 664,
+      device_pixel_ratio: 3,
+      // The country is still the browser's clock, and it still says so: an
+      // address is not a location and nothing here pretends otherwise.
+      country: 'DE',
+      geo_source: 'timezone',
+      region: null,
+      city: null,
+    });
+  });
+
+  it('takes the language from Accept-Language when the page reported none', async () => {
+    await send(beacon({ visitId: 'v_lang_header1', language: null }), {
+      'accept-language': 'fr-CA,fr;q=0.9,en;q=0.8',
+    });
+    expect((await visitRow('v_lang_header1'))?.language).toBe('fr-CA');
+    // What the page said still wins when it said anything.
+    await send(beacon({ visitId: 'v_lang_page_01', language: 'de-DE' }), {
+      'accept-language': 'fr-CA,fr;q=0.9',
+    });
+    expect((await visitRow('v_lang_page_01'))?.language).toBe('de-DE');
+  });
+
+  it('the retention sweep forgets the identifiers and leaves every statistic behind', async () => {
+    await send(
+      beacon({ visitId: 'v_retained_001', actions: { session_started: 1 }, activeMs: 9_000 }),
+      { 'x-real-ip': '203.0.113.44' },
+    );
+    const before = await visitRow('v_retained_001');
+    expect(before?.ip_address).toBe('203.0.113.44');
+
+    // Thirty-one days on, with the default thirty-day period.
+    const cleared = await services.visits.purgeIdentifiers(Date.now() + 31 * DAY);
+    expect(cleared).toBeGreaterThanOrEqual(1);
+
+    const after = await visitRow('v_retained_001');
+    expect(after?.ip_address).toBeNull();
+    expect(after?.user_agent).toBeNull();
+    // Everything the reports read is exactly as it was.
+    expect(after).toMatchObject({
+      device_type: before?.device_type,
+      os: before?.os,
+      browser: before?.browser,
+      country: before?.country,
+      geo_source: before?.geo_source,
+      language: before?.language,
+      screen_width: before?.screen_width,
+      active_ms: before?.active_ms,
+      views: before?.views,
+      sessions_started: before?.sessions_started,
+    });
+    // And the report itself still answers with the same numbers.
+    const { body } = await get(`/api/admin/stats/visits?${window}`);
+    expect((body.totals as unknown as Record<string, number>).sessionsStarted).toBeGreaterThan(0);
+  });
+
   it('refuses a malformed beacon without telling the page anything went wrong', async () => {
     const res = await app.request('/api/visits', {
       method: 'POST',
@@ -577,10 +690,16 @@ describe('the analytics opt-out is honoured on the server', () => {
 
     const counted = await app.request('/api/visits', {
       method: 'POST',
-      headers,
+      headers: { ...headers, 'x-real-ip': '203.0.113.99', 'user-agent': 'Opt/1.0' },
       body: beacon('v_optout_0001'),
     });
     expect(await counted.json()).toEqual({ counted: true });
+    // While they were counted, the address and the raw string were kept like
+    // anyone else's — which is what makes the erasure below mean something.
+    expect(await visitRow('v_optout_0001')).toMatchObject({
+      ip_address: '203.0.113.99',
+      user_agent: 'Opt/1.0',
+    });
     const rowsFor = async (country: string) =>
       (
         (await get(`/api/admin/stats/geography?${window}`)).body.rows as unknown as Array<
@@ -606,13 +725,18 @@ describe('the analytics opt-out is honoured on the server', () => {
       ).find((r) => r.country === 'FR');
     expect(await france()).toBeUndefined();
 
-    // … and the next beacon writes nothing at all.
+    // The row is gone, and with it the address and the raw string: the
+    // opt-out erases the identifiers exactly as it erases everything else.
+    expect(await visitRow('v_optout_0001')).toBeUndefined();
+
+    // … and the next beacon writes nothing at all, address included.
     const refused = await app.request('/api/visits', {
       method: 'POST',
-      headers,
+      headers: { ...headers, 'x-real-ip': '203.0.113.99', 'user-agent': 'Opt/1.0' },
       body: beacon('v_optout_0002'),
     });
     expect(await refused.json()).toEqual({ counted: false });
+    expect(await visitRow('v_optout_0002')).toBeUndefined();
     expect(await france()).toBeUndefined();
     expect(participant.id).toMatch(/^p_/);
   });

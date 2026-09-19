@@ -2,8 +2,11 @@
 
 What the owner's dashboard reads, where each number comes from, what it is
 worth, and what it deliberately does not say. The decision behind all of it is
-[ADR-0027](adr/0027-statistics-and-reports.md); ADR-0011 is the telemetry it
-derives from and ADR-0018 is the privacy stance it has to keep.
+[ADR-0027](adr/0027-statistics-and-reports.md), amended by
+[ADR-0028](adr/0028-visit-identifiers-and-retention.md), which added the
+client address, the raw `User-Agent` and a retention period for both;
+ADR-0011 is the telemetry it derives from and ADR-0018 is the privacy stance
+it has to keep.
 
 ---
 
@@ -110,11 +113,109 @@ every current ISO-3166 region — all 418 zones this Node's ICU knows, each to
 exactly one country, with the ISO 3166-3 *retired* codes excluded (without
 that, `Europe/Berlin` files under `DD`, East Germany).
 
-**No IP address is stored by any of this.** `clientKey` still reads
-`X-Real-IP` in memory for rate limiting; nothing in the statistics writes it
-down. The raw `User-Agent` is likewise read once for a device class and
-dropped — it is a fingerprinting surface and keeping it would collect far more
-than the question needs.
+**The address is stored, and it is not a source of geography.** A visit
+records `ip_address` (ADR-0028), but nothing here turns one into a place:
+that needs a geo database this deployment does not have, and guessing would
+be inventing a location. The `edge` source is the only IP-derived one, and
+the edge computes it. See the next section for exactly what is stored and for
+how long.
+
+---
+
+## What a visit stores about the visitor, and for how long
+
+Everything in this section is [ADR-0028](adr/0028-visit-identifiers-and-retention.md).
+The rule behind the list is the owner's own: **anything a browser volunteers
+without a permission prompt is in; anything that would put a prompt in front
+of a learner is out.**
+
+### The signals, and why each one needs no permission
+
+| Column | Where it comes from | Why there is no prompt |
+|---|---|---|
+| `ip_address` | the edge, from the TCP peer address | never sent by the page; it is how the packet arrived |
+| `user_agent` | the `User-Agent` request header | a header the browser sends unasked on every request |
+| `device_type`, `os`, `browser`, `browser_major` | parsed from that header and the UA client hints | ” |
+| `language` | `navigator.language`, or the first tag of `Accept-Language` | a plain property of `navigator`; the header is sent unasked |
+| `timezone`, `utc_offset_minutes` | `Intl.DateTimeFormat().resolvedOptions().timeZone` | a property of the formatting API — no prompt exists for it |
+| `screen_width`, `screen_height` | `window.screen` | a plain property of `window` |
+| `viewport_width`, `viewport_height` | `innerWidth` / `innerHeight` | ” |
+| `device_pixel_ratio` | `window.devicePixelRatio` | ” |
+| `country`, `geo_source` | a trusted edge header, else the timezone above | see *Geography*; never derived from the address |
+
+**Never read, deliberately:** the Geolocation API — the single clearest case
+of a permission the web asks for — and with it camera, microphone, clipboard,
+notifications and every sensor. `packages/app/test/visits.test.ts` asserts
+the beacon's keys against a closed list, so one of them cannot be added
+quietly.
+
+Why the screen and the window are worth their columns: a phone-width browser
+window on a desktop and an actual tablet are the same `device_type` and a
+completely different layout problem. Nothing else recorded tells them apart.
+
+Why the raw `User-Agent` is kept *as well as* the parsed columns: the reports
+group by the parsed ones and the parser is deliberately small
+(`stats/user-agent.ts`). The raw string is what you read when a device class
+looks wrong, or when a browser nobody has heard of shows up.
+
+### Where the address comes from
+
+`site_visits.ip_address` is resolved by `clientAddress`
+(`services/api/src/rate-limit.ts`) — the same function `clientKey` is built
+on, and therefore the same resolution the per-IP live-session cap
+(`PEN_MAX_SESSIONS_PER_IP`) and the beacon's rate limiter use: `X-Real-IP`,
+which only our own nginx sets from the peer address, and otherwise the first
+hop of `X-Forwarded-For` and never the rest of it. One opinion about which
+header names a client, in one function, with three callers.
+
+`stats/address.ts` then adds only what a stored value needs: `node:net`'s
+`isIP` has to recognise it, or the column is null; and one spelling per
+machine — port stripped, brackets stripped, IPv6 lowercased,
+`::ffff:203.0.113.7` written as the IPv4 it is. Both families are stored in
+full: truncating the last octet does not make a row anonymous and does make
+the address useless for the question it is kept for.
+
+Both identifiers are written **once**, by the beacon that created the row.
+A later beacon on the same visit never rewrites them, so a visit's address is
+the address it began at and nothing can put back what the sweep has cleared.
+
+### Retention
+
+`PEN_VISIT_IDENTIFIER_DAYS` — **default 30** — is how long a visit keeps
+`ip_address` and `user_agent`. An hourly pass (`clearVisitIdentifiers`,
+called from the same one-minute sweeper that closes idle rooms and stale
+visits) sets both to null on older rows and changes nothing else: device
+class, OS, browser, country, screen size, engaged time and every counter
+survive untouched. **A report over last year reads exactly the same after a
+sweep as before it.**
+
+Thirty days because that is the dashboard's own default window
+(`DEFAULT_WINDOW_MS`): the identifiers outlive the period anybody actually
+looks at, and nothing more.
+
+- `PEN_VISIT_IDENTIFIER_DAYS=0` writes neither column **and** clears every
+  one already stored.
+- The sweep runs even with `PEN_VISIT_STATS=0`: turning collection off must
+  not turn off the forgetting of what was collected while it was on.
+- It is cheap forever — `site_visits_identifier_idx` is a partial index
+  holding only rows that still carry an identifier, so a sweep with nothing
+  to do is an index probe, and a cleared row leaves the index. Measured on
+  pglite with 20,000 visits spread over 200 days: the first sweep clears
+  16,999 rows in **179 ms** (a sequential scan, correctly, for 85 % of the
+  table), and every sweep after it is an `Index Scan using
+  site_visits_identifier_idx` at **2.6 ms**, with the 3,001 rows inside the
+  window still holding theirs.
+- It is not a runtime setting. A retention period that can be lengthened
+  from a dashboard is not a promise; it lives in `NOT_SETTINGS` as `privacy`,
+  beside `PEN_VISIT_STATS`.
+
+### Where these two never appear
+
+Not in any report payload, not in a log line, not on a Sentry event, not in
+an error message. The ingest's own failure path carries a visit id and
+nothing else. `GET /api/me/export` does include a person's own visit rows,
+address included — it is their data, and an access request should not be
+answered with less than the truth.
 
 ---
 
@@ -253,68 +354,88 @@ that cost when it was.
 
 ---
 
-## The privacy policy needs three changes before this ships
+## The published privacy policy, and what it does and does not cover
 
-This is the owner's decision, not the implementation's. What was added is
-covered by nothing currently written, and here is exactly what to change.
-(File: `packages/app/src/screens/legal/Privacy.tsx`.)
+**The policy is unchanged, by the owner's instruction.** They were asked
+whether it should spell out what the visit record now stores and said they
+are content for it not to be. This section is the record of that decision and
+of exactly where the published words land against the code, so it can be
+revisited in one place rather than rediscovered. The implementation takes no
+view; nothing below has been applied to
+`packages/app/src/screens/legal/Privacy.tsx`.
 
-**1. The "Operations" sentence is about security, not statistics** — lines
-82–86:
+### What is now stored, in one place
 
-> **Operations.** To run and secure the Service we also process the usual
-> technical records: IP address, browser or app version, operating system, and
-> security and diagnostic signals.
+| | |
+|---|---|
+| **Who** | every visitor, signed in or not, unless `analytics_opt_out` is on |
+| **What** | client address; raw `User-Agent`; device class, OS, browser; screen and window size; pixel ratio; language; timezone and UTC offset; country and its source; referrer host; `utm_*`; screen names, view counts, engaged time; a closed list of action counters |
+| **For how long** | address and raw `User-Agent`: **30 days** (`PEN_VISIT_IDENTIFIER_DAYS`), then nulled in place. Everything else: indefinitely, as statistics |
+| **Erased when** | the person turns analytics off (rows deleted), or deletes their account |
+| **Never** | precise location, coordinates, region or city from an address, cookies, cross-visit identifiers, URLs beyond `utm_*`, content of any kind |
 
-It permits processing an IP address *to run and secure the Service*. Deriving
-a **country** and a **device class** and keeping them as product statistics is
-a different purpose, and purpose is the whole of what that sentence limits. It
-needs a companion sentence — a new paragraph is cleaner than stretching this
-one. Suggested:
+### Sentence by sentence, against what is published
 
-> **Usage statistics.** We count visits to the site, including from people who
-> have not signed in: which screens were opened, how much time was spent
+**Covered.** *"**Operations.** To run and secure the Service we also process
+the usual technical records: IP address, browser or app version, operating
+system, and security and diagnostic signals."* This names the IP address, the
+browser and the operating system explicitly, and it is the sentence a reader
+would point at. Note what it limits, though: the *purpose* — "to run and
+secure the Service". Product statistics are a different purpose from
+security, and purpose is the whole of what that sentence constrains.
+
+**Partly covered.** *"**Analytics and error reports.** We use PostHog for
+product analytics and Sentry for error monitoring…"* A reader finishes this
+paragraph believing product analytics live entirely with third parties.
+Everything described on this page is stored by us, on our own servers.
+
+**Not covered.**
+
+- **Location of any kind.** The policy's only geographic sentences are
+  jurisdictional (the transfers paragraph: "Microcis is based in the United
+  States…"). "The country you are likely in" is personal data in the EEA and
+  the UK, and no published sentence discloses that it is derived or kept.
+- **Retention of these records.** "How long we keep it" covers accounts,
+  sessions, "security and diagnostic records … for a short, bounded period",
+  and third-party analytics under each provider's settings. The visit table
+  is none of those, and the thirty-day identifier period is not stated.
+- **The screen, window and pixel-ratio signals**, which no sentence mentions.
+- **The "what is collected" list in Privacy choices**
+  (`packages/app/src/lib/privacy.ts`) describes itself as "exactly what
+  leaves this device … so the list cannot quietly drift from the truth". It
+  says nothing about visits, active time, device, country, screen size or the
+  address. It has drifted, and it has been left as it is under the same
+  instruction.
+
+### If the owner changes their mind
+
+The smallest honest change is one new paragraph beside "Operations", and one
+clause in the retention paragraph:
+
+> **Usage statistics.** We count visits to the site, including from people
+> who have not signed in: which screens were opened, how much time was spent
 > actively using them, and which of a short list of actions were taken. Each
-> visit also records the kind of device and browser you used and, from your
-> browser's timezone, the country you are likely in. We do not store your IP
-> address for this, we do not keep the full browser identification string, and
-> nothing here identifies you across visits.
+> visit also records your IP address, your browser's identification string,
+> the kind of device, browser and screen you used, your language, and — from
+> your browser's timezone — the country you are likely in. We do not use your
+> IP address to work out where you are, and we do not ask for or use your
+> device's location. We keep the IP address and the browser identification
+> string for 30 days and then erase them from the record, keeping only the
+> statistics. Nothing here identifies you across visits.
 
-**2. Location is not mentioned anywhere in the policy.** The only geographic
-sentences are jurisdictional (the US/EEA/UK transfer paragraph, lines
-185–190). "The country you are likely in" is personal data in the EEA/UK, and
-it must be disclosed. The paragraph above does it; there is no existing
-sentence to amend.
+> …and the IP address and browser identification string in our usage
+> statistics are erased after 30 days.
 
-**3. The "Analytics and error reports" paragraph now describes only half of
-it** — lines 74–81:
+And one more bullet in the Privacy choices list, in its own voice: "Your IP
+address and browser details, kept for 30 days; how long you were actively on
+a screen; roughly which country you are in (from your device's timezone); and
+what kind of device and screen you used."
 
-> **Analytics and error reports.** We use PostHog for product analytics and
-> Sentry for error monitoring. Both are configured to be **content-free** …
-
-Everything this feature adds is stored by us, not by PostHog or Sentry, so as
-written a reader concludes that product analytics live entirely with third
-parties. Add one clause: "We also keep our own usage statistics, described
-below, on our own servers."
-
-Two smaller consequential edits:
-
-- **Retention** (lines 139–149) lists what is kept and for how long. Visits
-  are not on that list. Add: "Usage statistics are kept in aggregate; the
-  per-visit records behind them are removed when you turn analytics off, and
-  when you delete your account."
-- **The "what is collected" list** shown in Privacy choices
-  (`packages/app/src/lib/privacy.ts`, lines 54–64) is described in its own
-  comment as "exactly what leaves this device … so the list cannot quietly
-  drift from the truth". It has drifted: it says nothing about visits, active
-  time, device or country. One more bullet, in the same voice:
-  "How long you were actively on a screen, roughly which country you are in
-  (from your device's timezone), and what kind of device you used."
-
-Until those land, `PEN_VISIT_STATS=0` turns the whole visit ingest off: the
-endpoint still answers, and writes nothing. The derived session tables are
-unaffected by that switch — they contain no new personal data, only facts
-about sessions the product already stores.
+`PEN_VISIT_STATS=0` turns the whole visit ingest off — the endpoint still
+answers, and writes nothing — and `PEN_VISIT_IDENTIFIER_DAYS=0` turns off the
+two identifiers alone and erases the ones already stored. The derived session
+tables are unaffected by either switch: they contain no new personal data,
+only facts about sessions the product already stores.
 
 ---
 
@@ -324,9 +445,17 @@ about sessions the product already stores.
   `sessions.topic` — what the learner typed as a search — is the only
   learner-written text anywhere in these tables, and it is already stored and
   already public on the session's own page.
-- No IP address, no raw `User-Agent`, no URL or query string beyond `utm_*`.
+- No URL or query string beyond `utm_*`.
+- **No precise location.** No coordinates, no region and no city derived from
+  an address — the only region and city that can ever appear come from an
+  edge that computed them, with `PEN_TRUST_GEO_HEADERS=1` (ADR-0028).
+- **Nothing that needs the visitor's permission.** The Geolocation API above
+  all, and with it camera, microphone, clipboard, notifications and sensors.
 - No cookie and no cross-visit identifier. A visit id is minted per visit and
   stored nowhere.
+- The IP address and the raw `User-Agent` *are* stored — this list used to
+  say otherwise, and ADR-0028 changed it. They are the only two columns with
+  an expiry date; see *What a visit stores about the visitor*.
 - No error tracking and no session replay. Those are Sentry's and nobody's
   respectively; this is statistics over our own data.
 
@@ -335,8 +464,10 @@ about sessions the product already stores.
 `participants.analytics_opt_out` (the "Privacy choices" switch):
 
 - a beacon from that participant writes **nothing** — dropped before anything
-  is parsed, and the endpoint answers `{ counted: false }`;
-- turning it on **erases the visits already recorded** for them;
+  is parsed, and the endpoint answers `{ counted: false }`. No address, no
+  raw `User-Agent`, no row at all;
+- turning it on **erases the visits already recorded** for them, which
+  removes the two identifiers with the rows that carried them;
 - their sessions' cost rows stay, carrying `host_opted_out` so a per-person
   report can leave them out. Those are facts about a session that is already
   stored, not new data about a person;
@@ -361,6 +492,17 @@ about sessions the product already stores.
 - **The edge geo path is untested end to end**, because no edge here sets
   those headers. `resolveGeo` is unit-tested in both directions; that a real
   nginx with geoip2 sets them as expected is not.
+- **No address has been recorded from a real edge.** The resolution is the
+  one `PEN_MAX_SESSIONS_PER_IP` has always used and it is tested through the
+  route with both headers set by hand, for IPv4 and IPv6 — but that the
+  production nginx sets `X-Real-IP` to the peer address is a claim about
+  `deploy/nginx/pen-playground.conf.example`, not something this environment
+  can run. Confirm after the next deploy with
+  `select ip_address is not null from site_visits order by started_at desc limit 5`.
+- **The retention sweep has not run on a real clock.** Its SQL is tested
+  against Postgres (pglite) with rows aged by hand, and the hourly cadence is
+  tested against a driven clock; a deployment left running for thirty-one
+  days clearing its own rows is not something a test suite observes.
 - **Several visit counters have no call site yet**: `session_joined`,
   `export_requested`, `checkout_started`, `saved`, `liked`, `privacy_opened`.
   The columns exist and are counted correctly when a beacon carries them;

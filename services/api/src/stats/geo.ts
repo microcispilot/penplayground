@@ -19,12 +19,15 @@ import type { GeoSource } from '@pen/contracts';
  *
  * 2. **The browser's own IANA timezone**, mapped to a country through ICU's
  *    CLDR data, which Node already carries. Coarse — one country, no region,
- *    no city — and wrong for a traveller or a VPN. It costs nothing, needs no
- *    service, and, unlike an IP lookup, requires storing no IP address at all.
+ *    no city — and wrong for a traveller or a VPN. It costs nothing and needs
+ *    no service.
  *
- * **No IP address is stored by any of this.** `clientKey` still reads
- * `X-Real-IP` for rate limiting, in memory, as it always has; nothing in the
- * statistics writes it down.
+ * **The visit's own address is not a third source** (ADR-0028). A visit does
+ * now store `ip_address`, and turning one into a country needs a geo database
+ * that is not here; guessing would be inventing a location, which is the one
+ * thing that was ruled out. So nothing in this file reads an address, and
+ * `edge` stays the only IP-derived source — computed by an edge that has the
+ * data for it.
  */
 
 /*
