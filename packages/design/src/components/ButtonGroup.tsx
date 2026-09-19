@@ -97,7 +97,7 @@ export function SegmentedButtons<T extends string>({
             data-testid={option['data-testid']}
             onClick={() => onChange(option.value)}
             className={cn(
-              'state-layer flex min-w-0 flex-1 items-center justify-center gap-2 px-3 text-label-large transition-colors duration-[var(--duration-fast)]',
+              'state-layer flex min-w-0 flex-auto items-center justify-center gap-2 px-4 text-label-large transition-colors duration-[var(--duration-fast)]',
               i > 0 && 'border-s border-outline',
               selected
                 ? 'bg-secondary-container text-on-secondary-container'

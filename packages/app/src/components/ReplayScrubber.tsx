@@ -141,9 +141,17 @@ export function ReplayScrubber({
           disabled && 'cursor-default opacity-50',
         )}
       >
-        <div className="relative h-1 w-full rounded-full bg-outline">
+        {/*
+          M3's slider: a 4 px `corner-full` track, inactive in
+          `surface-container-highest`, active in `primary`, with a `primary`
+          handle. (@material/web tokens/versions/v0_192/_md-comp-slider.scss)
+          The handle is 12 px rather than M3's 20: this scrubber sits in a
+          20 px row under the board, and a 20 px knob would be taller than
+          the row it lives in.
+        */}
+        <div className="relative h-1 w-full rounded-full bg-surface-container-highest">
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-on-surface-dim/45"
+            className="absolute inset-y-0 left-0 rounded-full bg-outline/45"
             style={{ width: `${pct(bufferedMs, totalMs)}%` }}
             data-testid="scrubber-buffered"
           />
@@ -158,7 +166,7 @@ export function ReplayScrubber({
                 key={c.segment}
                 aria-hidden
                 title={c.title}
-                className="absolute top-[-1px] h-[6px] w-[2px] rounded-full bg-surface/80"
+                className="absolute top-[-1px] h-[6px] w-[2px] rounded-full bg-on-primary/80"
                 style={{ left: `${pct(c.startMs, totalMs)}%` }}
                 data-testid="scrubber-tick"
               />

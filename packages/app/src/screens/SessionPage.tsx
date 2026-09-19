@@ -467,8 +467,12 @@ export function SessionPage() {
             {/* Phone width: the actions wrap under the title rather than
                 running off the side of the page. */}
             <div className="mt-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-              <div className="min-w-0 flex-1">
-                <h2 className="tracking-[-0.025em]" lang={lang} dir={dir}>
+              {/* A basis, not just `flex-1`: M3's buttons are wider than the
+                  ones they replace, and with a zero basis the title column
+                  collapsed to four words a line rather than letting the row
+                  wrap. */}
+              <div className="min-w-0 flex-1 basis-[18rem]">
+                <h2 lang={lang} dir={dir}>
                   {s?.title ?? <Skeleton className="h-7 w-72" />}
                 </h2>
                 <p className="mt-1.5 text-body-medium text-on-surface-variant">
