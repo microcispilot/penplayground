@@ -20,9 +20,22 @@ const Env = z.object({
   PEN_LLM_OUTLINE_MODEL: z.string().default('gpt-5.6-luna'),
   PEN_LLM_BASE_URL: z.string().url().optional(),
   PEN_LLM_SERVICE_TIER: z.enum(['auto', 'default', 'flex', 'priority']).optional(),
+  /**
+   * One key per plan, chosen by the HOST'S plan when the room builds its model,
+   * and never falling back to one another: that is how spend is attributed and
+   * how one tier's rate limit is kept from eating another's. `checkProviders`
+   * refuses to start without all three.
+   */
   OPENAI_API_KEY_FREE: z.string().optional(),
   OPENAI_API_KEY_STANDARD: z.string().optional(),
   OPENAI_API_KEY_PROFESSIONAL: z.string().optional(),
+  /**
+   * The platform's own work, which belongs to no learner: thumbnails,
+   * backfills, probes. Charging a plan key for these would put one learner's
+   * budget behind another's session card. Optional — absent, that work has no
+   * key and the caller must say so.
+   */
+  OPENAI_API_KEY_PLATFORM: z.string().optional(),
 
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),
