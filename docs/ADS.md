@@ -66,9 +66,13 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
   on Google's test network; pays nothing; refused in production). The web e2e
   (`apps/web/e2e/ads.spec.ts`) runs with it and needs network access to
   `imasdk.googleapis.com` and `pubads.g.doubleclick.net`.
-- Unit tests: contracts (`packages/contracts/test/ads.test.ts`), scheduling and outcome tally
-  (`packages/session-engine/test/ads.test.ts`, `services/api/test/ads.test.ts`), player state
-  machine with a fake IMA (`packages/app/test/ad-player.test.ts`, `ima-loader.test.ts`).
+- Unit tests: contracts (`packages/contracts/test/ads.test.ts`), scheduling, the outcome tally and
+  the input refusal (`packages/session-engine/test/ads.test.ts`, `reactions.test.ts`,
+  `services/api/test/ads.test.ts`), player state machine with a fake IMA
+  (`packages/app/test/ad-player.test.ts`, `ima-loader.test.ts`), and the calm disabled state in
+  the room (`packages/app/test/session-panel.test.tsx`, `ad-input.test.ts`).
+- The owner's whole in-session timeline, including the disabled inputs, is
+  `apps/web/e2e/timeline.spec.ts` on its own server pair.
 
 ## Behaviour to know
 
@@ -87,6 +91,16 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
   of that browser — the same thing that freezes a replay's audio, and an ad always comes after a
   lesson. That is an open defect in its own right (tasks/todo.md, "Chromium's audio service stops
   rendering"); the watchdog is what keeps the lesson moving until it is fixed.
+- **Voice and chat are off while the ad is up** (ADR-0019), at both ends. The client mutes the
+  microphone at its custody boundary, drops the on-device recognizer's words, and disables the
+  composer and the reaction picker with one calm line — "Voice and typing are back the moment the
+  ad ends" — restoring all three however the ad ends. The room refuses an `interrupt` or a
+  `transcript` that arrives anyway (`SessionRoom.adShowing`, which also covers server-side STT,
+  since its finals enter through the same handler): the window opens when the host's own
+  `progress` reaches the cue the ad was hung on or the player reports its first lifecycle step,
+  closes on `ad_skipped`/`ad_completed`/`ad_error` or the host's `ad_ended` report, and expires at
+  the conductor's ceiling plus `AD_WINDOW_GRACE_MS` so a silent client cannot mute the room.
+  Refusals are logged as `room.ad_input_refused`.
 - **Autoplay**: with sound after any gesture on the page; otherwise muted with "Tap to unmute";
   one muted retry on IMA error 1205.
 - **Ceiling**: 30 s, enforced by the conductor even if the creative misbehaves (`ad_error CEILING`).

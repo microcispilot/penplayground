@@ -48,6 +48,22 @@ export async function startLesson(
   await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
 }
 
+/**
+ * Headless Chromium holds the AudioContext until the page is touched, and the
+ * lesson clock *is* the audio clock: without a gesture the expert writes but
+ * never speaks, so no caption and no conversation ever appear. Tap once, the
+ * way a learner would ("Tap anywhere to enable sound").
+ *
+ * Deliberately not part of `startLesson`: a click also moves the browser's
+ * sequential-focus starting point, and `ui-a11y.spec.ts` proves that the first
+ * Tab into a fresh room is the skip link. Only the specs that need the expert
+ * to be *audible* ask for this.
+ */
+export async function unlockAudio(page: Page): Promise<void> {
+  const size = page.viewportSize() ?? { width: 1280, height: 720 };
+  await page.mouse.click(6, size.height - 6);
+}
+
 /** Wait until the expert has actually written something on the board. */
 export async function waitForInk(page: Page): Promise<void> {
   await expect
@@ -67,7 +83,9 @@ export async function shot(page: Page, name: string): Promise<void> {
 
 /** End the session and open the saved page, which is where a replay is linked from. */
 export async function endSession(page: Page): Promise<string> {
-  await page.getByRole('button', { name: 'End' }).click();
+  // Exact: the room now has an "Ask …" and a "Send …" of its own, and a
+  // substring match on "End" would find all three.
+  await page.getByRole('button', { name: 'End', exact: true }).click();
   await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Open the saved session' }).click();
   await page.waitForURL(/\/sessions\//, { timeout: 20_000 });

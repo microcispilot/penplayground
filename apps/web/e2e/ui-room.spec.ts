@@ -11,10 +11,19 @@ import { shot, startLesson, type Theme, useTheme, VIEWPORTS, waitForInk } from '
  * renders correctly if you happen to load it at that width. Each size leaves a
  * screenshot in `.pen-data/screens/` for the review.
  */
+
+/** Where the session panel is docked beside the board rather than drawn over it. */
+const DOCK_WIDTH = 1024;
+
+async function boardWidth(page: Page): Promise<number> {
+  return (await page.locator('.pen-board').boundingBox())?.width ?? 0;
+}
+
 async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Theme) {
   await page.setViewportSize({ width: vp.width, height: vp.height });
   // Let the resize observers and the board camera settle.
   await page.waitForTimeout(600);
+  const docked = vp.width >= DOCK_WIDTH;
 
   // Nothing may push the page sideways at any size.
   const overflow = await page.evaluate(
@@ -22,9 +31,20 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
   );
   expect(overflow, `${vp.name} overflows horizontally`).toBeLessThanOrEqual(0);
 
-  // The board keeps the room: it is the biggest thing on the screen.
+  const panel = page.getByTestId('session-panel');
+  if (docked) {
+    // The panel is part of the layout, and the board still has the larger half.
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute('data-open', 'true');
+    await expect(panel).toHaveAttribute('data-mode', 'docked');
+    await expect(page.getByTestId('conversation')).toBeVisible();
+    expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.5);
+  } else {
+    // Too narrow to dock: the board keeps the whole width until it is asked for.
+    await expect(panel).toBeHidden();
+    expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.85);
+  }
   const board = await page.locator('.pen-board').boundingBox();
-  expect(board?.width ?? 0).toBeGreaterThan(vp.width * 0.8);
   expect(board?.height ?? 0).toBeGreaterThan(vp.height * 0.45);
 
   // The microphone is always reachable, and is a real touch target on a phone.
@@ -33,18 +53,11 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
   const micBox = await mic.boundingBox();
   expect(micBox?.width ?? 0).toBeGreaterThanOrEqual(vp.name === 'iphone' ? 44 : 32);
 
-  // The orb gives the board its room back as the screen narrows.
-  const orb = page.getByRole('img', { name: /, (idle|speaking|listening|thinking|paused)$/ });
-  const orbBox = await orb.first().boundingBox();
-  const expectedOrb = vp.width < 640 ? 52 : vp.width < 1024 ? 68 : 88;
-  expect(Math.round(orbBox?.width ?? 0)).toBe(expectedOrb);
-
-  // And the captions are never painted underneath it.
-  const caption = page.locator('[data-caption-box]');
-  if (await caption.isVisible().catch(() => false)) {
-    const capBox = await caption.boundingBox();
-    expect((capBox?.x ?? 0) + (capBox?.width ?? 0)).toBeLessThanOrEqual(orbBox?.x ?? 0);
-  }
+  // The AI human lives in the panel now, not over the board — so with the
+  // panel up the board carries no caption (the conversation is the record),
+  // and the board never has an orb painted on it at any size.
+  await expect(page.locator('#room-board [data-presence]')).toHaveCount(0);
+  if (docked) await expect(page.locator('[data-caption-box]')).toHaveCount(0);
 
   if (vp.name === 'iphone') {
     // Icon-only bar: the labelled controls live in a sheet.
@@ -59,33 +72,51 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
 
-    // The ask bar is a sheet, and the mic leads it.
-    await page.getByRole('button', { name: 'Open the ask panel' }).click();
-    await expect(page.getByTestId('ask-sheet')).toBeVisible();
-    await expect(page.getByTestId('ask-mic')).toBeVisible();
-    await shot(page, `room-${vp.name}-${theme}-ask`);
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('ask-sheet')).toBeHidden();
-
-    // The participants popover stays inside the screen.
-    await page.getByTestId('participants-toggle').click();
-    const panel = page.getByRole('dialog', { name: 'Participants' });
+    // The panel comes over the board as a drawer, and takes focus with it.
+    await page.getByTestId('panel-toggle').click();
     await expect(panel).toBeVisible();
-    const panelBox = await panel.boundingBox();
-    expect(panelBox?.x ?? -1).toBeGreaterThanOrEqual(0);
-    expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(vp.width);
+    await expect(panel).toHaveAttribute('data-mode', 'drawer');
+    await expect(panel).toHaveAttribute('aria-modal', 'true');
+    await expect(page.getByTestId('composer-input')).toBeVisible();
+    await expect(page.getByTestId('roster-cards')).toBeVisible();
+    await shot(page, `room-${vp.name}-${theme}-panel`);
+    // Everyone on the call, from the panel's own overflow control.
+    await page.getByTestId('participants-toggle').click();
+    await expect(page.getByTestId('participants-toggle')).toHaveAttribute('aria-expanded', 'true');
     await shot(page, `room-${vp.name}-${theme}-participants`);
     await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
   } else {
     // From the tablet up the pace control is in the bar itself.
     await expect(page.getByTestId('pace-pill')).toBeVisible();
+  }
+
+  if (docked) {
+    // Folding the panel from the chevron on its own edge gives the board the
+    // rest of the screen, and leaves that one control behind to bring it back.
+    const wide = await boardWidth(page);
+    await page.getByTestId('session-panel-toggle').click();
+    await page.waitForTimeout(500);
+    await expect(panel).toHaveAttribute('data-open', 'false');
+    await expect(page.getByTestId('conversation')).toHaveCount(0);
+    expect(await boardWidth(page)).toBeGreaterThan(wide);
+    expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.9);
+    // …and with the panel gone the board says what was said again.
+    await expect(page.getByTestId('session-panel-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await shot(page, `room-${vp.name}-${theme}-collapsed`);
+    await page.getByTestId('session-panel-toggle').click();
+    await page.waitForTimeout(500);
+    await expect(panel).toHaveAttribute('data-open', 'true');
   }
 
   await shot(page, `room-${vp.name}-${theme}`);
 }
 
 test.describe('the room fits the screen it is on', () => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
 
   for (const theme of ['light', 'dark'] as Theme[]) {
     test(`${theme}: 1024×768, iPad portrait and iPhone`, async ({ page }) => {

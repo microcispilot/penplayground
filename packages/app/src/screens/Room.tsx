@@ -1,11 +1,9 @@
 import type { Expert } from '@pen/contracts';
-import { Button, ExpertOrb, Pill, useToast } from '@pen/design';
-import { Send } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Pill, useToast } from '@pen/design';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { BoardSurface, preloadBoard } from '../components/BoardSurface.js';
 import {
-  AskSheet,
   BottomBar,
   CaptionOverlay,
   CheckCard,
@@ -13,35 +11,39 @@ import {
   RecapPanel,
   RoomStatus,
 } from '../components/RoomChrome.js';
+import { SessionPanel, useSessionPanel } from '../components/SessionPanel.js';
 import { VideoAd } from '../components/VideoAd.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
-import { dirOf, useDocumentLanguage } from '../lib/locale.js';
+import { useDocumentLanguage } from '../lib/locale.js';
+import { expertPresence } from '../room/presence.js';
 import { RoomSession } from '../room/RoomSession.js';
 import { useRoomStore } from '../room/store.js';
 
-/** The orb is presence, not a portrait: it gives the board back its room on a small screen. */
-function orbSizeFor(width: number): number {
-  if (width < 640) return 52;
-  if (width < 1024) return 68;
-  return 88;
-}
+/** From here the panel is docked beside the board; below it, it comes over the board. */
+const DOCK_QUERY = '(min-width: 1024px)';
 
-function useOrbSize(): number {
-  const [size, setSize] = useState(() =>
-    orbSizeFor(typeof window === 'undefined' ? 1280 : window.innerWidth),
+function useDocked(): boolean {
+  const [docked, setDocked] = useState(() =>
+    typeof window === 'undefined' ? true : window.matchMedia(DOCK_QUERY).matches,
   );
   useEffect(() => {
-    const onResize = () => setSize(orbSizeFor(window.innerWidth));
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const mql = window.matchMedia(DOCK_QUERY);
+    const onChange = () => setDocked(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
-  return size;
+  return docked;
 }
 
 /**
  * The live classroom. One RoomSession owns the socket, audio, mic and
  * conductor; this component renders the store and forwards intents.
+ *
+ * The board is the content and takes the room; everything the learner says and
+ * hears — the AI human, everyone else on the call, the conversation and the
+ * composer — lives in the session panel on the right, which folds away from
+ * its own edge when the board wants the whole width.
  */
 export function Room() {
   const { id = '' } = useParams();
@@ -51,12 +53,15 @@ export function Room() {
   const [session, setSession] = useState<RoomSession | null>(null);
   const [expert, setExpert] = useState<Expert | null>(null);
   const [needsGesture, setNeedsGesture] = useState(false);
-  const [typed, setTyped] = useState('');
-  const [askOpen, setAskOpen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLElement>(null);
   const ui = useRoomStore();
-  const orbSize = useOrbSize();
+  const docked = useDocked();
+  // Remembered across visits, like the shell's own sidebar (ADR-0015).
+  const { open: panelOpen, toggle: toggleDockedPanel } = useSessionPanel(platform.storage);
+  // On a narrow screen the panel is a drawer over the board: a remembered
+  // "open" must not cover the board the instant the room appears.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // The board chunk is lazy (it carries tldraw); fetch it while the room is still
   // preparing so the paper is mounted before the first cue, not downloading on it.
@@ -112,18 +117,7 @@ export function Room() {
   const isHost = ui.state?.hostId === participant?.id;
   const firstName = expert?.displayName.split(' ')[0] ?? 'Expert';
   const portrait = api.portraitUrl(expert?.portrait?.src, 192);
-  const presence =
-    ui.state?.phase !== 'live'
-      ? 'idle'
-      : ui.state.mode === 'listening'
-        ? 'listening'
-        : ui.state.mode === 'thinking'
-          ? 'thinking'
-          : ui.state.mode === 'paused'
-            ? 'paused'
-            : ui.speaking
-              ? 'speaking'
-              : 'idle';
+  const presence = expertPresence(ui.state, ui.speaking);
   const checkQuestion = useMemo(
     () => (ui.caption?.who === 'expert' ? ui.caption.text : ''),
     [ui.caption],
@@ -132,6 +126,9 @@ export function Room() {
     () => ui.notes.map((n) => ({ q: n.question, a: `${n.headline} — ${n.detail}` })),
     [ui.notes],
   );
+  /** The conversation is on screen, so the board does not repeat it as a caption. */
+  const panelShowing = docked ? panelOpen : drawerOpen;
+  const adShowing = ui.ad !== null;
 
   /**
    * One control for "I cannot hear anything". Either the browser is holding the
@@ -159,6 +156,15 @@ export function Room() {
       void session?.enableMic();
     }
   };
+
+  const togglePanel = useCallback(() => {
+    if (!docked) {
+      setDrawerOpen((v) => !v);
+      return;
+    }
+    trackInteraction(panelOpen ? 'panel_collapsed' : 'panel_opened');
+    toggleDockedPanel();
+  }, [docked, panelOpen, toggleDockedPanel]);
 
   if (ui.errorText) {
     return (
@@ -203,6 +209,45 @@ export function Room() {
   }
 
   const state = ui.state;
+  const panel = (
+    <SessionPanel
+      mode={docked ? 'docked' : 'drawer'}
+      open={docked ? panelOpen : drawerOpen}
+      onToggle={togglePanel}
+      state={state}
+      expert={expert}
+      expertPresence={presence}
+      expertPortraitUrl={portrait}
+      soundBlocked={ui.soundBlocked || needsGesture}
+      onEnableSound={enableSound}
+      isHost={isHost}
+      selfId={participant?.id ?? ''}
+      audio={ui.audio}
+      micState={ui.micState}
+      micLevel={ui.micLevel}
+      onToggleMic={toggleMic}
+      onMute={(pid) =>
+        void session
+          ?.muteParticipant(pid)
+          .then((muted) =>
+            toast(
+              pid
+                ? 'Muted'
+                : muted.length === 0
+                  ? 'Nobody else is on voice'
+                  : `Muted ${muted.length} ${muted.length === 1 ? 'person' : 'people'}`,
+              'success',
+            ),
+          )
+          .catch(() => toast('Could not mute — try again', 'danger'))
+      }
+      conversation={ui.conversation}
+      reactions={ui.reactions}
+      adPaused={adShowing}
+      onAsk={(text) => session?.ask(text)}
+    />
+  );
+
   return (
     <div ref={shellRef} className="flex h-dvh flex-col overflow-hidden bg-bg">
       {/* The board is the content; a keyboard user should not have to walk the bar to reach it. */}
@@ -212,13 +257,14 @@ export function Room() {
       >
         Skip to the board
       </a>
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col p-2 sm:p-3 lg:p-4">
           {/*
             A named landmark so the skip link lands somewhere a screen reader can
             announce. What is written on the paper reaches assistive technology
-            through the captions, which are the live region — announcing the
-            board's own strokes as well would say everything twice.
+            through the conversation (or, with the panel folded away, the
+            captions) — announcing the board's own strokes as well would say
+            everything twice.
           */}
           <section
             id="room-board"
@@ -228,14 +274,6 @@ export function Room() {
             className="relative min-h-0 flex-1 overflow-hidden rounded-[6px] shadow-board outline-none"
           >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
-            <div className="absolute right-2 bottom-2 z-[6] sm:right-3 sm:bottom-3">
-              <ExpertOrb
-                name={expert?.displayName ?? 'Expert'}
-                portraitUrl={portrait}
-                presence={presence}
-                size={orbSize}
-              />
-            </div>
             <RoomStatus
               connection={ui.connection}
               soundBlocked={ui.soundBlocked || needsGesture}
@@ -245,12 +283,21 @@ export function Room() {
               onEnableSound={enableSound}
               onRetry={() => session?.retryConnection()}
             />
-            <CaptionOverlay
-              line={ui.caption}
-              hint={ui.hint}
-              on={ui.captionsOn}
-              language={state.language}
-            />
+            {/*
+              The conversation is the record the learner can read back; the
+              caption is the glance. With the panel up the caption would say the
+              same sentence twice — once over the paper, once in the log a
+              screen reader is already announcing — so the board keeps its space
+              and gets the caption back the moment the panel folds away.
+            */}
+            {panelShowing ? null : (
+              <CaptionOverlay
+                line={ui.caption}
+                hint={ui.hint}
+                on={ui.captionsOn}
+                language={state.language}
+              />
+            )}
             {ui.check && session ? (
               <CheckCard
                 check={ui.check}
@@ -286,39 +333,8 @@ export function Room() {
               />
             ) : null}
           </section>
-          {/* Wide screens keep the question row in the page; a phone gets it as a sheet. */}
-          {state.phase === 'live' ? (
-            <form
-              className="mt-2 hidden items-center gap-2 md:flex"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (typed.trim() && session) {
-                  session.ask(typed.trim());
-                  setTyped('');
-                }
-              }}
-            >
-              <input
-                className="h-9 min-w-0 flex-1 rounded-[var(--radius-md)] bg-surface px-3 text-sm outline-none hairline focus:shadow-[0_0_0_2px_var(--color-accent)]"
-                placeholder={`Ask ${firstName} anything — or turn the mic on and just talk`}
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                aria-label="Ask a question"
-                lang={state.language}
-                // The learner writes in the lesson's language; what they type reads in its direction.
-                dir={dirOf(state.language)}
-              />
-              <Button
-                variant="secondary"
-                type="submit"
-                disabled={!typed.trim()}
-                leading={<Send size={14} />}
-              >
-                Ask
-              </Button>
-            </form>
-          ) : null}
         </div>
+        {panel}
       </div>
       <BottomBar
         state={state}
@@ -332,28 +348,16 @@ export function Room() {
         onSetPace={(pace) => session?.setPace(pace)}
         onToggleCaptions={() => session?.toggleCaptions()}
         onToggleMic={toggleMic}
-        {...(state.phase === 'live' ? { onOpenAsk: () => setAskOpen(true) } : {})}
+        panelOpen={panelShowing}
+        onTogglePanel={togglePanel}
+        inputsPaused={adShowing}
+        onReact={(emoji) => session?.react(emoji)}
         onFullscreen={() => {
           trackInteraction('fullscreen');
           void shellRef.current?.requestFullscreen?.();
         }}
         audio={ui.audio}
         selfId={participant?.id ?? ''}
-        onMuteParticipant={(pid) =>
-          void session
-            ?.muteParticipant(pid)
-            .then((muted) =>
-              toast(
-                pid
-                  ? 'Muted'
-                  : muted.length === 0
-                    ? 'Nobody else is on voice'
-                    : `Muted ${muted.length} ${muted.length === 1 ? 'person' : 'people'}`,
-                'success',
-              ),
-            )
-            .catch(() => toast('Could not mute — try again', 'danger'))
-        }
         onUnmuteVoice={() => void session?.unmuteVoice()}
         onLeave={() => {
           if (isHost && state.phase === 'live') session?.control('end');
@@ -362,15 +366,6 @@ export function Room() {
             navigate('/');
           }
         }}
-      />
-      <AskSheet
-        open={askOpen}
-        onClose={() => setAskOpen(false)}
-        expertFirstName={firstName}
-        micState={ui.micState}
-        micLive={ui.micState === 'listening' && !ui.audio.mutedByHost}
-        onToggleMic={toggleMic}
-        onAsk={(t) => session?.ask(t)}
       />
     </div>
   );

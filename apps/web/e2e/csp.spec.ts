@@ -129,7 +129,7 @@ test.describe('content security policy', () => {
 
     let id = '';
     await step('the saved session page', async (p) => {
-      await p.getByRole('button', { name: 'End' }).click();
+      await p.getByRole('button', { name: 'End', exact: true }).click();
       await expect(p.getByText('Session saved')).toBeVisible({ timeout: 40_000 });
       await p.getByRole('button', { name: 'Open the saved session' }).click();
       await p.waitForURL(/\/sessions\//, { timeout: 20_000 });

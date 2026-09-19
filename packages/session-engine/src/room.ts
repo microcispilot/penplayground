@@ -18,6 +18,7 @@ import type {
   PlanCode,
   PreparationProgress,
   QueryInput,
+  Reaction,
   RoomState,
   SayEvent,
   SelectionBand,
@@ -26,6 +27,7 @@ import type {
   TelemetryPort,
 } from '@pen/contracts';
 import {
+  AD_RULES,
   clampPace,
   freshEstimateUsd,
   hasEntitlement,
@@ -33,6 +35,7 @@ import {
   PACE_DEFAULT,
   PLAN_LIMITS,
   prepareFreshEstimateUsd,
+  REACTION_MIN_INTERVAL_MS,
   slowerPreset,
 } from '@pen/contracts';
 import type { EventStream, LanguageModel } from '@pen/llm';
@@ -59,6 +62,21 @@ import { type RoomObserver, type RoomTransport, SILENT_OBSERVER } from './transp
 
 /** Client reports accepted per participant per session (a 20-minute session produces a few hundred). */
 export const MAX_REPORTS_PER_PARTICIPANT = 5000;
+
+/**
+ * How long past an ad's own ceiling the room keeps refusing questions when the
+ * host never says how the ad ended (a closed laptop, a dropped socket). The
+ * conductor resumes the lesson at the ceiling; this is the beat after it, so a
+ * report in flight is not raced by the first sentence back.
+ */
+export const AD_WINDOW_GRACE_MS = 2_000;
+
+/** Lifecycle steps that mean the ad is off the learner's screen. */
+const AD_TERMINAL_EVENTS: ReadonlySet<AdEventName> = new Set([
+  'ad_completed',
+  'ad_skipped',
+  'ad_error',
+]);
 /** Prompt-cache key shared by every call of a session (and the background meta call): persona + level prefix. */
 export function roomCacheKey(expertId: string, band: SelectionBand): string {
   return `pen:${expertId}:${band}`;
@@ -231,6 +249,12 @@ export class SessionRoom {
   private adsShown = 0;
   /** Ads this room broadcast, with the lifecycle steps already accepted for each (host-reported, once). */
   private readonly adsSent = new Map<string, { slot: AdSlot; seen: Set<AdEventName> }>();
+  /**
+   * The ad the room believes is on the learner's screen (ADR-0014). `openedAt`
+   * is null while the ad is still scheduled but not yet reached — the
+   * conductor holds it until the host has played up to `afterSeq`.
+   */
+  private adWindow: { adId: string; afterSeq: number; openedAt: number | null } | null = null;
   private clockMs = 0;
   private lastFloorUtterance = new Map<string, string>();
   /** Communication language: follows the learner turn by turn (RoomState.language). */
@@ -254,6 +278,8 @@ export class SessionRoom {
   private markFirstAudio: () => void = () => undefined;
   /** One Sentry issue per session for a slow context, however many turns are slow. */
   private reportedOverBudget = false;
+  /** When each participant last reacted, for the one-per-600-ms rule (`reactions.ts`). */
+  private readonly lastReactionAt = new Map<ParticipantId, number>();
 
   constructor(deps: SessionRoomDeps) {
     this.firstAudio = new Promise<void>((resolve) => {
@@ -493,6 +519,9 @@ export class SessionRoom {
         break;
       case 'utterance_end':
         p.micOn = false;
+        break;
+      case 'reaction':
+        this.reaction(p, message.emoji);
         break;
       case 'ad_event':
         this.adEvent(p, message);
@@ -956,6 +985,9 @@ export class SessionRoom {
     const ads = this.d.ads;
     if (!ads) return;
     this.adsSent.set(adId, { slot, seen: new Set() });
+    // A preparation ad plays at once; a boundary ad waits for the host to reach
+    // the cue it was hung on, so its window stays shut until `progress` says so.
+    this.adWindow = { adId, afterSeq, openedAt: afterSeq < 0 ? this.now() : null };
     this.d.transport.broadcast({
       kind: 'ad',
       adId,
@@ -970,13 +1002,84 @@ export class SessionRoom {
   }
 
   /**
+   * Somebody reacted (`reactions.ts`). A reaction is expression, not an
+   * interrupt: it touches no lesson state, takes no floor, and reaches every
+   * client as its own small broadcast.
+   *
+   * Two rules, both silent. A held-down key is not an error, so anything
+   * inside `REACTION_MIN_INTERVAL_MS` of this participant's last one is
+   * dropped without a word; and an ad on the board disables reactions for the
+   * same reason it disables voice and chat, through the same window.
+   */
+  private reaction(p: Participant, emoji: Reaction): void {
+    if (this.state.phase === 'ended') return;
+    if (this.adShowing()) return;
+    const now = this.now();
+    const last = this.lastReactionAt.get(p.id) ?? Number.NEGATIVE_INFINITY;
+    if (now - last < REACTION_MIN_INTERVAL_MS) return;
+    this.lastReactionAt.set(p.id, now);
+    this.d.transport.broadcast({ kind: 'reaction', participantId: p.id, emoji, at: now });
+    this.metrics.interaction(p.id, 'reaction_sent', { emoji });
+    this.observer.event('room.reaction', { participantId: p.id, emoji });
+  }
+
+  /** The ceiling the conductor resumes the lesson at, plus the beat after it. */
+  private adWindowMs(): number {
+    return (this.d.ads?.durationMs ?? AD_RULES.maxDurationMs) + AD_WINDOW_GRACE_MS;
+  }
+
+  /**
+   * Whether an ad is over the learner's board right now (ADR-0014).
+   *
+   * The room works this out for itself rather than trusting a client to behave:
+   * the window opens when the ad this room scheduled has been reached — the
+   * host's own `progress`, or the player's first lifecycle report — closes when
+   * the player says how it ended, and expires on the same ceiling the conductor
+   * resumes at, so a client that goes quiet cannot mute the room forever.
+   *
+   * A learner who already holds the floor never sees an ad (the conductor
+   * refuses to start one over them and keeps the slot for later), so those
+   * modes are never an ad window however the timers fell.
+   */
+  private adShowing(): boolean {
+    const open = this.adWindow;
+    if (!open || open.openedAt === null) return false;
+    if (this.now() - open.openedAt > this.adWindowMs()) {
+      this.adWindow = null;
+      return false;
+    }
+    return (
+      this.state.mode !== 'listening' &&
+      this.state.mode !== 'thinking' &&
+      this.state.mode !== 'answering'
+    );
+  }
+
+  /** An interrupt or a transcript arrived from behind an ad overlay: dropped, and said so. */
+  private refuseDuringAd(kind: 'interrupt' | 'transcript', p: Participant): void {
+    this.observer.event('room.ad_input_refused', {
+      adId: this.adWindow?.adId ?? '',
+      kind,
+      participantId: p.id,
+    });
+  }
+
+  /**
    * The host's player reports each lifecycle step once; anything else (a guest, an id the room
    * never sent, a repeat) is dropped so revenue estimates cannot be inflated from a client.
    */
   private adEvent(p: Participant, m: Extract<ClientMessage, { kind: 'ad_event' }>): void {
     if (p.role !== 'host') return;
     const sent = this.adsSent.get(m.adId);
-    if (!sent || sent.seen.has(m.event)) return;
+    if (!sent) return;
+    // The window follows the overlay whether or not this step is a repeat: the
+    // player is the only thing that knows the creative actually came up, and
+    // the only thing that knows it is gone.
+    if (this.adWindow?.adId === m.adId) {
+      if (AD_TERMINAL_EVENTS.has(m.event)) this.adWindow = null;
+      else if (this.adWindow.openedAt === null) this.adWindow.openedAt = this.now();
+    }
+    if (sent.seen.has(m.event)) return;
     sent.seen.add(m.event);
     const outcome: AdOutcome = {
       sessionId: this.sessionId,
@@ -1246,6 +1349,10 @@ export class SessionRoom {
       const previous = this.hostProgressSeq;
       this.hostProgressSeq = seq;
       this.clockMs = clockMs;
+      // The host has played up to the cue a scheduled ad was hung on: from here
+      // the overlay is up, and the room stops taking questions from behind it.
+      if (this.adWindow && this.adWindow.openedAt === null && seq >= this.adWindow.afterSeq)
+        this.adWindow.openedAt = this.now();
       const cue = this.cues[seq];
       // Every lesson sentence up to this cue has been heard, even when a report was skipped
       // (progress is monotonic on the client); the lookahead must never lag behind the room.
@@ -1335,6 +1442,13 @@ export class SessionRoom {
     at: { atSeq: number; sayId: string | null; offsetMs: number },
   ): void {
     if (this.state.phase !== 'live') return;
+    // Free-plan ad on screen: the lesson is held and nobody has the floor
+    // (ADR-0014). The client mutes its own microphone and disables its
+    // composer; the room refuses the frame regardless of what a client does.
+    if (this.adShowing()) {
+      this.refuseDuringAd('interrupt', p);
+      return;
+    }
     if (
       this.state.mode === 'listening' ||
       this.state.mode === 'thinking' ||
@@ -1399,6 +1513,13 @@ export class SessionRoom {
   }
 
   private transcript(p: Participant, utteranceId: string, text: string, final: boolean): void {
+    // Typed and spoken questions share this path, and so does the server-side
+    // recognizer's own output: one guard covers every way a question can
+    // arrive while an ad is up.
+    if (this.adShowing()) {
+      this.refuseDuringAd('transcript', p);
+      return;
+    }
     if (this.state.floor !== p.id) {
       const openFloor =
         this.state.mode === 'teaching' ||
@@ -1856,6 +1977,10 @@ export class SessionRoom {
         return;
       case 'ad_skipped':
       case 'ad_ended':
+        // The overlay closed, however it closed: voice and chat are the
+        // learner's again on this frame rather than on the ceiling timer.
+        if (p.role === 'host' && this.adWindow && this.adWindow.adId === props.adId)
+          this.adWindow = null;
         if (p.role === 'host' && ms !== null)
           this.metrics.sample({
             stage: 'ad',

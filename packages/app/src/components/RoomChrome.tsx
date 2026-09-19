@@ -1,4 +1,4 @@
-import type { CheckEvent, RoomState } from '@pen/contracts';
+import type { CheckEvent, Reaction, RoomState } from '@pen/contracts';
 import {
   Avatar,
   Button,
@@ -15,9 +15,9 @@ import {
   Ellipsis,
   Gauge,
   Maximize2,
-  MessageSquare,
   Mic,
   MicOff,
+  PanelRight,
   Pause,
   Play,
   Send,
@@ -29,7 +29,7 @@ import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import type { RoomConnectionStatus } from '../room/RoomClient.js';
 import type { CaptionLine } from '../room/store.js';
 import { PaceMenu } from './PaceMenu.js';
-import { ParticipantsControl } from './Participants.js';
+import { ReactionPicker } from './Reactions.js';
 
 // ── honest status ─────────────────────────────────────────────────────────────
 
@@ -201,12 +201,28 @@ export interface BottomBarProps {
   onToggleMic: () => void;
   onFullscreen: () => void;
   onLeave: () => void;
-  /** Phone only: opens the ask sheet, where the mic is the primary control. */
-  onOpenAsk?: () => void;
-  /** Human-to-human audio (rooms): who is on voice, speaking, muted; host mute controls. */
+  /**
+   * The session panel — the AI human, the call and the conversation — is open.
+   * The panel carries its own chevron on its edge; this is the way back to it
+   * once it has folded away, and the way to it on a screen too narrow to dock
+   * it. Absent while the room is not live.
+   */
+  panelOpen?: boolean;
+  onTogglePanel?: () => void;
+  /**
+   * Say something without taking the floor (`reactions.ts`). Absent while the
+   * room is not live; off, with the rest of the inputs, behind an ad.
+   */
+  onReact?: (emoji: Reaction) => void;
+  /**
+   * An ad is on the board (free plan, ADR-0014): the microphone is not
+   * capturing and the composer is off for its duration. Said once, quietly —
+   * this is an ordinary state, not a fault.
+   */
+  inputsPaused?: boolean;
+  /** Human-to-human audio (rooms): who is on voice, speaking, muted. */
   audio?: RoomAudioUi;
   selfId?: string;
-  onMuteParticipant?: (participantId?: string) => void;
   onUnmuteVoice?: () => void;
 }
 
@@ -236,12 +252,14 @@ export function BottomBar(p: BottomBarProps) {
   const done = p.state.mode === 'complete' ? total : Math.min(total, p.state.segment);
   const playing = p.state.mode !== 'paused';
   const statusLabel = statusLabelOf(p.state, total);
-  const micLive = p.micState === 'listening' && !p.audio?.mutedByHost;
-  const micLabel = p.audio?.mutedByHost
-    ? 'Muted by the host — unmute'
-    : p.micState === 'listening'
-      ? 'Mute microphone'
-      : 'Unmute microphone';
+  const micLive = p.micState === 'listening' && !p.audio?.mutedByHost && !p.inputsPaused;
+  const micLabel = p.inputsPaused
+    ? 'Microphone is off while the ad plays'
+    : p.audio?.mutedByHost
+      ? 'Muted by the host — unmute'
+      : p.micState === 'listening'
+        ? 'Mute microphone'
+        : 'Unmute microphone';
   const onMic = p.audio?.mutedByHost && p.onUnmuteVoice ? p.onUnmuteVoice : p.onToggleMic;
   const canPlayPause =
     p.state.phase === 'live' && p.state.mode !== 'listening' && p.state.mode !== 'answering';
@@ -283,13 +301,6 @@ export function BottomBar(p: BottomBarProps) {
         <span className="hidden shrink-0 text-sm text-fg-2 tabular sm:inline">
           {formatClock(p.clockMs)}
         </span>
-        <ParticipantsControl
-          state={p.state}
-          isHost={p.isHost}
-          selfId={p.selfId ?? ''}
-          audio={p.audio ?? null}
-          onMute={p.onMuteParticipant ?? null}
-        />
         {p.isHost ? (
           <IconButton
             label={playing ? 'Pause' : 'Resume'}
@@ -319,31 +330,54 @@ export function BottomBar(p: BottomBarProps) {
         <IconButton
           label={micLabel}
           state={
-            p.audio?.mutedByHost
-              ? 'warn'
-              : p.micState === 'listening'
-                ? 'on'
-                : p.micState === 'denied'
-                  ? 'warn'
-                  : 'default'
+            p.inputsPaused
+              ? 'default'
+              : p.audio?.mutedByHost
+                ? 'warn'
+                : p.micState === 'listening'
+                  ? 'on'
+                  : p.micState === 'denied'
+                    ? 'warn'
+                    : 'default'
           }
           onClick={onMic}
+          disabled={p.inputsPaused ?? false}
           size={44}
           className="relative sm:[--icon-size:32px]"
           data-testid="mic-toggle"
         >
           {micLive ? <Mic size={20} /> : <MicOff size={20} />}
-          {p.micState === 'listening' ? (
-            <span
-              aria-hidden
-              className="absolute inset-0 rounded-[var(--radius-sm)] ring-2 ring-presence/60"
-              style={{ opacity: Math.min(1, p.micLevel * 12) }}
-            />
+          {micLive ? (
+            <>
+              <span
+                aria-hidden
+                className="absolute inset-0 rounded-[var(--radius-sm)] ring-2 ring-presence/60"
+                style={{ opacity: Math.min(1, p.micLevel * 12) }}
+              />
+              {/* Live is a ring and a dot, the way a call marks it. */}
+              <span
+                aria-hidden
+                className="absolute top-1 right-1 size-1.5 rounded-full bg-presence animate-blink"
+              />
+            </>
           ) : null}
         </IconButton>
-        {p.onOpenAsk ? (
-          <IconButton label="Open the ask panel" onClick={p.onOpenAsk} className="md:hidden">
-            <MessageSquare size={18} />
+        {p.onReact ? (
+          <ReactionPicker
+            disabled={p.inputsPaused ?? false}
+            disabledReason="Reactions are back after the ad"
+            onReact={p.onReact}
+          />
+        ) : null}
+        {p.onTogglePanel ? (
+          <IconButton
+            label={p.panelOpen ? 'Hide the session panel' : 'Show the session panel'}
+            onClick={p.onTogglePanel}
+            aria-expanded={p.panelOpen ?? false}
+            className={cn(p.panelOpen && 'bg-surface-2 text-fg')}
+            data-testid="panel-toggle"
+          >
+            <PanelRight size={17} />
           </IconButton>
         ) : null}
         <IconButton label="Full screen" onClick={p.onFullscreen} className="hidden lg:grid">
@@ -420,86 +454,6 @@ export function BottomBar(p: BottomBarProps) {
   );
 }
 
-// ── ask sheet (phones) ────────────────────────────────────────────────────────
-
-/**
- * On a phone the question row becomes a sheet, and the mic leads it: talking is
- * how this product is meant to be used, typing is the fallback for when you
- * can't.
- */
-export function AskSheet({
-  open,
-  onClose,
-  expertFirstName,
-  micState,
-  micLive,
-  onToggleMic,
-  onAsk,
-}: {
-  open: boolean;
-  onClose: () => void;
-  expertFirstName: string;
-  micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';
-  micLive: boolean;
-  onToggleMic: () => void;
-  onAsk: (text: string) => void;
-}) {
-  const [text, setText] = useState('');
-  return (
-    <Sheet open={open} onClose={onClose} title={`Ask ${expertFirstName}`} data-testid="ask-sheet">
-      <div className="flex flex-col items-center gap-2 px-3 pt-1 pb-3">
-        <button
-          type="button"
-          onClick={onToggleMic}
-          aria-pressed={micLive}
-          data-testid="ask-mic"
-          className={cn(
-            'grid size-[68px] place-items-center rounded-full transition-colors duration-[var(--duration-fast)] focus-visible:outline-accent',
-            micLive
-              ? 'bg-presence-soft text-presence shadow-[0_0_0_2px_var(--color-presence)]'
-              : 'bg-accent-strong text-on-accent',
-          )}
-        >
-          {micLive ? <Mic size={26} /> : <MicOff size={26} />}
-        </button>
-        <span className="text-[13px] text-fg-2">
-          {micState === 'denied'
-            ? 'Microphone is off in your browser settings'
-            : micLive
-              ? 'Listening — just talk'
-              : 'Tap to talk'}
-        </span>
-      </div>
-      <form
-        className="flex items-center gap-2 px-3 pb-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!text.trim()) return;
-          onAsk(text.trim());
-          setText('');
-          onClose();
-        }}
-      >
-        <input
-          className="h-11 min-w-0 flex-1 rounded-[var(--radius-md)] bg-surface px-3 text-base outline-none hairline focus:shadow-[0_0_0_2px_var(--color-accent)]"
-          placeholder="Or type it"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          aria-label="Ask a question"
-        />
-        <Button
-          variant="primary"
-          type="submit"
-          disabled={!text.trim()}
-          leading={<Send size={14} />}
-        >
-          Ask
-        </Button>
-      </form>
-    </Sheet>
-  );
-}
-
 // ── captions ──────────────────────────────────────────────────────────────────
 export function CaptionOverlay({
   line,
@@ -536,9 +490,10 @@ export function CaptionOverlay({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [line]);
-  // Room for the orb on the right at every size; the orb itself shrinks with the screen.
+  // The board is the caption's whole width now: the expert's portrait moved
+  // into the session panel, so nothing sits in the bottom-right to avoid.
   const box =
-    'pointer-events-none absolute bottom-3 left-3 right-[68px] z-[5] sm:bottom-[18px] sm:left-5 sm:right-[104px] lg:bottom-[22px] lg:left-6 lg:right-[126px]';
+    'pointer-events-none absolute inset-x-3 bottom-3 z-[5] sm:inset-x-5 sm:bottom-[18px] lg:inset-x-6 lg:bottom-[22px]';
   if (!on || !line)
     return hint ? (
       <div className={cn(box, 'text-center')} data-caption-box>

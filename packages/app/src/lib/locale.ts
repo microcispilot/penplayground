@@ -122,6 +122,24 @@ export function formatRelativeDay(ts: number, locale = readerLocale(), now = Dat
   return dtf ? dtf.format(ts) : new Date(ts).toISOString().slice(0, 10);
 }
 
+/**
+ * "now", "42s ago", "5m ago" — the quiet marker under a line in the room's
+ * conversation, in the reader's own language and digits ("۴۲ ثانیه پیش").
+ */
+export function formatElapsed(at: number, now = Date.now(), locale = readerLocale()): string {
+  const seconds = Math.max(0, Math.round((now - at) / 1000));
+  const rtf = formatter(
+    () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'narrow' }),
+    () => new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'narrow' }),
+  );
+  if (!rtf) return `${seconds}s`;
+  if (seconds < 5) return rtf.format(-0, 'second');
+  if (seconds < 60) return rtf.format(-seconds, 'second');
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return rtf.format(-minutes, 'minute');
+  return rtf.format(-Math.round(minutes / 60), 'hour');
+}
+
 /** "14 min" in the reader's language and numbering system. */
 export function formatDurationMinutes(ms: number, locale = readerLocale()): string {
   const minutes = Math.max(1, Math.round(ms / 60_000));

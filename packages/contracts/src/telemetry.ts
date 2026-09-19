@@ -100,6 +100,11 @@ export const InteractionName = z.enum([
   // A condition of the learner's machine, recorded so it is visible, never an error.
   'speech_unavailable',
   'fullscreen',
+  /** A participant reacted without taking the floor (`reactions.ts`). */
+  'reaction_sent',
+  /** The session panel (AI human, the call, the conversation) folded away or came back. */
+  'panel_collapsed',
+  'panel_opened',
   'pace_changed',
   'leave',
   'end',

@@ -526,7 +526,7 @@ export class Conductor {
     // gets the remainder, so the pen and the caption still land on the last word.
     const durationMs = Math.max(1, recordedMs - this.seekOffsetMs);
     this.seekOffsetMs = 0;
-    this.o.captions.showExpert(say.text, durationMs / this.playbackRate);
+    this.o.captions.showExpert(say.text, durationMs / this.playbackRate, say.thread);
     // A check-in question is followed by the longer beat (ADR-0010); the card
     // and the room's `checking` mode belong to the end of the words, not of the
     // beat, so an eager learner's answer is graded rather than taken as a question.

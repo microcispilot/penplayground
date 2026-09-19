@@ -136,7 +136,8 @@ test.describe('rooms: voice between participants', () => {
     await expect(host.page.locator(`audio[data-pen-participant="${guestId}"]`)).toHaveCount(1);
     await expect(guest.page.locator(`audio[data-pen-participant="${hostId}"]`)).toHaveCount(1);
 
-    // The participants popover on the host shows the guest on voice with a Mute button.
+    // The session panel's roster on the host shows the guest on voice with a
+    // Mute button, behind its own "everyone on the call" control.
     await host.page.getByTestId('participants-toggle').click();
     const guestRow = host.page.getByTestId(`participant-${guestId}`);
     await expect(guestRow).toBeVisible();
@@ -177,7 +178,7 @@ test.describe('rooms: voice between participants', () => {
     await expect.poll(() => connectionState(guest.page)).toBe('absent');
 
     await host.page.keyboard.press('Escape');
-    await host.page.getByRole('button', { name: 'End' }).click();
+    await host.page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(host.page.getByText('Session saved')).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => connectionState(host.page)).toBe('absent');
 

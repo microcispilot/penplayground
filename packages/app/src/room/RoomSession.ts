@@ -6,7 +6,14 @@ import {
   estimateSpeechMs,
   type PresencePort,
 } from '@pen/conductor';
-import type { AdEndReason, AdEventName, AdSlot, CheckEvent, RoomState } from '@pen/contracts';
+import type {
+  AdEndReason,
+  AdEventName,
+  AdSlot,
+  CheckEvent,
+  Reaction,
+  RoomState,
+} from '@pen/contracts';
 import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
@@ -19,10 +26,13 @@ import {
 } from '../lib/analytics.js';
 import { readPacePreference, writePacePreference } from '../lib/pace-preference.js';
 import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../platform/types.js';
+import { AdInputGate } from './ad-input.js';
 import { LiveKitAudioRoom } from './audio/livekit.js';
 import { RoomAudio } from './audio/RoomAudio.js';
+import { appendMessage, expertSaid, learnerSaid, systemSaid } from './conversation.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
+import { pushReaction } from './reactions.js';
 import { useRoomStore } from './store.js';
 
 export interface RoomSessionOptions {
@@ -96,6 +106,17 @@ export class RoomSession {
    * come from the `ad` message itself, kept here by id until the ad starts.
    */
   private readonly adsById = new Map<string, { tagUrl: string; slot: AdSlot }>();
+  /**
+   * An ad is on the learner's screen: the microphone is muted at its custody
+   * boundary (no VAD, no frames, no level), the recognizer's words are
+   * dropped, and typing is refused even if something got past the disabled
+   * composer. See `ad-input.ts` for the whole rule.
+   */
+  private readonly adGate = new AdInputGate((paused) => this.mic?.setMuted(paused));
+  /** Monotonic id for conversation lines; the store keys React rows by it. */
+  private lineCounter = 0;
+  /** The socket was away and said so: the return gets its own quiet line. */
+  private conversationSawDrop = false;
 
   constructor(private readonly o: RoomSessionOptions) {
     const store = useRoomStore.getState();
@@ -180,7 +201,8 @@ export class RoomSession {
     };
 
     const captions: CaptionPort = {
-      showExpert: (text, revealMs) =>
+      showExpert: (text, revealMs, thread) => {
+        const at = Date.now();
         set({
           caption: {
             who: 'expert',
@@ -188,11 +210,20 @@ export class RoomSession {
             text,
             revealMs,
             live: false,
-            at: Date.now(),
+            at,
           },
           learnerHeard: '',
-        }),
-      showLearner: (name, text, final) =>
+          conversation: expertSaid(useRoomStore.getState().conversation, {
+            id: `e${++this.lineCounter}`,
+            speaker: this.expertName(),
+            text,
+            at,
+            thread: thread ?? 'lesson',
+          }),
+        });
+      },
+      showLearner: (name, text, final) => {
+        const at = Date.now();
         set({
           caption: {
             who: 'learner',
@@ -200,9 +231,17 @@ export class RoomSession {
             text,
             revealMs: 0,
             live: !final,
-            at: Date.now(),
+            at,
           },
-        }),
+          conversation: learnerSaid(useRoomStore.getState().conversation, {
+            id: `l${++this.lineCounter}`,
+            speaker: name,
+            text,
+            final,
+            at,
+          }),
+        });
+      },
       hint: (text) => set({ hint: text }),
       clear: () => set({ caption: null }),
     };
@@ -227,6 +266,9 @@ export class RoomSession {
       },
       showAd: (ad) => {
         if (!ad) {
+          // However the ad ended — skipped, completed, timed out, blocked — the
+          // learner gets their voice and their keyboard back on this same line.
+          this.adGate.set(false);
           set({ ad: null });
           if (this.adShownAt) {
             const { adId, at } = this.adShownAt;
@@ -250,7 +292,15 @@ export class RoomSession {
           return;
         }
         this.adEndReason = null;
-        set({ ad: { ...ad, ...details, startedAt: Date.now() } });
+        this.adGate.set(true);
+        set({
+          ad: { ...ad, ...details, startedAt: Date.now() },
+          conversation: systemSaid(useRoomStore.getState().conversation, {
+            id: `s${++this.lineCounter}`,
+            text: 'A short ad — the lesson picks up right after.',
+            at: Date.now(),
+          }),
+        });
         this.adShownAt = { adId: ad.adId, at: Date.now() };
         trackInteraction('ad_shown', {
           adId: ad.adId,
@@ -325,6 +375,7 @@ export class RoomSession {
             else if (m.state.participantAudio) void this.audio.connect();
           }
           if (m.kind === 'prep') set({ preparation: m.progress });
+          if (m.kind === 'reaction') this.showReaction(m.participantId, m.emoji, m.at);
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
           if (m.kind === 'cue' && m.cue.event.type === 'say') this.currentThread = m.cue.thread;
@@ -341,10 +392,77 @@ export class RoomSession {
           }
         },
         onAudio: (header, pcm) => this.conductor.handleAudio(header, pcm),
-        onStatus: (connection) => set({ connection }),
+        onStatus: (connection) => {
+          set({ connection });
+          // The transcript carries what the learner would otherwise only have
+          // caught as a pill: the room went away, and the room came back.
+          if (connection === 'reconnecting' || connection === 'failed') {
+            this.conversationSawDrop = true;
+            this.systemLine('The connection dropped — reconnecting.');
+          } else if (connection === 'open' && this.conversationSawDrop) {
+            this.conversationSawDrop = false;
+            this.systemLine('Back.');
+          }
+        },
       },
       o.displayName,
     );
+  }
+
+  /**
+   * Somebody reacted. A pill with their face and their emoji floats over the
+   * participants and fades; nothing about the lesson changes, which is the
+   * point — this is how a room of twelve agrees, laughs or admits it is lost
+   * without taking the floor from the expert.
+   */
+  private showReaction(participantId: string, emoji: Reaction, at: number): void {
+    const store = useRoomStore.getState();
+    const from = store.state?.participants.find((x) => x.id === participantId);
+    store.set({
+      reactions: pushReaction(store.reactions, {
+        id: `r${++this.lineCounter}`,
+        participantId,
+        name: from?.name ?? 'Someone',
+        hue: from?.hue ?? 218,
+        emoji,
+        at,
+      }),
+    });
+  }
+
+  /**
+   * Send one. Refused behind an ad through the same gate that holds the
+   * microphone and the composer, and refused once the room has ended; the
+   * room's own 600 ms rule does the rest, silently.
+   */
+  react(emoji: Reaction): void {
+    if (this.adGate.refuses()) return;
+    if (useRoomStore.getState().state?.phase === 'ended') return;
+    trackInteraction('reaction_sent', { emoji });
+    this.client.send({ kind: 'reaction', emoji });
+  }
+
+  /** One quiet centred line in the conversation: the room talking about itself. */
+  private systemLine(text: string): void {
+    useRoomStore.getState().set({
+      conversation: systemSaid(useRoomStore.getState().conversation, {
+        id: `s${++this.lineCounter}`,
+        text,
+        at: Date.now(),
+      }),
+    });
+  }
+
+  /**
+   * Whether this device is refusing questions because an ad is on screen. The
+   * microphone is muted rather than stopped: mute is the `Microphone`'s
+   * custody boundary (tracks disabled, VAD unfed, buffers dropped, level
+   * zeroed), so nothing captured behind the overlay can surface afterwards,
+   * and the grant, the worklet and the published track all survive for the
+   * instant the ad ends.
+   */
+  get adPaused(): boolean {
+    return this.adGate.paused;
   }
 
   /** Browsers may suspend audio until a gesture on this page: the next tap primes the context and clears the notice. */
@@ -480,6 +598,9 @@ export class RoomSession {
     });
     this.mic = mic;
     await mic.start();
+    // Turned on behind an ad (the preference is remembered, the overlay is not):
+    // start in custody, and the ad's end releases it with everything else.
+    if (this.adGate.paused) mic.setMuted(true);
     this.syncPlaybackActive();
     const track = this.micStream?.getAudioTracks()[0];
     if (mic.state === 'listening' && track && this.mic === mic)
@@ -502,8 +623,18 @@ export class RoomSession {
     const set = (patch: Parameters<ReturnType<typeof useRoomStore.getState>['set']>[0]) =>
       useRoomStore.getState().set(patch);
     return {
-      onPartial: (id, text) => this.conductor.onTranscript(this.utteranceId(id), text, false),
+      // The on-device recognizer listens through the browser, not through our
+      // microphone, so muting the capture pipeline is not enough to silence it:
+      // while an ad is up its words are dropped here as well.
+      onPartial: (id, text) => {
+        if (this.adGate.refuses()) return;
+        this.conductor.onTranscript(this.utteranceId(id), text, false);
+      },
       onFinal: (id, text) => {
+        if (this.adGate.refuses()) {
+          this.currentUtterance = null;
+          return;
+        }
         this.conductor.onTranscript(this.utteranceId(id), text, true);
         this.currentUtterance = null;
         if (text.trim()) {
@@ -573,6 +704,9 @@ export class RoomSession {
 
   /** Typed question fallback (accessibility, no mic). */
   ask(text: string): void {
+    // The composer is disabled for the ad's duration; this is the same rule one
+    // layer in, for a submit that raced the overlay or came from a script.
+    if (this.adGate.refuses()) return;
     const id = `u${++this.utteranceCounter}`;
     this.questionAt = Date.now();
     trackInteraction('question_typed', { chars: text.length });
@@ -580,10 +714,22 @@ export class RoomSession {
   }
 
   answerCheck(checkId: string, text: string): void {
+    if (this.adGate.refuses()) return;
     this.questionAt = Date.now();
     trackInteraction('check_answered', { checkId, chars: text.length });
     this.conductor.answerCheck(checkId, text);
-    useRoomStore.getState().set({ check: null });
+    useRoomStore.getState().set({
+      check: null,
+      conversation: appendMessage(useRoomStore.getState().conversation, {
+        id: `c${++this.lineCounter}`,
+        role: 'learner',
+        speaker: 'You',
+        text,
+        live: false,
+        at: Date.now(),
+        kind: 'check',
+      }),
+    });
   }
 
   control(action: 'pause' | 'resume' | 'end'): void {
@@ -701,7 +847,10 @@ export class RoomSession {
     this.lastMode = mode;
     setAnalyticsContext({ phase: `${phase}:${mode}` });
     trackInteraction('phase_shown', { phase, mode, segment: state.segment });
-    if (phase === 'ended') trackInteraction('recap_shown', { points: state.recap?.length ?? 0 });
+    if (phase === 'ended') {
+      this.systemLine('Session ended — it is saved.');
+      trackInteraction('recap_shown', { points: state.recap?.length ?? 0 });
+    }
   }
 
   private utteranceId(recognizerId: string): string {

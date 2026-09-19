@@ -79,13 +79,13 @@ test.describe('served under a base path', () => {
 
     // A typed question interrupts and is answered.
     await page.getByLabel('Ask a question').fill('Why do we divide by the square root of d?');
-    await page.getByRole('button', { name: 'Ask' }).click();
+    await page.getByTestId('composer-send').click();
     await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
       timeout: 20_000,
     });
 
     // End → the saved session page, and the sketch the API renders in the background.
-    await page.getByRole('button', { name: 'End' }).click();
+    await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Open the saved session' }).click();
     await expect(page).toHaveURL(new RegExp(`^${origin}${BASE}/sessions/`));

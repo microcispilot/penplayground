@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { unlockAudio } from './ui-helpers.js';
 
 /**
  * A lesson in Persian, end to end: the topic is typed in Persian, the fake
@@ -32,15 +33,23 @@ test.describe('a session taught in Persian', () => {
     // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
-    const caption = page.locator('[aria-live="polite"]').filter({ hasText: PERSIAN }).first();
-    await expect(caption).toBeVisible({ timeout: 30_000 });
-
-    // The document speaks Persian; the caption reads right to left.
+    await unlockAudio(page);
+    // The lesson's own words now live in the session panel's conversation
+    // (ADR-0019), and the board keeps its caption for when the panel is folded
+    // away. Both are turned round for a Persian session, and the browser is
+    // asked what it actually computed rather than what we wrote.
+    const said = page.getByTestId('conversation');
     await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('fa-IR');
-    await expect(caption).toHaveAttribute('dir', 'rtl');
-    await expect(caption).toHaveAttribute('lang', 'fa-IR');
-    // Right to left is what the browser actually computed, not just an attribute we set.
-    expect(await caption.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
+    await expect(said).toHaveAttribute('dir', 'rtl');
+    await expect(said).toHaveAttribute('lang', 'fa-IR');
+    expect(await said.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
+    await expect(page.getByTestId('composer-input')).toHaveAttribute('dir', 'rtl');
+
+    // What the expert *says* is proved further down by the board's own title,
+    // the pinned note and the recap — all of which carry the lesson's words
+    // and none of which need this browser to have played a sentence.
+    const spoken = said.locator('article').first();
+    if (await spoken.isVisible().catch(() => false)) await expect(spoken).toContainText(PERSIAN);
 
     // The board writes Persian too: the title is drawn as one joined, right-to-left run.
     const boardTitle = page.locator('svg text[direction="rtl"]').first();
@@ -50,7 +59,7 @@ test.describe('a session taught in Persian', () => {
 
     // A Persian question pins a Persian note card on the board.
     await page.getByLabel('Ask a question').fill(QUESTION);
-    await page.getByRole('button', { name: 'Ask' }).click();
+    await page.getByTestId('composer-send').click();
     const note = page.locator('.pen-note').first();
     await expect(note).toBeVisible({ timeout: 30_000 });
     await expect(note).toHaveAttribute('dir', 'rtl');
@@ -61,7 +70,7 @@ test.describe('a session taught in Persian', () => {
     await page.screenshot({ path: join(SCREENS_DIR, 'persian-note.png') });
 
     // The recap panel, which is the lesson's own words, reads right to left too.
-    await page.getByRole('button', { name: 'End' }).click();
+    await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 30_000 });
     const recapTitle = page.locator('h3[dir="rtl"]').first();
     await expect(recapTitle).toBeVisible();

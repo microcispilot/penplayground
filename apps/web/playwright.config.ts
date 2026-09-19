@@ -48,6 +48,14 @@ const roomsWebPort = process.env.PEN_E2E_ROOMS_WEB_PORT ?? '5174';
  */
 const uiApiPort = process.env.PEN_E2E_UI_API_PORT ?? '4023';
 const uiWebPort = process.env.PEN_E2E_UI_WEB_PORT ?? '5183';
+/**
+ * A fourth pair for `timeline.spec.ts`: the owner's in-session flow, which
+ * needs ads on *and* a pipeline of its own. The ad it waits for sits after the
+ * second segment, and a room that is the third lesson of a shared API can take
+ * long enough getting there to make the wait look like a product failure.
+ */
+const timelineApiPort = process.env.PEN_E2E_TIMELINE_API_PORT ?? '4024';
+const timelineWebPort = process.env.PEN_E2E_TIMELINE_WEB_PORT ?? '5185';
 /** The production build, served by `vite preview`: where load performance is measured. */
 const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
 
@@ -56,7 +64,7 @@ const previewPort = process.env.PEN_E2E_PREVIEW_PORT ?? '5184';
  * `projects` note below). Any spec may still be run in either browser
  * explicitly with `--project=chromium` / `--project=chrome`.
  */
-const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts'];
+const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts', '**/timeline.spec.ts'];
 
 /**
  * `base-path.spec.ts` belongs to `playwright.basepath.config.ts` and only to it:
@@ -70,6 +78,10 @@ const MEDIA_AFTER_LESSON = ['**/ads.spec.ts', '**/ui-replay.spec.ts'];
  * one rather than adding to it, so the chromium project's list was quietly
  * letting this spec back in (measured with `playwright test --list`: 27 tests in
  * 13 files with the pattern only at the top level, 26 in 12 with it here too).
+ *
+ * The leading globstar is load-bearing: a bare filename is matched against the
+ * whole path and so matches nothing, which is how this spec ran here for as
+ * long as it did.
  */
 const BASE_PATH_ONLY = ['**/base-path.spec.ts'];
 
@@ -234,6 +246,32 @@ export default defineConfig({
       command: `pnpm --filter @pen/web exec vite --port ${uiWebPort} --strictPort`,
       url: `http://localhost:${uiWebPort}`,
       env: { PEN_API_PORT: uiApiPort, VITE_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: 'pnpm --filter @pen/api start',
+      url: `http://127.0.0.1:${timelineApiPort}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        PEN_PORT: timelineApiPort,
+        PEN_PUBLIC_URL: `http://localhost:${timelineWebPort}`,
+        PEN_LLM_PROVIDER: 'fake',
+        PEN_TTS_PROVIDER: 'silent',
+        PEN_DATA_DIR: '.pen-data-e2e-timeline',
+        PEN_JWT_SECRET: E2E_JWT_SECRET,
+        DATABASE_URL: 'pglite://memory',
+        PEN_LOG_LEVEL: 'warn',
+        PEN_AD_TEST_TAGS: '1',
+        PEN_ADS_EVERY_SEGMENTS: '1',
+        PEN_MAX_SESSIONS_PER_IP: '50',
+      },
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm --filter @pen/web exec vite --port ${timelineWebPort} --strictPort`,
+      url: `http://localhost:${timelineWebPort}`,
+      env: { PEN_API_PORT: timelineApiPort },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

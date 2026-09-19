@@ -3,6 +3,7 @@ import { AdEventName, AdFormat, AdSlot } from './ads.js';
 import { Cue } from './cues.js';
 import { CheckId, ParticipantId, SayId, SessionId } from './ids.js';
 import { Pace } from './pace.js';
+import { Reaction } from './reactions.js';
 import { PreparationProgress, RoomState } from './session.js';
 import { InteractionName, InteractionProps } from './telemetry.js';
 
@@ -89,6 +90,15 @@ export const ClientAdEvent = z.object({
   /** IMA error code (ad_error) or the reason that ended the ad. */
   code: z.string().max(40).optional(),
 });
+/**
+ * A reaction from a participant (`reactions.ts`): expression without taking
+ * the floor. The room rate-limits it, refuses it while an ad is up, and
+ * broadcasts it; nothing else in the session reads it.
+ */
+export const ClientReaction = z.object({
+  kind: z.literal('reaction'),
+  emoji: Reaction,
+});
 export const ClientMessage = z.discriminatedUnion('kind', [
   ClientAuth,
   ClientJoin,
@@ -103,6 +113,7 @@ export const ClientMessage = z.discriminatedUnion('kind', [
   ClientSetPace,
   ClientReport,
   ClientAdEvent,
+  ClientReaction,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 export type ClientReport = z.infer<typeof ClientReport>;
@@ -151,6 +162,14 @@ export const ServerAd = z.object({
   /** VAST/VMAP tag the player requests through the IMA SDK; server-chosen so the network is swappable. */
   tagUrl: z.string().url(),
   slot: AdSlot,
+});
+/** Somebody reacted. Stamped by the room so every client shows it at the same moment. */
+export const ServerReaction = z.object({
+  kind: z.literal('reaction'),
+  participantId: ParticipantId,
+  emoji: Reaction,
+  /** Server wall clock, ms since epoch. */
+  at: z.number().int(),
 });
 /** All cues of a turn (answer or check feedback) have been emitted; once their audio has played, the host sends `resumed`. */
 export const ServerTurnDone = z.object({
@@ -211,6 +230,7 @@ export const ServerMessage = z.discriminatedUnion('kind', [
   ServerAd,
   ServerSayTake,
   ServerTurnDone,
+  ServerReaction,
   ServerError,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
