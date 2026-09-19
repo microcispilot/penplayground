@@ -212,7 +212,19 @@ describe('session telemetry (integration)', () => {
     expect(t.canonicalId).toBe('en.how-transformers-work-in-llms');
 
     const stages = new Set(t.stages.map((s) => s.stage));
-    for (const stage of ['intake', 'resolve', 'context', 'llm', 'tts', 'turn', 'join', 'board'])
+    // `image` is the session card's thumbnail generation (ADR-0021): a background
+    // call, but the session's own spend, so it is a stage of this session like any other.
+    for (const stage of [
+      'intake',
+      'resolve',
+      'context',
+      'llm',
+      'image',
+      'tts',
+      'turn',
+      'join',
+      'board',
+    ])
       expect(stages.has(stage as never), stage).toBe(true);
     expect(t.stages.every((s) => s.t >= 0 && s.ms >= 0)).toBe(true);
 
@@ -228,9 +240,12 @@ describe('session telemetry (integration)', () => {
     // Costs: every provider call has a line with usd ≥ 0; the fake providers cost nothing.
     expect(t.cost.lines.length).toBeGreaterThan(0);
     expect(t.cost.lines.every((l) => l.usd >= 0 && l.units >= 0)).toBe(true);
-    expect(Object.keys(t.cost.byComponent).sort()).toEqual(['llm', 'onten', 'tts']);
+    expect(Object.keys(t.cost.byComponent).sort()).toEqual(['image', 'llm', 'onten', 'tts']);
     expect(t.cost.byComponent.llm?.units.tokens_in).toBeGreaterThan(0);
     expect(t.cost.byComponent.tts?.units.bytes).toBeGreaterThan(0);
+    // One generation for the card, priced in image tokens like any other call.
+    expect(t.cost.byComponent.image?.calls).toBe(2);
+    expect(t.cost.byComponent.image?.units.tokens_out).toBeGreaterThan(0);
     expect(t.cost.totalUsd).toBe(0);
 
     // Interactions from `report`, stamped by the server; the content-sized one never landed.

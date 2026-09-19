@@ -7,7 +7,8 @@
 | STT | AssemblyAI Universal-Streaming $0.15/h (or $0 browser on-device / self-hosted) | $0.05 |
 | Onten context | mock today; target < 20 ms, amortised across learners | ~$0 |
 | Topic preparation (only on a miss, once per topic) | seed + Tavily + luna | $0.05–0.65 |
-| Session card + thumbnail (ADR-0013) | one luna structured-output call, ~1.4k in (persona prefix cached) + ~0.6k out; resvg raster in-process | ≈ $0.001 |
+| Session card copy (ADR-0013) | one luna structured-output call, ~0.9k in (persona prefix cached) + ~0.12k out | ≈ $0.0004 |
+| Session thumbnail (ADR-0021) | one `gpt-image-1` generation, 1536×1024, quality `low`: 52 text tokens in + 400 image tokens out; downscaled in-process to the card and the og image | ≈ $0.0163 |
 | **Total marginal** | | **≈ $0.30 paid voice / ≈ $0.07 with free-tier voice and on-device STT** |
 
 Levers, in order of leverage: prompt-cache prefix discipline (input is >90 % of
@@ -27,13 +28,28 @@ telemetry port:
 | `tts` | `bytes` of UTF-8 text sent, per sentence (billed whether or not it was fully played) | `SayPipeline` | Fish Audio docs, 2026-09-17: $15 / M bytes for s2.1-pro, s2-pro, s1; $0 for s2.1-pro-free; self-hosted bridge and silent = $0 |
 | `stt` | `seconds` of audio recognised, per utterance | the API's recognizer router (`onUtteranceDone`) | Deepgram Nova-3 $0.0048/min; AssemblyAI $0.15/h; ws-relay and browser = $0 |
 | `search` | `requests`, per search | the knowledge builder | Tavily ≈ $0.008; Exa ≈ $0.005; SearXNG = $0 |
+| `image` | `tokens_in` (the prompt), `tokens_out` (the picture) — two lines per generation, `purpose: session_thumbnail` | `withImageTelemetry(model)` in `@pen/llm`, wrapped per session by the card job | OpenAI pricing page, 2026-09-18: `gpt-image-1` $5 / M text in, $10 / M image in, $40 / M image out; `fake` = $0 |
 | `onten` | `requests`, per context query | the room | $0 (mock; amortised) |
 
 `GET /api/sessions/:id/telemetry` sums them (`cost.totalUsd`, `cost.byComponent`
 with units and call counts, and every line), the Insights tab shows them
 ("Model 41k tokens in (58 % cached) · $0.012"), and PostHog's `session_ended`
-carries `cost.totalUsd`, `cost.llmUsd`, `cost.ttsUsd`, `cost.sttUsd`,
-`cost.searchUsd`, token and byte totals.
+carries `cost.totalUsd`, `cost.llmUsd`, `cost.imageUsd`, `cost.ttsUsd`,
+`cost.sttUsd`, `cost.searchUsd`, token and byte totals.
+
+**Thumbnail quality, measured against the real endpoint on 2026-09-18** at
+1536 × 1024, the one size we ever ask for:
+
+| Quality | Image tokens out | Wall time | Cost |
+|---|---|---|---|
+| `low` (default) | 400 | ~11 s | $0.0163 |
+| `medium` | 1568 | ~18 s | $0.063 |
+
+Downscaled to the width a card is read at, `low` and `medium` are not tellable
+apart, so `PEN_THUMBNAIL_QUALITY` defaults to `low`. `high` has not been
+measured here; `freshThumbnailUsd` falls back to `medium`'s number rather than
+inventing one. The bill is per generation, not per size: one call per lesson
+produces the source, and the card and Open Graph images are downscales of it.
 
 ### Reuse: what a session did not have to generate
 

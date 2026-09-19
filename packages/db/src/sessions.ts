@@ -1,5 +1,5 @@
 import { utcDayStart } from '@pen/contracts';
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, like, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { type SessionRow, sessions } from './schema.js';
 
@@ -52,6 +52,21 @@ export class SessionRepository {
       .select()
       .from(sessions)
       .where(isNull(sessions.thumbnail))
+      .orderBy(desc(sessions.startedAt))
+      .limit(limit);
+  }
+
+  /**
+   * Sessions still showing a pre-ADR-0021 hand-drawn sketch (`thumb.svg`),
+   * newest first: what `thumbnails:backfill --redraw` walks to replace them
+   * with a generated picture. Matching on the stored path is what makes them
+   * findable — the record keeps no other trace of which renderer drew it.
+   */
+  async listWithSketchThumbnail(limit = 100): Promise<SessionRecord[]> {
+    return this.db
+      .select()
+      .from(sessions)
+      .where(like(sessions.thumbnail, '%.svg'))
       .orderBy(desc(sessions.startedAt))
       .limit(limit);
   }

@@ -277,12 +277,13 @@ export class RoomRegistry {
         // The room may have switched language with the learner; the saved page follows it.
         language: state.language,
       });
-      // Card copy + sketch in the background (ADR-0013): the first audio never
-      // waits for it — and, just as importantly, it never competes with it.
-      // Both calls go to the same provider over the same connection, so a card
-      // started the moment the plan lands is drawn alongside the one call the
-      // learner is actually waiting for. It waits for the first sentence to be
-      // audible instead; by then nothing is racing it.
+      // Card copy + thumbnail in the background (ADR-0013, ADR-0021): the
+      // first audio never waits for them — and, just as importantly, they
+      // never compete with it. All of it goes to the same provider over the
+      // same connection, so a card started the moment the plan lands is
+      // written alongside the one call the learner is actually waiting for.
+      // It waits for the first sentence to be audible instead; by then
+      // nothing is racing it.
       await room.firstAudio;
       const settled = room.getState();
       if (!settled.plan) return;
@@ -293,7 +294,12 @@ export class RoomRegistry {
         topic: args.topic,
         plan: settled.plan,
         language: settled.language,
-        // The lesson memo's scope is the card's too: a topic taught before reuses its sketch.
+        // The host's plan decides the provider key both background calls bill
+        // to — the same key `modelFor` gave this session's lesson. Never the
+        // platform key: this work belongs to this learner's session.
+        billTo: args.host.plan,
+        // The lesson memo's scope is the card's too: a topic taught before
+        // reuses its copy and its picture, and pays for neither.
         canonicalId: resolution.canonicalKnowledgeId,
         cacheKey: roomCacheKey(expert.id, args.band),
         telemetry: metrics,

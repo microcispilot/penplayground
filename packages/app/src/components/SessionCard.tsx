@@ -4,16 +4,20 @@ import type { SessionRecord } from '../api/client.js';
 import { formatDuration, useApp } from '../lib/context.js';
 import { CardActions } from './ListControls.js';
 
-/** Poll schedule while a fresh session's sketch is still being drawn (ADR-0013): ~2 minutes in total. */
+/**
+ * Poll schedule while a fresh session's picture is still being generated
+ * (ADR-0013, ADR-0021): ~2 minutes in total, against a generation that takes
+ * ~11 s and only starts once the learner can hear the expert.
+ */
 const THUMB_POLL_MS = [3_000, 5_000, 8_000, 13_000, 21_000, 34_000, 40_000];
 /** Older sessions with no thumbnail are not going to get one; do not poll for them. */
 const THUMB_WATCH_WINDOW_MS = 30 * 60_000;
 
 /**
- * The session's real thumbnail (the sketch the expert drew for it) over the
+ * The session's real thumbnail (the picture generated for it) over the
  * deterministic placeholder, which stays underneath until the image has
  * loaded so the card never flashes empty. With `watch`, a session that has
- * no sketch yet is polled on a slow back-off and upgrades in place — the
+ * no picture yet is polled on a slow back-off and upgrades in place — the
  * saved-session page right after "End" is the case that matters.
  * Positioning is the caller's (`absolute inset-0` inside a sized box, or
  * `relative` with a size), exactly like `BoardThumb`.
@@ -69,9 +73,10 @@ export function SessionThumb({
   return (
     <div
       className={cn(
-        // The sketch is paper in both themes, so the picture needs its own
-        // edge: a hairline and a short shadow, the way a video still sits
-        // above the page on YouTube (--shadow-thumb, tokens.css).
+        // The placeholder is paper in both themes and a photograph carries its
+        // own light, so the frame needs its own edge either way: a hairline and
+        // a short shadow, the way a video still sits above the page on YouTube
+        // (--shadow-thumb, tokens.css).
         'overflow-hidden rounded-[var(--radius-md)] shadow-[var(--shadow-thumb)]',
         className,
       )}

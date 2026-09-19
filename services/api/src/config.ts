@@ -19,6 +19,19 @@ const Env = z.object({
   PEN_LLM_MODEL: z.string().default('gpt-5.6-luna'),
   PEN_LLM_OUTLINE_MODEL: z.string().default('gpt-5.6-luna'),
   PEN_LLM_BASE_URL: z.string().url().optional(),
+  /**
+   * Session thumbnails (ADR-0021). One `gpt-image-1` generation per session,
+   * always at 1536 × 1024 — the largest landscape the model offers, and the
+   * single source every rendered size is downscaled from.
+   *
+   * Quality is the only knob, and `low` is the default on purpose: measured
+   * against the real endpoint it is 400 image tokens (≈ $0.0163, ~11 s)
+   * against `medium`'s 1568 (≈ $0.063, ~18 s), and at the width a card is
+   * actually read at the two are not tellable apart. Raise it here if that
+   * ever stops being true.
+   */
+  PEN_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  PEN_THUMBNAIL_QUALITY: z.enum(['low', 'medium', 'high']).default('low'),
   PEN_LLM_SERVICE_TIER: z.enum(['auto', 'default', 'flex', 'priority']).optional(),
   /**
    * One key per plan, chosen by the HOST'S plan when the room builds its model,

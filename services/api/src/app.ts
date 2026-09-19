@@ -895,11 +895,12 @@ export function buildApp(services: Services): App {
       return c.json({ ok: true, ref });
     });
 
-  // ── thumbnails (ADR-0013) ────────────────────────────────────────────────
+  // ── thumbnails (ADR-0013, ADR-0021) ──────────────────────────────────────
   /**
-   * The sketch and its rasters. Public sessions are public assets with a long
-   * cache; a private session's thumbnail is only for its host, uncached by
-   * proxies. A missing thumbnail is a 404 the client treats as "not ready".
+   * The generated picture, at each size we render it. Public sessions are
+   * public assets with a long cache; a private session's thumbnail is only for
+   * its host, uncached by proxies. A missing thumbnail is a 404 the client
+   * treats as "not ready".
    */
   const thumbnail = async (
     c: {
@@ -935,9 +936,14 @@ export function buildApp(services: Services): App {
     c.header('Content-Length', String(size));
     return c.body(Readable.toWeb(createReadStream(path)) as ReadableStream);
   };
-  app.get('/api/sessions/:id/thumb.svg', (c) => thumbnail(c, 'svg'));
   app.get('/api/sessions/:id/thumb.png', (c) => thumbnail(c, 'card'));
   app.get('/api/sessions/:id/og.png', (c) => thumbnail(c, 'og'));
+  /**
+   * Sessions taught before ADR-0021 still point at the hand-drawn sketch that
+   * is on their disk, so the route keeps serving the file. Nothing writes one
+   * any more; `thumbnails:backfill --redraw` replaces them with pictures.
+   */
+  app.get('/api/sessions/:id/thumb.svg', (c) => thumbnail(c, 'svg'));
 
   /**
    * Stop a session if it is live and erase everything it left behind: the
@@ -1173,8 +1179,9 @@ export function buildApp(services: Services): App {
       record.description ||
       record.promise ||
       `A session with ${expert?.displayName ?? 'an AI expert'} on Pen Playground`;
-    // Scrapers rarely rasterise SVG, so Open Graph gets the 1200 × 630 PNG; only public sessions
-    // can be fetched without a bearer, so only they advertise an image.
+    // Open Graph gets the 1200 × 630 downscale of the session's generated
+    // picture; only public sessions can be fetched without a bearer, so only
+    // they advertise an image.
     const image =
       record.thumbnail && record.visibility === 'public'
         ? publicUrl(
@@ -1183,7 +1190,7 @@ export function buildApp(services: Services): App {
           )
         : null;
     const imageTags = image
-      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(`Whiteboard sketch: ${record.title}`)}">`
+      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(record.title)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(record.title)}">`
       : '<meta name="twitter:card" content="summary">';
     // Structured data only for a page a crawler can actually read: a private session is
     // host-only, so advertising it as a learning resource would be a lie.

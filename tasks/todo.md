@@ -55,6 +55,8 @@
 - [x] Dev DB: migration timestamp guard (journal `when` vs applied `created_at`, by hash)
 - [x] Session thumbnails: one background `session_meta` call → SketchSpec → SVG/PNG next to the ledger; cards, session page and share OG use it (ADR-0013)
 - [x] Thumbnails: the card is cached per lesson (memo scope + plan digest) — a repeat session reuses description and sketch with zero model calls and reports `reused`/`savedUsd`; `pnpm --filter @pen/api thumbnails:backfill [--limit N] [--dry-run]` fills in older sessions (ADR-0013)
+- [x] Thumbnails are real pictures: one `gpt-image-1` generation per lesson from the session title (1536×1024, quality `low`, ≈ $0.0163), downscaled to the card and the og image — one call, every size. Cached per lesson so a repeat pays nothing; priced into the session ledger as `image` cost lines. The sketch DSL and its renderer are deleted (ADR-0021)
+- [x] Every background card and thumbnail call bills to the HOST'S plan key, the same one the lesson ran on (`billTo`); `OPENAI_API_KEY_PLATFORM` is only for work belonging to no learner — the backfill and the probe (ADR-0021)
 - [x] Video ads (ADR-0014): Google Ad Manager via IMA behind `PEN_AD_TAG_URL`; player + overlay, measurement, revenue estimate, ads.txt, e2e against the sample tag
 - [x] Ads: `ad_event` lands in the session ledger (host-validated `interaction` entries; estimated revenue as an `ads` cost line → Insights + PostHog)
 - [ ] **Owner, deferred:** AdSense site review and a Google Ad Manager account, then `PEN_AD_TAG_URL` and `ads.txt` (docs/ADS.md). Not needed before the desktop and macOS release; `/api/health` reports `ads:"off"` until the tag is set, and every ad path is already built and tested against Google's sample tag.

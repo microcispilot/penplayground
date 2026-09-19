@@ -356,7 +356,8 @@ concurrency, not a leak.
 2. **Watch the event loop, not the CPU.** Audio fan-out is many small writes.
    The symptom of saturation is stuttering audio, and it appears in the health
    ping long before CPU looks busy. Anything synchronous and slow on the loop
-   is the enemy — this is why thumbnail rasterising moved off it.
+   is the enemy — this is why thumbnail rasterising moved off it, and why
+   downscaling a generated 1536 × 1024 picture still goes through `renderAsync`.
 3. **Move rendering off the box.** One MP4 export pins a core for the length of
    the session. At 100 concurrent, exports and lessons will fight; run the
    render queue on a second host (the `ExportJobs` seam) or cap it.
@@ -371,6 +372,10 @@ concurrency, not a leak.
 ## 8. Disk
 
 `/data` grows with every session: ledger, audio, thumbnails, and MP4 exports.
+Since ADR-0021 a session's thumbnail is a photograph, not a 20 kB SVG: budget
+~3.8 MB per session for `source.png` + `og.png` + `thumb.png` (measured
+2.0 / 1.3 / 0.4 MB), plus one ~2 MB picture per lesson in
+`data/onten/thumbnail-images/` (capped at 1 GB, oldest out first).
 
 ```sh
 df -h /srv

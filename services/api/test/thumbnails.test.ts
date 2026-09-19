@@ -1,7 +1,9 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { THUMBNAIL_SIZE } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
+import { solidPng } from '@pen/llm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
@@ -12,9 +14,11 @@ import { StoredSessionMeta, THUMB_FILES, thumbnailPath } from '../src/thumbnails
 
 /**
  * The whole thumbnail path against real services (PGlite in memory, the fake
- * model's scripted `session_meta`, silent synthesizer): a created session
- * ends up with `thumb.svg` + PNGs on disk and `thumbnail` on its record; the
- * routes enforce visibility and caching; the share page advertises the PNG.
+ * model's scripted `session_meta`, the fake image generator, silent
+ * synthesizer): a created session ends up with one generated source PNG and
+ * both sizes derived from it, and `thumbnail` on its record; the routes
+ * enforce visibility and caching; the share page advertises the Open Graph
+ * PNG; a repeat of the same lesson pays for neither the copy nor the picture.
  */
 const dataDir = mkdtempSync(join(tmpdir(), 'pen-thumbs-'));
 let services: Services;
@@ -59,7 +63,7 @@ afterAll(async () => {
 describe('a fake-provider session gets a real thumbnail', () => {
   let sessionId: string;
 
-  it('writes thumb.svg, the PNGs and meta.json next to the ledger and marks the record ready', async () => {
+  it('generates once, derives every size from it, and marks the record ready', async () => {
     const live = await rooms.create({
       topic: 'How Transformers work in LLMs',
       host,
@@ -75,24 +79,27 @@ describe('a fake-provider session gets a real thumbnail', () => {
       await new Promise((r) => setTimeout(r, 50));
     await services.meta.idle();
     const dir = join(dataDir, 'sessions', sessionId);
-    for (const f of Object.values(THUMB_FILES)) expect(existsSync(join(dir, f)), f).toBe(true);
-    const svg = readFileSync(join(dir, THUMB_FILES.svg), 'utf8');
-    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"')).toBe(
-      true,
-    );
-    expect(svg.length).toBeLessThan(60_000);
-    // PNG magic bytes.
-    expect(readFileSync(join(dir, THUMB_FILES.og)).subarray(0, 4)).toEqual(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
-    );
+    // The source and both derived sizes, plus meta.json. No sketch: nothing draws one now.
+    for (const f of [THUMB_FILES.source, THUMB_FILES.card, THUMB_FILES.og, THUMB_FILES.meta])
+      expect(existsSync(join(dir, f)), f).toBe(true);
+    expect(existsSync(join(dir, THUMB_FILES.svg))).toBe(false);
+    const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    for (const f of [THUMB_FILES.source, THUMB_FILES.card, THUMB_FILES.og])
+      expect(readFileSync(join(dir, f)).subarray(0, 4), f).toEqual(PNG);
     const stored = StoredSessionMeta.parse(
       JSON.parse(readFileSync(join(dir, THUMB_FILES.meta), 'utf8')),
     );
-    expect(stored.meta.thumbnail.elements.length).toBe(12);
     expect(stored.attempts).toBe(1);
-    expect(stored.render.unsupportedChars).toEqual([]);
+    // One generation; the card and the og image are downscales of its bytes.
+    expect(stored.image).toMatchObject({ quality: 'low', reused: false, attempts: 1 });
+    expect(stored.render.sourcePngBytes).toBeGreaterThan(0);
+    expect(stored.render.cardPngBytes).toBeGreaterThan(0);
+    expect(stored.render.ogPngBytes).toBeGreaterThan(0);
+    expect(stored.render.sourcePngBytes).toBe(statSync(join(dir, THUMB_FILES.source)).size);
+    expect(stored.render.cardPngBytes).toBe(statSync(join(dir, THUMB_FILES.card)).size);
     const record = await services.sessions.get(sessionId);
     expect(record?.thumbnail).toBe(thumbnailPath(sessionId));
+    expect(record?.thumbnail?.endsWith('/thumb.png')).toBe(true);
     expect(record?.description).toMatch(/attention/i);
     expect(record?.keywords).toContain('transformers');
     // The call is the session's own spend (ADR-0011): an `llm` sample and cost lines under its purpose.
@@ -118,21 +125,38 @@ describe('a fake-provider session gets a real thumbnail', () => {
       'tokens_cached',
       'tokens_out',
     ]);
+    // The picture is a provider call like any other: one `image` stage sample
+    // and its own cost lines in the session's ledger, so Insights and PostHog
+    // both see it (ADR-0021).
+    const imageSamples = entries.filter((e) => e.kind === 'metric' && e.sample.stage === 'image');
+    expect(imageSamples).toHaveLength(1);
+    expect(imageSamples[0]?.kind === 'metric' && imageSamples[0].sample.meta).toMatchObject({
+      purpose: 'session_thumbnail',
+      quality: 'low',
+      size: '1536x1024',
+      reused: false,
+    });
+    const imageCosts = entries.filter((e) => e.kind === 'cost' && e.line.component === 'image');
+    expect(imageCosts.map((e) => (e.kind === 'cost' ? e.line.unit : ''))).toEqual([
+      'tokens_in',
+      'tokens_out',
+    ]);
+    for (const e of imageCosts)
+      if (e.kind === 'cost') expect(e.line.meta.purpose).toBe('session_thumbnail');
     await rooms.end(sessionId);
   }, 30_000);
 
-  it('serves the SVG and PNGs publicly with a long cache and an ETag, and answers 304', async () => {
-    const svg = await fetchApp(`/api/sessions/${sessionId}/thumb.svg`);
-    expect(svg.status).toBe(200);
-    expect(svg.headers.get('content-type')).toBe('image/svg+xml');
-    expect(svg.headers.get('cache-control')).toBe(
+  it('serves the PNGs publicly with a long cache and an ETag, and answers 304', async () => {
+    const card = await fetchApp(`/api/sessions/${sessionId}/thumb.png`);
+    expect(card.status).toBe(200);
+    expect(card.headers.get('content-type')).toBe('image/png');
+    expect(card.headers.get('cache-control')).toBe(
       'public, max-age=86400, stale-while-revalidate=604800',
     );
-    const etag = svg.headers.get('etag');
+    const etag = card.headers.get('etag');
     expect(etag).toMatch(/^"[a-z0-9]+-\d+"$/);
-    expect(Number(svg.headers.get('content-length'))).toBeGreaterThan(1000);
-    expect((await svg.text()).startsWith('<svg')).toBe(true);
-    const again = await fetchApp(`/api/sessions/${sessionId}/thumb.svg`, {
+    expect(Number(card.headers.get('content-length'))).toBeGreaterThan(1000);
+    const again = await fetchApp(`/api/sessions/${sessionId}/thumb.png`, {
       headers: { 'if-none-match': etag ?? '' },
     });
     expect(again.status).toBe(304);
@@ -144,18 +168,23 @@ describe('a fake-provider session gets a real thumbnail', () => {
         new Uint8Array([0x50, 0x4e, 0x47]),
       );
     }
+    // Nothing writes a sketch any more; an old session's file would still be served.
+    expect((await fetchApp(`/api/sessions/${sessionId}/thumb.svg`)).status).toBe(404);
   });
 
-  it('rasterises a missing PNG on demand from the stored sketch', async () => {
+  it('derives a missing size from the stored source again, never from a second generation', async () => {
     const og = join(dataDir, 'sessions', sessionId, THUMB_FILES.og);
     unlinkSync(og);
+    const before = services.costs.snapshot().session_thumbnail?.calls ?? 0;
     const res = await fetchApp(`/api/sessions/${sessionId}/og.png`);
     expect(res.status).toBe(200);
     expect(existsSync(og)).toBe(true);
+    expect(services.costs.snapshot().session_thumbnail?.calls ?? 0).toBe(before);
   });
 
-  it('gives the next session on the same lesson the same card for nothing', async () => {
+  it('gives the next session on the same lesson the same card and the same picture for nothing', async () => {
     const before = services.costs.snapshot().session_meta?.calls ?? 0;
+    const beforePictures = services.costs.snapshot().session_thumbnail?.calls ?? 0;
     const second = await rooms.create({
       topic: 'How Transformers work in LLMs',
       host,
@@ -166,17 +195,30 @@ describe('a fake-provider session gets a real thumbnail', () => {
     while (Date.now() < deadline && !(await services.sessions.get(second.record.id))?.thumbnail)
       await new Promise((r) => setTimeout(r, 50));
     await services.meta.idle();
-    // Zero model calls: the card and the sketch came off the cache next to the lesson memo.
+    // Zero calls of either kind: the copy and the picture both came off the
+    // caches next to the lesson memo. This is the "never pay twice" assertion.
     expect(services.costs.snapshot().session_meta?.calls ?? 0).toBe(before);
+    expect(services.costs.snapshot().session_thumbnail?.calls ?? 0).toBe(beforePictures);
     const stored = services.thumbnails.meta(second.record.id);
     expect(stored?.reused).toBe(true);
+    expect(stored?.image?.reused).toBe(true);
     expect(stored?.savedUsd).toBeGreaterThanOrEqual(0);
     expect(stored?.meta.description).toBe(services.thumbnails.meta(sessionId)?.meta.description);
     const record = await services.sessions.get(second.record.id);
     expect(record?.thumbnail).toBe(thumbnailPath(second.record.id));
     expect(record?.description).toMatch(/attention/i);
-    // Its own sketch on disk, drawn with its own seed — and its ledger says it was reused.
-    expect(existsSync(join(dataDir, 'sessions', second.record.id, THUMB_FILES.svg))).toBe(true);
+    // Its own files on disk, from the first session's bytes — and its ledger says it was reused.
+    expect(existsSync(join(dataDir, 'sessions', second.record.id, THUMB_FILES.source))).toBe(true);
+    expect(readFileSync(join(dataDir, 'sessions', second.record.id, THUMB_FILES.source))).toEqual(
+      readFileSync(join(dataDir, 'sessions', sessionId, THUMB_FILES.source)),
+    );
+    const imageSample = services.ledger
+      .read(second.record.id)
+      .find((e) => e.kind === 'metric' && e.sample.stage === 'image');
+    expect(imageSample?.kind === 'metric' && imageSample.sample.meta.reused).toBe(true);
+    expect(
+      imageSample?.kind === 'metric' && (imageSample.sample.meta.savedUsd as number) >= 0,
+    ).toBe(true);
     const sample = services.ledger
       .read(second.record.id)
       .find(
@@ -202,8 +244,8 @@ describe('a fake-provider session gets a real thumbnail', () => {
   });
 
   it('is 404 for unknown or malformed ids and for a session without a thumbnail', async () => {
-    expect((await fetchApp('/api/sessions/nope/thumb.svg')).status).toBe(404);
-    expect((await fetchApp('/api/sessions/s_does_not_exist/thumb.svg')).status).toBe(404);
+    expect((await fetchApp('/api/sessions/nope/thumb.png')).status).toBe(404);
+    expect((await fetchApp('/api/sessions/s_does_not_exist/thumb.png')).status).toBe(404);
     const bare: SessionRecord = {
       id: 's_bare_0001',
       topic: 't',
@@ -230,7 +272,7 @@ describe('a fake-provider session gets a real thumbnail', () => {
       likes: 0,
     };
     await services.sessions.upsert(bare);
-    const res = await fetchApp('/api/sessions/s_bare_0001/thumb.svg');
+    const res = await fetchApp('/api/sessions/s_bare_0001/thumb.png');
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'NOT_READY' });
     const share = await (await fetchApp('/s/s_bare_0001')).text();
@@ -244,10 +286,10 @@ describe('a fake-provider session gets a real thumbnail', () => {
     const record = await services.sessions.get(sessionId);
     if (!record) throw new Error('record missing');
     await services.sessions.patch(sessionId, { visibility: 'private', hostId: owner.id });
-    expect((await fetchApp(`/api/sessions/${sessionId}/thumb.svg`)).status).toBe(401);
+    expect((await fetchApp(`/api/sessions/${sessionId}/thumb.png`)).status).toBe(401);
     expect(
       (
-        await fetchApp(`/api/sessions/${sessionId}/thumb.svg`, {
+        await fetchApp(`/api/sessions/${sessionId}/thumb.png`, {
           headers: { authorization: other.authorization },
         })
       ).status,
@@ -265,63 +307,25 @@ describe('a fake-provider session gets a real thumbnail', () => {
 });
 
 /**
- * Rasterising is native, and the synchronous resvg call blocked the event loop
+ * Downscaling is native, and the synchronous resvg call blocked the event loop
  * for ~120 ms per session — long enough to stall the PCM fan-out of every room
  * still speaking. A 50-session load run showed it as ~160 ms stalls on a
- * trivial request; moving to `renderAsync` took that to single digits.
+ * trivial request; moving to `renderAsync` took that to single digits. A real
+ * 1536 × 1024 photograph is a heavier source than the old sketch, so the guard
+ * matters more now, not less.
  *
  * This is the regression guard: while a thumbnail is being written, a 5 ms
  * interval must keep firing. Going back to the synchronous API makes it fail.
  */
 describe('writing a thumbnail keeps the event loop turning', () => {
-  it('lets timers run while the PNGs are rasterised', async () => {
+  it('lets timers run while the two sizes are downscaled', async () => {
     const meta = {
       description: 'Loop-liveness probe',
       keywords: ['attention'],
       category: 'computing-data' as const,
-      thumbnail: {
-        elements: [
-          {
-            kind: 'label' as const,
-            text: 'Attention',
-            x: 0,
-            y: 0,
-            w: 6,
-            size: 'lg' as const,
-            ink: 'accent' as const,
-          },
-          { kind: 'box' as const, x: 0, y: 2, w: 2, h: 1.25, text: 'the', ink: 'ink' as const },
-          { kind: 'box' as const, x: 2.5, y: 2, w: 2, h: 1.25, text: 'cat', ink: 'ink' as const },
-          {
-            kind: 'arrow' as const,
-            x1: 6,
-            y1: 3.5,
-            x2: 1,
-            y2: 5.25,
-            text: 'query',
-            ink: 'ink' as const,
-          },
-          {
-            kind: 'circle' as const,
-            x: 0,
-            y: 5.25,
-            w: 2,
-            h: 1.5,
-            text: 'q·k / √d',
-            ink: 'ink' as const,
-          },
-          {
-            kind: 'bars' as const,
-            x: 8,
-            y: 1.5,
-            w: 4,
-            h: 4,
-            values: [0.15, 0.9, 0.35, 0.2],
-            ink: 'accent' as const,
-          },
-        ],
-      },
     };
+    // A full-size generation's worth of pixels, so the work is the real work.
+    const png = solidPng(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, [90, 140, 200]);
 
     let ticks = 0;
     const ticker = setInterval(() => {
@@ -329,7 +333,7 @@ describe('writing a thumbnail keeps the event loop turning', () => {
     }, 5);
     const startedAt = Date.now();
     try {
-      await services.thumbnails.write('s_loop_probe01', meta, {
+      await services.thumbnails.write('s_loop_probe01', meta, png, {
         usage: {
           model: 'fake',
           inputTokens: 0,

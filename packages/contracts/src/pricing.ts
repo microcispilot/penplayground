@@ -1,4 +1,9 @@
 import type { CostLine } from './telemetry.js';
+import {
+  THUMBNAIL_IMAGE_TOKENS,
+  THUMBNAIL_PROMPT_TOKENS,
+  type ThumbnailQuality,
+} from './thumbnail.js';
 
 /**
  * Provider prices, the single source for every cost line (ADR-0011,
@@ -66,6 +71,93 @@ export function llmCostLines(
   ];
 }
 
+// ── image models: USD per 1M tokens (OpenAI pricing page, 2026-09-18) ────────
+/**
+ * `gpt-image-1` bills in tokens like any other model: the prompt is text
+ * input, the picture is image output. We never send an image in, so
+ * `imageInput` is priced for completeness and is 0 on every call we make.
+ */
+export const IMAGE_PRICING: Record<
+  string,
+  { textInput: number; imageInput: number; imageOutput: number }
+> = {
+  'gpt-image-1': { textInput: 5, imageInput: 10, imageOutput: 40 },
+  /** The scripted generator for development and tests costs nothing. */
+  fake: { textInput: 0, imageInput: 0, imageOutput: 0 },
+};
+export const IMAGE_PRICING_FALLBACK = 'gpt-image-1';
+
+export function imagePrice(model: string): {
+  textInput: number;
+  imageInput: number;
+  imageOutput: number;
+} {
+  return (
+    IMAGE_PRICING[modelName(model)] ??
+    IMAGE_PRICING[IMAGE_PRICING_FALLBACK] ?? { textInput: 0, imageInput: 0, imageOutput: 0 }
+  );
+}
+
+export function imagePriceUsd(
+  model: string,
+  textInputTokens: number,
+  imageInputTokens: number,
+  outputTokens: number,
+): number {
+  const p = imagePrice(model);
+  return (
+    (Math.max(0, textInputTokens) * p.textInput +
+      Math.max(0, imageInputTokens) * p.imageInput +
+      Math.max(0, outputTokens) * p.imageOutput) /
+    1_000_000
+  );
+}
+
+/** One generation as two cost lines — the prompt in, the picture out — under the `image` component. Sums to `imagePriceUsd`. */
+export function imageCostLines(
+  usage: {
+    model: string;
+    inputTokens: number;
+    imageInputTokens: number;
+    outputTokens: number;
+  },
+  meta: Record<string, string | number | boolean> = {},
+): CostLine[] {
+  const p = imagePrice(usage.model);
+  const text = Math.max(0, usage.inputTokens - usage.imageInputTokens);
+  const m = { model: modelName(usage.model), ...meta };
+  return [
+    {
+      component: 'image',
+      unit: 'tokens_in',
+      units: usage.inputTokens,
+      usd: (text * p.textInput + usage.imageInputTokens * p.imageInput) / 1e6,
+      meta: m,
+    },
+    {
+      component: 'image',
+      unit: 'tokens_out',
+      units: usage.outputTokens,
+      usd: (usage.outputTokens * p.imageOutput) / 1e6,
+      meta: m,
+    },
+  ];
+}
+
+/**
+ * What drawing one thumbnail fresh costs, for a reuse whose original price
+ * was not recorded. Only the qualities actually measured against the endpoint
+ * are tabulated; anything else falls back to the most expensive measured one
+ * rather than inventing a number.
+ */
+export function freshThumbnailUsd(modelId: string, quality: ThumbnailQuality): number {
+  const measured = Math.max(
+    ...Object.values(THUMBNAIL_IMAGE_TOKENS).filter((n): n is number => n !== undefined),
+  );
+  const output = THUMBNAIL_IMAGE_TOKENS[quality] ?? measured;
+  return imagePriceUsd(modelId, THUMBNAIL_PROMPT_TOKENS, 0, output);
+}
+
 // ── fresh-generation estimates (what a reuse saved) ──────────────────────────
 /**
  * Representative token counts for the calls a reuse avoids, measured on
@@ -80,8 +172,8 @@ export const FRESH_ESTIMATE_TOKENS = {
   /** Topic miss: outline + evalset calls; searches are priced separately. */
   prepareOutline: { input: 1_500, output: 1_200 },
   prepareEvalset: { input: 2_500, output: 800 },
-  /** Card copy + thumbnail sketch, one structured-output call (ADR-0013). */
-  sessionMeta: { input: 1_400, output: 600 },
+  /** Card copy — description, keywords, category — one structured-output call (ADR-0013). */
+  sessionMeta: { input: 900, output: 120 },
 } as const;
 /** Searches a typical preparation runs (DEFAULT_BUDGET allows 50; outlines ask for ~10). */
 export const FRESH_ESTIMATE_SEARCHES = 10;

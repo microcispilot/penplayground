@@ -359,6 +359,7 @@ export function sessionEndedProperties(
     'latency.bargeInP95': t.latency.bargeInMs.p95,
     'cost.totalUsd': round6(t.cost.totalUsd),
     'cost.llmUsd': usd('llm'),
+    'cost.imageUsd': usd('image'),
     'cost.ttsUsd': usd('tts'),
     'cost.sttUsd': usd('stt'),
     'cost.searchUsd': usd('search'),
@@ -368,6 +369,8 @@ export function sessionEndedProperties(
     'cost.tokensIn': units('llm', 'tokens_in'),
     'cost.tokensCached': units('llm', 'tokens_cached'),
     'cost.tokensOut': units('llm', 'tokens_out'),
+    /** Thumbnail generation (ADR-0021): one per session card unless it was reused. */
+    'cost.imageTokensOut': units('image', 'tokens_out'),
     'cost.ttsBytes': units('tts', 'bytes'),
     'cost.sttSeconds': round6(units('stt', 'seconds')),
     'cost.searchRequests': units('search', 'requests'),

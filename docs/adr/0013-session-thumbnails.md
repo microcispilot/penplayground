@@ -1,6 +1,14 @@
 # ADR-0013: Session thumbnails — one background structured-output call, a sketch DSL, a deterministic SVG renderer
 
-Status: accepted · 2026-09-17
+Status: superseded in part by ADR-0021 · 2026-09-17
+
+> **ADR-0021 (2026-09-18) replaced the picture.** The sketch DSL, the
+> deterministic renderer and the thumbnail half of the prompt are gone: the
+> thumbnail is now one `gpt-image-1` generation per lesson, downscaled to every
+> size we render. What survives from this ADR is the background job, the card
+> copy call, the per-lesson cache, the storage layout, the routes and the
+> backfill. Read ADR-0021 for the picture and for which key a background job
+> bills to; everything below describes the design it amends.
 
 ## Context
 Every session card (Home, My sessions, the saved-session page, the share
