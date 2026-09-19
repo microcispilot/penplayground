@@ -72,6 +72,23 @@ Sentry, PostHog). The report lists the tests by name with their results and the
 measured numbers. `pnpm verify` and the Playwright suite are green before
 anything is called finished.
 
+### Real credits are for correctness, never for taste
+
+Spending real model and voice credits is allowed, and expected, to prove that
+something **works**: the integration path end to end, a provider's real
+response shape, a real session reaching real audio. Run those, and report the
+numbers.
+
+They are **not** for deciding whether the result is any *good*. Whether a voice
+sounds human, whether a pause lands, whether a sketch reads at a glance,
+whether the pace feels right — no test and no model may return a verdict on
+those. They are the owner's, and only a person can give them. Prepare the
+thing, say plainly what you could not judge, and leave the judgement open
+rather than filling it with a confident guess.
+
+So: "the lesson ran, first audio at 1.2 s, 14 cues, no errors" is ours to
+report. "It sounds natural" is not ours to claim.
+
 ## The product bar
 
 Apple- and Google-grade. The mockup defines flows, not visual quality. UI work is

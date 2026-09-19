@@ -16,7 +16,7 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
 const config: ForgeConfig = {
   packagerConfig: {
     name: 'Pen Playground',
-    executableName: 'pen-academy',
+    executableName: 'pen-playground',
     appBundleId: 'com.penplayground.desktop',
     asar: true,
     ...(process.platform === 'darwin' && process.env.APPLE_ID

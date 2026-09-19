@@ -15,7 +15,7 @@
 - [x] App + web: screens, room session, replay; verified in Chromium with screenshots
 - [x] Playwright e2e (fake providers) passes
 - [x] Real-key runs: luna lesson generation, interrupt/answer path, topic-miss preparation (Swift)
-- [x] Desktop host (Electron Forge) with desktop Platform adapter (typechecks; not yet packaged)
+- [x] Desktop host (Electron Forge) with desktop Platform adapter — **packages**: `pnpm --filter @pen/desktop package` produces `Pen Playground.app` (darwin-arm64, 313 MB), bundle id `com.penplayground.desktop`, executable `pen-playground`, the microphone usage string in Info.plist. Ad-hoc signed, which is Electron's default without an identity.
 - [x] Persistence (Drizzle, PGlite in dev, Postgres-ready) behind the session index and participants
 - [x] Billing: Stripe checkout/portal/webhook, plan from the participant row (needs price ids)
 - [x] Replay from the ledger through the conductor
@@ -24,7 +24,15 @@
 - [x] LiveKit rooms audio (human-to-human voice): self-hosted server in the stack, token + mute routes, shared-mic client, participants popover, two-browser e2e (ADR-0012)
 - [x] Rooms audio: TURN (LiveKit's own, UDP 3478 + relay range) — the join response hands every client the server and a credential; `e2e rooms-turn` proves a relay allocation and that ordinary browsers stay direct (ADR-0012)
 - [ ] Rooms audio follow-ups: TURN/TLS on 443 (needs a second public address — LiveKit advertises `turns:<domain>:443` regardless of `tls_port`; steps in docs/DEPLOY.md); expert joins the media room as an agent (mixed track for export); guest voice in the ledger
-- [ ] Desktop: package and sign (needs Apple ID / Windows cert)
+- [ ] **Rename leftovers that are identifiers, not words.** `pen-academy` still spells
+  the JWT issuer (`services/api/src/identity.ts`), the Onten policy id
+  (`packages/onten/src/policy.ts`), the PostHog `app` property and the Sentry project names.
+  Left alone on purpose: changing the issuer invalidates every token in the wild, the policy id
+  keys compiled packs and memo entries, and the analytics names are what the history is filed
+  under. Each is a migration with a cutover, not a find-and-replace. The user-visible ones are
+  done — the desktop executable was the last (`pen-academy` → `pen-playground`).
+
+- [ ] **Owner, deferred to the desktop release:** Apple Developer ID + an Apple app-specific password, and a Windows code-signing certificate. Nothing in the repo is waiting on them — `forge.config.ts` already switches on `APPLE_ID` and the makers are configured — so this is a credentials task, not an implementation one. Until then the app is ad-hoc signed and macOS will warn on first open.
 - [x] Sentry projects (pen-academy-api/web/desktop)
 - [x] Sentry source maps upload (web + api; release = git sha; BuildKit secret in deploy.sh)
 - [x] Server-side STT relay (ws-relay to the 5090 box, Deepgram, AssemblyAI); warm-up at boot
@@ -48,7 +56,7 @@
 - [x] Thumbnails: the card is cached per lesson (memo scope + plan digest) — a repeat session reuses description and sketch with zero model calls and reports `reused`/`savedUsd`; `pnpm --filter @pen/api thumbnails:backfill [--limit N] [--dry-run]` fills in older sessions (ADR-0013)
 - [x] Video ads (ADR-0014): Google Ad Manager via IMA behind `PEN_AD_TAG_URL`; player + overlay, measurement, revenue estimate, ads.txt, e2e against the sample tag
 - [x] Ads: `ad_event` lands in the session ledger (host-validated `interaction` entries; estimated revenue as an `ads` cost line → Insights + PostHog)
-- [ ] Ads: owner creates AdSense + Ad Manager, sets `PEN_AD_TAG_URL`, fills `ads.txt` (docs/ADS.md)
+- [ ] **Owner, deferred:** AdSense site review and a Google Ad Manager account, then `PEN_AD_TAG_URL` and `ads.txt` (docs/ADS.md). Not needed before the desktop and macOS release; `/api/health` reports `ads:"off"` until the tag is set, and every ad path is already built and tested against Google's sample tag.
 - [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
 - [x] Ads: non-personalised everywhere (`npa=1`, server-side) and limited ads in Europe (`ltd=1`, from the viewer's timezone) — so no CMP is needed (ADR-0018, docs/ADS.md)
 - [ ] Ads: child-directed tagging (`tfcd=1`) for topics aimed at children
