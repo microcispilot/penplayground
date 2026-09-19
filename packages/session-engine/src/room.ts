@@ -240,7 +240,6 @@ export class SessionRoom {
     null;
   private packId: string | null = null;
   private packRevision: string | null = null;
-  private packQualified = false;
   /** Segments this session generated (index → cues + what the call cost), memoised as they land. */
   private memoPending: Promise<void> = Promise.resolve();
   /** The last lesson-segment model call's cost, read back from the metrics stream. */
@@ -630,6 +629,10 @@ export class SessionRoom {
     }
     if (packHit && resolution.packId) {
       this.packId = resolution.packId;
+      // The pack's revision is read here, not left to `openPlan`: the lookup
+      // below is keyed on it, and openPlan runs afterwards.
+      this.packRevision =
+        (await this.d.onten.registry.getPack(resolution.packId))?.packRevision ?? null;
       // The persona's own memo for this scope and band: the plan and every segment it holds are reused.
       const memo = await this.d.memo.find(
         resolution.canonicalKnowledgeId,
@@ -637,6 +640,10 @@ export class SessionRoom {
         this.d.expert.id,
         // A memo is a script of spoken sentences: only this language's replays.
         this.language,
+        // And only a lesson written from the knowledge we are teaching from
+        // now. The pack is what makes a stale memo safe to keep: when it is
+        // revised or replaced, its lessons stop matching and are regenerated.
+        { packId: resolution.packId, packRevision: this.packRevision ?? '' },
       );
       if (memo) {
         this.memoHit = {
@@ -738,7 +745,6 @@ export class SessionRoom {
   private async openPlan(): Promise<LessonPlan> {
     const pack = this.packId ? await this.d.onten.registry.getPack(this.packId) : null;
     this.packRevision = pack?.packRevision ?? null;
-    this.packQualified = pack?.qualified ?? false;
     // A memo hit already carries the plan this persona taught before: nothing to write.
     if (this.plan) return this.plan;
     const unitTitles = pack ? [...new Set(pack.units.map((u) => u.title))] : [];
@@ -845,13 +851,25 @@ export class SessionRoom {
   }
 
   /**
-   * Memoise a segment the moment it is generated (qualified packs only), so a
-   * session that ends early still leaves its segments for the next learner of
-   * this topic, band and persona. Writes are serialised; failures are reported,
-   * never surfaced to the learner.
+   * Memoise a segment the moment it is generated, so a session that ends early
+   * still leaves its segments for the next learner of this topic, band and
+   * persona. Writes are serialised; failures are reported, never surfaced to
+   * the learner.
+   *
+   * This used to run for *qualified* packs alone, which meant the common case
+   * never benefited: a learner types a topic nobody has prepared, the pack is
+   * acquired live and never qualifies, and so the next learner of that exact
+   * topic regenerated the whole lesson and re-synthesised every sentence —
+   * measured in production, twice on the same title. The goal is no redundant
+   * generation until it is necessary, so every lesson is remembered now.
+   *
+   * What made the gate look necessary is handled where it belongs: a memo
+   * records the pack it was written from, and `find` will only replay one
+   * written from the pack this session is teaching from. Improve the
+   * knowledge, and its old lessons stop being reused on their own.
    */
   private memoise(index: number, events: LessonEvent[], usd: number): void {
-    if (!this.packQualified || !this.packId || !this.plan || events.length === 0) return;
+    if (!this.packId || !this.plan || events.length === 0) return;
     const plan = this.plan;
     const packId = this.packId;
     const packRevision = this.packRevision ?? '';

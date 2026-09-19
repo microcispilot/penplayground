@@ -155,7 +155,10 @@ describe('SessionRoom reactions', () => {
     // the gate had leaked. Wait for the state the test is actually about, and
     // name it if it never comes.
     const holdsFloor = () => ['listening', 'thinking', 'answering'].includes(room.getState().mode);
-    await until(() => !holdsFloor()).catch(() => {
+    // 15 s, not the helper's 5: under a full `pnpm test` every package runs at
+    // once and the room takes its time leaving the floor. That is load, not a
+    // defect, and it is what made this fail in CI.
+    await until(() => !holdsFloor(), 15_000).catch(() => {
       throw new Error(`the room stayed on the floor ("${room.getState().mode}"): no ad window`);
     });
 

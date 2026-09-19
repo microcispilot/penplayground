@@ -1,127 +1,110 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FileLessonMemo, MemoryLessonMemo } from '../src/lesson-memo.js';
+import { MemoryLessonMemo } from '../src/lesson-memo.js';
 
-const base = {
-  canonicalKnowledgeId: 'en.how-transformers-work-in-llms',
+/**
+ * The memo's own rule, which is what makes remembering every lesson safe.
+ *
+ * Until today a lesson was only memoised when its knowledge pack had
+ * *qualified*. That gated out the ordinary case — a learner types a topic
+ * nobody prepared, the pack is acquired live and never qualifies — so the next
+ * learner of that exact title regenerated the whole lesson and re-synthesised
+ * every sentence. It was measured twice in production on the same topic.
+ *
+ * Every lesson is remembered now, and the safety the gate stood in for moved
+ * here: a memo records the pack it was written from, and is only replayed for
+ * a session teaching from that same pack and revision.
+ */
+const entry = (over: Partial<Parameters<MemoryLessonMemo['put']>[0]> = {}) => ({
+  canonicalKnowledgeId: 'en.how-a-pendulum-clock-keeps-time',
   band: 'beginner' as const,
-  packId: 'pack-1',
-  packRevision: 'r1',
-  plan: { title: 'T' },
   language: 'en-US',
-};
+  packId: 'pack-1',
+  packRevision: '1',
+  expertId: 'ada-research-mentor',
+  plan: { title: 'Clockwork' },
+  cuesBySegment: [[{ say: 'one' }]],
+  costUsd: { plan: 0.01, segments: [0.02] },
+  ...over,
+});
 
-describe('lesson memo (incremental, per persona)', () => {
-  it('grows segment by segment and never overwrites what is already memoised', async () => {
+describe('a memo belongs to the knowledge it was written from', () => {
+  it('replays for the same pack and revision', async () => {
     const memo = new MemoryLessonMemo();
-    const e = await memo.put({
-      ...base,
-      expertId: 'ada',
-      cuesBySegment: [[{ type: 'say', id: 's1' }]],
-      costUsd: { plan: 0.002, segments: [0.004] },
-    });
-    // A later session that reached segment 3 fills 2 and 3; segment 0 stays as first taught.
-    await memo.extend(e.id, [
-      { index: 0, cues: [{ type: 'say', id: 'other' }], usd: 9 },
-      { index: 2, cues: [{ type: 'say', id: 's3' }], usd: 0.005 },
-    ]);
-    const found = await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada');
-    expect(found?.cuesBySegment).toEqual([
-      [{ type: 'say', id: 's1' }],
-      [],
-      [{ type: 'say', id: 's3' }],
-    ]);
-    expect(found?.costUsd).toEqual({ plan: 0.002, segments: [0.004, 0, 0.005] });
-    // An empty slot can be filled by whoever teaches it next.
-    await memo.extend(e.id, [{ index: 1, cues: [{ type: 'say', id: 's2' }], usd: 0.003 }]);
-    expect((await memo.find(base.canonicalKnowledgeId, 'beginner'))?.cuesBySegment[1]).toEqual([
-      { type: 'say', id: 's2' },
-    ]);
-  });
-
-  it('finds by persona: another expert’s script is never served', async () => {
-    const memo = new MemoryLessonMemo();
-    await memo.put({
-      ...base,
-      expertId: 'ada',
-      cuesBySegment: [[1]],
-      costUsd: { plan: 0, segments: [0] },
-    });
-    await memo.put({
-      ...base,
-      expertId: 'juno',
-      cuesBySegment: [[2]],
-      costUsd: { plan: 0, segments: [0] },
-    });
-    expect((await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada'))?.expertId).toBe('ada');
-    expect((await memo.find(base.canonicalKnowledgeId, 'beginner', 'juno'))?.expertId).toBe('juno');
-    expect(await memo.find(base.canonicalKnowledgeId, 'beginner', 'kai')).toBeNull();
-    expect(await memo.find(base.canonicalKnowledgeId, 'advanced', 'ada')).toBeNull();
-    // Without a persona the latest memo for the scope wins (what the room looks up when no persona is pinned).
-    expect((await memo.find(base.canonicalKnowledgeId, 'beginner'))?.expertId).toBe('juno');
-  });
-
-  it('persists to disk, survives a reload and upgrades memos written before costs existed', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'pen-memo-'));
-    const legacy = [
+    await memo.put(entry());
+    const found = await memo.find(
+      'en.how-a-pendulum-clock-keeps-time',
+      'beginner',
+      'ada-research-mentor',
+      'en-US',
       {
-        id: 'old1',
-        ...base,
-        expertId: 'ada',
-        cuesBySegment: [[1], [2]],
-        timesReused: 3,
-        createdAt: 1,
+        packId: 'pack-1',
+        packRevision: '1',
       },
-    ];
-    writeFileSync(join(dir, 'lesson-memo.json'), JSON.stringify(legacy));
-    const memo = new FileLessonMemo(dir);
-    const found = await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada');
-    expect(found?.costUsd).toEqual({ plan: 0, segments: [0, 0] });
-    await memo.extend('old1', [{ index: 2, cues: [3], usd: 0.01 }]);
-    await memo.touch('old1');
-    const again = new FileLessonMemo(dir);
-    const reloaded = await again.find(base.canonicalKnowledgeId, 'beginner', 'ada');
-    expect(reloaded?.cuesBySegment).toEqual([[1], [2], [3]]);
-    expect(reloaded?.costUsd.segments).toEqual([0, 0, 0.01]);
-    expect(reloaded?.timesReused).toBe(4);
-    expect(JSON.parse(readFileSync(join(dir, 'lesson-memo.json'), 'utf8'))).toHaveLength(1);
-    // A memo written before the language field is an English lesson, and only that.
-    expect(await again.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'fa-IR')).toBeNull();
-    expect((await again.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'en-GB'))?.id).toBe(
-      'old1',
     );
+    expect(found?.packId).toBe('pack-1');
   });
 
-  it('never replays a lesson in the language it was not taught in', async () => {
+  it('is not replayed once that knowledge is revised', async () => {
     const memo = new MemoryLessonMemo();
-    await memo.put({
-      ...base,
-      expertId: 'ada',
-      cuesBySegment: [[{ type: 'say', id: 'en' }]],
-      costUsd: { plan: 0, segments: [0] },
-    });
-    await memo.put({
-      ...base,
-      language: 'fa-IR',
-      expertId: 'ada',
-      cuesBySegment: [[{ type: 'say', id: 'fa' }]],
-      costUsd: { plan: 0, segments: [0] },
-    });
-    const english = await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'en-US');
-    const persian = await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'fa-IR');
-    expect(english?.cuesBySegment[0]).toEqual([{ type: 'say', id: 'en' }]);
-    expect(persian?.cuesBySegment[0]).toEqual([{ type: 'say', id: 'fa' }]);
-    // The region is not part of the key: Persian is Persian.
-    expect((await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'fa'))?.id).toBe(
-      persian?.id,
+    await memo.put(entry());
+    const found = await memo.find(
+      'en.how-a-pendulum-clock-keeps-time',
+      'beginner',
+      'ada-research-mentor',
+      'en-US',
+      {
+        packId: 'pack-1',
+        packRevision: '2',
+      },
     );
-    // A language nobody taught in has nothing to replay.
-    expect(await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada', 'de-DE')).toBeNull();
-    // The default is English, which is what every call before this field meant.
+    expect(found, 'a revised pack teaches a new lesson').toBeNull();
+  });
+
+  it('is not replayed for a different pack on the same topic', async () => {
+    const memo = new MemoryLessonMemo();
+    await memo.put(entry());
+    const found = await memo.find(
+      'en.how-a-pendulum-clock-keeps-time',
+      'beginner',
+      'ada-research-mentor',
+      'en-US',
+      {
+        packId: 'pack-2',
+        packRevision: '1',
+      },
+    );
+    expect(found).toBeNull();
+  });
+
+  it('still answers a caller that does not name a pack, so older callers are unchanged', async () => {
+    const memo = new MemoryLessonMemo();
+    await memo.put(entry());
     expect(
-      (await memo.find(base.canonicalKnowledgeId, 'beginner', 'ada'))?.cuesBySegment[0],
-    ).toEqual([{ type: 'say', id: 'en' }]);
+      await memo.find(
+        'en.how-a-pendulum-clock-keeps-time',
+        'beginner',
+        'ada-research-mentor',
+        'en-US',
+      ),
+    ).not.toBeNull();
+  });
+
+  it('keeps the newest lesson when the same pack wrote more than one', async () => {
+    const memo = new MemoryLessonMemo();
+    await memo.put(entry({ plan: { title: 'older' } }));
+    await new Promise((r) => setTimeout(r, 2));
+    await memo.put(entry({ plan: { title: 'newer' } }));
+    const found = await memo.find(
+      'en.how-a-pendulum-clock-keeps-time',
+      'beginner',
+      'ada-research-mentor',
+      'en-US',
+      {
+        packId: 'pack-1',
+        packRevision: '1',
+      },
+    );
+    expect(found).not.toBeNull();
+    expect((found?.plan as { title: string } | undefined)?.title).toBe('newer');
   });
 });

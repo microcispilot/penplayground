@@ -63,6 +63,8 @@ export interface LessonMemo {
     band: SelectionBand,
     expertId?: string,
     language?: string,
+    /** Only a memo written from this exact pack revision; omitted, any. */
+    pack?: { packId: string; packRevision: string },
   ): Promise<LessonMemoEntry | null>;
   put(entry: Omit<LessonMemoEntry, 'id' | 'timesReused' | 'createdAt'>): Promise<LessonMemoEntry>;
   /** Fill segments a later session generated (never overwrites a segment already memoised). */
@@ -87,6 +89,7 @@ function pick(
   band: SelectionBand,
   expertId?: string,
   language = 'en',
+  pack?: { packId: string; packRevision: string },
 ): LessonMemoEntry | null {
   const want = subtag(language);
   // Newest first; insertion order breaks ties made in the same millisecond.
@@ -98,7 +101,12 @@ function pick(
         e.band === band &&
         // A memo is spoken sentences: replaying it for another language would teach in the wrong one.
         subtag(e.language) === want &&
-        (expertId === undefined || e.expertId === expertId),
+        (expertId === undefined || e.expertId === expertId) &&
+        // And it is only the lesson this knowledge produced. When the pack it
+        // was written from is superseded — a revision, or a different pack for
+        // the same topic — the memo is stale by definition: the next learner
+        // would be taught from knowledge we have since improved.
+        (pack === undefined || (e.packId === pack.packId && e.packRevision === pack.packRevision)),
     )
     .sort((a, b) => b.e.createdAt - a.e.createdAt || b.order - a.order);
   return matches[0]?.e ?? null;
@@ -155,8 +163,9 @@ export class FileLessonMemo implements LessonMemo {
     band: SelectionBand,
     expertId?: string,
     language?: string,
+    pack?: { packId: string; packRevision: string },
   ): Promise<LessonMemoEntry | null> {
-    return pick(await this.load(), canonicalKnowledgeId, band, expertId, language);
+    return pick(await this.load(), canonicalKnowledgeId, band, expertId, language, pack);
   }
   async put(entry: NewEntry): Promise<LessonMemoEntry> {
     const all = await this.load();
@@ -193,8 +202,9 @@ export class MemoryLessonMemo implements LessonMemo {
     band: SelectionBand,
     expertId?: string,
     language?: string,
+    pack?: { packId: string; packRevision: string },
   ) {
-    return pick(this.entries, canonicalKnowledgeId, band, expertId, language);
+    return pick(this.entries, canonicalKnowledgeId, band, expertId, language, pack);
   }
   async put(entry: NewEntry) {
     const full: LessonMemoEntry = {
