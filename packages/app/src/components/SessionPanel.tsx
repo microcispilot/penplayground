@@ -264,6 +264,12 @@ function Composer({
           lang={language}
           // The learner writes in the lesson's language; what they type reads in its direction.
           dir={dirOf(language)}
+          // Spellchecked in that language too — `lang` above is what tells the
+          // browser which dictionary to use, so a Persian question is not
+          // underlined as though it were bad English.
+          spellCheck
+          autoCorrect="on"
+          autoCapitalize="sentences"
           data-testid="composer-input"
         />
         <button

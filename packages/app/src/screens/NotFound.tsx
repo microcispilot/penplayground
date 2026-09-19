@@ -83,6 +83,9 @@ export function NotFound() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             aria-label="What do you want to learn?"
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <Button
             variant="primary"

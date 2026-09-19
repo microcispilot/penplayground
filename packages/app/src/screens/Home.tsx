@@ -305,6 +305,17 @@ export function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="What do you want to learn?"
+              // The browser's own spellchecker, which is what gives Gmail and Word
+              // their red underline and right-click suggestions on the web, plus
+              // the autocorrect a phone keyboard applies as you type. People
+              // misspell things, and catching it at the keyboard is better than
+              // catching it at retrieval: the learner sees the word is wrong and
+              // fixes it, instead of the system quietly guessing what they meant.
+              // Onten's per-term fuzzy matching stays as the net for what still
+              // gets through.
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
               // biome-ignore lint/a11y/noAutofocus: the page has one purpose and one field; focus belongs there
               autoFocus
             />

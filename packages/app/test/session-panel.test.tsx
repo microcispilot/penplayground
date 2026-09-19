@@ -259,6 +259,19 @@ describe('a Persian session reads right to left', () => {
     expect(screen.getByTestId('session-panel').getAttribute('dir')).toBeNull();
   });
 
+  it('spellchecks what the learner writes, against that language and not English', () => {
+    // People misspell things, and catching it at the keyboard — the browser's
+    // own underline and suggestions, the mechanism Gmail and Word use on the
+    // web — is better than catching it at retrieval: the learner sees the word
+    // is wrong and fixes it, rather than the system guessing what they meant.
+    // `lang` is what chooses the dictionary, so a Persian question must not be
+    // underlined as though it were bad English.
+    render(<SessionPanel {...panelProps({ state: roomState(1, { language: 'fa-IR' }) })} />);
+    const field = screen.getByTestId('composer-input');
+    expect(field.getAttribute('spellcheck')).toBe('true');
+    expect(field.getAttribute('lang')).toBe('fa-IR');
+  });
+
   it('stays left to right for an English session', () => {
     render(<SessionPanel {...panelProps()} />);
     expect(screen.getByTestId('conversation').getAttribute('dir')).toBe('ltr');
