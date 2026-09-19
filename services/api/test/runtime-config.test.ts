@@ -155,6 +155,12 @@ describe('last known good', () => {
     // The process comes back while the database is still down.
     const down = new FakeSource(document({}), true);
     const restarted = new RuntimeConfigStore({ cfg, source: down, pollMs: 0, path });
+    // Before it has tried to read, it is already serving the cached document
+    // and does not yet claim the database failed — that claim is `refresh`'s
+    // to make, and making it here would swallow its one warning.
+    expect(restarted.get('PEN_LLM_MODEL')).toBe('gpt-5.6-pro');
+    expect(restarted.stale).toBe(false);
+
     await restarted.start();
     expect(down.reads).toBe(1);
     expect(restarted.get('PEN_LLM_MODEL')).toBe('gpt-5.6-pro');

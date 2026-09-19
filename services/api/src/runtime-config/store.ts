@@ -315,9 +315,12 @@ export class RuntimeConfigStore {
       },
       'disk',
     );
-    // Nothing has been read from the database yet, so what is being served is
-    // by definition older than it.
-    this.degraded = this.source !== null;
+    // Deliberately NOT `degraded = true` here. `degraded` means "the last
+    // read of the database failed", and no read has been attempted yet;
+    // setting it now would swallow the one warning that matters when a
+    // process boots into an outage, because `refresh` only warns on the
+    // transition into it. `config.disk_loaded` already says these values came
+    // from the cache, and `start()` attempts a read before anything is served.
     logger.info(
       { evt: 'config.disk_loaded', revision: parsed.revision, settings: this.stored.size },
       'runtime configuration restored from the last known good copy',
