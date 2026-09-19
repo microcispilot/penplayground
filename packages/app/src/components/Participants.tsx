@@ -408,12 +408,15 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
       data-shown={p.sectionOpen ? Math.min(total, MAX_ROSTER_CARDS) : 0}
     >
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <h2
+        {/* h6, like every other small section label in the room (the recap's
+            own): these name a strip of the panel, they are not page headings,
+            and putting them at h2 put two of them above the page's own. */}
+        <h6
           id={`${listId}-heading`}
           className="shrink-0 whitespace-nowrap text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase"
         >
           On the call
-        </h2>
+        </h6>
         <Pill tone={voiceOn ? 'live' : 'neutral'} dot={voiceOn && p.audio?.status === 'connected'}>
           {total} {total === 1 ? 'participant' : 'participants'}
         </Pill>

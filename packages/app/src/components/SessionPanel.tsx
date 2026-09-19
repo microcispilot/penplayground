@@ -101,7 +101,7 @@ function SectionHeader({
   return (
     <div className="flex items-center gap-2 px-3 pt-3 pb-2">
       {dot ? <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden /> : null}
-      <h2 className="text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase">{label}</h2>
+      <h6 className="text-[10.5px] font-semibold tracking-[0.1em] text-fg-3 uppercase">{label}</h6>
       {trailing}
       <span className="flex-1" />
       <button
