@@ -218,6 +218,13 @@ rsync -rltz -e "$RSYNC_SSH" \
 remote "chmod 0755 '$PEN_DEPLOY_ROOT'/backup/*.sh"
 
 # ── backup key: install it on a host that has none ───────────────────────────
+# The backup stream is the database and the learners' sessions leaving the
+# machine, so the far end is pinned rather than trusted on sight: without a
+# known_hosts file rclone says plainly that "no host key validation is being
+# performed", which is an unauthenticated SFTP channel carrying everything we
+# hold. `PEN_BACKUP_KNOWN_HOSTS` carries the Storage Box's key
+# (`ssh-keyscan -p 23 -t ssh-ed25519 <host>`); unset, the file is empty and
+# rclone refuses the connection rather than falling back to trusting it.
 # The Storage Box trusts one public key. Keeping its private half only on the
 # host means a rebuilt host needs a human to mint a new key and authorise it in
 # the Hetzner Console; keeping it in the workstation's .env means a fresh host
@@ -239,7 +246,9 @@ if [ -n "${PEN_BACKUP_SSH_KEY_B64:-}" ]; then
     fi
     cp -f /root/.ssh/pen-backup '$PEN_DEPLOY_ROOT/backup/rclone/pen-backup'
     chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/pen-backup'
-    printf '[hetzner]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = /rclone/pen-backup\nshell_type = unix\n' \
+    printf '%s\n' '${PEN_BACKUP_KNOWN_HOSTS:-}' > '$PEN_DEPLOY_ROOT/backup/rclone/known_hosts'
+    chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/known_hosts'
+    printf '[hetzner]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = /rclone/pen-backup\nknown_hosts_file = /rclone/known_hosts\nshell_type = unix\n' \
       '${PEN_BACKUP_REMOTE_HOST:-}' '${PEN_BACKUP_REMOTE_USER:-}' '${PEN_BACKUP_REMOTE_PORT:-23}' \
       > '$PEN_DEPLOY_ROOT/backup/rclone/rclone.conf'
     chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/rclone.conf'"
