@@ -252,6 +252,13 @@ if [ -n "${PEN_BACKUP_SSH_KEY_B64:-}" ]; then
       '${PEN_BACKUP_REMOTE_HOST:-}' '${PEN_BACKUP_REMOTE_USER:-}' '${PEN_BACKUP_REMOTE_PORT:-23}' \
       > '$PEN_DEPLOY_ROOT/backup/rclone/rclone.conf'
     chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/rclone.conf'"
+  # A destination with no pinned key is the one combination that fails quietly:
+  # rclone refuses every connection and the nightly copy stops leaving the
+  # machine, with nothing on the deploy's own output to say why. Say it here.
+  if [ -n "${PEN_BACKUP_RCLONE_REMOTE:-}" ] && [ -z "${PEN_BACKUP_KNOWN_HOSTS:-}" ]; then
+    log "backup: PEN_BACKUP_RCLONE_REMOTE is set but PEN_BACKUP_KNOWN_HOSTS is empty"
+    log "        → the off-host copy will refuse to connect; see .env.example"
+  fi
   # The remote the sidecar copies to; empty means local-only backups.
   remote "cd '$PEN_DEPLOY_ROOT'
     grep -v '^PEN_BACKUP_RCLONE_REMOTE=' .env > .env.next 2>/dev/null || true
