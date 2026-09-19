@@ -232,20 +232,9 @@ export class MockContextRuntime implements OntenClient {
       storeFields: ['key'],
       searchOptions: {
         boost: { title: 2.2, intents: 2.6 },
-        // No fuzzy matching, and prefixes only for a long word.
-        //
-        // This is where the 20 ms went. Edit-distance expansion over 20,000
-        // units is quadratic in the worst case and it dominated every query:
-        // measured on one machine, p95 fell from 3.00 ms to 0.79 ms with fuzzy
-        // off alone, and retrieval was 90% of the whole call. On CI — six times
-        // slower — the same setting was the difference between a p95 of 31 ms
-        // and the budget being met with room to spare.
-        //
-        // What it costs: a misspelt query term no longer finds its unit. The
-        // prefix rule keeps the common half of that (plural and inflected
-        // forms still match), and the honest answer for the rest is Onten's
-        // own — a question about material it cannot match gets `partial` or
-        // `missing`, never an invented `sufficient`.
+        // Fuzzy is decided per query, per term, at the call site below — not
+        // here. Spelling every word correctly must cost nothing; spelling one
+        // wrong must still find the material.
         fuzzy: false,
         prefix: (term) => term.length > 6,
         combineWith: 'OR',
@@ -432,7 +421,19 @@ export class MockContextRuntime implements OntenClient {
     const discriminating = known.filter((t) => df(t) <= ceiling);
     // Every known term is common: keep the rarest rather than answering from nothing.
     const chosen = discriminating.length > 0 ? discriminating : known.slice(0, 1);
-    return chosen.slice(0, MAX_QUERY_TERMS);
+    // A few unknown words ride along, at the back.
+    //
+    // They used to be dropped whenever anything else matched, which quietly
+    // defeated fuzzy matching: a learner who writes "what temperatur is the
+    // bisque firing" has one misspelt word and two good ones, so the misspelt
+    // one never reached the index and the very case fuzzy exists for could not
+    // happen. It is searched now, and the caller expands exactly these terms.
+    //
+    // They stay at the back, and only two of them, for the reason the note
+    // above gives: an unknown word has a document frequency of zero, which
+    // would otherwise make it rank as the rarest and most valuable term in the
+    // question, and a question full of noise would evict its own signal.
+    return [...chosen, ...unknown.slice(0, 2)].slice(0, MAX_QUERY_TERMS);
   }
 
   private async assemble(
@@ -478,7 +479,29 @@ export class MockContextRuntime implements OntenClient {
     if (!memoHit && compiled && compiled.byKey.size > 0) {
       const terms = this.selectTerms(input.text, compiled);
       const queryTerms = contentTerms(input.text);
-      const hits = terms.length === 0 ? [] : compiled.index.search(terms.join(' ')).slice(0, 12);
+      // Fuzzy matching, on exactly the words that need it.
+      //
+      // Learners misspell things, and a misspelt word must still find its
+      // material — that is what fuzzy is for. But edit-distance expansion over
+      // 20,000 units is what a query costs: applied to every word it took p95
+      // from 0.79 ms to 3.00 ms here, and past Onten's 20 ms budget on CI.
+      //
+      // The corpus already says which words need it. A term the index has seen
+      // is spelt correctly by definition and matches exactly, so expanding it
+      // buys nothing. A term with a document frequency of zero is a word this
+      // corpus has never heard — a typo, or simply absent — and it is the only
+      // kind that fuzzy can rescue. So the cost falls only on the query that
+      // has something to gain, and a correctly spelt question pays nothing.
+      const query = terms.join(' ');
+      const unknown = new Set(terms.filter((t) => (compiled.df.get(t) ?? 0) === 0));
+      const hits =
+        terms.length === 0
+          ? []
+          : compiled.index
+              .search(query, {
+                fuzzy: (t: string) => (unknown.has(t) && t.length > 4 ? 0.2 : false),
+              })
+              .slice(0, 12);
       const chosen: Array<{ key: string; score: number }> = [];
       let primaryKey: string | null = null;
       for (const hit of hits) {

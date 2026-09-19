@@ -138,6 +138,49 @@ describe('give Onten information, then ask it', () => {
     expect(answer.metrics.budgetMs).toBe(ONTEN_LATENCY_BUDGET_MS);
   });
 
+  it('still finds the material when the learner misspells a word', async () => {
+    // Fuzzy matching is not on every word — edit-distance expansion over a real
+    // corpus is what a query costs, and applied to everything it put Onten's
+    // 20 ms budget out of reach. It is applied to exactly the words the corpus
+    // has never seen, which is the only kind it can rescue.
+    //
+    // This asserts the rescue, not merely that *something* came back: the
+    // misspelt question must reach the same unit as the correctly spelt one.
+    // An earlier version of this test passed while the typos were being
+    // discarded entirely, because the other words in the sentence carried it.
+    const onten = createOnten();
+    const pack = await onten.learn({
+      canonicalKnowledgeId: 'en.selvaggio-kiln-typo',
+      title: 'Firing a Selvaggio kiln',
+      documents: [kiln],
+      evaluation: {
+        development: [{ question: 'what cone is the bisque firing', expectedUnitIds: [] }],
+        negative: [{ question: 'how do I file my tax return', expectedUnitIds: [] }],
+      },
+    });
+    const runtime = onten.newRuntime();
+    await runtime.configure({
+      hostId: 'pen',
+      policy: onten.policy,
+      packIds: [pack?.packId as string],
+    });
+
+    const spelt = await runtime.query(
+      ask('selvaggio bisque temperature', 'en.selvaggio-kiln-typo'),
+    );
+    expect(spelt.context.primaryUnit?.id, 'the spelt question finds a unit').toBeTruthy();
+
+    // Every content word misspelt, so nothing can carry the query but the
+    // expansion itself.
+    const misspelt = await runtime.query(
+      ask('selvagio bisqe temperatur', 'en.selvaggio-kiln-typo'),
+    );
+    expect(
+      misspelt.context.primaryUnit?.id,
+      'and the same question misspelt reaches the same unit',
+    ).toBe(spelt.context.primaryUnit?.id);
+  });
+
   it('a running session sees a document added after it started, once it refreshes', async () => {
     const onten = createOnten();
     const first = await onten.learn({
