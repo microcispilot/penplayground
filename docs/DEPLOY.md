@@ -711,6 +711,50 @@ printf 'PEN_IMAGE_TAG=local\nSEARXNG_SECRET=%s\n' "$(openssl rand -hex 32)" > .e
 docker compose up -d && curl -s http://127.0.0.1:4201/api/health
 ```
 
+## Operations console (apps/admin)
+
+ADR-0026. The runtime settings screen (ADR-0025) and, later, the statistics pages. Its own
+image, its own container, its own hostname — never a path on the public domain, because the
+console's stored bearer must not share an origin with the learner app and its
+Content-Security-Policy must not have to admit an ad network.
+
+**Opt-in end to end.** `PEN_WITH_ADMIN=1` makes `deploy/deploy.sh` build, ship and start it under
+compose's `admin` profile; without it every step behaves exactly as it always has and the
+container never starts.
+
+```sh
+PEN_WITH_ADMIN=1 VITE_GOOGLE_CLIENT_ID=… deploy/deploy.sh
+```
+
+Three things a person has to do once, in this order:
+
+1. **DNS.** An `A` record for `admin.DOMAIN` at the host (Hostinger's panel; see "DNS" above for
+   the quirk about the apex).
+2. **Certificate.** Copy `nginx/pen-playground-admin.conf.example` to
+   `/etc/nginx/sites-available/pen-playground-admin.conf`, replace `ADMIN_DOMAIN`, enable only
+   the port-80 block, then
+   `certbot certonly --webroot -w /var/www/letsencrypt -d admin.DOMAIN`, then enable the TLS
+   block and `nginx -t && systemctl reload nginx`.
+3. **`PEN_ADMIN_EMAILS`** in `api.env` — a comma-separated list of the Google addresses allowed
+   in. **Until this is set the console is inert**: every `/api/admin/*` route answers 403 to
+   everyone, including the person who deployed it. That is the authorisation; the vhost is only
+   the door. Restart the API after changing it (`docker compose up -d api`).
+
+Check it:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' https://admin.DOMAIN/healthz        # 200
+curl -s https://admin.DOMAIN/api/health | jq .configRevision                  # the settings revision in force
+curl -s -o /dev/null -w '%{http_code}\n' https://admin.DOMAIN/api/admin/runtime-config  # 403 without a bearer
+```
+
+The console proxies `/api` to the API container itself (`deploy/admin/nginx.conf`), so the
+browser only ever talks to one origin and CORS never enters into it. The bundle is built with
+`VITE_GOOGLE_CLIENT_ID` — the same client the learner app uses — and nothing else.
+
+To take it away: `docker compose --profile admin stop admin`, or remove the vhost symlink and
+reload nginx. Neither touches the API or the settings it is running on.
+
 ## Known host facts (2026-09-16)
 
 - Port 4100 is taken on prod-app-01 by an unrelated `node ./src/app.js` bound to all interfaces;

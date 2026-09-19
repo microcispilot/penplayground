@@ -20,8 +20,9 @@ const server = serve({ fetch: app.fetch, port: cfg.PEN_PORT }, (info) => {
     {
       port: info.port,
       tts: services.synthesizer.id,
-      llm: cfg.PEN_LLM_PROVIDER,
-      stt: cfg.PEN_STT_PROVIDER,
+      llm: services.config.get('PEN_LLM_PROVIDER'),
+      stt: services.recognizer?.id ?? 'browser',
+      configRevision: services.config.revision,
       sentry,
       acquirer: services.acquirer !== null,
     },
@@ -55,6 +56,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     clearInterval(sweeper);
     stopHeartbeat?.();
+    services.config.stop();
     services.exports.close();
     services.meta.close();
     logger.info({ signal }, 'shutting down');

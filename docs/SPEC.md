@@ -60,6 +60,7 @@ Dev without any keys: `PEN_LLM_PROVIDER=fake PEN_TTS_PROVIDER=silent`.
 ```
 apps/web            thin Vite host (entry, web Platform adapter)
 apps/desktop        thin Electron host (desktop Platform adapter, packaging)
+apps/admin          operations console: runtime settings, revisions, rollback (ADR-0026)
 services/api        Hono HTTP + WebSocket server, rooms, ledger, identity
 packages/app        THE product: screens, room client, conductor wiring, state
 packages/design     tokens, primitives, orb, captions
