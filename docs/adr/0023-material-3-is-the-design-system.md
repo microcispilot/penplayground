@@ -103,3 +103,53 @@ palette, and it clears 4.5:1 on every surface in the ladder.
   for Roboto, and this stack resolves to SF Pro on macOS and Segoe UI on
   Windows. The values are M3's, kept as M3 wrote them; retuning them is one
   line in `tokens.css`.
+
+## Addendum — the generator, and what a red brand costs
+
+*Added while answering "I want a real better branding colour, something like
+youtubish or similar." Nothing here decides anything; the colour is the
+owner's call.*
+
+The values above were produced once and pasted, which made "show me the
+platform in another colour" an afternoon of arithmetic. It is now a command:
+`packages/design/scripts/brand.ts` runs a seed through the same tonal-spot
+machinery with the same chroma-0 neutrals, emits the CSS, and prints the
+contrast table. It re-derives every colour in `tokens.css` from its seed —
+`test/brand-generator.test.ts` asserts that against the hand-written original,
+which is the only reason to believe it. `@material/material-color-utilities`
+is still not a dependency; the script fetches it into `.pen-data/` and repairs
+the extensionless ESM imports that 0.4.0 shipped with.
+
+Four candidate families are in `tokens.css` under `data-brand`: `youtube`
+(#FF0000), `vermilion` (#E62117), `coral` (#FF4438) — all tonal spot — and
+`ember` (#E62117 through vibrant, with the error roles moved). Unlike green
+and forest they re-tune the board as well as the chrome, because a red app
+around teal sketches reads as two products.
+
+Three things the generator made visible, all measured in
+`test/design-system.test.ts`:
+
+- **Tonal spot caps the primary palette at chroma 36.** Teal's own chroma is
+  43.5 and survives it; a saturated red's is 90–113 and does not. #FF0000,
+  #E62117 and #FF4438 all arrive as the same dusty brick (#904b40 / #904a41 /
+  #904a42). Through this variant they are not three candidates.
+- **In dark, a red brand *is* the error role.** All three land on #ffb4a8 and
+  M3's dark error is #ffb4ab — ΔE 0.004 in OKLab, against teal's 0.170. No
+  seed fixes this: M3 puts `primary` and `error` at the same tone of two
+  palettes, and at tone 80 two red palettes are one colour.
+- **The board has its own red.** `--color-ink-warn` is the ink an expert
+  writes a *mistake* in (`session-engine/src/prompts.ts`), at OKLCH hue 20.4 —
+  nine degrees from a brand red. Every red family moves it to amber at the
+  lightness that keeps its 6.97:1 against paper.
+
+`ember` is what it takes to answer the second point: the vibrant variant so
+the seed's chroma reaches the light scheme (#c00003), and the error roles
+re-seeded off red to magenta — the only family in the file that moves them. It
+buys ΔE 0.043 in dark; teal has 0.170.
+
+Two costs this addendum does not solve, and the owner should see them named:
+`RoomChrome.tsx` draws "End" as `bg-error`, and `ListControls.tsx` draws a
+*liked* session as `bg-error-container` — under a red brand the exit button and
+the happy path both wear the brand. And session thumbnails are rendered once
+into files, so every sketch already in a learner's library stays teal until it
+is re-rendered.

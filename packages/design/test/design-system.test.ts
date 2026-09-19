@@ -79,8 +79,23 @@ function parseColour(raw: string): { rgb: Rgb; alpha: number } {
  * The stylesheet is the single source: a token is read out of the block that
  * declares it for that theme and brand, never restated here.
  */
-function block(brand: 'teal' | 'green' | 'forest', theme: 'light' | 'dark'): string {
-  if (brand === 'teal') {
+/**
+ * Every family the stylesheet declares, discovered rather than listed. A brand
+ * pasted in from `scripts/brand.ts` is measured by everything below the moment
+ * it lands, which is the only way a growing set of candidates stays honest.
+ */
+const BRANDS: readonly string[] = [
+  // `default` is not an attribute: it is the brand red in `@theme`, which is
+  // what a page shows when no family is selected. Teal, which used to be
+  // that, is now one of the families discovered below.
+  'default',
+  ...new Set(
+    [...TOKENS.matchAll(/:root\[data-brand="([a-z-]+)"\] \{/g)].map((m) => m[1] as string),
+  ),
+];
+
+function block(brand: string, theme: 'light' | 'dark'): string {
+  if (brand === 'default') {
     return theme === 'light'
       ? TOKENS.slice(0, TOKENS.indexOf('/* ── dark scheme'))
       : TOKENS.slice(
@@ -100,23 +115,20 @@ function block(brand: 'teal' | 'green' | 'forest', theme: 'light' | 'dark'): str
 function token(
   name: string,
   theme: 'light' | 'dark' = 'light',
-  brand: 'teal' | 'green' | 'forest' = 'teal',
+  brand: string = 'default',
 ): { rgb: Rgb; alpha: number } {
-  for (const source of brand === 'teal' ? [brand] : [brand, 'teal' as const]) {
+  for (const source of brand === 'default' ? [brand] : [brand, 'default']) {
     const found = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(block(source, theme));
     if (found?.[1]) return parseColour(found[1]);
   }
   // Surfaces and board tokens do not vary by theme for a brand family; fall back
-  // to the default family's block for that theme.
-  const found = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(block('teal', theme));
+  // to the default's block for that theme.
+  const found = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(block('default', theme));
   if (!found?.[1]) throw new Error(`${brand}/${theme} is missing --color-${name}`);
   return parseColour(found[1]);
 }
-const rgb = (
-  name: string,
-  theme: 'light' | 'dark' = 'light',
-  brand: 'teal' | 'green' | 'forest' = 'teal',
-) => token(name, theme, brand).rgb;
+const rgb = (name: string, theme: 'light' | 'dark' = 'light', brand: string = 'default') =>
+  token(name, theme, brand).rgb;
 
 // ── the scales, against Google's own numbers ────────────────────────────────
 
@@ -319,11 +331,11 @@ describe('the two dark blocks agree', () => {
     ),
   );
 
-  it.each([['teal'], ['green'], ['forest']] as const)(
+  it.each(BRANDS.map((b) => [b] as const))(
     '%s says the same thing to a chosen dark theme and to an OS dark one',
     (brand) => {
       const selector =
-        brand === 'teal'
+        brand === 'default'
           ? ':root[data-theme="dark"],\n:root:not([data-theme="light"])'
           : `:root[data-brand="${brand}"]:not([data-theme="light"])`;
       const at = TOKENS.indexOf(selector);
@@ -354,7 +366,7 @@ const LADDER = [
 
 describe('M3 roles carry text that can be read', () => {
   const themes = ['light', 'dark'] as const;
-  const brands = ['teal', 'green', 'forest'] as const;
+  const brands = BRANDS;
 
   it.each(
     themes.flatMap((theme) =>
@@ -406,6 +418,142 @@ describe('M3 roles carry text that can be read', () => {
     expect(contrast(rgb('outline', theme), rgb('surface', theme))).toBeGreaterThanOrEqual(3);
   });
 
+  /**
+   * WCAG 1.4.11, the non-text half of the sweep above. Two things in this
+   * product are graphics that have to be seen rather than read, and both are
+   * painted from a brand role:
+   *   · the mark — `PenMark` draws its drop in `primary` (AppHeader.tsx:30);
+   *   · the focus ring — 3 px of `secondary` (styles/index.css :focus-visible).
+   * A family that passed the text sweep can still lose either of these, so
+   * they are measured on their own, on every surface, under every family.
+   */
+  it.each(brands.flatMap((brand) => themes.map((theme) => [brand, theme] as const)))(
+    '%s in %s: the mark and the focus ring clear 3:1 as graphics',
+    (brand, theme) => {
+      for (const bg of LADDER) {
+        expect(
+          contrast(rgb('primary', theme, brand), rgb(bg, theme, brand)),
+          `${brand}/${theme}: the mark's drop on ${bg}`,
+        ).toBeGreaterThanOrEqual(3);
+        expect(
+          contrast(rgb('secondary', theme, brand), rgb(bg, theme, brand)),
+          `${brand}/${theme}: the focus ring on ${bg}`,
+        ).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  /**
+   * Large text is 3:1, not 4.5 (WCAG 1.4.3), and this product reaches for a
+   * brand-coloured headline — `secondary` on a page — where it never reaches
+   * for brand-coloured body copy. Measured separately so a family is not
+   * failed for a pairing the product does not use, nor passed for one it does.
+   */
+  it.each(brands.flatMap((brand) => themes.map((theme) => [brand, theme] as const)))(
+    '%s in %s: a secondary headline clears WCAG AA for large text',
+    (brand, theme) => {
+      for (const bg of LADDER) {
+        expect(
+          contrast(rgb('secondary', theme, brand), rgb(bg, theme, brand)),
+          `${brand}/${theme}: secondary on ${bg}`,
+        ).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+});
+
+// ── the collision: "this is us" against "this went wrong" ───────────────────
+
+/**
+ * M3 reserves red for `error`, and a red brand walks into it. A contrast ratio
+ * cannot see the problem — two colours of one luminance are 1.00:1 apart
+ * whether they match or oppose — so this measures Euclidean distance in OKLab,
+ * the perceptual space OKLCH is the polar form of.
+ *
+ * The numbers are recorded rather than gated. Three of these families collide
+ * on purpose: they exist so the owner can see what a red brand costs, and a
+ * suite that refused to hold them would have deleted the evidence. What is
+ * gated is that the recorded distance does not move without someone noticing,
+ * and that the *shipping* family stays far clear.
+ */
+describe('a brand role and an error role have to be two colours', () => {
+  const oklab = (rgbv: Rgb): readonly [number, number, number] => {
+    const [r, g, b] = [decode(rgbv[0]), decode(rgbv[1]), decode(rgbv[2])];
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ];
+  };
+  const separation = (brand: string, theme: 'light' | 'dark'): number => {
+    const [a, b] = [oklab(rgb('primary', theme, brand)), oklab(rgb('error', theme, brand))];
+    return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  };
+
+  /**
+   * Measured on the candidates as they stand, to three places. Change a family
+   * and this fails with the new number, which is the point: nobody gets to
+   * move a brand's relationship to the error role quietly.
+   */
+  const RECORDED: Record<string, readonly [number, number]> = {
+    //         light   dark
+    // The brand: a red that had to move the error role to hue 341 to get here.
+    default: [0.175, 0.157],
+    teal: [0.279, 0.17],
+    green: [0.232, 0.148],
+    forest: [0.273, 0.171],
+    // The three reds through tonal spot: a third of the separation in light,
+    // and in dark they *are* the error role.
+    youtube: [0.098, 0.004],
+    vermilion: [0.097, 0.004],
+    coral: [0.097, 0.001],
+    // Vibrant, with the error roles moved off red — the only family that does.
+    // Ten times better than the reds above it in dark; a quarter of teal.
+    ember: [0.095, 0.043],
+  };
+
+  it.each(Object.keys(RECORDED))('%s is still as far from error as it was measured', (brand) => {
+    const [light, dark] = RECORDED[brand] as readonly [number, number];
+    expect(separation(brand, 'light'), `${brand}/light`).toBeCloseTo(light, 2);
+    expect(separation(brand, 'dark'), `${brand}/dark`).toBeCloseTo(dark, 2);
+  });
+
+  it('measures every family the stylesheet declares', () => {
+    expect([...BRANDS].sort()).toEqual(Object.keys(RECORDED).sort());
+  });
+
+  /**
+   * The default family is the one people actually see, and it has to keep the
+   * two apart at a glance in both themes. 0.15 in OKLab is roughly where two
+   * colours stop being shades of one another; teal sits at 0.17.
+   */
+  it('the shipping default keeps the brand and the error role apart', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      expect(separation('default', theme), `default/${theme}`).toBeGreaterThan(0.15);
+    }
+  });
+
+  /**
+   * The finding, kept as an assertion: through tonal spot a red brand does not
+   * merely sit near the error role in dark — it *is* the error role. This is
+   * what the candidate screenshots show, and it is why the recommendation is
+   * about the error role rather than about which red.
+   */
+  it('a red brand through tonal spot becomes the error role in dark', () => {
+    for (const brand of ['youtube', 'vermilion', 'coral']) {
+      expect(separation(brand, 'dark'), `${brand}/dark`).toBeLessThan(0.01);
+    }
+    // And moving the error roles off red is what buys it back.
+    expect(separation('ember', 'dark')).toBeGreaterThan(10 * separation('vermilion', 'dark'));
+  });
+});
+
+describe('the page stays matte and the measurer still bites', () => {
+  const themes = ['light', 'dark'] as const;
+
   it('knows a failing pair when it sees one', () => {
     // The tone this system replaced: the old muted foreground on the page.
     expect(contrast(toSrgb(0.6, 0.025, 245), rgb('surface'))).toBeLessThan(4.5);
@@ -446,8 +594,12 @@ describe('caption contrast on the board', () => {
     expect(contrast(over(WHITE, CAPTION_BG, 0.85), CAPTION_BG)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('the ink the board is drawn in is still the brand teal', () => {
-    expect(decl('--color-ink-accent')).toBe('oklch(0.597 0.107 218.3)');
+  it('the ink the board is drawn in is the brand red, and teal still has its own', () => {
+    expect(decl('--color-ink-accent')).toBe('oklch(0.592 0.228 29.3)');
+    expect(
+      /--color-ink-accent:\s*([^;]+);/.exec(block('teal', 'light'))?.[1]?.trim(),
+      'the teal family keeps the ink every sketch before the rebrand was drawn in',
+    ).toBe('oklch(0.597 0.107 218.3)');
   });
 
   it('knows a failing pair when it sees one', () => {

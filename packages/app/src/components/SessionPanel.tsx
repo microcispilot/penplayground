@@ -281,7 +281,7 @@ function Composer({
           title="Send"
           disabled={disabled || text.trim() === ''}
           data-testid="composer-send"
-          className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-primary active:scale-[0.96] focus-visible:outline-primary disabled:bg-surface-container-low disabled:text-on-surface-dim disabled:active:scale-100"
+          className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-fixed text-on-primary-fixed transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-primary-fixed active:scale-[0.96] focus-visible:outline-primary disabled:bg-surface-container-low disabled:text-on-surface-dim disabled:active:scale-100"
         >
           <ArrowUp size={16} aria-hidden />
         </button>

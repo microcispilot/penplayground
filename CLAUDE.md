@@ -106,8 +106,16 @@ reviewed as screenshots in light and dark, empty and populated, at desktop,
 tablet and phone widths, before it is called done.
 
 Calm, never alarming: no consent banners, no draft badges, no lock icons on
-gated rows, no red for ordinary states. Limits are one friendly sentence with a
-link. The AI disclosure is one quiet line.
+gated rows. Limits are one friendly sentence with a link. The AI disclosure is
+one quiet line.
+
+Red is the brand, so red cannot also mean *wrong*. `#E62117` is the mark, Sign
+in, Start, the lesson's progress and the board's ink — the ordinary, confident
+places. The error role is a magenta (hue 341) and it is for things that
+actually broke: a request that failed, a field that will not accept what is in
+it. Ending a session, liking a lesson and an ad having played are ordinary
+states and are not painted in either. When a change reaches for `error`, the
+question is whether something went wrong — not whether it is important.
 
 Latency is the product. No state where the expert is silent and the board is
 still for more than two seconds without an honest status line.

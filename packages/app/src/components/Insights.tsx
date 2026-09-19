@@ -31,7 +31,8 @@ const STAGE_CLASS: Record<StageName, string> = {
   stt: 'bg-presence',
   board: 'bg-ink-muted',
   turn: 'bg-primary',
-  ad: 'bg-error',
+  // Tertiary, not error: an ad played is a thing that happened, not a thing that broke.
+  ad: 'bg-tertiary',
   join: 'bg-on-surface-variant',
   leave: 'bg-on-surface-variant',
 };
