@@ -583,14 +583,17 @@ export class SessionMetaJobs {
     // version of this failed its own test: two generations, not one.
     const claim = key ? imageKeyString(key) : null;
     let release = () => undefined as void;
-    if (claim) {
-      PICTURE_IN_FLIGHT.set(
-        claim,
-        new Promise<void>((resolve) => {
+    // Hold on to our own promise so the release below can tell whether the
+    // claim still belongs to us. Two generators can both reach here — one
+    // checked the map a tick before the other set it — and without this the
+    // first to finish deletes the *other's* claim, leaving a third session to
+    // see an unclaimed key and buy the picture again.
+    const mine = claim
+      ? new Promise<void>((resolve) => {
           release = resolve;
-        }),
-      );
-    }
+        })
+      : null;
+    if (claim && mine) PICTURE_IN_FLIGHT.set(claim, mine);
     const base = this.o.imageFor(input.billTo);
     const model = input.telemetry ? withImageTelemetry(base, input.telemetry) : base;
     const waitFrom = this.now();
@@ -665,7 +668,8 @@ export class SessionMetaJobs {
     } finally {
       // Whatever happened, stop anyone else waiting on us.
       if (claim) {
-        PICTURE_IN_FLIGHT.delete(claim);
+        // Only ours, never someone else's.
+        if (PICTURE_IN_FLIGHT.get(claim) === mine) PICTURE_IN_FLIGHT.delete(claim);
         release();
       }
     }

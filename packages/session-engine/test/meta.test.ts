@@ -577,6 +577,25 @@ describe('SessionMetaJobs', () => {
       expect(waiter?.image.savedUsd).toBeGreaterThan(0);
     });
 
+    it('still buys one when a third session arrives while the first two are running', async () => {
+      // The claim has an owner. Two generators can both reach the claim — one
+      // read the map a tick before the other wrote it — and if the first to
+      // finish deletes whatever is under the key rather than its own entry,
+      // the second's claim vanishes and a third session sees a free key and
+      // buys the picture again. Found in review of the first version of this.
+      const image = new CountingImageModel();
+      const imageCache = new MemoryImageCache();
+      const jobs = new SessionMetaJobs(
+        options({ imageFor: () => image, imageCache, concurrency: 3 }),
+      );
+      jobs.enqueue(withScope('s_three_a'));
+      jobs.enqueue(withScope('s_three_b'));
+      jobs.enqueue(withScope('s_three_c'));
+      await jobs.idle();
+      expect(image.calls, 'one photograph for three simultaneous sessions').toBe(1);
+      expect(imageCache.size).toBe(1);
+    });
+
     it('generates once for a scope and reuses the bytes for every session after', async () => {
       const image = new CountingImageModel();
       const imageCache = new MemoryImageCache();
