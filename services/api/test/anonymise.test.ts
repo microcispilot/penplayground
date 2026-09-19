@@ -117,6 +117,22 @@ describe('public listing anonymisation', () => {
     });
 
     // The ledger: join entries are renamed "Learner" for non-hosts; the host sees real names.
+    //
+    // Wait for it to stop growing first. `createEnded` ends the session, but
+    // the card and picture job keeps writing cost lines after that — it is
+    // deliberately off the lesson's path — so two reads taken a moment apart
+    // are two different ledgers, and the comparison below fails on entries
+    // that simply arrived in between. Seen in CI as 7 entries against 5.
+    const settled = async () => {
+      let previous = -1;
+      for (let i = 0; i < 100; i++) {
+        const n = (await getLedger(id, hostA)).entries.length;
+        if (n === previous) return;
+        previous = n;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    };
+    await settled();
     const asHost = await getLedger(id, hostA);
     const joins = asHost.entries.filter((e) => e.kind === 'join');
     expect(joins.length).toBeGreaterThan(0);
