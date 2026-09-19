@@ -225,9 +225,16 @@ remote "chmod 0755 '$PEN_DEPLOY_ROOT'/backup/*.sh"
 # machine, so the far end is pinned rather than trusted on sight: without a
 # known_hosts file rclone says plainly that "no host key validation is being
 # performed", which is an unauthenticated SFTP channel carrying everything we
-# hold. `PEN_BACKUP_KNOWN_HOSTS` carries the Storage Box's key
-# (`ssh-keyscan -p 23 -t ssh-ed25519 <host>`); unset, the file is empty and
-# rclone refuses the connection rather than falling back to trusting it.
+# hold. `PEN_BACKUP_KNOWN_HOSTS_B64` carries the box's host keys, base64 of the
+# whole file, exactly as the private key beside it is carried.
+#
+# ALL of the host's keys, not one. Pinning only the ed25519 line looked right
+# and failed in production on the first nightly run — "knownhosts: key
+# mismatch" — because the box offers rsa, ecdsa and ed25519, and rclone is free
+# to negotiate any of them. Take every line ssh-keyscan returns:
+#   ssh-keyscan -p 23 <host> | grep -v '^#' | base64
+# Unset, the file is empty and rclone refuses to connect rather than falling
+# back to trusting whatever answers.
 # The Storage Box trusts one public key. Keeping its private half only on the
 # host means a rebuilt host needs a human to mint a new key and authorise it in
 # the Hetzner Console; keeping it in the workstation's .env means a fresh host
@@ -249,7 +256,7 @@ if [ -n "${PEN_BACKUP_SSH_KEY_B64:-}" ]; then
     fi
     cp -f /root/.ssh/pen-backup '$PEN_DEPLOY_ROOT/backup/rclone/pen-backup'
     chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/pen-backup'
-    printf '%s\n' '${PEN_BACKUP_KNOWN_HOSTS:-}' > '$PEN_DEPLOY_ROOT/backup/rclone/known_hosts'
+    printf '%s' '${PEN_BACKUP_KNOWN_HOSTS_B64:-}' | base64 -d > '$PEN_DEPLOY_ROOT/backup/rclone/known_hosts' 2>/dev/null || : > '$PEN_DEPLOY_ROOT/backup/rclone/known_hosts'
     chmod 600 '$PEN_DEPLOY_ROOT/backup/rclone/known_hosts'
     printf '[hetzner]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = /rclone/pen-backup\nknown_hosts_file = /rclone/known_hosts\nshell_type = unix\n' \
       '${PEN_BACKUP_REMOTE_HOST:-}' '${PEN_BACKUP_REMOTE_USER:-}' '${PEN_BACKUP_REMOTE_PORT:-23}' \
@@ -258,8 +265,8 @@ if [ -n "${PEN_BACKUP_SSH_KEY_B64:-}" ]; then
   # A destination with no pinned key is the one combination that fails quietly:
   # rclone refuses every connection and the nightly copy stops leaving the
   # machine, with nothing on the deploy's own output to say why. Say it here.
-  if [ -n "${PEN_BACKUP_RCLONE_REMOTE:-}" ] && [ -z "${PEN_BACKUP_KNOWN_HOSTS:-}" ]; then
-    log "backup: PEN_BACKUP_RCLONE_REMOTE is set but PEN_BACKUP_KNOWN_HOSTS is empty"
+  if [ -n "${PEN_BACKUP_RCLONE_REMOTE:-}" ] && [ -z "${PEN_BACKUP_KNOWN_HOSTS_B64:-}" ]; then
+    log "backup: PEN_BACKUP_RCLONE_REMOTE is set but PEN_BACKUP_KNOWN_HOSTS_B64 is empty"
     log "        → the off-host copy will refuse to connect; see .env.example"
   fi
   # The remote the sidecar copies to; empty means local-only backups.
