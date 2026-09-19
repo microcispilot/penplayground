@@ -223,6 +223,20 @@ export const Env = z.object({
     .enum(['0', '1', 'true', 'false'])
     .default('0')
     .transform((v) => v === '1' || v === 'true'),
+  /**
+   * How many days a visit keeps the two identifiers on it — the client
+   * address and the raw `User-Agent` (ADR-0028). An hourly sweep clears both
+   * from older rows and leaves every derived column and every count
+   * standing, so the statistics are permanent and the identifiers are not.
+   *
+   * The default is 30 because that is the dashboard's own default window
+   * (`DEFAULT_WINDOW_MS` in `stats/routes.ts`): the identifiers outlive the
+   * period anybody actually looks at, and nothing more.
+   *
+   * **0 means neither is ever written**, and the sweep then erases every one
+   * already stored — the honest way to turn this back off.
+   */
+  PEN_VISIT_IDENTIFIER_DAYS: z.coerce.number().int().nonnegative().max(400).default(30),
 
   /** Largest JSON body any route accepts. Every route here is small; 64 KB is generous. */
   PEN_MAX_BODY_BYTES: z.coerce

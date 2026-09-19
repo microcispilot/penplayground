@@ -7,6 +7,7 @@ import type { Claims } from '../identity.js';
 import { logger } from '../logger.js';
 import { clientKey, RateLimiter } from '../rate-limit.js';
 import type { Services } from '../services.js';
+import { visitAddress } from './address.js';
 
 /**
  * The reporting API (ADR-0027).
@@ -122,6 +123,10 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
       signedIn: claims !== null && !claims.anonymous,
       plan: claims?.plan ?? 'free',
       userAgent: c.req.header('user-agent'),
+      // The same `X-Real-IP`-then-`X-Forwarded-For` resolution the per-IP
+      // session cap uses (`clientKey`), validated into an address or into
+      // nothing — never a header value taken on trust (ADR-0028).
+      ipAddress: visitAddress(c.req),
       header: (name) => c.req.header(name),
       now: now(),
     });
@@ -366,7 +371,7 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
       /** Said out loud in the payload, so no dashboard can present a guess as a measurement. */
       note: services.cfg.PEN_TRUST_GEO_HEADERS
         ? 'Country, region and city come from the edge where it supplies them; otherwise the country is inferred from the browser timezone.'
-        : 'Country is inferred from the browser timezone (no geo-IP is configured). Region and city are unavailable. No IP address is stored.',
+        : 'Country is inferred from the browser timezone (no geo-IP is configured). Region and city are unavailable, and no location is derived from the visitor’s address.',
     });
   });
 

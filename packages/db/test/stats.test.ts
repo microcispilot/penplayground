@@ -236,6 +236,13 @@ const beacon = (patch: Partial<VisitBeaconWrite> = {}): VisitBeaconWrite => ({
   os: 'macOS',
   browser: 'Safari',
   browserMajor: 17,
+  userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/17.4 Safari/605.1.15',
+  screenWidth: 1512,
+  screenHeight: 982,
+  viewportWidth: 1280,
+  viewportHeight: 800,
+  devicePixelRatio: 2,
+  ipAddress: '203.0.113.7',
   country: 'DE',
   region: null,
   city: null,
@@ -339,6 +346,80 @@ describe('applyVisitBeacon', () => {
     expect(closed).toBe(1);
     expect((await visitRow('v_old_00000001'))?.endedAt).toBe(AT);
     expect((await visitRow('v_new_00000001'))?.endedAt).toBeNull();
+  });
+
+  it('keeps the address and the raw string the first beacon carried, for v4 and for v6', async () => {
+    await stats.applyVisitBeacon(beacon({ id: 'v_v4_000000001', ipAddress: '203.0.113.7' }));
+    await stats.applyVisitBeacon(
+      beacon({ id: 'v_v6_000000001', ipAddress: '2001:db8:85a3::8a2e:370:7334' }),
+    );
+    expect(await visitRow('v_v4_000000001')).toMatchObject({
+      ipAddress: '203.0.113.7',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/17.4 Safari/605.1.15',
+      screenWidth: 1512,
+      viewportWidth: 1280,
+      devicePixelRatio: 2,
+    });
+    expect((await visitRow('v_v6_000000001'))?.ipAddress).toBe('2001:db8:85a3::8a2e:370:7334');
+
+    // A later beacon on the same visit never rewrites them: the visit's
+    // address is the address it began at, so a sweep cannot be undone.
+    await stats.applyVisitBeacon(
+      beacon({ id: 'v_v4_000000001', at: AT + 15_000, ipAddress: '198.51.100.9' }),
+    );
+    const row = await visitRow('v_v4_000000001');
+    expect(row?.ipAddress).toBe('203.0.113.7');
+    expect(row?.beacons).toBe(2);
+  });
+
+  it('the retention sweep clears the identifiers and leaves the statistics standing', async () => {
+    const DAY = 86_400_000;
+    await stats.applyVisitBeacon(
+      beacon({
+        id: 'v_old_00000001',
+        at: AT - 31 * DAY,
+        actions: { ...NO_VISIT_ACTIONS, sessionsStarted: 1, likes: 2 },
+      }),
+    );
+    await stats.applyVisitBeacon(beacon({ id: 'v_recent_00001', at: AT - 2 * DAY }));
+
+    expect(await stats.clearVisitIdentifiers(AT - 30 * DAY)).toBe(1);
+
+    const old = await visitRow('v_old_00000001');
+    expect(old?.ipAddress).toBeNull();
+    expect(old?.userAgent).toBeNull();
+    // Everything a report reads is exactly as it was.
+    expect(old).toMatchObject({
+      country: 'DE',
+      geoSource: 'timezone',
+      timezone: 'Europe/Berlin',
+      utcOffsetMinutes: 60,
+      language: 'de-DE',
+      deviceType: 'desktop',
+      os: 'macOS',
+      browser: 'Safari',
+      browserMajor: 17,
+      screenWidth: 1512,
+      screenHeight: 982,
+      viewportWidth: 1280,
+      viewportHeight: 800,
+      devicePixelRatio: 2,
+      activeMs: 15_000,
+      views: 1,
+      beacons: 1,
+      sessionsStarted: 1,
+      likes: 2,
+    });
+    // The screens the visit spent its time on are untouched too.
+    expect(await count('site_visit_screens')).toBe(2);
+    // Anything inside the window still has both.
+    expect((await visitRow('v_recent_00001'))?.ipAddress).toBe('203.0.113.7');
+
+    // Running it again finds nothing left to clear.
+    expect(await stats.clearVisitIdentifiers(AT - 30 * DAY)).toBe(0);
+    // A cutoff of now clears everything, which is what a retention of 0 does.
+    expect(await stats.clearVisitIdentifiers(AT)).toBe(1);
+    expect((await visitRow('v_recent_00001'))?.userAgent).toBeNull();
   });
 
   it('erases a participant’s visits when they ask not to be counted', async () => {

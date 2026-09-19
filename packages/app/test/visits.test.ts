@@ -188,6 +188,50 @@ describe('what the beacon carries', () => {
     stop();
   });
 
+  it('carries the screen, the window and the pixel ratio — and never asks permission', () => {
+    // happy-dom gives `window.screen` and `innerWidth`; the ratio it leaves
+    // at 1, so it is set here to prove a retina display travels.
+    Object.defineProperty(window, 'devicePixelRatio', { value: 2, configurable: true });
+    const t = tracker();
+    const stop = t.start();
+    t.screenShown('home');
+    advance(VISIT_HEARTBEAT_MS);
+    const first = sent[0];
+    expect(first?.screenWidth).toBeGreaterThan(0);
+    expect(first?.screenHeight).toBeGreaterThan(0);
+    expect(first?.viewportWidth).toBe(window.innerWidth);
+    expect(first?.viewportHeight).toBe(window.innerHeight);
+    expect(first?.devicePixelRatio).toBe(2);
+    // Sent once, with the rest of the first-beacon context.
+    advance(VISIT_HEARTBEAT_MS);
+    expect(sent[1]?.viewportWidth).toBeUndefined();
+    // Nothing the page sends needs the learner's permission, and this is the
+    // assertion that keeps it that way: the beacon's keys are a closed set,
+    // so a field that would need a prompt — a coordinate above all — cannot
+    // be added here without this failing first (ADR-0028).
+    const permitted = new Set([
+      'visitId',
+      'activeMs',
+      'screens',
+      'actions',
+      'sessionId',
+      'final',
+      'timezone',
+      'language',
+      'referrerHost',
+      'campaignSource',
+      'campaignMedium',
+      'campaignName',
+      'screenWidth',
+      'screenHeight',
+      'viewportWidth',
+      'viewportHeight',
+      'devicePixelRatio',
+    ]);
+    for (const key of Object.keys(first ?? {})) expect([...permitted]).toContain(key);
+    stop();
+  });
+
   it('keeps the same visit id across every beacon of a visit', () => {
     const t = tracker();
     const stop = t.start();

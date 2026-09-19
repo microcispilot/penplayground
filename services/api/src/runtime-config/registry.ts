@@ -271,6 +271,11 @@ export const NOT_SETTINGS = {
   // deliberately and deployed — not a switch somebody flips while reading a
   // dashboard. Off is always one deploy away; on should be too.
   PEN_VISIT_STATS: 'privacy',
+  // How long a visit keeps an address and a raw User-Agent (ADR-0028). The
+  // same argument: a retention period is a promise about people's data, and
+  // a promise that can be lengthened from a dashboard is not one. Shortening
+  // it is a deploy, and the sweep applies the new period within the hour.
+  PEN_VISIT_IDENTIFIER_DAYS: 'privacy',
 } as const satisfies Partial<Record<keyof Config, string>>;
 
 export type RuntimeSettingName = keyof typeof SETTINGS & keyof Config;

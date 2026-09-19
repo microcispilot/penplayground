@@ -10,9 +10,10 @@ import type { DeviceType } from '@pen/contracts';
  * nothing. Everything it does not recognise is `unknown`, which is an honest
  * answer and shows up as such in the report.
  *
- * The raw User-Agent string is never stored. It is read once, reduced to
- * these four fields, and dropped — it is a fingerprinting surface, and
- * keeping it would be collecting far more than the question needs.
+ * The raw string is stored beside what this produces (ADR-0028), on the
+ * retention clock, precisely because this parser is small: the four fields
+ * are what the reports group by, and the string is what you read when one of
+ * them looks wrong or a browser nobody has heard of turns up.
  *
  * Client hints (`Sec-CH-UA-Platform`, `Sec-CH-UA-Mobile`) win where the
  * browser sends them, because they are what Chromium actually means; the

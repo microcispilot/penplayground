@@ -170,3 +170,26 @@ first audio. After: **4924 / 4036 / 4683 ms**.
       `…_PORT` in the config). Moving the pairs with only the `…_PORT` variables
       leaves every `ui-*` spec hitting the default port and failing in ~400 ms.
       Written down in `playwright.config.ts` next to the ports.
+- [x] **A visit keeps the client address and the raw `User-Agent`, on a
+      thirty-day clock (ADR-0028, amending ADR-0027).** The owner asked for the
+      IP address and everything else a browser gives up without a permission
+      prompt, and for precise location to stay out. `site_visits` gains
+      `ip_address`, `user_agent`, `screen_width/height`,
+      `viewport_width/height` and `device_pixel_ratio` (migration
+      `0010_visit_identifiers`). The address is resolved by `clientAddress` —
+      the function `clientKey` is now built on, so the per-IP session cap
+      (`PEN_MAX_SESSIONS_PER_IP`), the beacon limiter and the stored row can
+      never disagree about which header names a client — then validated with
+      `node:net`'s `isIP` and normalised to one spelling per machine (port,
+      brackets and zone index stripped, IPv6 lowercased, `::ffff:` mapped to
+      the IPv4 it is). Country is unchanged and still comes from the edge or
+      the browser's clock with `geo_source` saying which: no geo database was
+      added, so an address yields no place, and region, city and coordinates
+      stay out. `PEN_VISIT_IDENTIFIER_DAYS` (default 30, the dashboard's own
+      default window) clears both identifiers from older rows on an hourly
+      pass inside the existing one-minute sweeper, leaving every derived
+      column and every count standing; `0` stores neither and erases what is
+      there. Not a runtime setting (`privacy`, beside `PEN_VISIT_STATS`).
+      The privacy policy is unchanged by instruction; `docs/STATISTICS.md`
+      records what is stored, for how long, and which published sentence does
+      and does not cover it.

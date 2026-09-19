@@ -17,9 +17,12 @@ import { VISIT_HEARTBEAT_MS, VISIT_IDLE_MS } from '@pen/contracts';
  *
  * What it sends is that credit and nothing else: a screen name (a route
  * pattern, never an id), a count of views, a bounded set of action counters,
- * the browser's IANA timezone and language, and the referrer's host. No URL,
- * no topic, no content — and the whole of it goes nowhere if the learner has
- * analytics off, because the server drops it (`participants.analytics_opt_out`).
+ * the browser's IANA timezone and language, the size of the screen and the
+ * window, and the referrer's host. No URL, no topic, no content — and
+ * nothing that needs the visitor's permission: every one of those is a
+ * property the browser hands any script that asks (ADR-0028). The whole of
+ * it goes nowhere if the learner has analytics off, because the server drops
+ * it (`participants.analytics_opt_out`).
  *
  * It is fire-and-forget in every sense: never awaited, never retried, never
  * surfaced. A blocked request loses a count and nothing else.
@@ -251,6 +254,24 @@ function firstBeaconContext(): Partial<VisitBeacon> {
     out.campaignSource = utm('utm_source');
     out.campaignMedium = utm('utm_medium');
     out.campaignName = utm('utm_campaign');
+    // What this is being read on, as the browser volunteers it: `screen`,
+    // `innerWidth`/`innerHeight` and `devicePixelRatio` are plain properties
+    // of `window`, readable by any script on the page with no prompt to
+    // accept and nothing to refuse (ADR-0028). A phone-width window on a
+    // desktop and an actual tablet are the same `deviceType` and a different
+    // layout problem; this is what tells them apart. Nothing that asks
+    // permission — the Geolocation API above all — is read here or anywhere.
+    const size = (value: unknown) =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0
+        ? Math.min(Math.round(value), 65_535)
+        : undefined;
+    out.screenWidth = size(window.screen?.width);
+    out.screenHeight = size(window.screen?.height);
+    out.viewportWidth = size(window.innerWidth);
+    out.viewportHeight = size(window.innerHeight);
+    const dpr = window.devicePixelRatio;
+    if (typeof dpr === 'number' && Number.isFinite(dpr) && dpr > 0)
+      out.devicePixelRatio = Math.round(Math.min(dpr, 16) * 100) / 100;
   }
   return out;
 }
