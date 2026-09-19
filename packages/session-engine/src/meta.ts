@@ -221,6 +221,26 @@ function cacheKeyOf(input: SessionMetaInput): SessionMetaCacheKey | null {
   return { scope, planDigest: planDigest(input.plan) };
 }
 
+/**
+ * One picture per topic, even when two sessions ask at the same instant.
+ *
+ * The cache stops the *second* session paying — but only once the first has
+ * finished and written it. Two learners starting the same topic seconds apart
+ * both miss the cache, both commission a photograph, and at ~$0.016 each that
+ * is the most expensive thing in a session bought twice. Measured on
+ * production: two sessions on one topic, `imageReused: false` on both.
+ *
+ * So a generation claims its key while it runs, and anyone else who wants that
+ * key waits for it and then reads the cache like any other reuse. The claim is
+ * per process, which is what this deployment is; a second API node would need
+ * a shared lock, and the cache read on either side still prevents a third
+ * payment.
+ */
+const PICTURE_IN_FLIGHT = new Map<string, Promise<unknown>>();
+
+const imageKeyString = (key: ThumbnailImageCacheKey): string =>
+  `${key.scope}\u0000${key.titleDigest}`;
+
 function imageKeyOf(input: SessionMetaInput): ThumbnailImageCacheKey | null {
   const scope = scopeOf(input);
   if (!scope) return null;
@@ -545,6 +565,31 @@ export class SessionMetaJobs {
     if (key) {
       const hit = await this.pictureFromCache(input, key, started);
       if (hit) return hit;
+      // Missed, but someone else may already be buying this very picture.
+      const running = PICTURE_IN_FLIGHT.get(imageKeyString(key));
+      if (running) {
+        await running.catch(() => undefined);
+        const shared = await this.pictureFromCache(input, key, started);
+        // `shared` takes the ordinary reuse path — same telemetry, same
+        // savedUsd. If the other session failed, we fall through and buy it.
+        if (shared) return shared;
+      }
+    }
+    // Claim the key before anything else can yield.
+    //
+    // This has to happen in the same tick as the miss above. Put it after the
+    // next `await` — waiting for the card copy, say — and both sessions sail
+    // past the check before either has claimed, which is exactly how the first
+    // version of this failed its own test: two generations, not one.
+    const claim = key ? imageKeyString(key) : null;
+    let release = () => undefined as void;
+    if (claim) {
+      PICTURE_IN_FLIGHT.set(
+        claim,
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
     }
     const base = this.o.imageFor(input.billTo);
     const model = input.telemetry ? withImageTelemetry(base, input.telemetry) : base;
@@ -552,68 +597,76 @@ export class SessionMetaJobs {
     const subject = await this.subjectFrom(copy);
     const copyWaitMs = this.now() - waitFrom;
     const prompt = thumbnailImagePrompt(input.plan.title, subject);
-    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-      try {
-        const { png, usage } = await model.generate({
-          prompt,
-          size: THUMBNAIL_SIZE,
-          quality: this.o.quality,
-          purpose: THUMBNAIL_PURPOSE,
-        });
-        this.o.onUsage?.(input, { ...usage, purpose: THUMBNAIL_PURPOSE });
-        // Cached before the copy call is even known to have worked: a picture
-        // that is paid for is never thrown away, whatever else the job does.
-        if (key && this.o.imageCache) {
-          try {
-            await this.o.imageCache.put(key, {
-              png,
-              usd: usage.usd,
-              model: usage.model,
-              quality: this.o.quality,
-            });
-          } catch (error) {
-            this.observer.error('session_thumbnail.cache_write', error, {
-              sessionId: input.sessionId,
-            });
-          }
-        }
-        this.observer.event('session_thumbnail.done', {
-          sessionId: input.sessionId,
-          attempts: attempt,
-          ms: usage.totalMs,
-          bytes: png.length,
-          quality: this.o.quality,
-          outputTokens: usage.outputTokens,
-          usd: usage.usd,
-          // Whether the camera was given something to point at, and what the
-          // wait for it cost. `subject: false` on a run of sessions is the
-          // signal that ADR-0022's field has stopped arriving.
-          subject: subject.length > 0,
-          copyWaitMs: Math.round(copyWaitMs),
-        });
-        return {
-          png,
-          usage,
-          reused: false,
-          savedUsd: 0,
-          ms: this.now() - started,
-          attempts: attempt,
-        };
-      } catch (error) {
-        if (attempt < ATTEMPTS && !this.closed) {
-          this.observer.event('session_thumbnail.retry', {
-            sessionId: input.sessionId,
-            attempt,
-            reason: error instanceof Error ? error.message.slice(0, 120) : String(error),
+    try {
+      for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+        try {
+          const { png, usage } = await model.generate({
+            prompt,
+            size: THUMBNAIL_SIZE,
+            quality: this.o.quality,
+            purpose: THUMBNAIL_PURPOSE,
           });
-          await this.sleep(this.o.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS);
-          continue;
+          this.o.onUsage?.(input, { ...usage, purpose: THUMBNAIL_PURPOSE });
+          // Cached before the copy call is even known to have worked: a picture
+          // that is paid for is never thrown away, whatever else the job does.
+          if (key && this.o.imageCache) {
+            try {
+              await this.o.imageCache.put(key, {
+                png,
+                usd: usage.usd,
+                model: usage.model,
+                quality: this.o.quality,
+              });
+            } catch (error) {
+              this.observer.error('session_thumbnail.cache_write', error, {
+                sessionId: input.sessionId,
+              });
+            }
+          }
+          this.observer.event('session_thumbnail.done', {
+            sessionId: input.sessionId,
+            attempts: attempt,
+            ms: usage.totalMs,
+            bytes: png.length,
+            quality: this.o.quality,
+            outputTokens: usage.outputTokens,
+            usd: usage.usd,
+            // Whether the camera was given something to point at, and what the
+            // wait for it cost. `subject: false` on a run of sessions is the
+            // signal that ADR-0022's field has stopped arriving.
+            subject: subject.length > 0,
+            copyWaitMs: Math.round(copyWaitMs),
+          });
+          return {
+            png,
+            usage,
+            reused: false,
+            savedUsd: 0,
+            ms: this.now() - started,
+            attempts: attempt,
+          };
+        } catch (error) {
+          if (attempt < ATTEMPTS && !this.closed) {
+            this.observer.event('session_thumbnail.retry', {
+              sessionId: input.sessionId,
+              attempt,
+              reason: error instanceof Error ? error.message.slice(0, 120) : String(error),
+            });
+            await this.sleep(this.o.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS);
+            continue;
+          }
+          this.observer.error('session_thumbnail.failed', error, {
+            sessionId: input.sessionId,
+            attempts: attempt,
+          });
+          return null;
         }
-        this.observer.error('session_thumbnail.failed', error, {
-          sessionId: input.sessionId,
-          attempts: attempt,
-        });
-        return null;
+      }
+    } finally {
+      // Whatever happened, stop anyone else waiting on us.
+      if (claim) {
+        PICTURE_IN_FLIGHT.delete(claim);
+        release();
       }
     }
     return null;

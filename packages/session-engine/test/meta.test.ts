@@ -539,6 +539,44 @@ describe('SessionMetaJobs', () => {
     const withScope = (sessionId: string) =>
       input(sessionId, { canonicalId: 'en.how-transformers-work' });
 
+    it('buys one picture when two sessions on a topic start at the same moment', async () => {
+      // The cache only saves the *second* session once the first has finished
+      // and written it. Two learners starting the same topic seconds apart
+      // both missed, both commissioned a photograph, and at ~$0.016 each that
+      // is the most expensive thing in a session bought twice. Measured on
+      // production before this: two sessions on one topic, `imageReused:
+      // false` on both, the second costing $0.017 against the first's $0.005.
+      //
+      // Concurrency 2 is the point of the test — with 1 they are serialised
+      // and the cache alone would pass it.
+      const image = new CountingImageModel();
+      const imageCache = new MemoryImageCache();
+      const results: unknown[] = [];
+      const jobs = new SessionMetaJobs(
+        options({
+          imageFor: () => image,
+          imageCache,
+          concurrency: 2,
+          onResult: (_i, r) => void results.push(r),
+        }),
+      );
+      jobs.enqueue(withScope('s_together_a'));
+      jobs.enqueue(withScope('s_together_b'));
+      await jobs.idle();
+
+      expect(image.calls, 'one photograph, not two').toBe(1);
+      expect(imageCache.size).toBe(1);
+      const reused = (results as Array<{ image: { reused: boolean; savedUsd: number } }>).map(
+        (r) => r.image.reused,
+      );
+      // One bought it; the other took it and says what that saved.
+      expect(reused.filter(Boolean)).toHaveLength(1);
+      const waiter = (results as Array<{ image: { reused: boolean; savedUsd: number } }>).find(
+        (r) => r.image.reused,
+      );
+      expect(waiter?.image.savedUsd).toBeGreaterThan(0);
+    });
+
     it('generates once for a scope and reuses the bytes for every session after', async () => {
       const image = new CountingImageModel();
       const imageCache = new MemoryImageCache();
