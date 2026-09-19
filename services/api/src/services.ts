@@ -107,7 +107,7 @@ export interface Services {
   renderUnavailable: string | null;
   /** Human-to-human audio in rooms; null until LIVEKIT_URL/KEY/SECRET are configured. */
   livekit: LiveKitRooms | null;
-  /** Session thumbnails on disk (ADR-0013). */
+  /** Session thumbnails on disk: the generation and every size downscaled from it (ADR-0013, ADR-0021). */
   thumbnails: ThumbnailStore;
   /** Card copy already written, keyed by the lesson memo's scope (ADR-0013). */
   metaCache: FileSessionMetaCache;
@@ -117,7 +117,12 @@ export interface Services {
   meta: SessionMetaJobs;
 }
 
-/** In-memory cost ledger with daily totals; persisted to the data dir hourly by main. */
+/**
+ * In-memory cost ledger with daily totals, across every provider call the
+ * process makes — model and image alike, keyed by `purpose`. Persisted to the
+ * data dir hourly by main. A session's own spend is its ledger's business
+ * (ADR-0011); this is the house account's view of the same calls.
+ */
 export class CostLedger implements CostMeter {
   private readonly byPurpose = new Map<
     string,
@@ -137,7 +142,8 @@ export class CostLedger implements CostMeter {
     e.cachedTokens += usage.cachedTokens;
     e.outputTokens += usage.outputTokens;
     this.byPurpose.set(usage.purpose, e);
-    logger.debug({ evt: 'llm.usage', ...usage });
+    // One event name for every priced call, model and image alike; `purpose` says which.
+    logger.debug({ evt: 'provider.usage', ...usage });
   }
   /** A revenue line: negative usd under its own purpose (e.g. `ads`), so totals net out. */
   credit(purpose: string, usd: number): void {
@@ -306,8 +312,8 @@ export async function buildServices(
     return model;
   };
   const imageFor = (plan: PlanCode): ImageModel => buildImage(plan);
-  // Built lazily on first use: a deployment without the platform key still boots,
-  // and only the work that actually belongs to nobody asks for it.
+  // Null when the key is absent, so a deployment without it still boots and the
+  // scripts that need it say why they cannot run instead of billing a learner.
   const hasPlatformKey = cfg.PEN_LLM_PROVIDER === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
   const platformModel = hasPlatformKey ? buildModel('platform', cfg.PEN_LLM_OUTLINE_MODEL) : null;
   const platformImage = hasPlatformKey ? buildImage('platform') : null;
