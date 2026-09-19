@@ -221,6 +221,9 @@ export const NOT_SETTINGS = {
   LIVEKIT_API_SECRET: 'secret',
   POSTHOG_PROJECT_TOKEN: 'secret',
   SENTRY_DSN: 'secret',
+  // The machine's way into the reports (ADR-0027). A console that could set
+  // it is a console whose reader can mint themselves a permanent key.
+  PEN_ADMIN_TOKEN: 'secret',
 
   // A wrong value here loses data that cannot be got back.
   DATABASE_URL: 'data-loss',
@@ -242,6 +245,10 @@ export const NOT_SETTINGS = {
   PEN_CHROMIUM_ARGS: 'address',
   PEN_RENDER_BASE_URL: 'address',
   POSTHOG_HOST: 'address',
+  // Whether the proxy in front of this box sets geo headers and strips what a
+  // client sent (ADR-0027). A fact about the network, and one that decides
+  // whether a visitor can choose their own country — not a preference.
+  PEN_TRUST_GEO_HEADERS: 'address',
 
   // Self-referential: a setting that governs where settings come from, how
   // often they are read, or who may change them cannot be changed from there.
@@ -258,6 +265,12 @@ export const NOT_SETTINGS = {
   NODE_ENV: 'environment',
   PEN_DEV_PLAN: 'development-only',
   PEN_AD_TEST_TAGS: 'development-only',
+
+  // What the product collects about people (ADR-0027). Turning visit
+  // statistics back on is a decision about the privacy policy, taken
+  // deliberately and deployed — not a switch somebody flips while reading a
+  // dashboard. Off is always one deploy away; on should be too.
+  PEN_VISIT_STATS: 'privacy',
 } as const satisfies Partial<Record<keyof Config, string>>;
 
 export type RuntimeSettingName = keyof typeof SETTINGS & keyof Config;

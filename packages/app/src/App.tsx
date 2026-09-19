@@ -8,6 +8,7 @@ import { setAnalyticsContext, trackInteraction } from './lib/analytics.js';
 import { routerBasename, withBasePath } from './lib/base-path.js';
 import { AppProvider } from './lib/context.js';
 import { RouteHead, setSeoBasePath } from './lib/seo.js';
+import { noteScreen } from './lib/visits.js';
 import type { Platform } from './platform/types.js';
 import { Experts } from './screens/Experts.js';
 import { Home } from './screens/Home.js';
@@ -82,6 +83,8 @@ function ScreenTracker() {
     const screen = screenOf(pathname);
     setAnalyticsContext({ screen });
     trackInteraction('screen_shown', { screen });
+    // The same transition, to the visit's own engaged-time ledger (ADR-0027).
+    noteScreen(screen);
   }, [pathname]);
   return null;
 }

@@ -17,6 +17,7 @@
     "packs:prewarm": "node --env-file=../../.env --import tsx scripts/prewarm-packs.ts",
     "posthog:dashboard": "node --env-file=../../.env --import tsx scripts/posthog-dashboard.ts",
     "sentry:alerts": "node --env-file=../../.env --import tsx scripts/sentry-alerts.ts",
+    "stats:backfill": "node --env-file-if-exists=../../.env --import tsx scripts/stats-backfill.ts",
     "stripe:webhook": "node --env-file=../../.env --import tsx scripts/stripe-webhook.ts",
     "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts",
     "thumbnails:backfill": "node --env-file=../../.env --import tsx scripts/thumbnails-backfill.ts",

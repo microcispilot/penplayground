@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { ApiClient, type GoogleSignInOutcome, type Participant } from '../api/client.js';
@@ -15,6 +16,7 @@ import { forgetGoogleSelection } from './google.js';
 import { formatDurationMinutes, formatRelativeDay } from './locale.js';
 import { writePacePreference } from './pace-preference.js';
 import { type PrivacyChoice, readPrivacy, writePrivacy } from './privacy.js';
+import { noteVisitAction, startVisitTracking } from './visits.js';
 
 interface AppContextValue {
   platform: Platform;
@@ -60,6 +62,9 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
   // Read before anything starts: the choice has to apply to the first network
   // call of the visit, not the second.
   const [privacy, setPrivacyState] = useState<PrivacyChoice>(() => readPrivacy(platform.storage));
+  /** The tracker reads the choice at send time; turning analytics off stops it at once. */
+  const privacyRef = useRef(privacy);
+  privacyRef.current = privacy;
   // A headless export render is a pure player: no identity, no analytics (see lib/boot.ts).
   const headless = useMemo(
     () =>
@@ -74,6 +79,22 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (!headless) initAnalytics(platform, privacy);
+  }, [platform, headless]);
+
+  /**
+   * Engaged time and what this visit did (ADR-0027). One tracker per mount,
+   * never on a headless export render, and the bearer is read at send time so
+   * a sign-in part-way through moves the visit onto the account. The server
+   * drops the beacon outright for anyone who has analytics off, and this
+   * stops sending as soon as the choice reaches the client.
+   */
+  useEffect(() => {
+    if (headless) return;
+    return startVisitTracking({
+      url: `${platform.apiUrl.replace(/\/$/, '')}/api/visits`,
+      token: () => platform.storage.get('pen.token'),
+      enabled: () => privacyRef.current.analytics,
+    });
   }, [platform, headless]);
 
   useEffect(() => {
@@ -112,6 +133,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         adoptAccountPace(p);
         identify(p.id);
         track('sign_in', { provider: 'google', outcome });
+        noteVisitAction('signed_in');
         return outcome;
       },
       privacy,

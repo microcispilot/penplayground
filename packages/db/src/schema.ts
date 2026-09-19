@@ -14,6 +14,9 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+/** Statistics and reports (ADR-0027): derived session facts, visits, and the subscription's history. */
+export * from './stats-schema.js';
+
 /**
  * Persistent records. Sessions are the product's durable object; the
  * recording ledger's events stay in object/file storage and are referenced
@@ -35,6 +38,16 @@ export const participants = pgTable(
     googleSub: text('google_sub'),
     avatarUrl: text('avatar_url'),
     stripeCustomerId: text('stripe_customer_id'),
+    /**
+     * What Stripe's price says the plan is billed at — `month` or `year` —
+     * with the status and the moment it last changed. `plan` alone cannot
+     * tell monthly from yearly, and the owner's subscription statistics are
+     * mostly that split (ADR-0027). Null on a free row and on any paid row
+     * predating the column, until its next webhook.
+     */
+    planInterval: text('plan_interval', { enum: ['month', 'year'] }),
+    planStatus: text('plan_status'),
+    planSince: timestamp('plan_since', { withTimezone: true }),
     /**
      * The learner turned analytics off under "Privacy choices". There is no
      * consent banner to answer (ADR-0018): analytics are cookieless and

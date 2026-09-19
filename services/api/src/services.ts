@@ -7,8 +7,10 @@ import {
   connect,
   ListRepository,
   ParticipantRepository,
+  ReportRepository,
   RuntimeConfigRepository,
   SessionRepository,
+  StatsRepository,
 } from '@pen/db';
 import {
   type CostMeter,
@@ -53,6 +55,8 @@ import { FileSessionMetaCache } from './meta-cache.js';
 import { captureWarning, observer } from './observability.js';
 import { RuntimeConfigService, RuntimeConfigStore } from './runtime-config/index.js';
 import { SpendBreaker } from './spend.js';
+import { StatsDeriver } from './stats/deriver.js';
+import { VisitIngest } from './stats/visits.js';
 import { createRecognizer } from './stt.js';
 import { FileThumbnailImageCache } from './thumbnail-cache.js';
 import { createSessionMetaJobs, ThumbnailStore } from './thumbnails.js';
@@ -106,6 +110,14 @@ export interface Services {
   participants: ParticipantRepository;
   /** Saved / liked / history per participant (ADR-0015). */
   lists: ListRepository;
+  /** Writing the statistics: derived session rows, visits, plan history (ADR-0027). */
+  stats: StatsRepository;
+  /** Reading them: every aggregate the owner's dashboard asks for, as SQL. */
+  reports: ReportRepository;
+  /** Rolls a finished session's ledger into rows, off the hot path and never fatally. */
+  deriver: StatsDeriver;
+  /** Counts visits — signed in or not — and the engaged time they spend. */
+  visits: VisitIngest;
   billing: Billing;
   /** Google sign-in; null until `GOOGLE_CLIENT_ID` is configured. */
   google: GoogleSignIn | null;
@@ -219,6 +231,9 @@ export async function buildServices(
   const sessions = new SessionRepository(db.db);
   const participants = new ParticipantRepository(db.db);
   const lists = new ListRepository(db.db);
+  /** Statistics and reports (ADR-0027): one repository writes, the other reads. */
+  const stats = new StatsRepository(db.db);
+  const reports = new ReportRepository(db.db);
 
   /**
    * The runtime configuration comes first, because everything below it is
@@ -427,7 +442,7 @@ export async function buildServices(
       'OPENAI_API_KEY_PLATFORM is not set: backfills and probes have no key of their own',
     );
 
-  const billing = new Billing(cfg, participants);
+  const billing = new Billing(cfg, participants, stats);
   const googleVerifier =
     opts.googleVerifier ??
     (cfg.GOOGLE_CLIENT_ID ? new GoogleLibraryVerifier(cfg.GOOGLE_CLIENT_ID) : null);
@@ -436,6 +451,26 @@ export async function buildServices(
     : null;
   if (!google) logger.info('google sign-in disabled: set GOOGLE_CLIENT_ID');
   const analytics = new Analytics(cfg);
+  // Finished sessions are queued here and derived by `main`'s drain loop,
+  // never inline with a room's own teardown (ADR-0027).
+  const deriver = new StatsDeriver({
+    ledger,
+    sessions,
+    participants,
+    stats,
+    onError: (area, error, detail) => observer.error(area, error, detail),
+    onEvent: (name, detail) => observer.event(name, detail),
+  });
+  const visits = new VisitIngest({
+    stats,
+    // The participant row is the truth; `bearer` refreshes this set on every
+    // authenticated request, exactly as the PostHog sink relies on.
+    optedOut: (id) => analytics.optedOutOf(id),
+    trustGeoHeaders: cfg.PEN_TRUST_GEO_HEADERS,
+    enabled: cfg.PEN_VISIT_STATS,
+    onError: (area, error, detail) => observer.error(area, error, detail),
+  });
+  if (!cfg.PEN_VISIT_STATS) logger.info('visit statistics disabled (PEN_VISIT_STATS=0)');
   await loadLanguageId();
   const intake = new TopicIntake(() => modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
   const renderer = new PlaywrightRenderer({
@@ -523,6 +558,10 @@ export async function buildServices(
     sessions,
     participants,
     lists,
+    stats,
+    reports,
+    deriver,
+    visits,
     billing,
     google,
     analytics,

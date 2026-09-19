@@ -94,7 +94,28 @@ describe('migration timestamp guard', () => {
 });
 
 describe('upgrading a database that already exists', () => {
-  it('adds the runtime-config tables to a 0007 database without touching its rows', async () => {
+  /**
+   * Everything the schema has gained since `0007_participant_pace`, which is
+   * the last migration production had before this line of work. Each new one
+   * adds its tables here, so the upgrade path is tested rather than assumed.
+   */
+  const ADDED_SINCE_0007 = [
+    // 0008, the runtime configuration (ADR-0025).
+    'runtime_config_state',
+    'runtime_config_audits',
+    // 0009, statistics and reports (ADR-0027).
+    'session_stats',
+    'session_stage_stats',
+    'session_error_stats',
+    'session_reuse_links',
+    'stats_work_origin',
+    'session_engagement',
+    'site_visits',
+    'site_visit_screens',
+    'plan_events',
+  ];
+
+  it('upgrades a 0007 database to everything since, without touching its rows', async () => {
     // The production path, not the fresh-checkout one: a database that was
     // migrated before this branch existed, with data in it, being upgraded.
     const older = mkdtempSync(join(tmpdir(), 'pen-mig-0007-'));
@@ -103,29 +124,39 @@ describe('upgrading a database that already exists', () => {
     const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
-    const newest = journal.entries[journal.entries.length - 1];
-    if (!newest) throw new Error('no migrations');
-    journal.entries = journal.entries.slice(0, -1);
+    // Cut at 0007 by name rather than by position: "everything after the last
+    // one" stops being the right cut the moment a second migration lands.
+    const cut = journal.entries.findIndex((e) => e.tag === '0007_participant_pace');
+    if (cut < 0) throw new Error('0007_participant_pace is missing from the journal');
+    for (const removed of journal.entries.slice(cut + 1)) rmSync(join(older, `${removed.tag}.sql`));
+    journal.entries = journal.entries.slice(0, cut + 1);
     writeFileSync(journalPath, JSON.stringify(journal, null, 2));
-    rmSync(join(older, `${newest.tag}.sql`));
 
     const client = new PGlite();
     const db = drizzle(client, { schema });
     await applyMigrations(db, 'pglite', older);
-    expect(await tableNames(db)).not.toContain('runtime_config_state');
+    const before = await tableNames(db);
+    for (const table of ADDED_SINCE_0007) expect(before).not.toContain(table);
     await db.execute(sql`insert into participants (id, name) values ('p_before', 'Ada')`);
 
     // The same database, now with this branch's migrations.
     await applyMigrations(db, 'pglite', folder);
     const after = await tableNames(db);
-    expect(after).toContain('runtime_config_state');
-    expect(after).toContain('runtime_config_audits');
+    for (const table of ADDED_SINCE_0007)
+      expect(after, `${table} was not created`).toContain(table);
+    // The columns 0009 adds to an existing table, not only the new tables.
+    const columns = await db.execute(
+      sql`select column_name from information_schema.columns where table_name = 'participants'`,
+    );
+    const names = (columns.rows as Array<{ column_name: string }>).map((r) => r.column_name);
+    expect(names).toContain('plan_interval');
+    expect(names).toContain('plan_status');
     const kept = await db.execute(sql`select name from participants where id = 'p_before'`);
     expect((kept.rows as Array<{ name: string }>)[0]?.name).toBe('Ada');
 
     // And running it again is a no-op rather than "relation already exists".
     await applyMigrations(db, 'pglite', folder);
-    expect(await tableNames(db)).toContain('runtime_config_state');
+    expect(await tableNames(db)).toContain('session_stats');
     await client.close();
     rmSync(older, { recursive: true, force: true });
   });
