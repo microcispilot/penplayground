@@ -1,4 +1,4 @@
-import { Card, readTheme } from '@pen/design';
+import { Button, Card, readTheme } from '@pen/design';
 import { PenLine } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -22,11 +22,14 @@ export function SignIn() {
   const slot = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Bumped to remount the Google button after a failed script load. */
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (checked && session.admin) navigate('/settings', { replace: true });
   }, [checked, session, navigate]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is not read here — bumping it is the retry, and remounting Google's button is the whole effect
   useEffect(() => {
     const host = slot.current;
     if (!host || !CLIENT_ID || busy) return;
@@ -58,7 +61,7 @@ export function SignIn() {
       },
       onError: (cause) => setError(cause.message),
     });
-  }, [api, busy, refresh, signOut, navigate]);
+  }, [api, busy, attempt, refresh, signOut, navigate]);
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface px-6">
@@ -89,9 +92,21 @@ export function SignIn() {
             </p>
           ) : null}
           {error ? (
-            <p role="alert" className="mt-4 text-body-small text-error" data-testid="signin-error">
-              {error}
-            </p>
+            <div className="mt-4 flex flex-col items-start gap-3">
+              <p role="alert" className="text-body-small text-error" data-testid="signin-error">
+                {error}
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setError(null);
+                  setAttempt((n) => n + 1);
+                }}
+              >
+                Try again
+              </Button>
+            </div>
           ) : null}
           {unreachable && !error ? (
             <p role="alert" className="mt-4 text-body-small text-error">

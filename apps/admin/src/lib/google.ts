@@ -60,6 +60,11 @@ export function loadGoogleIdentity(doc: Document = document): Promise<GoogleAcco
   if (ready) return Promise.resolve(ready);
   if (loading) return loading;
   loading = new Promise<GoogleAccountsId>((resolve, reject) => {
+    // A script tag from an attempt that already failed will never fire `load`
+    // again, and listeners attached to it would leave this promise pending
+    // forever — an empty sign-in card with no error and no spinner, on the
+    // console's only way in. Drop the corpse and ask again.
+    doc.querySelector<HTMLScriptElement>(`script[src="${GIS_SRC}"][data-failed]`)?.remove();
     const existing = doc.querySelector<HTMLScriptElement>(`script[src="${GIS_SRC}"]`);
     const script = existing ?? doc.createElement('script');
     const settle = () => {
@@ -72,7 +77,8 @@ export function loadGoogleIdentity(doc: Document = document): Promise<GoogleAcco
       'error',
       () => {
         loading = null;
-        reject(new Error('Could not load Google sign-in.'));
+        script.dataset.failed = '1';
+        reject(new Error('Could not load Google sign-in. Check the network and try again.'));
       },
       { once: true },
     );
