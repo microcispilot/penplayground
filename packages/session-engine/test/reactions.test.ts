@@ -143,26 +143,35 @@ describe('SessionRoom reactions', () => {
       room.handle(HOST, { kind: 'progress', seq: last, clockMs: 1000 * (i + 1) });
     }
     await until(() => transport.ads().length > 0);
-    const ad = transport.ads()[0];
-    if (!ad) throw new Error('no ad was scheduled');
-    room.handle(HOST, { kind: 'progress', seq: ad.afterSeq, clockMs: 9_000 });
-
-    // The window only counts while nobody holds the floor: a learner being
-    // listened to, thought about or answered never sees an ad, so those modes
-    // are deliberately not ad windows. This used to be raced rather than
-    // waited for — CI reached the progress message while the room was still on
-    // the floor, the window never opened, and the refusal below failed as if
-    // the gate had leaked. Wait for the state the test is actually about, and
-    // name it if it never comes.
-    const holdsFloor = () => ['listening', 'thinking', 'answering'].includes(room.getState().mode);
-    // Read the mode and send the reaction in the *same* synchronous block.
+    // Open the window the way the player does, not by arithmetic on cue
+    // numbers. `adEvent` opens it on the first non-terminal lifecycle report —
+    // the player is the only thing that knows the creative actually came up —
+    // and that needs no guess about which seq the host has reached.
     //
-    // Waiting for the mode and then sending on the next line looks equivalent
-    // and is not: `await` yields, the room's own pending work runs in that
-    // gap, and it can retake the floor before the reaction is handled. Then
-    // the room is right to accept it — a learner holding the floor never sees
-    // an ad — and the test fails as though the gate had leaked. That is
-    // exactly how this failed in CI twice.
+    // Driving it by `progress` is what made this test fail four times in CI:
+    // the handler only opens the window inside `seq > hostProgressSeq`, the
+    // loop above may already have reported past the ad's own cue, and whether
+    // it had depended on how many cues had arrived. The product defect that
+    // hid behind is fixed separately (an ad hung on a cue already played now
+    // opens at once, covered in ads.test.ts); this test should not depend on
+    // that path at all.
+    // The *current* ad, not the first one ever broadcast. This fixture puts an
+    // ad at every segment boundary, so by the time we get here the room's
+    // window may already hold a later one — and an `ad_event` naming a
+    // superseded ad opens nothing. That is the whole intermittency: whether a
+    // second ad had been scheduled depended on how far the lesson had run,
+    // which depends on how loaded the machine is. Five CI failures.
+    const current = transport.ads().at(-1);
+    if (!current) throw new Error('no ad was scheduled');
+    room.handle(HOST, { kind: 'ad_event', adId: current.adId, event: 'ad_started', atMs: 0 });
+
+    // And send it in a tick where nobody holds the floor. Both conditions are
+    // real: an open window, and a learner who is not already being listened
+    // to, thought about or answered — a learner mid-question never sees an ad,
+    // so the room is right to take their reaction. Reading the mode and
+    // sending must happen in one synchronous block, because `await` yields and
+    // the room can retake the floor in the gap.
+    const holdsFloor = () => ['listening', 'thinking', 'answering'].includes(room.getState().mode);
     let sent = false;
     for (let i = 0; i < 400 && !sent; i++) {
       if (!holdsFloor()) {
@@ -176,7 +185,7 @@ describe('SessionRoom reactions', () => {
     expect(reactions(transport)).toEqual([]);
 
     // The ad ends; expression comes back with everything else.
-    room.handle(HOST, { kind: 'ad_event', adId: ad.adId, event: 'ad_skipped', atMs: 5_200 });
+    room.handle(HOST, { kind: 'ad_event', adId: current.adId, event: 'ad_skipped', atMs: 5_200 });
     clock += REACTION_MIN_INTERVAL_MS;
     room.handle(HOST, { kind: 'reaction', emoji: '😕' });
     expect(reactions(transport).map((r) => r.emoji)).toEqual(['😕']);
