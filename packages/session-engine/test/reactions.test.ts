@@ -147,6 +147,18 @@ describe('SessionRoom reactions', () => {
     if (!ad) throw new Error('no ad was scheduled');
     room.handle(HOST, { kind: 'progress', seq: ad.afterSeq, clockMs: 9_000 });
 
+    // The window only counts while nobody holds the floor: a learner being
+    // listened to, thought about or answered never sees an ad, so those modes
+    // are deliberately not ad windows. This used to be raced rather than
+    // waited for — CI reached the progress message while the room was still on
+    // the floor, the window never opened, and the refusal below failed as if
+    // the gate had leaked. Wait for the state the test is actually about, and
+    // name it if it never comes.
+    const holdsFloor = () => ['listening', 'thinking', 'answering'].includes(room.getState().mode);
+    await until(() => !holdsFloor()).catch(() => {
+      throw new Error(`the room stayed on the floor ("${room.getState().mode}"): no ad window`);
+    });
+
     room.handle(HOST, { kind: 'reaction', emoji: '😕' });
     expect(reactions(transport)).toEqual([]);
 
