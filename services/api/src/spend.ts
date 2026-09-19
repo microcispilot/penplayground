@@ -28,10 +28,14 @@ export interface SpendDecision {
 }
 
 export interface SpendBreakerOptions {
-  /** `PEN_DAILY_SPEND_CAP_USD`; 0 disables the breaker entirely. */
-  capUsd: number;
+  /**
+   * `PEN_DAILY_SPEND_CAP_USD`; 0 disables the breaker entirely. A function,
+   * because it is a runtime setting (ADR-0025) and the whole point of a
+   * circuit breaker is being able to move it while the fire is burning.
+   */
+  capUsd: () => number;
   /** Paid plans keep going to `capUsd × paidMultiple`. */
-  paidMultiple: number;
+  paidMultiple: () => number;
   /** Fires once per day when the day's spend first crosses 80 % of the cap. */
   onWarning?: (info: { usd: number; capUsd: number; fraction: number }) => void;
   now?: () => number;
@@ -54,11 +58,11 @@ export class SpendBreaker {
 
   /** Disabled breakers are honest about it rather than silently allowing everything. */
   get enabled(): boolean {
-    return this.o.capUsd > 0;
+    return this.o.capUsd() > 0;
   }
 
   get capUsd(): number {
-    return this.o.capUsd;
+    return this.o.capUsd();
   }
 
   /** Today's provider spend and estimated ad revenue (revenue never offsets the cap). */
@@ -68,7 +72,7 @@ export class SpendBreaker {
       dayStart: this.day,
       usd: this.usd,
       revenueUsd: this.revenueUsd,
-      capUsd: this.o.capUsd,
+      capUsd: this.o.capUsd(),
     };
   }
 
@@ -81,10 +85,11 @@ export class SpendBreaker {
     }
     this.usd += line.usd;
     if (!this.enabled || this.warned) return;
-    const fraction = this.usd / this.o.capUsd;
+    const capUsd = this.o.capUsd();
+    const fraction = this.usd / capUsd;
     if (fraction < WARN_FRACTION) return;
     this.warned = true;
-    this.o.onWarning?.({ usd: this.usd, capUsd: this.o.capUsd, fraction });
+    this.o.onWarning?.({ usd: this.usd, capUsd, fraction });
   }
 
   /**
@@ -102,7 +107,7 @@ export class SpendBreaker {
 
   limitFor(plan: PlanCode): number {
     const paid = hasEntitlement(plan, 'unlimited_sessions');
-    return this.o.capUsd * (paid ? this.o.paidMultiple : 1);
+    return this.o.capUsd() * (paid ? this.o.paidMultiple() : 1);
   }
 
   /**

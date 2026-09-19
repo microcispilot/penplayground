@@ -153,7 +153,7 @@ function options(over: Partial<SessionMetaJobsOptions> = {}): SessionMetaJobsOpt
   return {
     modelFor: () => fake(),
     imageFor: () => new FakeImageModel(),
-    quality: 'low',
+    quality: () => 'low',
     onResult: vi.fn(),
     retryDelayMs: 0,
     ...over,
@@ -409,7 +409,7 @@ describe('SessionMetaJobs', () => {
 
   it('honours the quality setting on the generation it asks for', async () => {
     const image = new CountingImageModel();
-    const jobs = new SessionMetaJobs(options({ quality: 'medium', imageFor: () => image }));
+    const jobs = new SessionMetaJobs(options({ quality: () => 'medium', imageFor: () => image }));
     jobs.enqueue(input());
     await jobs.idle();
     expect(image.requests[0]?.quality).toBe('medium');

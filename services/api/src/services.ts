@@ -7,6 +7,7 @@ import {
   connect,
   ListRepository,
   ParticipantRepository,
+  RuntimeConfigRepository,
   SessionRepository,
 } from '@pen/db';
 import {
@@ -50,6 +51,7 @@ import { LiveKitRooms } from './livekit.js';
 import { logger } from './logger.js';
 import { FileSessionMetaCache } from './meta-cache.js';
 import { captureWarning, observer } from './observability.js';
+import { RuntimeConfigService, RuntimeConfigStore } from './runtime-config/index.js';
 import { SpendBreaker } from './spend.js';
 import { createRecognizer } from './stt.js';
 import { FileThumbnailImageCache } from './thumbnail-cache.js';
@@ -58,6 +60,15 @@ import { ExpertVoices } from './voices.js';
 
 export interface Services {
   cfg: Config;
+  /**
+   * What this process is running on right now (ADR-0025): the compiled-in
+   * defaults, overlaid with the stored document, overlaid with whatever the
+   * environment pins. Reading one is a synchronous map lookup; nothing on a
+   * hot path ever waits for it.
+   */
+  config: RuntimeConfigStore;
+  /** Reading and changing that document, for the Settings screen. */
+  runtimeConfig: RuntimeConfigService;
   onten: Onten;
   /**
    * Lessons this product has already taught, reused by the next learner of the
@@ -72,10 +83,15 @@ export interface Services {
   /** Server-side STT; null when clients transcribe on-device (`PEN_STT_PROVIDER=browser`). */
   recognizer: SpeechRecognizerFactory | null;
   /**
-   * Hosted intent classifier in front of the session model's own intent call;
-   * null when `PEN_INTENT_PROVIDER=model` (the default) and the model does it.
+   * The hosted intent classifier in front of the session model's own intent
+   * call, for a room that is being built now; null when the provider is
+   * `model` and the model does it, or when `jev` has no key to run on.
+   *
+   * A function, not a value: the provider is a per-session setting, so it is
+   * read once as the room is built and that room keeps what it got — a change
+   * in the dashboard never moves under a lesson in progress.
    */
-  intent: IntentClassifier | null;
+  intentFor(): IntentClassifier | null;
   voices: ExpertVoices;
   ledger: FileLedger;
   db: Connection;
@@ -188,16 +204,50 @@ export async function buildServices(
     JSON.parse(readFileSync(join(DATA_DIR, 'experts', 'catalog.json'), 'utf8')),
   );
   const costs = new CostLedger();
-  const ads = new AdEconomics(cfg, costs);
+
+  const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
+  const db = await connect(cfg.DATABASE_URL, {
+    log: (message, detail) => logger.warn({ evt: message, ...detail }),
+  });
+  const sessions = new SessionRepository(db.db);
+  const participants = new ParticipantRepository(db.db);
+  const lists = new ListRepository(db.db);
+
+  /**
+   * The runtime configuration comes first, because everything below it is
+   * built from settings (ADR-0025). `start()` is awaited so the process boots
+   * on the document that is actually in force rather than on the defaults and
+   * then changing its mind a poll later. A database that cannot be read here
+   * is not fatal: the store falls back to its last known good copy on disk,
+   * and to the compiled-in defaults only if it has never seen one.
+   */
+  const runtimeConfigRepo = new RuntimeConfigRepository(db.db);
+  const config = new RuntimeConfigStore({ cfg, source: runtimeConfigRepo });
+  await config.start();
+  const runtimeConfig = new RuntimeConfigService(runtimeConfigRepo, config, async (id) => {
+    const row = await participants.get(id);
+    return row?.name ?? null;
+  });
+  logger.info(
+    {
+      evt: 'config.ready',
+      revision: config.revision,
+      stale: config.stale,
+      ...config.snapshot(),
+    },
+    'runtime configuration resolved',
+  );
+
+  const ads = new AdEconomics(cfg, config, costs);
 
   const engine: SpeechSynthesizer = (() => {
-    switch (cfg.PEN_TTS_PROVIDER) {
+    switch (config.get('PEN_TTS_PROVIDER')) {
       case 'fish-cloud': {
         if (!cfg.FISH_AUDIO_API_KEY)
           throw new Error('PEN_TTS_PROVIDER=fish-cloud requires FISH_AUDIO_API_KEY');
         return new FishCloudSynthesizer({
           apiKey: cfg.FISH_AUDIO_API_KEY,
-          model: cfg.FISH_AUDIO_MODEL,
+          model: config.get('FISH_AUDIO_MODEL'),
           onFirstChunk: (ms) => observer.event('tts.first_chunk_ms', { ms }),
         });
       }
@@ -214,26 +264,29 @@ export async function buildServices(
    * same sentences, so they are synthesised once and replayed from disk after
    * that. The cache is a wrapper, so the pipeline above it is unchanged.
    */
+  const ttsCacheMb = config.get('PEN_TTS_CACHE_MB');
   const ttsCache =
-    cfg.PEN_TTS_CACHE_MB > 0
+    ttsCacheMb > 0
       ? new CachingSynthesizer({
           inner: engine,
           dir: join(cfg.PEN_DATA_DIR, 'lesson-voice'),
-          maxBytes: cfg.PEN_TTS_CACHE_MB * 1024 * 1024,
+          maxBytes: ttsCacheMb * 1024 * 1024,
           onEvent: (name, data) => observer.event(name, data),
         })
       : null;
   const synthesizer: SpeechSynthesizer = ttsCache ?? engine;
   if (ttsCache)
     logger.info(
-      { evt: 'tts.cache_on', maxMb: cfg.PEN_TTS_CACHE_MB, says: ttsCache.snapshot().says },
+      { evt: 'tts.cache_on', maxMb: ttsCacheMb, says: ttsCache.snapshot().says },
       'lesson voice store ready',
     );
   else logger.info({ evt: 'tts.cache_off' }, 'lesson voice store disabled (PEN_TTS_CACHE_MB=0)');
 
+  // Both read per decision, so the cap can be raised or dropped during an
+  // incident without a deploy (ADR-0025).
   const spend = new SpendBreaker({
-    capUsd: cfg.PEN_DAILY_SPEND_CAP_USD,
-    paidMultiple: cfg.PEN_DAILY_SPEND_PAID_MULTIPLE,
+    capUsd: () => config.get('PEN_DAILY_SPEND_CAP_USD'),
+    paidMultiple: () => config.get('PEN_DAILY_SPEND_PAID_MULTIPLE'),
     onWarning: ({ usd, capUsd, fraction }) =>
       captureWarning('spend.threshold', 'Daily provider spend passed 80 % of the cap', {
         usd: Math.round(usd * 100) / 100,
@@ -244,15 +297,16 @@ export async function buildServices(
   if (spend.enabled) {
     const recovered = spend.rebuild(join(cfg.PEN_DATA_DIR, 'sessions'));
     logger.info(
-      { evt: 'spend.ready', capUsd: cfg.PEN_DAILY_SPEND_CAP_USD, ...recovered },
+      { evt: 'spend.ready', capUsd: spend.capUsd, ...recovered },
       "today's spend recovered from the ledgers",
     );
   } else logger.warn({ evt: 'spend.off' }, 'daily spend cap disabled (PEN_DAILY_SPEND_CAP_USD=0)');
 
-  const recognizer = createRecognizer(cfg);
+  const recognizer = createRecognizer(cfg, config.get('PEN_STT_PROVIDER'));
   // Priced into the house account like every other provider call; the session's
   // own ledger gets its `intent` stage and cost line from the room's wrapper.
-  const intent = createIntentClassifier(cfg, costs);
+  // Memoised per (provider, model), so a room being built pays a map lookup.
+  const intentFor = createIntentClassifier(cfg, config, costs);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
   /** Which of the four keys a call runs on (`KeyOwner` in contracts says why they never fall back). */
   const keyFor = (owner: KeyOwner): string | undefined =>
@@ -264,6 +318,10 @@ export async function buildServices(
           ? cfg.OPENAI_API_KEY_STANDARD
           : cfg.OPENAI_API_KEY_FREE;
 
+  // The adapters are built once and cached by (key owner, model name), so a
+  // model setting that changes simply builds one more adapter rather than
+  // rebuilding the world — and a room that already holds one keeps it.
+  const serviceTier = config.get('PEN_LLM_SERVICE_TIER');
   const models = new Map<string, LanguageModel>();
   /** One adapter per (key owner, model name); the fake provider serves every request from its scripts. */
   const buildModel = (owner: KeyOwner, modelName: string): LanguageModel => {
@@ -271,7 +329,7 @@ export async function buildServices(
     const cached = models.get(cacheId);
     if (cached) return cached;
     let model: LanguageModel;
-    if (cfg.PEN_LLM_PROVIDER === 'fake') {
+    if (config.get('PEN_LLM_PROVIDER') === 'fake') {
       if (models.size === 0)
         logger.warn('PEN_LLM_PROVIDER=fake: scripted demo lessons only (development only)');
       model = new FakeLanguageModel(demoScripts.scripts, demoScripts.completions);
@@ -285,7 +343,7 @@ export async function buildServices(
         apiKey: key,
         model: modelName,
         ...(cfg.PEN_LLM_BASE_URL ? { baseURL: cfg.PEN_LLM_BASE_URL } : {}),
-        ...(cfg.PEN_LLM_SERVICE_TIER ? { serviceTier: cfg.PEN_LLM_SERVICE_TIER } : {}),
+        ...(serviceTier ? { serviceTier } : {}),
         reasoningEffort: 'none',
         meter: costs,
         onInvalidEvent: (raw, error) =>
@@ -295,15 +353,23 @@ export async function buildServices(
     models.set(cacheId, model);
     return model;
   };
-  const modelFor = (plan: PlanCode): LanguageModel => buildModel(plan, cfg.PEN_LLM_MODEL);
+  /** Read per call, and a room calls it once as it is built (ADR-0025). */
+  const modelFor = (plan: PlanCode): LanguageModel => buildModel(plan, config.get('PEN_LLM_MODEL'));
 
   const imageModels = new Map<string, ImageModel>();
-  /** One image adapter per key owner. Same keys, same rule: a learner's picture bills to their host's plan. */
+  /**
+   * One image adapter per (key owner, model). Same keys, same rule: a
+   * learner's picture bills to their host's plan. Keyed by the model too,
+   * because the model is a runtime setting and two of them can be live in one
+   * process while jobs started before the change finish.
+   */
   const buildImage = (owner: KeyOwner): ImageModel => {
-    const cached = imageModels.get(owner);
+    const imageModel = config.get('PEN_IMAGE_MODEL');
+    const cacheId = `${owner}:${imageModel}`;
+    const cached = imageModels.get(cacheId);
     if (cached) return cached;
     let model: ImageModel;
-    if (cfg.PEN_LLM_PROVIDER === 'fake') {
+    if (config.get('PEN_LLM_PROVIDER') === 'fake') {
       model = new FakeImageModel();
     } else {
       const key = keyFor(owner);
@@ -313,32 +379,28 @@ export async function buildServices(
         );
       model = new OpenAIImageModel({
         apiKey: key,
-        model: cfg.PEN_IMAGE_MODEL,
+        model: imageModel,
         ...(cfg.PEN_LLM_BASE_URL ? { baseURL: cfg.PEN_LLM_BASE_URL } : {}),
         meter: costs,
       });
     }
-    imageModels.set(owner, model);
+    imageModels.set(cacheId, model);
     return model;
   };
   const imageFor = (plan: PlanCode): ImageModel => buildImage(plan);
   // Null when the key is absent, so a deployment without it still boots and the
   // scripts that need it say why they cannot run instead of billing a learner.
-  const hasPlatformKey = cfg.PEN_LLM_PROVIDER === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
-  const platformModel = hasPlatformKey ? buildModel('platform', cfg.PEN_LLM_OUTLINE_MODEL) : null;
+  const hasPlatformKey =
+    config.get('PEN_LLM_PROVIDER') === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
+  const platformModel = hasPlatformKey
+    ? buildModel('platform', config.get('PEN_LLM_OUTLINE_MODEL'))
+    : null;
   const platformImage = hasPlatformKey ? buildImage('platform') : null;
   if (!platformModel)
     logger.info(
       'OPENAI_API_KEY_PLATFORM is not set: backfills and probes have no key of their own',
     );
 
-  const ledger = new FileLedger(join(cfg.PEN_DATA_DIR, 'sessions'));
-  const db = await connect(cfg.DATABASE_URL, {
-    log: (message, detail) => logger.warn({ evt: message, ...detail }),
-  });
-  const sessions = new SessionRepository(db.db);
-  const participants = new ParticipantRepository(db.db);
-  const lists = new ListRepository(db.db);
   const billing = new Billing(cfg, participants);
   const googleVerifier =
     opts.googleVerifier ??
@@ -406,9 +468,11 @@ export async function buildServices(
    * provider's prompt cache.
    */
   const meta = createSessionMetaJobs({
-    modelFor: (owner) => buildModel(owner, cfg.PEN_LLM_OUTLINE_MODEL),
+    // Both read when the job runs, not when the queue is made: a card written
+    // an hour after a restart uses the setting in force then.
+    modelFor: (owner) => buildModel(owner, config.get('PEN_LLM_OUTLINE_MODEL')),
     imageFor: buildImage,
-    quality: cfg.PEN_THUMBNAIL_QUALITY,
+    quality: () => config.get('PEN_THUMBNAIL_QUALITY'),
     store: thumbnails,
     sessions,
     cache: metaCache,
@@ -416,6 +480,8 @@ export async function buildServices(
   });
   const base = {
     cfg,
+    config,
+    runtimeConfig,
     onten,
     memo,
     searchProvider,
@@ -423,7 +489,7 @@ export async function buildServices(
     synthesizer,
     ttsCache,
     recognizer,
-    intent,
+    intentFor,
     voices,
     ledger,
     db,

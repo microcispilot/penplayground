@@ -110,8 +110,12 @@ export function checkProviders(cfg: Config): ReadyCheck {
     missing.push('ASSEMBLYAI_API_KEY');
   if (cfg.PEN_STT_PROVIDER === 'ws-relay' && !cfg.PEN_STT_RELAY_URL)
     missing.push('PEN_STT_RELAY_URL');
-  if (cfg.PEN_INTENT_PROVIDER === 'jev' && !cfg.OPENROUTER_API_KEY)
-    missing.push('OPENROUTER_API_KEY');
+  // `PEN_INTENT_PROVIDER=jev` without a key is deliberately NOT a missing
+  // provider: the room falls back to the session model, which is what it did
+  // before the hosted classifier existed, so the stack can still serve a
+  // lesson. It is a configuration to fix, not a reason to refuse traffic —
+  // `intent.no_key` says so once in the log and `/api/health` reports the
+  // classifier that is actually running.
   return missing.length === 0
     ? { ok: true }
     : { ok: false, detail: `missing: ${missing.join(', ')}` };

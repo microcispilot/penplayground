@@ -10,9 +10,17 @@ import { logger } from './logger.js';
 /**
  * Server-side STT per deployment (ADR-0004). `browser` means clients transcribe
  * on-device and the API answers upstream audio with STT_UNAVAILABLE.
+ *
+ * The provider is passed in rather than read from `cfg` so the caller decides
+ * where it came from: the API hands it the runtime setting in force
+ * (ADR-0025), and the environment field is the default that setting resolves
+ * to when nothing overrides it.
  */
-export function createRecognizer(cfg: Config): SpeechRecognizerFactory | null {
-  switch (cfg.PEN_STT_PROVIDER) {
+export function createRecognizer(
+  cfg: Config,
+  provider: Config['PEN_STT_PROVIDER'] = cfg.PEN_STT_PROVIDER,
+): SpeechRecognizerFactory | null {
+  switch (provider) {
     case 'browser':
       return null;
     case 'deepgram':

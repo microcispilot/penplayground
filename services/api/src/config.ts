@@ -5,7 +5,7 @@ import { z } from 'zod';
  * required value fails fast with a readable message instead of a runtime
  * surprise three requests later.
  */
-const Env = z.object({
+export const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PEN_PORT: z.coerce.number().int().positive().default(4000),
   PEN_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
@@ -57,10 +57,12 @@ const Env = z.object({
    * `jev` puts a hosted decisions model in front, and falls back to `model`
    * on any error, timeout or answer it is not sure enough about.
    *
-   * `model` is the default so nothing changes until a deployment opts in, and
-   * this line is the whole of turning it off again.
+   * `jev` is the default (ADR-0025): the hosted classifier is what decides an
+   * ambiguous turn, and the session model stays underneath it as the floor.
+   * Without `OPENROUTER_API_KEY` the room quietly uses the model path, so a
+   * deployment that has no key still behaves exactly as it did.
    */
-  PEN_INTENT_PROVIDER: z.enum(['model', 'jev']).default('model'),
+  PEN_INTENT_PROVIDER: z.enum(['model', 'jev']).default('jev'),
   /**
    * Pinned: TypeSafe's own console also lists `typesafe/jev-latest`, but
    * OpenRouter rejects that id.
@@ -90,6 +92,22 @@ const Env = z.object({
 
   /** Google Identity Services web client id; sign-in is off (and `/api/health` says `google:false`) until set. */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+
+  /**
+   * Who may read and change the runtime configuration (ADR-0025): a
+   * comma-separated list of the Google addresses that are allowed into
+   * `/api/admin/runtime-config` and the Settings screen behind it. Unset
+   * means nobody — the routes answer 403 and the screen is not offered, so a
+   * deployment that never configures this cannot have its providers switched
+   * by whoever happens to hold a bearer token.
+   */
+  PEN_ADMIN_EMAILS: z.string().optional(),
+  /**
+   * How often the API re-reads the stored runtime configuration. One small
+   * indexed read per interval per process; every flag read in between is an
+   * in-memory lookup. 0 reads once at boot and never again.
+   */
+  PEN_RUNTIME_CONFIG_POLL_MS: z.coerce.number().int().nonnegative().default(15_000),
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
@@ -187,17 +205,43 @@ const Env = z.object({
 
 export type Config = z.infer<typeof Env>;
 
+/**
+ * Which variables the environment actually set, per config object.
+ *
+ * A runtime setting has three tiers — environment variable, stored document,
+ * compiled-in default (ADR-0025) — and the first of them only exists if we can
+ * tell "the operator pinned this on this box" apart from "zod filled in the
+ * default". `Config` cannot: by the time it is parsed both look identical. So
+ * `loadConfig` remembers the raw, explicitly-present values beside the config
+ * it returns, keyed weakly so a discarded config takes its pins with it.
+ *
+ * Deliberately a side table rather than a field on `Config`: the config object
+ * is spread, logged and handed to every service, and a pin map riding along
+ * inside it would be copied into places that must not act on it.
+ */
+const PINS = new WeakMap<Config, Readonly<Record<string, string>>>();
+
+/**
+ * The environment variables that were explicitly set for this config — never
+ * the ones zod defaulted. Empty for a config that was built by spreading
+ * another one, which is exactly right: a spread value is not an operator pin.
+ */
+export function pinnedEnv(cfg: Config): Readonly<Record<string, string>> {
+  return PINS.get(cfg) ?? {};
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // `KEY=` in a .env means "unset", not "empty string".
   const cleaned = Object.fromEntries(
     Object.entries(env).filter(([, v]) => v !== undefined && v !== ''),
-  );
+  ) as Record<string, string>;
   const parsed = Env.safeParse(cleaned);
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment:\n${lines}`);
   }
   const cfg = parsed.data;
+  PINS.set(cfg, Object.freeze({ ...cleaned }));
   if (cfg.NODE_ENV === 'production') {
     if (cfg.PEN_TTS_PROVIDER === 'silent')
       throw new Error('PEN_TTS_PROVIDER=silent is not allowed in production');

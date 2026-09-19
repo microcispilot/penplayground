@@ -45,6 +45,12 @@ export interface LiveRoom {
   createdAt: number;
   plan: PlanCode;
   metrics: SessionMetrics;
+  /**
+   * The runtime settings the room was built with (ADR-0025), so the finished
+   * session can be explained from its own record rather than from whatever
+   * the dashboard happens to say when someone comes to look.
+   */
+  settings: Record<string, string | number | boolean>;
   /** Stage events already sent to PostHog for this session. */
   readonly stageEvents: number;
 }
@@ -172,6 +178,13 @@ export class RoomRegistry {
         resolution.canonicalKnowledgeId,
         { plan },
       );
+    /**
+     * The runtime settings this room will run on, read once here and kept
+     * (ADR-0025). A lesson never changes its mind half way through because
+     * somebody saved the dashboard: what the room was built with is what it
+     * teaches with, and what its telemetry reports afterwards.
+     */
+    const settings = services.config.snapshot();
     const seats = new Map<WebSocket, Seat>();
     const transport: RoomTransport = {
       broadcast: (message) => {
@@ -204,7 +217,7 @@ export class RoomRegistry {
       runtime: services.onten.newRuntime(),
       memo: services.memo,
       model: services.modelFor(args.host.plan),
-      intent: services.intent,
+      intent: services.intentFor(),
       synthesizer: services.synthesizer,
       voice: services.voices.voiceFor(expert, locale),
       voiceFor: (lang) => services.voices.voiceFor(expert, lang),
@@ -218,7 +231,11 @@ export class RoomRegistry {
       searchProvider: services.searchProvider,
       targetMinutes: 14,
       participantAudio: services.livekit !== null,
-      ads: services.ads.policyFor(args.host.plan, services.cfg.PEN_ADS_EVERY_SEGMENTS),
+      ads: services.ads.policyFor(
+        args.host.plan,
+        sessionId,
+        services.config.get('PEN_ADS_EVERY_SEGMENTS'),
+      ),
     });
     const record: SessionRecord = {
       id: sessionId,
@@ -263,6 +280,7 @@ export class RoomRegistry {
       createdAt: Date.now(),
       plan: args.host.plan,
       metrics,
+      settings,
       get stageEvents() {
         return counter.stageEvents;
       },
@@ -395,10 +413,11 @@ export class RoomRegistry {
         ...sessionEndedProperties(telemetry, {
           completed: state.mode === 'complete',
           providers: {
-            llm: this.services.cfg.PEN_LLM_PROVIDER,
+            llm: this.services.config.get('PEN_LLM_PROVIDER'),
             tts: this.services.synthesizer.id,
             stt: this.services.recognizer?.id ?? 'browser',
           },
+          settings: live.settings,
         }),
         adsRequested: ads.requested,
         adsCompleted: ads.completed,
