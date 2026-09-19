@@ -116,7 +116,7 @@ body names the failing check:
 | --- | --- |
 | `db` | `docker compose ps postgres`, `docker compose logs postgres`; disk full? § Disk |
 | `dataDir` | `df -h /srv`; is `/srv/pen-playground/data` owned by uid 1000? |
-| `providers` | a key is missing from `api.env` — the detail names it |
+| `providers` | a key is missing from `api.env` — the detail names it. `OPENROUTER_API_KEY` is deliberately not one of them: without it the room classifies with the session model and the stack can still serve a lesson (ADR-0025) |
 
 ---
 
