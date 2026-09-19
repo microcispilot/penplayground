@@ -150,8 +150,8 @@ export function intentState(request: IntentRequest): string {
 /**
  * What this has always been: one structured-output call on the session's own
  * model, under the session's prompt-cache key. It is both a provider in its
- * own right (`PEN_INTENT_PROVIDER=model`, the default) and the floor every
- * other provider falls back to.
+ * own right (`PEN_INTENT_PROVIDER=model`) and the floor every other provider
+ * falls back to — including `jev`, which is the default since ADR-0025.
  */
 export class ModelIntentClassifier implements IntentClassifier {
   readonly id: string;

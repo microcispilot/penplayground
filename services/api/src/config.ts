@@ -16,8 +16,8 @@ export const Env = z.object({
   DATABASE_URL: z.string().default('pglite://.pen-data/db'),
 
   PEN_LLM_PROVIDER: z.enum(['openai', 'openai-compatible', 'fake']).default('openai'),
-  PEN_LLM_MODEL: z.string().default('gpt-5.6-luna'),
-  PEN_LLM_OUTLINE_MODEL: z.string().default('gpt-5.6-luna'),
+  PEN_LLM_MODEL: z.string().trim().min(1).max(120).default('gpt-5.6-luna'),
+  PEN_LLM_OUTLINE_MODEL: z.string().trim().min(1).max(120).default('gpt-5.6-luna'),
   PEN_LLM_BASE_URL: z.string().url().optional(),
   /**
    * Session thumbnails (ADR-0021). One `gpt-image-1` generation per session,
@@ -30,7 +30,7 @@ export const Env = z.object({
    * actually read at the two are not tellable apart. Raise it here if that
    * ever stops being true.
    */
-  PEN_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  PEN_IMAGE_MODEL: z.string().trim().min(1).max(120).default('gpt-image-1'),
   PEN_THUMBNAIL_QUALITY: z.enum(['low', 'medium', 'high']).default('low'),
   PEN_LLM_SERVICE_TIER: z.enum(['auto', 'default', 'flex', 'priority']).optional(),
   /**
@@ -67,7 +67,7 @@ export const Env = z.object({
    * Pinned: TypeSafe's own console also lists `typesafe/jev-latest`, but
    * OpenRouter rejects that id.
    */
-  PEN_INTENT_MODEL: z.string().default('typesafe/jev-1.13'),
+  PEN_INTENT_MODEL: z.string().trim().min(1).max(120).default('typesafe/jev-1.13'),
   /**
    * OpenRouter, not OpenAI: the decisions endpoint is a different gateway and
    * a different account, and the per-plan OpenAI keys are never reused for it
@@ -77,7 +77,7 @@ export const Env = z.object({
 
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),
-  FISH_AUDIO_MODEL: z.string().default('s2.1-pro'),
+  FISH_AUDIO_MODEL: z.string().trim().min(1).max(120).default('s2.1-pro'),
   PEN_TTS_BRIDGE_URL: z.string().url().default('http://127.0.0.1:8310'),
 
   PEN_STT_PROVIDER: z.enum(['browser', 'ws-relay', 'deepgram', 'assemblyai']).default('browser'),
@@ -153,7 +153,7 @@ export const Env = z.object({
 
   /** Dev only: force a plan for anonymous participants (e.g. classroom) to exercise gated features. */
   PEN_DEV_PLAN: z.enum(['free', 'standard', 'professional']).optional(),
-  PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().default(3),
+  PEN_ADS_EVERY_SEGMENTS: z.coerce.number().int().positive().max(50).default(3),
   /**
    * Video ad demand (ADR-0014): the Google Ad Manager VAST/VMAP tag for the free plan's in-stream
    * ads (any VAST seller's tag works). Unset → no ads, unless PEN_AD_TEST_TAGS=1 substitutes
@@ -165,7 +165,7 @@ export const Env = z.object({
     .default('0')
     .transform((v) => v === '1' || v === 'true'),
   /** Estimated net eCPM (USD per 1 000 completed ads) used for the per-session revenue line. */
-  PEN_AD_ECPM_USD: z.coerce.number().nonnegative().default(8),
+  PEN_AD_ECPM_USD: z.coerce.number().nonnegative().max(1_000).default(8),
 
   /**
    * Spend circuit breaker (ADR-0016): the most provider spend one UTC day may
@@ -173,9 +173,9 @@ export const Env = z.object({
    * sessions are held back (503 CAPACITY) while paid plans continue to
    * `PEN_DAILY_SPEND_PAID_MULTIPLE ×` the cap. 0 disables the breaker.
    */
-  PEN_DAILY_SPEND_CAP_USD: z.coerce.number().nonnegative().default(25),
+  PEN_DAILY_SPEND_CAP_USD: z.coerce.number().nonnegative().max(100_000).default(25),
   /** How far past the cap paying learners keep going before anyone is held back. */
-  PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).default(3),
+  PEN_DAILY_SPEND_PAID_MULTIPLE: z.coerce.number().min(1).max(100).default(3),
 
   /**
    * Lesson voice store (ADR-0017): the audio of a lesson's sentences, kept
@@ -191,15 +191,16 @@ export const Env = z.object({
    * Time to first audio went from 107.6 s (the free tier queueing) to 106 ms.
    * 0 turns it off.
    */
-  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().default(2048),
+  PEN_TTS_CACHE_MB: z.coerce.number().int().nonnegative().max(1_048_576).default(2048),
 
   /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
-  PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().default(5),
+  PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().max(1_000).default(5),
   /** Largest JSON body any route accepts. Every route here is small; 64 KB is generous. */
   PEN_MAX_BODY_BYTES: z.coerce
     .number()
     .int()
-    .positive()
+    .min(4096)
+    .max(1_048_576)
     .default(64 * 1024),
 });
 
@@ -241,7 +242,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid environment:\n${lines}`);
   }
   const cfg = parsed.data;
-  PINS.set(cfg, Object.freeze({ ...cleaned }));
+  // Only variables this schema knows about. `cleaned` is the whole process
+  // environment — every provider key, the Stripe secret, the JWT secret — and
+  // a pin table that holds those is one careless log line away from printing
+  // them. Nothing needs them here: a pin is only ever looked up by setting name.
+  PINS.set(
+    cfg,
+    Object.freeze(Object.fromEntries(Object.entries(cleaned).filter(([key]) => key in Env.shape))),
+  );
   if (cfg.NODE_ENV === 'production') {
     if (cfg.PEN_TTS_PROVIDER === 'silent')
       throw new Error('PEN_TTS_PROVIDER=silent is not allowed in production');

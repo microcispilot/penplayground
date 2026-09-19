@@ -91,24 +91,31 @@ export function checkDataDir(dataDir: string): ReadyCheck {
 }
 
 /**
- * The keys the configured providers need. Config already refuses the fake
- * model and the silent synthesizer in production, so this is about missing
- * credentials, not about which provider was chosen: a container that booted
- * before the operator filled `api.env` must never take traffic.
+ * The keys the providers in force need. About missing credentials, not about
+ * which provider was chosen: a container that booted before the operator
+ * filled `api.env` must never take traffic.
+ *
+ * `providers` is what this process actually built, which is not always what
+ * `cfg` says — a provider is a runtime setting now (ADR-0025), and the store
+ * can be a save ahead of the objects in this process. Default it to `cfg` so
+ * every existing caller and test reads the same as before.
  */
-export function checkProviders(cfg: Config): ReadyCheck {
+export function checkProviders(
+  cfg: Config,
+  providers: Pick<Config, 'PEN_LLM_PROVIDER' | 'PEN_TTS_PROVIDER' | 'PEN_STT_PROVIDER'> = cfg,
+): ReadyCheck {
   const missing: string[] = [];
-  if (cfg.PEN_LLM_PROVIDER !== 'fake') {
+  if (providers.PEN_LLM_PROVIDER !== 'fake') {
     for (const plan of ['FREE', 'STANDARD', 'PROFESSIONAL'] as const)
       if (!cfg[`OPENAI_API_KEY_${plan}`]) missing.push(`OPENAI_API_KEY_${plan}`);
   }
-  if (cfg.PEN_TTS_PROVIDER === 'fish-cloud' && !cfg.FISH_AUDIO_API_KEY)
+  if (providers.PEN_TTS_PROVIDER === 'fish-cloud' && !cfg.FISH_AUDIO_API_KEY)
     missing.push('FISH_AUDIO_API_KEY');
-  if (cfg.PEN_STT_PROVIDER === 'deepgram' && !cfg.DEEPGRAM_API_KEY)
+  if (providers.PEN_STT_PROVIDER === 'deepgram' && !cfg.DEEPGRAM_API_KEY)
     missing.push('DEEPGRAM_API_KEY');
-  if (cfg.PEN_STT_PROVIDER === 'assemblyai' && !cfg.ASSEMBLYAI_API_KEY)
+  if (providers.PEN_STT_PROVIDER === 'assemblyai' && !cfg.ASSEMBLYAI_API_KEY)
     missing.push('ASSEMBLYAI_API_KEY');
-  if (cfg.PEN_STT_PROVIDER === 'ws-relay' && !cfg.PEN_STT_RELAY_URL)
+  if (providers.PEN_STT_PROVIDER === 'ws-relay' && !cfg.PEN_STT_RELAY_URL)
     missing.push('PEN_STT_RELAY_URL');
   // `PEN_INTENT_PROVIDER=jev` without a key is deliberately NOT a missing
   // provider: the room falls back to the session model, which is what it did
@@ -130,7 +137,12 @@ export class ReadinessProbe {
   private cached: { at: number; result: Readiness } | null = null;
 
   constructor(
-    private readonly deps: { db: Connection; cfg: Config },
+    private readonly deps: {
+      db: Connection;
+      cfg: Config;
+      /** What this process built, when the caller knows (ADR-0025); `cfg` otherwise. */
+      providers?: Pick<Config, 'PEN_LLM_PROVIDER' | 'PEN_TTS_PROVIDER' | 'PEN_STT_PROVIDER'>;
+    },
     private readonly now: () => number = () => Date.now(),
   ) {}
 
@@ -141,7 +153,7 @@ export class ReadinessProbe {
     const [db, dataDir, providers] = [
       await checkDatabase(this.deps.db),
       checkDataDir(this.deps.cfg.PEN_DATA_DIR),
-      checkProviders(this.deps.cfg),
+      checkProviders(this.deps.cfg, this.deps.providers ?? this.deps.cfg),
     ];
     const result: Readiness = {
       ok: db.ok && dataDir.ok && providers.ok,

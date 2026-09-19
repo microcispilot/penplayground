@@ -1,15 +1,18 @@
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AD_RULES, GOOGLE_IMA_SAMPLE_TAG, nonPersonalisedTag } from '@pen/contracts';
 import type { AdOutcome } from '@pen/session-engine';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AdEconomics, type RevenueSink, resolveAdDemand } from '../src/ads.js';
 import { loadConfig } from '../src/config.js';
 import { RuntimeConfigStore } from '../src/runtime-config/index.js';
 import { CostLedger } from '../src/services.js';
 
-/** A path no test writes, so the store never finds a cached document. */
-const NO_CACHE = join(tmpdir(), 'pen-ads-test-never-written.json');
+const dirs: string[] = [];
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
 
 const base = {
   NODE_ENV: 'test',
@@ -21,7 +24,14 @@ const base = {
 /** Ad economics on a runtime-config store with nothing stored: the defaults. */
 function economics(env: Record<string, string>, revenue?: RevenueSink): AdEconomics {
   const cfg = loadConfig(env);
-  return new AdEconomics(cfg, new RuntimeConfigStore({ cfg, path: NO_CACHE }), revenue ?? null);
+  return new AdEconomics(cfg, store(cfg), revenue ?? null);
+}
+
+/** A store of its own per test, so a stale cache file cannot change an answer. */
+function store(cfg: ReturnType<typeof loadConfig>): RuntimeConfigStore {
+  const dir = mkdtempSync(join(tmpdir(), 'pen-ads-'));
+  dirs.push(dir);
+  return new RuntimeConfigStore({ cfg, path: join(dir, 'runtime-config.json') });
 }
 
 function outcome(event: AdOutcome['event'], sessionId = 's1'): AdOutcome {
@@ -122,5 +132,40 @@ describe('AdEconomics', () => {
     expect(costs.snapshot().ads).toMatchObject({ calls: 2, usd: -0.024 });
     ads.forget('s1');
     expect(ads.tally('s1').completed).toBe(0);
+  });
+});
+
+describe('the eCPM a session is priced at', () => {
+  it('is the one its room was built with, even after the setting moves', () => {
+    // Revenue is summed over many completions across many minutes. A rate
+    // that moved half way through would make the total the sum of two
+    // different prices (ADR-0025).
+    // Not pinned in the environment: a pin would rightly beat the save, and
+    // then this test would be checking the wrong tier.
+    const cfg = loadConfig({ ...base, PEN_AD_TEST_TAGS: '1' });
+    const settings = store(cfg);
+    const costs = new CostLedger();
+    const ads = new AdEconomics(cfg, settings, costs);
+
+    const first = ads.policyFor('free', 'early', 3);
+    expect(first?.revenuePerCompletionUsd).toBeCloseTo(0.008, 6);
+
+    // Somebody saves a new rate while that session is still running.
+    settings.apply(
+      { revision: 1, settings: { PEN_AD_ECPM_USD: 20 }, updatedAt: 1, updatedBy: 'p' },
+      'database',
+    );
+    const later = ads.policyFor('free', 'late', 3);
+    expect(later?.revenuePerCompletionUsd).toBeCloseTo(0.02, 6);
+
+    // Each session's completions are priced at its own rate, not today's.
+    first?.onEvent?.(outcome('ad_completed', 'early'));
+    later?.onEvent?.(outcome('ad_completed', 'late'));
+    expect(ads.tally('early').revenueUsd).toBeCloseTo(0.008, 6);
+    expect(ads.tally('late').revenueUsd).toBeCloseTo(0.02, 6);
+
+    // And releasing a session takes its rate with it.
+    ads.forget('early');
+    expect(ads.tally('early').revenueUsd).toBe(0);
   });
 });

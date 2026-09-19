@@ -23,13 +23,29 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** The revision in force, when the server said so on a conflict. */
+    readonly current?: number,
   ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
-const Failure = z.object({ error: z.string(), message: z.string().optional() });
+const Failure = z.object({
+  error: z.string(),
+  message: z.string().optional(),
+  /** What the current revision actually is, on a conflict. */
+  current: z.number().int().nonnegative().optional(),
+  /** Zod's own account of a refused body; the operator needs the field name. */
+  issues: z.array(z.object({ path: z.array(z.unknown()), message: z.string() })).optional(),
+});
+
+/**
+ * No request may hang forever. Without this a wedged API leaves the console
+ * on a blank frame or a Save that never returns, with no way out but a
+ * reload — which is exactly the silent, still screen the product bar forbids.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export const AdminSession = z.union([
   z.object({ admin: z.literal(false) }),
@@ -85,10 +101,14 @@ export class AdminApi {
         cache: 'no-store',
         redirect: 'error',
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-        ...(init.signal ? { signal: init.signal } : {}),
+        signal: init.signal
+          ? AbortSignal.any([init.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+          : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') throw error;
+      if (error instanceof DOMException && error.name === 'TimeoutError')
+        throw new ApiError(0, 'TIMEOUT', 'The API did not answer. Try again.');
       throw new ApiError(0, 'NETWORK', 'Could not reach the Pen Playground API.');
     }
     const text = await res.text();
@@ -100,12 +120,22 @@ export class AdminApi {
     }
     if (!res.ok) {
       const failure = Failure.safeParse(payload);
+      const detail = failure.success ? failure.data : null;
+      // A 400 from the contract carries `issues`, not `message`. Saying
+      // "The API refused that (400)" when the server named the field is the
+      // console failing at the one thing it is for.
+      const fromIssues = detail?.issues
+        ?.slice(0, 3)
+        .map(
+          (i) =>
+            `${i.path.filter((p) => typeof p === 'string').join('.') || 'request'}: ${i.message}`,
+        )
+        .join('; ');
       throw new ApiError(
         res.status,
-        failure.success ? failure.data.error : 'ERROR',
-        failure.success && failure.data.message
-          ? failure.data.message
-          : `The API refused that (${res.status}).`,
+        detail?.error ?? 'ERROR',
+        detail?.message ?? fromIssues ?? `The API refused that (${res.status}).`,
+        detail?.current,
       );
     }
     const parsed = schema.safeParse(payload);
@@ -183,28 +213,35 @@ export class AdminApi {
 export interface WriteFailure {
   message: string;
   reloadRequired: boolean;
+  /** The bearer is no longer an operator's; the console must stop using it. */
+  signedOut?: boolean;
 }
 
 export function writeFailure(error: unknown): WriteFailure {
   if (error instanceof ApiError) {
     if (error.status === 409)
       return {
-        message:
-          'Someone else saved while you were editing. Your draft is kept. Reload the saved settings and look at what changed before saving again.',
+        message: `Someone else saved while you were editing${
+          error.current === undefined ? '' : ` — the current revision is ${error.current}`
+        }. Your draft is kept. Reload the saved settings and look at what changed before saving again.`,
         reloadRequired: true,
       };
     if (error.status === 401 || error.status === 403)
       return {
         message: 'This account can no longer change the settings. Sign in again.',
         reloadRequired: true,
+        signedOut: true,
       };
     if (error.status === 400 || error.status === 422)
       return { message: error.message, reloadRequired: false };
     if (error.status === 503)
+      // Honest: 503 is the API's catch-all for a write, and a write that
+      // failed after the commit looks identical from here. "Nothing was
+      // changed" would be a guess, and the wrong one invites a second save.
       return {
         message:
-          'The settings store cannot be reached. Nothing was changed, and the API is still running on the last settings it read.',
-        reloadRequired: false,
+          'The settings store could not be reached. The change may or may not have landed — reload the saved settings and look before trying again.',
+        reloadRequired: true,
       };
   }
   return {

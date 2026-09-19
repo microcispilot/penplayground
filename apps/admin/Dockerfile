@@ -12,8 +12,10 @@
 # (`PEN_ADMIN_EMAILS`, ADR-0025). VITE_API_URL is deliberately unset — nginx in this image proxies
 # /api to the API container, so the browser only ever talks to this origin.
 #
-# Sentry source maps work exactly as they do for the web image: mount the token as a BuildKit
-# secret and the maps upload under release = GIT_SHA, then leave the bundle.
+# No Sentry source-map upload: this app builds without source maps (apps/admin/vite.config.ts),
+# because there is no @sentry/vite-plugin here to upload them to and a served .map is just the
+# console's source in public. Admin Sentry events are therefore unsymbolicated; add the plugin
+# and flip `sourcemap` when that matters.
 # Base tags verified on Docker Hub (library/node, library/nginx) on 2026-09-16.
 
 ARG NODE_IMAGE=node:22-alpine
@@ -42,16 +44,11 @@ FROM deps AS build
 ARG VITE_GOOGLE_CLIENT_ID=""
 ARG VITE_SENTRY_DSN=""
 ARG GIT_SHA=unknown
-ARG SENTRY_ORG=pen-playground
 COPY . .
-RUN --mount=type=secret,id=sentry_auth_token \
-    sh -eu -c ' \
+RUN sh -eu -c ' \
       for v in VITE_GOOGLE_CLIENT_ID VITE_SENTRY_DSN; do \
         eval "val=\${$v:-}"; [ -n "$val" ] || unset "$v"; \
       done; \
-      if [ -s /run/secrets/sentry_auth_token ]; then \
-        export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" SENTRY_RELEASE="$GIT_SHA"; \
-      fi; \
       pnpm --filter @pen/admin build'
 
 FROM ${NGINX_IMAGE} AS runtime

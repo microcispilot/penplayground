@@ -451,7 +451,7 @@ export function createSessionMetaJobs(deps: {
         image: image
           ? {
               model: image.usage?.model ?? 'cache',
-              quality: deps.quality(),
+              quality: image.quality,
               inputTokens: image.usage?.inputTokens ?? 0,
               outputTokens: image.usage?.outputTokens ?? 0,
               usd: image.usage?.usd ?? 0,

@@ -7,7 +7,8 @@ import type {
   RuntimeSettingValue,
 } from '@pen/contracts';
 import type { RuntimeConfigRepository } from '@pen/db';
-import { GROUP_ORDER, isSettingName, SETTING_NAMES, SHAPES } from './registry.js';
+import type { Config } from '../config.js';
+import { GROUP_ORDER, isSettingName, refuseValue, SETTING_NAMES, SHAPES } from './registry.js';
 import type { RuntimeConfigStore } from './store.js';
 
 /** A save that collided with somebody else's. */
@@ -47,8 +48,12 @@ export class RuntimeConfigService {
   constructor(
     private readonly repo: RuntimeConfigRepository,
     private readonly store: RuntimeConfigStore,
+    /** For the refusals that depend on this deployment: production, and which keys it holds. */
+    private readonly cfg: Config,
     /** Display names for the audit trail, so history reads as people rather than ids. */
     private readonly nameOf: (id: string) => Promise<string | null>,
+    /** Where a swallowed failure goes; errors never disappear here (ADR-0011). */
+    private readonly onError: (area: string, error: unknown) => void = () => undefined,
   ) {}
 
   /**
@@ -58,18 +63,15 @@ export class RuntimeConfigService {
    * good values are returned marked `stale`, and saving is refused.
    */
   async document(): Promise<RuntimeConfigDocument> {
+    let snapshot: Awaited<ReturnType<RuntimeConfigRepository['read']>>;
     try {
-      const snapshot = await this.repo.read();
-      this.store.apply(snapshot, 'database');
-      return {
-        revision: snapshot.revision,
-        updatedAt: snapshot.updatedAt,
-        updatedBy: snapshot.updatedBy,
-        updatedByName: snapshot.updatedBy ? await this.nameOf(snapshot.updatedBy) : null,
-        settings: this.rows(),
-        stale: false,
-      };
-    } catch {
+      // Only the read is allowed to make the document stale. Wrapping the
+      // name lookup and the row building in the same catch would report
+      // perfectly fresh settings as stale because one participant row could
+      // not be found.
+      snapshot = await this.repo.read();
+    } catch (error) {
+      this.onError('runtime_config.read', error);
       return {
         revision: this.store.revision,
         updatedAt: this.store.updatedAt,
@@ -79,6 +81,25 @@ export class RuntimeConfigService {
         stale: true,
       };
     }
+    this.store.apply(snapshot, 'database');
+    // A missing display name is a cosmetic gap, never a reason to refuse the
+    // document — but it is still something that went wrong.
+    let updatedByName: string | null = null;
+    if (snapshot.updatedBy) {
+      try {
+        updatedByName = await this.nameOf(snapshot.updatedBy);
+      } catch (error) {
+        this.onError('runtime_config.author', error);
+      }
+    }
+    return {
+      revision: snapshot.revision,
+      updatedAt: snapshot.updatedAt,
+      updatedBy: snapshot.updatedBy,
+      updatedByName,
+      settings: this.rows(),
+      stale: false,
+    };
   }
 
   /** One row per setting, in group order then declaration order. */
@@ -203,6 +224,12 @@ export class RuntimeConfigService {
       const parsed = SHAPES[name].parse(raw);
       if (!parsed.ok)
         throw new RuntimeConfigInvalid(`${SHAPES[name].def.label}: ${describe(name)}`);
+      // Parseable is not the same as usable. A demo model in production, or a
+      // provider whose key this deployment does not hold, would be stored
+      // happily and then kill the next boot — so it is refused here, with the
+      // sentence that says why.
+      const refused = refuseValue(name, parsed.value, this.cfg);
+      if (refused !== null) throw new RuntimeConfigInvalid(`${SHAPES[name].def.label}: ${refused}`);
       // `undefined` here is an optional setting explicitly set to nothing,
       // which is what leaving it out of the document already means.
       if (parsed.value !== undefined) out[name] = parsed.value;

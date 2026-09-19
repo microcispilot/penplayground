@@ -43,6 +43,31 @@ afterEach(() => {
 });
 
 describe('SpendBreaker', () => {
+  it('follows a cap that moves under it, because the cap is a runtime setting', () => {
+    // The point of a circuit breaker is being able to move it while the fire
+    // is burning (ADR-0025). A breaker that captured its cap at construction
+    // would pass every other test in this file and fail this one.
+    let capUsd = 10;
+    let paidMultiple = 2;
+    const breaker = new SpendBreaker({ capUsd: () => capUsd, paidMultiple: () => paidMultiple });
+    breaker.record(costLine(12));
+    expect(breaker.check('free').ok).toBe(false);
+    expect(breaker.check('professional').ok).toBe(true);
+
+    capUsd = 100;
+    expect(breaker.check('free')).toEqual({ ok: true, usd: 12, limitUsd: 100 });
+
+    capUsd = 5;
+    expect(breaker.check('free').ok).toBe(false);
+    paidMultiple = 10;
+    expect(breaker.check('professional')).toEqual({ ok: true, usd: 12, limitUsd: 50 });
+
+    // And zero still turns it off, whenever it is set.
+    capUsd = 0;
+    expect(breaker.enabled).toBe(false);
+    expect(breaker.check('free').ok).toBe(true);
+  });
+
   it('is disabled at a cap of 0, and says so rather than silently allowing everything', () => {
     const breaker = new SpendBreaker({ capUsd: () => 0, paidMultiple: () => 3 });
     expect(breaker.enabled).toBe(false);

@@ -14,5 +14,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { proxy: { '/api': { target: api, changeOrigin: true } } },
   preview: { proxy: { '/api': { target: api, changeOrigin: true } } },
-  build: { sourcemap: true },
+  // No Sentry plugin in this app, so a source map is not uploaded anywhere —
+  // it would only be the console's source served publicly from /assets/
+  // behind a one-year immutable cache. `hidden` keeps it out of the bundle.
+  build: { sourcemap: false },
 });

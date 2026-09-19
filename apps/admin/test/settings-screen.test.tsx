@@ -65,6 +65,15 @@ const HISTORY: RuntimeConfigHistory = {
       restoredFromRevision: null,
       settings: { PEN_THUMBNAIL_QUALITY: 'high' },
     },
+    {
+      revision: 2,
+      updatedAt: 1_699_000_000_000,
+      updatedBy: 'p_admin',
+      updatedByName: 'Sam Owner',
+      reason: 'the cadence we liked',
+      restoredFromRevision: null,
+      settings: { PEN_ADS_EVERY_SEGMENTS: 6 },
+    },
   ],
   nextBeforeRevision: null,
 };
@@ -75,6 +84,8 @@ interface Script {
   history?: RuntimeConfigHistory;
   /** What a PUT answers with: a document, or a failure to throw. */
   onSave?: (body: unknown) => { status: number; body: unknown };
+  /** What a rollback answers with. */
+  onRollback?: (body: unknown) => { status: number; body: unknown };
 }
 
 /** A fetch that answers only the console's four routes, and records the saves. */
@@ -93,6 +104,15 @@ function scriptedFetch(script: Script, saves: unknown[]) {
       );
     if (url.includes('/api/admin/runtime-config/history'))
       return reply(200, script.history ?? HISTORY);
+    if (url.endsWith('/api/admin/runtime-config/rollback')) {
+      const body = JSON.parse(String(init?.body));
+      saves.push(body);
+      const answer = script.onRollback?.(body) ?? {
+        status: 200,
+        body: { ...DOC, revision: DOC.revision + 1 },
+      };
+      return reply(answer.status, answer.body);
+    }
     if (url.endsWith('/api/admin/runtime-config')) {
       if (init?.method === 'PUT') {
         const body = JSON.parse(String(init.body));
@@ -203,10 +223,36 @@ describe('the settings screen', () => {
     fireEvent.click(screen.getByTestId('save-settings'));
 
     const error = await screen.findByTestId('settings-error');
-    expect(error.textContent).toContain('Reload the saved settings');
+    // The 409 branch specifically, not the unknown-error fallback that also
+    // says "reload": the server told us which revision won, and the operator
+    // needs that number.
+    expect(error.textContent).toContain('Someone else saved while you were editing');
+    expect(error.textContent).toContain('the current revision is 4');
+    expect(error.textContent).toContain('Your draft is kept');
     // The edit is still on screen, and cannot be saved over the other one.
     expect((screen.getByLabelText('Intent provider') as HTMLSelectElement).value).toBe('model');
     expect((screen.getByTestId('save-settings') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('restores an old revision as a new one, with its own reason', async () => {
+    const { saves } = mount();
+    const entry = await screen.findByTestId('revision-2');
+    fireEvent.click(entry.querySelector('summary') as HTMLElement);
+    fireEvent.click(screen.getByLabelText('Restore revision 2'));
+    // The dialog shows what that revision held, and will not go without a why.
+    expect(await screen.findByText('Restore revision 2')).toBeTruthy();
+    const restore = screen.getByRole('button', { name: 'Restore as a new revision' });
+    expect((restore as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Why are you restoring it?'), {
+      target: { value: 'the cadence was wrong' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Restore as a new revision' }));
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).toEqual({
+      expectedRevision: 3,
+      targetRevision: 2,
+      reason: 'the cadence was wrong',
+    });
   });
 
   it('shows the history with who changed what and why', async () => {

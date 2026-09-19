@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RuntimeConfigSnapshot } from '@pen/db';
@@ -179,12 +179,8 @@ describe('last known good', () => {
   it('writes the cache atomically, leaving no partial file behind', async () => {
     const cfg = config();
     const path = join(cfg.PEN_DATA_DIR, 'runtime-config.json');
-    const store = new RuntimeConfigStore({
-      cfg,
-      source: new FakeSource(document({ PEN_TTS_CACHE_MB: 4096 })),
-      pollMs: 0,
-      path,
-    });
+    const source = new FakeSource(document({ PEN_TTS_CACHE_MB: 4096 }));
+    const store = new RuntimeConfigStore({ cfg, source, pollMs: 0, path });
     await store.start();
     const cached = JSON.parse(readFileSync(path, 'utf8')) as {
       version: number;
@@ -192,6 +188,26 @@ describe('last known good', () => {
     };
     expect(cached.version).toBe(1);
     expect(cached.settings.PEN_TTS_CACHE_MB).toBe(4096);
+    // Atomic means no temporary file survives the write — a reader that
+    // found one and a torn one would be the same accident.
+    expect(readdirSync(cfg.PEN_DATA_DIR).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('rewrites the cache only when the document moved, not on every poll', async () => {
+    // The poll runs every few seconds for a document that changes monthly.
+    const cfg = config();
+    const path = join(cfg.PEN_DATA_DIR, 'runtime-config.json');
+    const source = new FakeSource(document({ PEN_TTS_CACHE_MB: 4096 }));
+    const store = new RuntimeConfigStore({ cfg, source, pollMs: 0, path });
+    await store.start();
+    const first = statSync(path).mtimeMs;
+    for (let i = 0; i < 3; i += 1) await store.refresh();
+    expect(statSync(path).mtimeMs).toBe(first);
+
+    source.snapshot = document({ PEN_TTS_CACHE_MB: 8192 }, 2);
+    await store.refresh();
+    const after = JSON.parse(readFileSync(path, 'utf8')) as { settings: Record<string, unknown> };
+    expect(after.settings.PEN_TTS_CACHE_MB).toBe(8192);
   });
 });
 
@@ -242,6 +258,97 @@ describe('an unparseable setting', () => {
   });
 });
 
+describe('an environment pin cannot be beaten', () => {
+  it('holds even when the pin itself is out of bounds, rather than letting a save win', async () => {
+    // The bounds live on the schema, so `loadConfig` refuses a pin like this
+    // and the process never boots with one. If one ever reaches here anyway,
+    // the stored tier still must not take over a setting the operator pinned.
+    const cfg = config();
+    const source = new FakeSource(document({ PEN_DAILY_SPEND_CAP_USD: 5 }));
+    const store = new RuntimeConfigStore({ cfg, source, pollMs: 0 });
+    await store.start();
+    // Not pinned here, so the save lands.
+    expect(store.get('PEN_DAILY_SPEND_CAP_USD')).toBe(5);
+
+    const pinned = config({ PEN_DAILY_SPEND_CAP_USD: '900' });
+    const pinnedStore = new RuntimeConfigStore({ cfg: pinned, source, pollMs: 0 });
+    await pinnedStore.start();
+    expect(pinnedStore.get('PEN_DAILY_SPEND_CAP_USD')).toBe(900);
+    expect(pinnedStore.sourceOf('PEN_DAILY_SPEND_CAP_USD')).toBe('env');
+  });
+
+  it('refuses at boot a pin the console would also refuse', () => {
+    // One set of bounds, on the schema, so the two tiers cannot disagree
+    // about what a legal value is.
+    expect(() => config({ PEN_DAILY_SPEND_CAP_USD: '200000' })).toThrow(/PEN_DAILY_SPEND_CAP_USD/);
+    expect(() => config({ PEN_MAX_BODY_BYTES: '12' })).toThrow(/PEN_MAX_BODY_BYTES/);
+    expect(() => config({ PEN_ADS_EVERY_SEGMENTS: '99' })).toThrow(/PEN_ADS_EVERY_SEGMENTS/);
+    expect(() => config({ PEN_LLM_MODEL: '   ' })).toThrow(/PEN_LLM_MODEL/);
+  });
+
+  it('reports the schema default, not whatever this box happens to set', () => {
+    const cfg = config({ PEN_DAILY_SPEND_CAP_USD: '900' });
+    const store = new RuntimeConfigStore({ cfg });
+    expect(store.get('PEN_DAILY_SPEND_CAP_USD')).toBe(900);
+    // The console shows this beside it as "Default", and it must be the
+    // number the code runs on with no override anywhere — not this box's.
+    expect(store.defaultValue('PEN_DAILY_SPEND_CAP_USD')).toBe(25);
+  });
+});
+
+describe('a value this deployment must not run on', () => {
+  it('is dropped when read, so a save made elsewhere cannot kill the next boot', async () => {
+    // No Fish key on this box. `buildServices` throws on `fish-cloud`, and
+    // that throw would happen at boot — long after the save that caused it.
+    const cfg = config();
+    const source = new FakeSource(document({ PEN_TTS_PROVIDER: 'fish-cloud' }));
+    const store = new RuntimeConfigStore({ cfg, source, pollMs: 0 });
+    await store.start();
+    expect(store.get('PEN_TTS_PROVIDER')).toBe('silent');
+    expect(store.sourceOf('PEN_TTS_PROVIDER')).toBe('env');
+
+    // Same with server-side speech: a stored provider with no key is ignored.
+    const noPin = loadConfig({
+      NODE_ENV: 'test',
+      PEN_JWT_SECRET: 'x'.repeat(40),
+      PEN_DATA_DIR: tempDir(),
+      PEN_LLM_PROVIDER: 'fake',
+    });
+    const sttStore = new RuntimeConfigStore({
+      cfg: noPin,
+      source: new FakeSource(document({ PEN_STT_PROVIDER: 'deepgram' })),
+      pollMs: 0,
+    });
+    await sttStore.start();
+    expect(sttStore.get('PEN_STT_PROVIDER')).toBe('browser');
+  });
+
+  it('never lets a stored value bypass the production refusals', async () => {
+    const cfg = loadConfig({
+      NODE_ENV: 'production',
+      PEN_JWT_SECRET: 'x'.repeat(40),
+      PEN_DATA_DIR: tempDir(),
+      PEN_PUBLIC_URL: 'https://pen.test',
+      PEN_API_URL: 'https://pen.test',
+      OPENAI_API_KEY_FREE: 'k',
+      OPENAI_API_KEY_STANDARD: 'k',
+      OPENAI_API_KEY_PROFESSIONAL: 'k',
+      FISH_AUDIO_API_KEY: 'k',
+    });
+    const store = new RuntimeConfigStore({
+      cfg,
+      source: new FakeSource(document({ PEN_LLM_PROVIDER: 'fake', PEN_TTS_PROVIDER: 'silent' })),
+      pollMs: 0,
+    });
+    await store.start();
+    // `loadConfig` refuses both of these in production, and a stored value
+    // arrives after that check has run. Scripted lessons and a silent expert
+    // are exactly what a paying learner must never get.
+    expect(store.get('PEN_LLM_PROVIDER')).toBe('openai');
+    expect(store.get('PEN_TTS_PROVIDER')).toBe('fish-cloud');
+  });
+});
+
 describe('the telemetry snapshot', () => {
   it('carries every setting in force, so a session can be explained from its own record', async () => {
     const cfg = config({ PEN_LLM_MODEL: 'pinned-model' });
@@ -277,16 +384,28 @@ describe('the catalogue', () => {
     expect(SETTING_NAMES.filter((name) => forbidden.test(name))).toEqual([]);
   });
 
-  it('offers exactly the values the environment schema allows, for every choice', () => {
-    // The screen's dropdowns come from here, so a variant the schema would
-    // refuse must never be offerable.
+  it('finds the choices the schema declares, and offers exactly those', () => {
+    // `shapeOf` peels `.default()`/`.optional()` off a field by matching on
+    // zod's internal `def.type`. If a zod upgrade ever stops it peeling,
+    // every dropdown silently becomes a free-text box — so this names the
+    // choices it must find rather than asking the schema to agree with
+    // itself.
+    expect(SHAPES.PEN_THUMBNAIL_QUALITY.options).toEqual(['low', 'medium', 'high']);
+    expect(SHAPES.PEN_INTENT_PROVIDER.options).toEqual(['model', 'jev']);
+    expect(SHAPES.PEN_LLM_SERVICE_TIER.options).toEqual([
+      'unset',
+      'auto',
+      'default',
+      'flex',
+      'priority',
+    ]);
+    expect(SHAPES.PEN_LLM_MODEL.kind).toBe('text');
+    expect(SHAPES.PEN_TTS_CACHE_MB.kind).toBe('number');
+    // And the kinds line up with the options everywhere.
     for (const name of SETTING_NAMES) {
       const shape = SHAPES[name];
-      if (!shape.options) continue;
-      for (const option of shape.options) {
-        expect(shape.parse(option).ok, `${name} should accept ${option}`).toBe(true);
-      }
-      expect(shape.parse('definitely-not-a-value').ok).toBe(false);
+      expect(shape.kind === 'choice', name).toBe(shape.options !== undefined);
+      if (shape.options) expect(shape.parse('definitely-not-a-value').ok, name).toBe(false);
     }
   });
 });

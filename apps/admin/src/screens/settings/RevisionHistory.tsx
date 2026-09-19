@@ -115,6 +115,7 @@ export function RevisionHistory({
                     disabled={
                       !canRestore || loading || error !== null || entry.revision >= currentRevision
                     }
+                    aria-label={`Restore revision ${entry.revision}`}
                     onClick={() => onRestore(entry)}
                   >
                     Restore this revision

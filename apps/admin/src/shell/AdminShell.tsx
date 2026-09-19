@@ -61,6 +61,10 @@ export function AdminShell() {
                 key={item.to}
                 to={item.to}
                 end={item.end ?? false}
+                // Below `sm` the label is hidden and the icon is aria-hidden,
+                // so without this the link is announced with no name at all.
+                aria-label={item.label}
+                title={item.label}
                 className={({ isActive }) =>
                   cn(
                     'state-layer flex h-11 items-center justify-center gap-3 rounded-full px-3 text-label-large transition-colors sm:justify-start',
@@ -85,6 +89,8 @@ export function AdminShell() {
             variant="ghost"
             className="w-full justify-center sm:justify-start"
             leading={<LogOut size={18} aria-hidden />}
+            aria-label="Sign out"
+            title="Sign out"
             onClick={() => {
               signOut();
               navigate('/sign-in', { replace: true });

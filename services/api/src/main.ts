@@ -36,7 +36,15 @@ const sweeper = setInterval(() => rooms.sweep(), 60_000);
 // Dead-man's switch: the same readiness the healthcheck asks for, reported to
 // Sentry Crons every few minutes. Silence (a crashed or wedged process) is an
 // issue within two intervals; a failed probe is one immediately.
-const readiness = new ReadinessProbe({ db: services.db, cfg });
+const readiness = new ReadinessProbe({
+  db: services.db,
+  cfg,
+  providers: {
+    PEN_LLM_PROVIDER: services.llmProvider,
+    PEN_TTS_PROVIDER: services.config.get('PEN_TTS_PROVIDER'),
+    PEN_STT_PROVIDER: services.config.get('PEN_STT_PROVIDER'),
+  },
+});
 const stopHeartbeat = startCronHeartbeat(cfg, async () => (await readiness.check()).ok);
 
 // The Simurgh STT host is reached over a Tailscale path that costs ~6 s to establish the

@@ -1,11 +1,30 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { RuntimeSettingSource, RuntimeSettingValue } from '@pen/contracts';
 import type { RuntimeConfigSnapshot } from '@pen/db';
 import { z } from 'zod';
-import { type Config, pinnedEnv } from '../config.js';
+import { type Config, Env, pinnedEnv } from '../config.js';
 import { logger } from '../logger.js';
-import { type RuntimeSettingName, SETTING_NAMES, SHAPES } from './registry.js';
+import { type RuntimeSettingName, refuseValue, SETTING_NAMES, SHAPES } from './registry.js';
+
+/** The `.default()` on the environment schema — one definition, read here. */
+function defaultOf(name: RuntimeSettingName): RuntimeSettingValue | undefined {
+  const parsed = (Env.shape[name] as z.ZodType).safeParse(undefined);
+  if (!parsed.success) return undefined;
+  const value = parsed.data;
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? value
+    : undefined;
+}
 
 /** What the API reads every time it wants a setting, and how it got there. */
 export interface ResolvedSetting {
@@ -119,12 +138,15 @@ export class RuntimeConfigStore {
     return this.stored.get(name) ?? null;
   }
 
-  /** The compiled-in default: what the code does with no override at all. */
+  /**
+   * The compiled-in default: what the code does with no override at all.
+   *
+   * Read off the schema, not off `cfg`. `cfg` carries the operator's value on
+   * any box that set one, so reading it here would make the console show a
+   * different "default" on exactly the rows where the difference matters.
+   */
   defaultValue(name: RuntimeSettingName): RuntimeSettingValue | null {
-    const value = this.cfg[name] as unknown;
-    return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-      ? value
-      : null;
+    return defaultOf(name) ?? null;
   }
 
   /**
@@ -219,15 +241,38 @@ export class RuntimeConfigStore {
         }
         continue;
       }
+      // Parseable is not the same as usable here: a value this deployment
+      // must not run on (a demo model in production, a provider whose key it
+      // does not have) is dropped exactly like an unparseable one, so a
+      // restart cannot act on something a save would have refused.
+      const refused = refuseValue(name, parsed.value, this.cfg);
+      if (refused !== null) {
+        if (!this.complainedAbout.has(name)) {
+          this.complainedAbout.add(name);
+          logger.warn(
+            { evt: 'config.refused', setting: name, origin, reason: refused },
+            'stored runtime setting is not usable on this server; ignoring it',
+          );
+        }
+        continue;
+      }
       this.complainedAbout.delete(name);
       if (parsed.value === undefined) next.delete(name);
       else next.set(name, parsed.value);
     }
+    const changedRevision =
+      snapshot.revision !== this.lastRevision || snapshot.updatedAt !== this.lastUpdatedAt;
+    const changedValues =
+      next.size !== this.stored.size ||
+      [...next].some(([name, value]) => this.stored.get(name) !== value);
     this.stored = next;
     this.lastRevision = snapshot.revision;
     this.lastUpdatedAt = snapshot.updatedAt;
     this.resolve(true);
-    if (origin === 'database') this.saveToDisk();
+    // Only when the document actually moved. The poll runs every few seconds
+    // for a document that changes monthly, and rewriting the cache each time
+    // would be thousands of pointless writes a day on the data volume.
+    if (origin === 'database' && (changedRevision || changedValues)) this.saveToDisk();
   }
 
   // ── the three tiers ───────────────────────────────────────────────────────
@@ -327,7 +372,13 @@ export class RuntimeConfigStore {
     );
   }
 
-  /** Atomic: a torn file here would be a silent behaviour change on the next boot. */
+  /**
+   * Atomic, and flushed before the rename: a torn or empty file here is read
+   * back as unusable on the next boot, and the process would come up on the
+   * defaults — which is exactly the silent behaviour change the disk copy
+   * exists to prevent. `rename` is atomic for visibility, not for ordering
+   * against the data write, so the data is fsynced first.
+   */
   private saveToDisk(): void {
     const payload = {
       version: 1 as const,
@@ -339,9 +390,21 @@ export class RuntimeConfigStore {
     const temporary = `${this.path}.${process.pid}.tmp`;
     try {
       mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(temporary, `${JSON.stringify(payload, null, 2)}\n`);
+      const fd = openSync(temporary, 'w');
+      try {
+        writeSync(fd, `${JSON.stringify(payload, null, 2)}\n`);
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
       renameSync(temporary, this.path);
     } catch (error) {
+      // Leave nothing half-written behind for the next boot to find.
+      try {
+        rmSync(temporary, { force: true });
+      } catch {
+        /* the warning below is the whole of what we can do */
+      }
       logger.warn(
         { evt: 'config.disk_write_failed', path: this.path, err: String(error) },
         'could not cache the runtime configuration; a restart would start from the defaults',

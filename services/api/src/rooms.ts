@@ -262,9 +262,18 @@ export class RoomRegistry {
       keywords: [],
       likes: 0,
     };
-    await services.sessions.upsert(record);
-    // The host's history row starts with the session (ADR-0015); taking the seat refreshes it.
-    await services.lists.visit(args.host.id, record.id, 'host', record.startedAt);
+    // From here on the room exists in the ad ledger (`policyFor` above put
+    // its rate there), so anything that throws before it is registered has to
+    // take that entry with it — otherwise a database wobble with retrying
+    // clients grows that map without bound.
+    try {
+      await services.sessions.upsert(record);
+      // The host's history row starts with the session (ADR-0015); taking the seat refreshes it.
+      await services.lists.visit(args.host.id, record.id, 'host', record.startedAt);
+    } catch (error) {
+      services.ads.forget(sessionId);
+      throw error;
+    }
     services.analytics.capture(args.host.id, 'session_started', {
       intake: intake.via,
       match: resolution.match,

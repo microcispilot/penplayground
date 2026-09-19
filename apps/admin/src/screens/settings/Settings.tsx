@@ -25,7 +25,10 @@ export function Settings() {
   const [discarding, setDiscarding] = useState(false);
 
   const document = state.document;
-  const editable = state.phase === 'READY';
+  // Not editable on a stale document: it came off the last known good copy
+  // rather than the database, so there is nothing to compare-and-set against
+  // and a save could only fail.
+  const editable = state.phase === 'READY' && !document?.stale;
   const saving = state.phase === 'SAVING';
   const changed = changedSettings(state);
 
@@ -143,8 +146,11 @@ export function Settings() {
           </Card>
 
           {byGroup(document.settings).map(([group, settings]) => (
-            <section key={group} aria-labelledby={`group-${group}`} className="flex flex-col">
-              <h2 id={`group-${group}`} className="text-title-large text-on-surface">
+            // A group name with a space in it is not a legal id, and
+            // `aria-labelledby` would parse it as two idrefs that do not
+            // exist — leaving the section with no name at all.
+            <section key={group} aria-labelledby={groupId(group)} className="flex flex-col">
+              <h2 id={groupId(group)} className="text-title-large text-on-surface">
                 {group}
               </h2>
               {settings.map((setting) => (
@@ -305,6 +311,11 @@ export function Settings() {
       </Dialog>
     </ConsolePage>
   );
+}
+
+/** A group name as an id: lowercase, and nothing a space can break. */
+function groupId(group: string): string {
+  return `group-${group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

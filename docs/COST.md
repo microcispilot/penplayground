@@ -7,7 +7,7 @@
 | STT | AssemblyAI Universal-Streaming $0.15/h (or $0 browser on-device / self-hosted) | $0.05 |
 | Onten context | mock today; target < 20 ms, amortised across learners | ~$0 |
 | Topic preparation (only on a miss, once per topic) | seed + Tavily + luna | $0.05–0.65 |
-| Intent classifier (ADR-0024, only when `PEN_INTENT_PROVIDER=jev`) | `typesafe/jev-1.13`, ~685 input tokens per turn the heuristics cannot place (most turns never reach it), output free | ≈ $0.0000297 per classification |
+| Intent classifier (ADR-0024; `PEN_INTENT_PROVIDER=jev`, the default since ADR-0025, and only when a key is configured) | `typesafe/jev-1.13`, ~685 input tokens per turn the heuristics cannot place (most turns never reach it), output free | ≈ $0.0000297 per classification |
 | Session card copy (ADR-0013, ADR-0022) | one luna structured-output call, ~0.9k in (persona prefix cached) + ~0.12k out; ADR-0022's `subject` field added 270 in / 12 out, measured | ≈ $0.0004 |
 | Session thumbnail (ADR-0021, ADR-0022) | one `gpt-image-1` generation, 1536×1024, quality `low`: 67 text tokens in + 400 image tokens out; derived in-process to a WebP card and a JPEG og image | ≈ $0.0163 |
 | **Total marginal** | | **≈ $0.30 paid voice / ≈ $0.07 with free-tier voice and on-device STT** |

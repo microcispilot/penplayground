@@ -105,6 +105,13 @@ export interface SessionThumbnail {
    */
   ms: number;
   attempts: number;
+  /**
+   * The quality these bytes were actually drawn at — which on a reuse is what
+   * the earlier session paid for, not what the setting says today. Picture
+   * quality is a runtime setting (ADR-0025), so the record has to carry the
+   * answer rather than let a reader look it up later and get a different one.
+   */
+  quality: ThumbnailQuality;
 }
 
 export interface SessionMetaResult {
@@ -532,7 +539,15 @@ export class SessionMetaJobs {
       bytes: hit.png.length,
       savedUsd,
     });
-    return { png: hit.png, usage: null, reused: true, savedUsd, ms, attempts: 0 };
+    return {
+      png: hit.png,
+      usage: null,
+      reused: true,
+      savedUsd,
+      ms,
+      attempts: 0,
+      quality: hit.quality,
+    };
   }
 
   /**
@@ -654,6 +669,7 @@ export class SessionMetaJobs {
             savedUsd: 0,
             ms: this.now() - started,
             attempts: attempt,
+            quality,
           };
         } catch (error) {
           if (attempt < ATTEMPTS && !this.closed) {

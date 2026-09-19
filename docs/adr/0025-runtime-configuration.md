@@ -176,9 +176,12 @@ and this list cannot quietly stop being true. The reasons:
 
 - **Secrets and credentials** — `PEN_JWT_SECRET`, `OPENAI_API_KEY_*`,
   `OPENROUTER_API_KEY`, `FISH_AUDIO_API_KEY`, `DEEPGRAM_API_KEY`,
-  `ASSEMBLYAI_API_KEY`, `STRIPE_*`, `LIVEKIT_API_*`, `GOOGLE_CLIENT_ID`,
-  `SENTRY_DSN`, `POSTHOG_PROJECT_TOKEN`, `TAVILY_API_KEY`, `EXA_API_KEY`.
-  A console that can read these is a console that can leak them.
+  `ASSEMBLYAI_API_KEY`, `STRIPE_*`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
+  `SENTRY_DSN`, `POSTHOG_PROJECT_TOKEN`, `TAVILY_API_KEY`, `EXA_API_KEY`, and
+  — not secret, but an identity nobody should be able to swap from a browser
+  — `GOOGLE_CLIENT_ID` and the `STRIPE_PRICE_*` ids. A console that can read
+  the first group is a console that can leak it; one that can write the
+  second can point sign-in or billing somewhere else.
 - **Anything whose wrong value loses data** — `DATABASE_URL` and
   `PEN_DATA_DIR`. A typo in either points the product at an empty store and
   orphans everything written so far; `PEN_JWT_SECRET` is in the same class,
@@ -188,20 +191,31 @@ and this list cannot quietly stop being true. The reasons:
   `PEN_API_URL`, `PEN_LLM_BASE_URL`, `PEN_TTS_BRIDGE_URL`,
   `PEN_STT_RELAY_URL`, `SEARXNG_URL`, `LIVEKIT_URL`, `PEN_AD_TAG_URL`,
   `PEN_FFMPEG_PATH`, `PEN_CHROMIUM_PATH`, `PEN_CHROMIUM_ARGS`,
-  `PEN_RENDER_BASE_URL`, `PEN_MIGRATIONS_DIR`. These are where this box is,
-  not what the product does.
+  `PEN_RENDER_BASE_URL`, `LIVEKIT_API_URL`. These are where this box is, not
+  what the product does. (`PEN_MIGRATIONS_DIR` is in the same class and is
+  not even an `Env` field — `packages/db` reads it from `process.env`.)
 - **`POSTHOG_HOST`, `PEN_RUNTIME_CONFIG_POLL_MS`, `PEN_ADMIN_EMAILS`** —
   self-referential. A setting that controls where settings come from, how
   often they are read, or who may change them cannot be safely changed from
   the thing it governs.
-- **`SENTRY_CRON_MONITOR_SLUG` / `SENTRY_CRON_INTERVAL_MINUTES`** — the
-  dead-man's switch. Alerting must not depend on the store it would be
-  alerting about; a bad value here silences the thing that tells us a bad
-  value happened.
+- **`SENTRY_CRON_MONITOR_SLUG`, `SENTRY_CRON_INTERVAL_MINUTES`,
+  `SENTRY_ENVIRONMENT`** — the dead-man's switch and what its alerts are
+  filed under. Alerting must not depend on the store it would be alerting
+  about; a bad value here silences the thing that tells us a bad value
+  happened.
 - **`NODE_ENV`, `PEN_DEV_PLAN`, `PEN_AD_TEST_TAGS`** — development
   affordances that `loadConfig` already refuses in production. Putting them
   behind a console would create a path that bypasses that refusal: the check
   runs at boot, and a stored value arrives later.
+
+`loadConfig` refuses two more values in production —
+`PEN_LLM_PROVIDER=fake` and `PEN_TTS_PROVIDER=silent` — and those two **are**
+settings, because the providers themselves are a real choice. The refusal
+therefore cannot live only at boot: `refuseValue` in the registry repeats it
+at the save *and* when a document is read, so a stored `fake` can neither be
+written nor acted on. It refuses one more class for the same reason — a
+provider this deployment has no key for, which would be stored happily and
+then kill the next boot.
 
 ## Consequences
 

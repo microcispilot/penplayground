@@ -351,6 +351,60 @@ export const SHAPES: Readonly<Record<RuntimeSettingName, SettingShape>> = Object
   Object.fromEntries(SETTING_NAMES.map((name) => [name, shapeOf(name)])),
 ) as Record<RuntimeSettingName, SettingShape>;
 
+/**
+ * Values this deployment must never run on, whatever the document says.
+ *
+ * Two classes, and both have to be checked in two places — when a save is
+ * made, so the operator is told; and when a document is read, so a value that
+ * was already stored (or arrived from another process, or was written before
+ * a key was removed) cannot be acted on. A check only at the write is a check
+ * a restart walks straight past.
+ *
+ *  - **What `loadConfig` refuses in production.** `fake` lessons and a silent
+ *    expert kill the boot for a reason; a stored value arrives after that
+ *    check has run, so without this the console is a way around it.
+ *  - **A provider with no credential.** `buildServices` and `createRecognizer`
+ *    throw when the chosen provider has no key, and they run at boot — so a
+ *    save like this is a bomb with a timer set to the next deploy. Refused at
+ *    the save, and ignored if one is somehow already in the document.
+ *
+ * Returns the sentence the operator should read, or null when the value is
+ * fine.
+ */
+export function refuseValue(
+  name: RuntimeSettingName,
+  value: RuntimeSettingValue | undefined,
+  cfg: Config,
+): string | null {
+  if (value === undefined) return null;
+  if (cfg.NODE_ENV === 'production') {
+    if (name === 'PEN_LLM_PROVIDER' && value === 'fake')
+      return 'a scripted demo model cannot teach a paying learner; `fake` is refused in production.';
+    if (name === 'PEN_TTS_PROVIDER' && value === 'silent')
+      return 'a silent expert is refused in production.';
+  }
+  if (name === 'PEN_TTS_PROVIDER' && value === 'fish-cloud' && !cfg.FISH_AUDIO_API_KEY)
+    return 'this server has no FISH_AUDIO_API_KEY, and would refuse to start.';
+  if (name === 'PEN_TTS_PROVIDER' && value === 'fish-bridge' && !cfg.PEN_TTS_BRIDGE_URL)
+    return 'this server has no PEN_TTS_BRIDGE_URL.';
+  if (name === 'PEN_STT_PROVIDER') {
+    if (value === 'deepgram' && !cfg.DEEPGRAM_API_KEY)
+      return 'this server has no DEEPGRAM_API_KEY, and would refuse to start.';
+    if (value === 'assemblyai' && !cfg.ASSEMBLYAI_API_KEY)
+      return 'this server has no ASSEMBLYAI_API_KEY, and would refuse to start.';
+    if (value === 'ws-relay' && !cfg.PEN_STT_RELAY_URL)
+      return 'this server has no PEN_STT_RELAY_URL, and would refuse to start.';
+  }
+  if (name === 'PEN_LLM_PROVIDER' && value !== 'fake') {
+    const missing = (['FREE', 'STANDARD', 'PROFESSIONAL'] as const).filter(
+      (plan) => !cfg[`OPENAI_API_KEY_${plan}`],
+    );
+    if (missing.length > 0)
+      return `this server has no ${missing.map((p) => `OPENAI_API_KEY_${p}`).join(', ')}.`;
+  }
+  return null;
+}
+
 export function isSettingName(value: string): value is RuntimeSettingName {
   return Object.hasOwn(SETTINGS, value);
 }

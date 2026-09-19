@@ -416,6 +416,113 @@ describe('rollback', () => {
   });
 });
 
+describe('a saved limit actually limits', () => {
+  it('changes what the next request is allowed to send, with no restart', async () => {
+    // The regression this exists for: both of these were declared `request`
+    // scope and read from the boot-time config, so a save reported success,
+    // wrote an audit row, and changed nothing — ever.
+    const big = JSON.stringify({ topic: 'x'.repeat(5_000) });
+    const send = () =>
+      app.request('/api/sessions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...ownerAuth },
+        body: big,
+      });
+    // Under the default 64 KB it is the topic schema that objects, not the size.
+    expect((await send()).status).not.toBe(413);
+
+    const doc = await read();
+    const saved = await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: doc.revision,
+      reason: 'tighten the body limit during an incident',
+      settings: { PEN_MAX_BODY_BYTES: 4096 },
+    });
+    expect(saved.status).toBe(200);
+    expect(services.config.get('PEN_MAX_BODY_BYTES')).toBe(4096);
+    // Immediately, on the very next request.
+    expect((await send()).status).toBe(413);
+
+    // And back again, so the test leaves the box as it found it.
+    const after = await read();
+    await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: after.revision,
+      reason: 'incident over',
+      settings: {},
+    });
+    expect(services.config.get('PEN_MAX_BODY_BYTES')).toBe(65_536);
+    expect((await send()).status).not.toBe(413);
+  });
+});
+
+describe('the settings a save may not make', () => {
+  it('refuses a provider this server has no key for, rather than storing a bomb', async () => {
+    // Stored, this would throw inside `buildServices` at the next restart —
+    // a failure with a timer set to the next deploy.
+    const doc = await read();
+    const res = await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: doc.revision,
+      reason: 'switch to deepgram',
+      settings: { PEN_STT_PROVIDER: 'deepgram' },
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).message).toContain('DEEPGRAM_API_KEY');
+    expect((await read()).revision).toBe(doc.revision);
+  });
+
+  it('names the setting and the reason, so the operator knows what to do', async () => {
+    const doc = await read();
+    const res = await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: doc.revision,
+      reason: 'fish it is',
+      settings: { PEN_TTS_PROVIDER: 'fish-cloud' },
+    });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toContain('Voice provider');
+    expect(body.message).toContain('FISH_AUDIO_API_KEY');
+  });
+});
+
+describe('rollback is as protected as everything else', () => {
+  it('is refused for a signed-in account that is not an operator, and for no bearer at all', async () => {
+    const doc = await read();
+    for (const headers of [bystanderAuth, {}]) {
+      const res = await call('POST', '/api/admin/runtime-config/rollback', headers, {
+        expectedRevision: doc.revision,
+        targetRevision: 1,
+        reason: 'not mine to make',
+      });
+      expect(res.status).toBe(403);
+    }
+    expect((await read()).revision).toBe(doc.revision);
+  });
+
+  it('refuses a revision that is older than the current one but was never written', async () => {
+    // The path the suite used to miss: old enough to pass the ordering check,
+    // and absent from the history.
+    const doc = await read();
+    expect(doc.revision).toBeGreaterThan(1);
+    const history = (await (
+      await call('GET', '/api/admin/runtime-config/history?limit=50', ownerAuth)
+    ).json()) as RuntimeConfigHistory;
+    const present = new Set(history.entries.map((e) => e.revision));
+    const gone = [...Array(doc.revision).keys()].map((n) => n + 1).find((n) => !present.has(n));
+    if (gone !== undefined) {
+      const res = await call('POST', '/api/admin/runtime-config/rollback', ownerAuth, {
+        expectedRevision: doc.revision,
+        targetRevision: gone,
+        reason: 'a revision that never was',
+      });
+      expect(res.status).toBe(422);
+      expect((await res.json()).message).toContain('not in the history');
+    } else {
+      // Every revision below the current one exists, so delete-free history
+      // is doing its job; assert that rather than skipping silently.
+      expect(present.size).toBe(doc.revision);
+    }
+  });
+});
+
 describe('the poll', () => {
   it('picks up a change another process made, against the real database', async () => {
     // Everything else here goes through this process's own routes, which

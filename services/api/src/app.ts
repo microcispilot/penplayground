@@ -160,7 +160,15 @@ export function buildApp(services: Services): App {
   const authLimiter = new RateLimiter(30, 60_000);
   const allowSession = (key: string) => sessionLimiter.allow(key);
   const allowAuth = (key: string) => authLimiter.allow(key);
-  const readiness = new ReadinessProbe({ db: services.db, cfg: services.cfg });
+  const readiness = new ReadinessProbe({
+    db: services.db,
+    cfg: services.cfg,
+    providers: {
+      PEN_LLM_PROVIDER: services.llmProvider,
+      PEN_TTS_PROVIDER: services.config.get('PEN_TTS_PROVIDER'),
+      PEN_STT_PROVIDER: services.config.get('PEN_STT_PROVIDER'),
+    },
+  });
   /** Live sessions hosted from each address, so one machine cannot open rooms without bound. */
   const liveByIp = new Map<string, Set<string>>();
   const dev = services.cfg.NODE_ENV !== 'production';
@@ -225,7 +233,9 @@ export function buildApp(services: Services): App {
   app.use('/api/*', (c, next) =>
     bodyLimit({
       maxSize:
-        c.req.path === '/api/billing/webhook' ? WEBHOOK_MAX_BYTES : services.cfg.PEN_MAX_BODY_BYTES,
+        c.req.path === '/api/billing/webhook'
+          ? WEBHOOK_MAX_BYTES
+          : services.config.get('PEN_MAX_BODY_BYTES'),
       onError: (ctx) =>
         ctx.json({ error: 'TOO_LARGE', message: 'That request was too large.' }, 413),
     })(c, next),
@@ -282,7 +292,7 @@ export function buildApp(services: Services): App {
     c.json({
       ok: true,
       tts: services.synthesizer.id,
-      llm: services.config.get('PEN_LLM_PROVIDER'),
+      llm: services.llmProvider,
       stt: services.recognizer?.id ?? 'browser',
       // What a room being built right now would actually classify with — not
       // what the setting asks for, which can be `jev` with no key behind it.
@@ -609,7 +619,7 @@ export function buildApp(services: Services): App {
         const room = rooms.get(id);
         if (!room || room.room.getState().phase === 'ended') hosted.delete(id);
       }
-      if (hosted.size >= services.cfg.PEN_MAX_SESSIONS_PER_IP) {
+      if (hosted.size >= services.config.get('PEN_MAX_SESSIONS_PER_IP')) {
         observer.event('rooms.ip_cap', { live: hosted.size });
         return c.json(
           {
@@ -1458,6 +1468,11 @@ export function buildApp(services: Services): App {
     if (!claims || claims.anonymous) return null;
     const row = await services.participants.get(claims.sub);
     if (!row) return null;
+    // Only an address Google verified. `POST /api/dev/me/google` writes this
+    // column from the request body on non-production boxes, so without this
+    // any staging deployment with `PEN_ADMIN_EMAILS` set would hand the
+    // console to whoever posted the owner's address.
+    if (row.provider !== 'google' || !row.googleSub) return null;
     const email = row.email?.trim().toLowerCase();
     if (!email || !adminEmails.has(email)) return null;
     return { id: row.id, name: row.name, email };

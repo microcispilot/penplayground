@@ -174,15 +174,19 @@ if [ "$SKIP_BUILD" = 0 ]; then
     for v in VITE_SENTRY_DSN VITE_GOOGLE_CLIENT_ID; do
       if [ -n "${!v:-}" ]; then admin_args+=(--build-arg "$v=${!v}"); fi
     done
+    # No sentry_args: the console builds without source maps, so there is
+    # nothing to upload (apps/admin/Dockerfile says why).
     docker buildx build --platform linux/amd64 --load \
-      -f apps/admin/Dockerfile "${admin_args[@]}" "${sentry_args[@]}" \
+      -f apps/admin/Dockerfile "${admin_args[@]}" \
       -t "$ADMIN_IMAGE" -t pen-playground-admin:latest .
   fi
 else
   log "skipping build (--skip-build)"
-  docker image inspect "$API_IMAGE" "$WEB_IMAGE" >/dev/null 2>&1 \
+  needed=("$API_IMAGE" "$WEB_IMAGE")
+  if [ "$WITH_ADMIN" = 1 ]; then needed+=("$ADMIN_IMAGE"); fi
+  docker image inspect "${needed[@]}" >/dev/null 2>&1 \
     || [ "$SKIP_SHIP" = 1 ] \
-    || die "images $API_IMAGE / $WEB_IMAGE are not present locally; build them or pass --skip-ship"
+    || die "images ${needed[*]} are not all present locally; build them or pass --skip-ship"
 fi
 
 # ── 2. ship images (docker save | ssh docker load), skipping ones the host already has ─────

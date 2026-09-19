@@ -1,4 +1,5 @@
 import type { RuntimeConfigMutation, RuntimeConfigRollback } from '@pen/contracts';
+import * as Sentry from '@sentry/react';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { writeFailure } from '../../lib/api.js';
 import { useAdmin } from '../../lib/context.js';
@@ -30,7 +31,7 @@ export interface RuntimeConfigController {
  * means a slow answer can never overwrite a newer one.
  */
 export function useRuntimeConfig(): RuntimeConfigController {
-  const { api } = useAdmin();
+  const { api, signOut } = useAdmin();
   const [state, dispatch] = useReducer(editorReducer, initialEditorState);
   const [history, dispatchHistory] = useReducer(historyReducer, initialHistoryState);
   const nextRequest = useRef(0);
@@ -49,13 +50,15 @@ export function useRuntimeConfig(): RuntimeConfigController {
     try {
       const document = await api.runtimeConfig(controller.signal);
       if (!controller.signal.aborted) dispatch({ type: 'LOADED', requestId, document });
-    } catch {
-      if (!controller.signal.aborted)
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        Sentry.captureException(error);
         dispatch({
           type: 'LOAD_FAILED',
           requestId,
           error: 'The settings could not be read. Try again to see the revision in force.',
         });
+      }
     } finally {
       if (read.current === controller) read.current = null;
     }
@@ -77,8 +80,11 @@ export function useRuntimeConfig(): RuntimeConfigController {
             history: page,
             ...(beforeRevision === undefined ? {} : { beforeRevision }),
           });
-      } catch {
-        if (!controller.signal.aborted) dispatchHistory({ type: 'FAILED', requestId });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          Sentry.captureException(error);
+          dispatchHistory({ type: 'FAILED', requestId });
+        }
       } finally {
         if (historyRead.current === controller) historyRead.current = null;
       }
@@ -92,7 +98,9 @@ export function useRuntimeConfig(): RuntimeConfigController {
     return () => {
       read.current?.abort();
       historyRead.current?.abort();
-      write.current?.abort();
+      // Deliberately NOT the write. That request has left the browser and the
+      // server will commit it; aborting only throws away the answer, so the
+      // operator never learns which revision they created.
     };
   }, [load, loadHistory]);
 
@@ -116,7 +124,11 @@ export function useRuntimeConfig(): RuntimeConfigController {
       return document.revision === expectedRevision + 1;
     } catch (error) {
       if (!controller.signal.aborted) {
+        Sentry.captureException(error);
         const failure = writeFailure(error);
+        // A bearer the server no longer accepts must not stay in this
+        // browser: drop it and put the sign-in screen back.
+        if (failure.signedOut) signOut();
         dispatch({
           type: 'SAVE_FAILED',
           requestId,

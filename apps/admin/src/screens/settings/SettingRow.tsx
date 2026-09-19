@@ -34,12 +34,24 @@ export function SettingRow({
   const id = `setting-${setting.name}`;
   const changed = value !== setting.storedValue;
   const overridden = value !== null;
-  const describedBy = `${id}-help`;
+  /**
+   * Everything the control needs said about it, in the order it matters:
+   * what the setting is, then the facts around it (default, what is in
+   * force, when a change lands), then the pin — which is the single most
+   * important thing about a pinned row and used to be invisible to a screen
+   * reader standing on the control.
+   */
+  const describedBy = [`${id}-help`, `${id}-facts`, setting.pinnedByEnv ? `${id}-pin` : null]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div
       className={cn(
-        'grid gap-4 border-outline-variant border-t py-5 sm:grid-cols-[minmax(0,1fr)_20rem]',
+        // Two columns only when the description still has a paragraph's
+        // width left. Below that the control goes under it, full width,
+        // rather than squeezing the prose into a ribbon.
+        'grid gap-4 border-outline-variant border-t py-5 lg:grid-cols-[minmax(0,1fr)_20rem]',
         setting.pinnedByEnv && 'opacity-90',
       )}
       data-testid={`setting-${setting.name}`}
@@ -52,10 +64,16 @@ export function SettingRow({
           {changed ? <Pill tone="warm">Unsaved</Pill> : null}
           {setting.pinnedByEnv ? <Pill tone="neutral">Pinned on this server</Pill> : null}
         </div>
-        <p id={describedBy} className="mt-1.5 max-w-[60ch] text-body-small text-on-surface-variant">
+        <p
+          id={`${id}-help`}
+          className="mt-1.5 max-w-[60ch] text-body-small text-on-surface-variant"
+        >
           {setting.description}
         </p>
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-small text-on-surface-variant">
+        <p
+          id={`${id}-facts`}
+          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-small text-on-surface-variant"
+        >
           <code className="font-mono text-on-surface-variant">{setting.env}</code>
           <span aria-hidden>·</span>
           <span>{SCOPE_NOTE[setting.scope]}</span>
@@ -70,7 +88,7 @@ export function SettingRow({
           </span>
         </p>
         {setting.pinnedByEnv ? (
-          <p className="mt-2 text-body-small text-on-surface-variant">
+          <p id={`${id}-pin`} className="mt-2 text-body-small text-on-surface-variant">
             This server sets <code className="font-mono">{setting.env}</code> in its environment, so
             it keeps running on{' '}
             <strong className="text-on-surface">{showValue(setting.effectiveValue)}</strong>{' '}
@@ -104,6 +122,9 @@ export function SettingRow({
             size="sm"
             leading={<RotateCcw size={15} aria-hidden />}
             disabled={disabled || !overridden}
+            // Nineteen buttons reading "Use default" are nineteen identical
+            // names in a screen reader's list; each one says which row it is.
+            aria-label={`Use the default for ${setting.label}`}
             onClick={() => onChange(null)}
           >
             Use default

@@ -69,6 +69,13 @@ export interface Services {
   config: RuntimeConfigStore;
   /** Reading and changing that document, for the Settings screen. */
   runtimeConfig: RuntimeConfigService;
+  /**
+   * The language-model provider the adapters were actually built with. A
+   * `restart` setting, so this — not the store — is what `/api/health` and
+   * the readiness probe must report: the store can already be one save ahead
+   * of the objects in this process.
+   */
+  llmProvider: Config['PEN_LLM_PROVIDER'];
   onten: Onten;
   /**
    * Lessons this product has already taught, reused by the next learner of the
@@ -224,10 +231,13 @@ export async function buildServices(
   const runtimeConfigRepo = new RuntimeConfigRepository(db.db);
   const config = new RuntimeConfigStore({ cfg, source: runtimeConfigRepo });
   await config.start();
-  const runtimeConfig = new RuntimeConfigService(runtimeConfigRepo, config, async (id) => {
-    const row = await participants.get(id);
-    return row?.name ?? null;
-  });
+  const runtimeConfig = new RuntimeConfigService(
+    runtimeConfigRepo,
+    config,
+    cfg,
+    async (id) => (await participants.get(id))?.name ?? null,
+    (area, error) => observer.error(area, error),
+  );
   logger.info(
     {
       evt: 'config.ready',
@@ -294,13 +304,16 @@ export async function buildServices(
         fraction: Math.round(fraction * 100) / 100,
       }),
   });
-  if (spend.enabled) {
-    const recovered = spend.rebuild(join(cfg.PEN_DATA_DIR, 'sessions'));
-    logger.info(
-      { evt: 'spend.ready', capUsd: spend.capUsd, ...recovered },
-      "today's spend recovered from the ledgers",
-    );
-  } else logger.warn({ evt: 'spend.off' }, 'daily spend cap disabled (PEN_DAILY_SPEND_CAP_USD=0)');
+  // Recovered whatever the cap says right now: the cap is a runtime setting
+  // (ADR-0025), and a breaker armed later in the day must not believe the day
+  // started clean. Counting costs nothing when the cap is 0.
+  const recovered = spend.rebuild(join(cfg.PEN_DATA_DIR, 'sessions'));
+  logger.info(
+    { evt: 'spend.ready', capUsd: spend.capUsd, enabled: spend.enabled, ...recovered },
+    "today's spend recovered from the ledgers",
+  );
+  if (!spend.enabled)
+    logger.warn({ evt: 'spend.off' }, 'daily spend cap disabled (PEN_DAILY_SPEND_CAP_USD=0)');
 
   const recognizer = createRecognizer(cfg, config.get('PEN_STT_PROVIDER'));
   // Priced into the house account like every other provider call; the session's
@@ -321,7 +334,15 @@ export async function buildServices(
   // The adapters are built once and cached by (key owner, model name), so a
   // model setting that changes simply builds one more adapter rather than
   // rebuilding the world — and a room that already holds one keeps it.
+  /**
+   * Both read once, here, because both are `restart` settings and the
+   * adapters below are cached. Reading the provider per call would make it a
+   * live switch that the cache key does not include — one save could put
+   * `fake` lessons in front of a paying learner without a restart, and
+   * clearing it on a box with no provider key would make room creation throw.
+   */
   const serviceTier = config.get('PEN_LLM_SERVICE_TIER');
+  const llmProvider = config.get('PEN_LLM_PROVIDER');
   const models = new Map<string, LanguageModel>();
   /** One adapter per (key owner, model name); the fake provider serves every request from its scripts. */
   const buildModel = (owner: KeyOwner, modelName: string): LanguageModel => {
@@ -329,7 +350,7 @@ export async function buildServices(
     const cached = models.get(cacheId);
     if (cached) return cached;
     let model: LanguageModel;
-    if (config.get('PEN_LLM_PROVIDER') === 'fake') {
+    if (llmProvider === 'fake') {
       if (models.size === 0)
         logger.warn('PEN_LLM_PROVIDER=fake: scripted demo lessons only (development only)');
       model = new FakeLanguageModel(demoScripts.scripts, demoScripts.completions);
@@ -369,7 +390,7 @@ export async function buildServices(
     const cached = imageModels.get(cacheId);
     if (cached) return cached;
     let model: ImageModel;
-    if (config.get('PEN_LLM_PROVIDER') === 'fake') {
+    if (llmProvider === 'fake') {
       model = new FakeImageModel();
     } else {
       const key = keyFor(owner);
@@ -396,8 +417,7 @@ export async function buildServices(
   // session, and every caller is a short-lived script (backfill, probe,
   // prewarm) that boots, does its work on the settings in force when it
   // started, and exits.
-  const hasPlatformKey =
-    config.get('PEN_LLM_PROVIDER') === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
+  const hasPlatformKey = llmProvider === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
   const platformModel = hasPlatformKey
     ? buildModel('platform', config.get('PEN_LLM_OUTLINE_MODEL'))
     : null;
@@ -487,6 +507,7 @@ export async function buildServices(
   const base = {
     cfg,
     config,
+    llmProvider,
     runtimeConfig,
     onten,
     memo,
