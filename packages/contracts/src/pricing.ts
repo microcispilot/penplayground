@@ -71,6 +71,54 @@ export function llmCostLines(
   ];
 }
 
+// ── intent classifier: USD per 1M input tokens (OpenRouter, 2026-09-19) ─────
+/**
+ * The hosted decisions model that classifies a learner utterance in front of
+ * the `llm` fallback. TypeSafe Jev bills input only — output is free — so one
+ * classification is one cost line.
+ *
+ * Verified against the endpoint's own `usage.cost` on 2026-09-19: a 685-token
+ * request reported $0.00002877, which is 685 × 0.042 / 1e6 exactly. That is
+ * why the table below is the single source and the provider's number is only
+ * carried in the stage meta.
+ */
+export const INTENT_PRICING_PER_M_INPUT: Record<string, number> = {
+  'typesafe/jev-1.13': 0.042,
+};
+/** Unknown decision models are priced like Jev so a pinned-version bump never hides spend. */
+export const INTENT_PRICING_FALLBACK = 'typesafe/jev-1.13';
+
+export function intentPricePerMInput(model: string): number {
+  return (
+    INTENT_PRICING_PER_M_INPUT[model] ?? INTENT_PRICING_PER_M_INPUT[INTENT_PRICING_FALLBACK] ?? 0
+  );
+}
+
+export function intentUsd(model: string, inputTokens: number): number {
+  return (Math.max(0, inputTokens) * intentPricePerMInput(model)) / 1_000_000;
+}
+
+/**
+ * One classification as one cost line. Deliberately a single line (not the
+ * three a model call produces): there is no prompt cache here and no output
+ * charge, so `summariseCosts` counts one call per line and the Insights row
+ * reads "N classifications".
+ */
+export function intentCostLines(
+  usage: { model: string; inputTokens: number },
+  meta: Record<string, string | number | boolean> = {},
+): CostLine[] {
+  return [
+    {
+      component: 'intent',
+      unit: 'tokens_in',
+      units: Math.max(0, usage.inputTokens),
+      usd: intentUsd(usage.model, usage.inputTokens),
+      meta: { model: usage.model, ...meta },
+    },
+  ];
+}
+
 // ── image models: USD per 1M tokens (OpenAI pricing page, 2026-09-18) ────────
 /**
  * `gpt-image-1` bills in tokens like any other model: the prompt is text

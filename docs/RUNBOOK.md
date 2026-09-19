@@ -317,6 +317,7 @@ cd /srv/pen-playground && docker compose up -d api && curl -s http://127.0.0.1:4
 | --- | --- | --- | --- |
 | `FISH_AUDIO_API_KEY` | fish.audio console | create the new key, paste it, `up -d api`, delete the old one | the expert goes silent (`health.tts`) |
 | `OPENAI_API_KEY_FREE/STANDARD/PROFESSIONAL` | OpenAI dashboard, one key per plan | same; keys are independent, so rotate one plan at a time | lessons for that plan stop being generated |
+| `OPENROUTER_API_KEY` | openrouter.ai console (a separate account from OpenAI) | create the new key, paste it, `up -d api`, delete the old one | only while `PEN_INTENT_PROVIDER=jev`: intent falls back to the session model, so turns get slower, never wrong (ADR-0024) |
 | `PEN_JWT_SECRET` | `openssl rand -base64 48` | **logs every learner out** — every bearer is invalidated. Do it only for a suspected leak, and at a quiet hour | anonymous learners lose their session history unless they signed in |
 | `STRIPE_SECRET_KEY` | Stripe dashboard (roll the restricted key) | paste, `up -d api`, then re-register the webhook if the account changed | checkout and the portal answer 502 |
 | `STRIPE_WEBHOOK_SECRET` | `pnpm --filter @pen/api stripe:webhook -- --rotate` (writes it into the repo `.env`) | copy the new value into `api.env`, `up -d api` | plan changes stop applying until fixed |

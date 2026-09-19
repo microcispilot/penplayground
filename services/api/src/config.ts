@@ -50,6 +50,29 @@ const Env = z.object({
    */
   OPENAI_API_KEY_PLATFORM: z.string().optional(),
 
+  /**
+   * Who classifies a learner utterance the local heuristics cannot place
+   * (`packages/session-engine/src/intent.ts`). `model` is the composing model
+   * doing it as a structured-output call, which is what it has always been;
+   * `jev` puts a hosted decisions model in front, and falls back to `model`
+   * on any error, timeout or answer it is not sure enough about.
+   *
+   * `model` is the default so nothing changes until a deployment opts in, and
+   * this line is the whole of turning it off again.
+   */
+  PEN_INTENT_PROVIDER: z.enum(['model', 'jev']).default('model'),
+  /**
+   * Pinned: TypeSafe's own console also lists `typesafe/jev-latest`, but
+   * OpenRouter rejects that id.
+   */
+  PEN_INTENT_MODEL: z.string().default('typesafe/jev-1.13'),
+  /**
+   * OpenRouter, not OpenAI: the decisions endpoint is a different gateway and
+   * a different account, and the per-plan OpenAI keys are never reused for it
+   * (spend attribution and rate limits both depend on that separation).
+   */
+  OPENROUTER_API_KEY: z.string().optional(),
+
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),
   FISH_AUDIO_MODEL: z.string().default('s2.1-pro'),

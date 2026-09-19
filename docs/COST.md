@@ -7,6 +7,7 @@
 | STT | AssemblyAI Universal-Streaming $0.15/h (or $0 browser on-device / self-hosted) | $0.05 |
 | Onten context | mock today; target < 20 ms, amortised across learners | ~$0 |
 | Topic preparation (only on a miss, once per topic) | seed + Tavily + luna | $0.05–0.65 |
+| Intent classifier (ADR-0024, only when `PEN_INTENT_PROVIDER=jev`) | `typesafe/jev-1.13`, ~685 input tokens per turn the heuristics cannot place (most turns never reach it), output free | ≈ $0.0000297 per classification |
 | Session card copy (ADR-0013, ADR-0022) | one luna structured-output call, ~0.9k in (persona prefix cached) + ~0.12k out; ADR-0022's `subject` field added 270 in / 12 out, measured | ≈ $0.0004 |
 | Session thumbnail (ADR-0021, ADR-0022) | one `gpt-image-1` generation, 1536×1024, quality `low`: 67 text tokens in + 400 image tokens out; derived in-process to a WebP card and a JPEG og image | ≈ $0.0163 |
 | **Total marginal** | | **≈ $0.30 paid voice / ≈ $0.07 with free-tier voice and on-device STT** |
@@ -29,12 +30,13 @@ telemetry port:
 | `stt` | `seconds` of audio recognised, per utterance | the API's recognizer router (`onUtteranceDone`) | Deepgram Nova-3 $0.0048/min; AssemblyAI $0.15/h; ws-relay and browser = $0 |
 | `search` | `requests`, per search | the knowledge builder | Tavily ≈ $0.008; Exa ≈ $0.005; SearXNG = $0 |
 | `image` | `tokens_in` (the prompt), `tokens_out` (the picture) — two lines per generation, `purpose: session_thumbnail` | `withImageTelemetry(model)` in `@pen/llm`, wrapped per session by the card job | OpenAI pricing page, 2026-09-18: `gpt-image-1` $5 / M text in, $10 / M image in, $40 / M image out; `fake` = $0 |
+| `intent` | `tokens_in` — one line per classification (no prompt cache, output not billed), `purpose: intent` | `withIntentTelemetry(classifier)` in `@pen/session-engine`, wrapped per session by the room | OpenRouter, 2026-09-19: `typesafe/jev-1.13` $0.042 / M input, output free; confirmed against the endpoint's own `usage.cost`; `fake` = $0 |
 | `onten` | `requests`, per context query | the room | $0 (mock; amortised) |
 
 `GET /api/sessions/:id/telemetry` sums them (`cost.totalUsd`, `cost.byComponent`
 with units and call counts, and every line), the Insights tab shows them
 ("Model 41k tokens in (58 % cached) · $0.012"), and PostHog's `session_ended`
-carries `cost.totalUsd`, `cost.llmUsd`, `cost.imageUsd`, `cost.ttsUsd`,
+carries `cost.totalUsd`, `cost.llmUsd`, `cost.intentUsd`, `cost.imageUsd`, `cost.ttsUsd`,
 `cost.sttUsd`, `cost.searchUsd`, token and byte totals.
 
 **Thumbnail quality, measured against the real endpoint on 2026-09-18** at

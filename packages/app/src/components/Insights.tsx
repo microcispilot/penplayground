@@ -25,6 +25,7 @@ const STAGE_CLASS: Record<StageName, string> = {
   context: 'bg-success',
   prepare: 'bg-warm',
   llm: 'bg-primary',
+  intent: 'bg-presence',
   image: 'bg-speaking',
   tts: 'bg-warm',
   stt: 'bg-presence',
@@ -41,6 +42,7 @@ const STAGE_LABEL: Record<StageName, string> = {
   context: 'Context',
   prepare: 'Prepare',
   llm: 'Model',
+  intent: 'Intent',
   image: 'Picture',
   tts: 'Voice',
   stt: 'Hearing',
@@ -53,6 +55,7 @@ const STAGE_LABEL: Record<StageName, string> = {
 
 const COMPONENT_LABEL: Record<CostComponent, string> = {
   llm: 'Model',
+  intent: 'Intent',
   image: 'Picture',
   tts: 'Voice',
   stt: 'Hearing',
@@ -93,6 +96,9 @@ export function describeComponent(
       const cached = input > 0 ? Math.round(((u.tokens_cached ?? 0) / input) * 100) : 0;
       return `${formatCount(input)} tokens in (${cached} % cached) · ${formatCount(u.tokens_out ?? 0)} out · ${entry.calls} call${entry.calls === 1 ? '' : 's'}`;
     }
+    case 'intent':
+      // One classification is one call and one line: no prompt cache, no output charge.
+      return `${formatCount(u.tokens_in ?? 0)} tokens in · ${entry.calls} classification${entry.calls === 1 ? '' : 's'}`;
     case 'image':
       // One generation per session card, priced in tokens like any other call.
       return `${formatCount(u.tokens_out ?? 0)} image tokens · ${entry.calls} generation${entry.calls === 1 ? '' : 's'}`;
@@ -147,6 +153,8 @@ export function StageTimeline({
       'prepare',
       'context',
       'llm',
+      'intent',
+      'image',
       'tts',
       'stt',
       'turn',

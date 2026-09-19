@@ -1,6 +1,22 @@
 export { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
 export { ExpertCatalog } from './experts.js';
 export {
+  INTENT_COMMAND_CRITERIA,
+  INTENT_CRITERIA,
+  INTENT_MAX_OUTPUT_TOKENS,
+  INTENT_MIN_CONFIDENCE,
+  INTENT_PURPOSE,
+  INTENT_TIMEOUT_MS,
+  type IntentClassifier,
+  type IntentDecision,
+  type IntentRequest,
+  type IntentUsage,
+  intentState,
+  JevIntentClassifier,
+  ModelIntentClassifier,
+  withIntentTelemetry,
+} from './intent.js';
+export {
   FileLessonMemo,
   type LessonMemo,
   type LessonMemoEntry,

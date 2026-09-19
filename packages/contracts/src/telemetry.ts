@@ -17,6 +17,7 @@ export const StageName = z.enum([
   'context', // Onten query for a segment or a question
   'prepare', // topic miss: sources gathered until the interactive promise
   'llm', // one model call (plan, lesson segment, turn, intent, grade, recap, outline)
+  'intent', // one hosted intent classification (the decisions model in front of the `llm` fallback)
   'image', // one image generation (the session thumbnail)
   'tts', // one synthesised sentence
   'stt', // one utterance: client endpoint → provider final
@@ -55,7 +56,16 @@ export type StageSample = z.infer<typeof StageSample>;
  * ad (ADR-0014) whose `usd` is what was earned — reported as `cost.revenueUsd`, never
  * added to `cost.totalUsd`.
  */
-export const CostComponent = z.enum(['llm', 'image', 'tts', 'stt', 'search', 'onten', 'ads']);
+export const CostComponent = z.enum([
+  'llm',
+  'intent',
+  'image',
+  'tts',
+  'stt',
+  'search',
+  'onten',
+  'ads',
+]);
 export type CostComponent = z.infer<typeof CostComponent>;
 
 export const CostUnit = z.enum([

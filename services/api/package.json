@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests",
     "voices:assign": "node --import tsx scripts/assign-voices.ts",
     "listen:pace": "node --env-file=../../.env --import tsx scripts/listen-pace.ts",
+    "intent:probe": "node --env-file=../../.env --import tsx scripts/intent-probe.ts",
     "load": "node --import tsx scripts/load.ts",
     "packs:prewarm": "node --env-file=../../.env --import tsx scripts/prewarm-packs.ts",
     "posthog:dashboard": "node --env-file=../../.env --import tsx scripts/posthog-dashboard.ts",

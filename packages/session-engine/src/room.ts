@@ -44,19 +44,25 @@ import type { MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
 import { nanoid } from 'nanoid';
 import { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
+import {
+  INTENT_MIN_CONFIDENCE,
+  type IntentClassifier,
+  type IntentDecision,
+  ModelIntentClassifier,
+  withIntentTelemetry,
+} from './intent.js';
 import type { LessonMemo } from './lesson-memo.js';
 import { type Metrics, NullMetrics } from './metrics.js';
 import { type PlanOpening, streamPlan } from './planner.js';
 import {
   answerMessages,
   gradeMessages,
-  intentMessages,
   lessonSystemPrompt,
   recapMessages,
   type SegmentOutline,
   segmentMessages,
 } from './prompts.js';
-import { GradeOutput, IntentOutput, RecapOutput } from './schemas.js';
+import { GradeOutput, type IntentOutput, RecapOutput } from './schemas.js';
 import { SayPipeline } from './speech.js';
 import { type RoomObserver, type RoomTransport, SILENT_OBSERVER } from './transport.js';
 
@@ -153,6 +159,12 @@ export interface SessionRoomDeps {
   runtime: MockContextRuntime;
   memo: LessonMemo;
   model: LanguageModel;
+  /**
+   * Hosted intent classifier in front of the model call (`PEN_INTENT_PROVIDER`).
+   * Null or absent — the default — and a turn `classifyLocally` cannot place
+   * goes straight to the model, exactly as it always has.
+   */
+  intent?: IntentClassifier | null;
   synthesizer: SpeechSynthesizer;
   /** Engine voice for this expert (resolved from the catalog voice id). */
   voice: string;
@@ -207,6 +219,10 @@ export class SessionRoom {
   /** Public so the API can add what it measures itself (STT finals). */
   readonly metrics: Metrics;
   private readonly model: LanguageModel;
+  /** The hosted classifier, metered; null when this deployment has none. */
+  private readonly hostedIntent: IntentClassifier | null;
+  /** The floor under it: today's model call, and the only classifier a room always has. */
+  private readonly modelIntent: IntentClassifier;
   private state: RoomState;
   private readonly participants = new Map<ParticipantId, Participant>();
   private readonly cues: Cue[] = [];
@@ -300,6 +316,13 @@ export class SessionRoom {
         return result;
       },
     };
+    // The hosted classifier is per process and shared; its telemetry is per
+    // session, so the wrap happens here, exactly as it does for the model.
+    this.hostedIntent = deps.intent ? withIntentTelemetry(deps.intent, this.metrics) : null;
+    this.modelIntent = new ModelIntentClassifier({
+      model: this.model,
+      cacheKey: `${roomCacheKey(deps.expert.id, deps.band)}:intent`,
+    });
     this.system = lessonSystemPrompt(deps.expert, deps.band);
     this.language = deps.language;
     const host: Participant = {
@@ -1576,30 +1599,46 @@ export class SessionRoom {
 
   /** perceive → decide → act. */
   private async decide(p: Participant, text: string): Promise<void> {
-    const pendingCheck =
-      this.pendingCheck !== null &&
-      (this.pausedBeforeTurn === 'checking' || this.state.mode === 'checking');
-    let intent = classifyLocally(text, { pendingCheck });
+    // Three steps down, each one safer and slower than the one above it: the
+    // heuristics, which cost nothing and place most turns; the hosted
+    // classifier, which is fast and says how sure it is; the model, which
+    // always answers. Nothing below can be reached without the one above
+    // declining, and the last of them cannot fail the lesson.
+    let intent = classifyLocally(text, { pendingCheck: this.intentRequest(text).pendingCheck });
+    let via = 'local';
+    let confidence: number | null = null;
+    if (!intent && this.hostedIntent) {
+      const hosted = await this.classifyHosted(this.intentRequest(text));
+      // That await is the room's only pause between hearing the learner and
+      // answering them, and the session can end inside it. Going on from here
+      // would buy a model call and a whole turn for a room nobody is in.
+      if (this.abort.signal.aborted) return;
+      if (hosted) {
+        intent = { intent: hosted.intent, command: hosted.command };
+        via = this.hostedIntent.id;
+        confidence = hosted.confidence;
+      }
+    }
     if (!intent) {
       try {
-        const { value } = await this.model.complete({
-          messages: intentMessages({ text, mode: this.state.mode, pendingCheck }),
-          schema: IntentOutput,
-          schemaName: 'intent',
-          cacheKey: `${this.cacheKey()}:intent`,
-          maxOutputTokens: 40,
-          purpose: 'intent',
-        });
-        intent = value;
+        // Rebuilt, not reused: a check-in can have landed while the hosted
+        // call was out, and telling the model `pendingCheck: false` then reads
+        // the learner's answer to it as a fresh question.
+        const decision = await this.modelIntent.classify(this.intentRequest(text));
+        intent = { intent: decision.intent, command: decision.command };
+        via = 'model';
       } catch (error) {
         this.fail('room.intent', error, 'llm');
         intent = { intent: 'question', command: 'none' };
+        via = 'default';
       }
     }
     this.observer.event('room.intent', {
       intent: intent.intent,
       command: intent.command,
       chars: text.length,
+      via,
+      confidence,
     });
     switch (intent.intent) {
       case 'backchannel':
@@ -1614,6 +1653,62 @@ export class SessionRoom {
       case 'off_topic':
       case 'question':
         return this.answer(p, text, 'question');
+    }
+  }
+
+  /**
+   * What the classifiers are told about this turn, read fresh from the room
+   * every time. The same words mean different things a second apart — mid
+   * check-in an utterance is an answer, outside one it is a question — so
+   * this is never snapshotted across an await.
+   */
+  private intentRequest(text: string): { text: string; mode: string; pendingCheck: boolean } {
+    return {
+      text,
+      mode: this.state.mode,
+      pendingCheck:
+        this.pendingCheck !== null &&
+        (this.pausedBeforeTurn === 'checking' || this.state.mode === 'checking'),
+    };
+  }
+
+  /**
+   * The hosted classifier's answer, or null to fall through to the model.
+   *
+   * Two ways to fall through, and both of them are ordinary, not errors: the
+   * call failed or ran past its budget, or it answered without being sure.
+   * An unsure answer is the reason this classifier is worth having — the
+   * model path cannot produce one — and the right thing to do with it is to
+   * spend the extra few hundred milliseconds rather than act. Reading a
+   * hesitant utterance as a question costs a redundant answer; reading it as
+   * `end` costs the learner the session.
+   */
+  private async classifyHosted(request: {
+    text: string;
+    mode: string;
+    pendingCheck: boolean;
+  }): Promise<IntentDecision | null> {
+    const classifier = this.hostedIntent;
+    if (!classifier) return null;
+    try {
+      const decision = await classifier.classify({ ...request, signal: this.abort.signal });
+      if (decision.confidence !== null && decision.confidence < INTENT_MIN_CONFIDENCE) {
+        this.observer.event('room.intent_unsure', {
+          via: classifier.id,
+          confidence: decision.confidence,
+          threshold: INTENT_MIN_CONFIDENCE,
+        });
+        return null;
+      }
+      return decision;
+    } catch (error) {
+      // The room ended while the classifier was still answering: that is the
+      // session closing, not a provider failing, and it is not worth a Sentry
+      // issue on every session that ends mid-turn.
+      if (this.abort.signal.aborted) return null;
+      // Otherwise recorded, and never fatal: the model call underneath answers.
+      this.fail('room.intent', error, 'intent');
+      return null;
     }
   }
 

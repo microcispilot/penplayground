@@ -24,6 +24,7 @@ const BREADCRUMB_EVENTS = new Set([
   'room.mode',
   'room.resolve',
   'room.intent',
+  'room.intent_unsure',
   'room.turn',
   'room.ended',
   'room.language',
@@ -129,7 +130,11 @@ function breadcrumb(name: string, data: Record<string, unknown>): void {
   for (const [k, v] of Object.entries(data))
     if (typeof v === 'number' || typeof v === 'boolean') safe[k] = v;
     else if (typeof v === 'string' && TAG_KEYS.has(k)) safe[k] = v;
-    else if (typeof v === 'string' && v.length <= 32 && /^[\w.:-]+$/.test(v)) safe[k] = v;
+    // No spaces, no punctuation that makes a sentence, and short: a code or an
+    // identifier, never free text. `/` is in the set because provider model ids
+    // are written that way (`typesafe/jev-1.13`), and `room.intent`'s `via` is
+    // the field that says which classifier decided.
+    else if (typeof v === 'string' && v.length <= 32 && /^[\w./:-]+$/.test(v)) safe[k] = v;
   Sentry.addBreadcrumb({ category: name, level: 'info', data: safe });
 }
 

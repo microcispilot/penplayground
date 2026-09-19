@@ -23,6 +23,7 @@ import { createOnten, type Onten } from '@pen/onten';
 import {
   ExpertCatalog,
   FileLessonMemo,
+  type IntentClassifier,
   type KnowledgeAcquirer,
   type LessonMemo,
   type SessionMetaJobs,
@@ -42,6 +43,7 @@ import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
 import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
 import { GoogleLibraryVerifier, GoogleSignIn, type GoogleTokenVerifier } from './google.js';
+import { createIntentClassifier } from './intent.js';
 import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { LiveKitRooms } from './livekit.js';
@@ -69,6 +71,11 @@ export interface Services {
   ttsCache: CachingSynthesizer | null;
   /** Server-side STT; null when clients transcribe on-device (`PEN_STT_PROVIDER=browser`). */
   recognizer: SpeechRecognizerFactory | null;
+  /**
+   * Hosted intent classifier in front of the session model's own intent call;
+   * null when `PEN_INTENT_PROVIDER=model` (the default) and the model does it.
+   */
+  intent: IntentClassifier | null;
   voices: ExpertVoices;
   ledger: FileLedger;
   db: Connection;
@@ -243,6 +250,9 @@ export async function buildServices(
   } else logger.warn({ evt: 'spend.off' }, 'daily spend cap disabled (PEN_DAILY_SPEND_CAP_USD=0)');
 
   const recognizer = createRecognizer(cfg);
+  // Priced into the house account like every other provider call; the session's
+  // own ledger gets its `intent` stage and cost line from the room's wrapper.
+  const intent = createIntentClassifier(cfg, costs);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
   /** Which of the four keys a call runs on (`KeyOwner` in contracts says why they never fall back). */
   const keyFor = (owner: KeyOwner): string | undefined =>
@@ -413,6 +423,7 @@ export async function buildServices(
     synthesizer,
     ttsCache,
     recognizer,
+    intent,
     voices,
     ledger,
     db,

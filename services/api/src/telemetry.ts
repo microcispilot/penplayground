@@ -359,6 +359,7 @@ export function sessionEndedProperties(
     'latency.bargeInP95': t.latency.bargeInMs.p95,
     'cost.totalUsd': round6(t.cost.totalUsd),
     'cost.llmUsd': usd('llm'),
+    'cost.intentUsd': usd('intent'),
     'cost.imageUsd': usd('image'),
     'cost.ttsUsd': usd('tts'),
     'cost.sttUsd': usd('stt'),
@@ -366,10 +367,13 @@ export function sessionEndedProperties(
     'cost.adsRevenueUsd': round6(t.cost.revenueUsd),
     'cost.adsCompleted': t.cost.byComponent.ads?.calls ?? 0,
     'cost.llmCalls': t.cost.byComponent.llm?.calls ?? 0,
+    /** Turns the hosted classifier was asked about (ADR-0024); 0 on PEN_INTENT_PROVIDER=model. */
+    'cost.intentCalls': t.cost.byComponent.intent?.calls ?? 0,
     'cost.tokensIn': units('llm', 'tokens_in'),
     'cost.tokensCached': units('llm', 'tokens_cached'),
     'cost.tokensOut': units('llm', 'tokens_out'),
     /** Thumbnail generation (ADR-0021): one per session card unless it was reused. */
+    'cost.intentTokensIn': units('intent', 'tokens_in'),
     'cost.imageTokensOut': units('image', 'tokens_out'),
     'cost.ttsBytes': units('tts', 'bytes'),
     'cost.sttSeconds': round6(units('stt', 'seconds')),

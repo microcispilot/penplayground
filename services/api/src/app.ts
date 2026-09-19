@@ -281,6 +281,7 @@ export function buildApp(services: Services): App {
       tts: services.synthesizer.id,
       llm: services.cfg.PEN_LLM_PROVIDER,
       stt: services.cfg.PEN_STT_PROVIDER,
+      intent: services.cfg.PEN_INTENT_PROVIDER,
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
       google: services.google !== null,

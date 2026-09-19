@@ -204,6 +204,7 @@ export class RoomRegistry {
       runtime: services.onten.newRuntime(),
       memo: services.memo,
       model: services.modelFor(args.host.plan),
+      intent: services.intent,
       synthesizer: services.synthesizer,
       voice: services.voices.voiceFor(expert, locale),
       voiceFor: (lang) => services.voices.voiceFor(expert, lang),

@@ -110,6 +110,8 @@ export function checkProviders(cfg: Config): ReadyCheck {
     missing.push('ASSEMBLYAI_API_KEY');
   if (cfg.PEN_STT_PROVIDER === 'ws-relay' && !cfg.PEN_STT_RELAY_URL)
     missing.push('PEN_STT_RELAY_URL');
+  if (cfg.PEN_INTENT_PROVIDER === 'jev' && !cfg.OPENROUTER_API_KEY)
+    missing.push('OPENROUTER_API_KEY');
   return missing.length === 0
     ? { ok: true }
     : { ok: false, detail: `missing: ${missing.join(', ')}` };

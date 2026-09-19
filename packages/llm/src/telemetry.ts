@@ -21,7 +21,12 @@ export function imageErrorCode(error: unknown): string {
   return errorCode('IMAGE', error);
 }
 
-function errorCode(prefix: 'LLM' | 'IMAGE', error: unknown): string {
+/** The same, for the decisions endpoint ("DECISION_TIMEOUT: …" → "DECISION_TIMEOUT"). */
+export function decisionErrorCode(error: unknown): string {
+  return errorCode('DECISION', error);
+}
+
+function errorCode(prefix: 'LLM' | 'IMAGE' | 'DECISION', error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const head = message.split(':')[0]?.trim() ?? '';
   const code = /^[A-Z][A-Z0-9_]{2,60}$/.test(head) ? head : `${prefix}_ERROR`;
