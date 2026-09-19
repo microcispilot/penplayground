@@ -30,27 +30,28 @@ rtc:
 # TURN/UDP (3478) is on. It doubles as our STUN server and is what a network that allows UDP to
 # an unusual port — but not 7882 — uses.
 #
-# TURN/TLS is deliberately OFF here, and turning it on needs one thing this host does not have
-# yet. LiveKit advertises the TLS candidate as `turns:<domain>:443` — the port is hardcoded to
-# 443 in `iceServersForParticipant` (livekit/pkg/service/roommanager.go), whatever `tls_port`
-# says — so TURN/TLS is only reachable when 443 of that hostname reaches this container. On
-# prod-app-01 port 443 of the one public address belongs to the host nginx, which serves other
-# sites too, so the upgrade is: a second address (a Hetzner floating IP) for
-# `turn.penplayground.com`, a certificate for it, and then, here:
+# TURN/TLS is ON, and it took a second public address to get there. LiveKit advertises the TLS
+# candidate as `turns:<domain>:443` — the port is hardcoded to 443 in `iceServersForParticipant`
+# (livekit/pkg/service/roommanager.go), whatever `tls_port` says — so TURN/TLS only works when
+# 443 of that hostname reaches this container. On prod-app-01 the one public address had its 443
+# taken by the host nginx, which also serves onten.dev and simurghlabs.ai.
 #
-#   tls_port: 443
-#   cert_file: /etc/livekit/certs/fullchain.pem
-#   key_file: /etc/livekit/certs/privkey.pem
-#
-# plus `PEN_TURN_TLS_BIND=<that address>:443` for compose. deploy/livekit/cert-sync.sh (a
-# certbot deploy hook) keeps the two files in `livekit/certs` — the container cannot read
-# /etc/letsencrypt, whose `live/` entries are symlinks into `archive/`.
+# So: a Hetzner floating IP (5.78.25.5, us-west, the server's own zone) carries
+# `turn.penplayground.com`; nginx's IPv4 listeners were pinned to the primary address
+# (5.78.205.172:443) so it no longer answers on the wildcard — a *restart*, not a reload, since
+# a reload keeps the sockets it already has; and `PEN_TURN_TLS_BIND=5.78.25.5:443` gives this
+# container 443 of the new address alone. deploy/livekit/cert-sync.sh (a certbot deploy hook)
+# keeps the certificate in `livekit/certs`, because the container cannot read /etc/letsencrypt,
+# whose `live/` entries are symlinks into `archive/`.
 # Full runbook: docs/DEPLOY.md → "Rooms audio (LiveKit)".
 turn:
   enabled: true
   # Must resolve to this host and match the certificate once TLS is on.
   domain: turn.penplayground.com
   udp_port: 3478
+  tls_port: 443
+  cert_file: /etc/livekit/certs/fullchain.pem
+  key_file: /etc/livekit/certs/privkey.pem
   external_tls: false
   # Relayed media leaves from this range, published 1:1 by compose. 12 participants need far
   # fewer; the range is small so the Docker port mapping stays cheap.

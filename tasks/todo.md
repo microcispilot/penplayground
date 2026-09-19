@@ -23,7 +23,8 @@
 - [x] MP4 download (Playwright replay + ffmpeg mux, paid plans, host only); YouTube upload dropped per round 2
 - [x] LiveKit rooms audio (human-to-human voice): self-hosted server in the stack, token + mute routes, shared-mic client, participants popover, two-browser e2e (ADR-0012)
 - [x] Rooms audio: TURN (LiveKit's own, UDP 3478 + relay range) — the join response hands every client the server and a credential; `e2e rooms-turn` proves a relay allocation and that ordinary browsers stay direct (ADR-0012)
-- [ ] Rooms audio follow-ups: TURN/TLS on 443 (needs a second public address — LiveKit advertises `turns:<domain>:443` regardless of `tls_port`; steps in docs/DEPLOY.md); expert joins the media room as an agent (mixed track for export); guest voice in the ledger
+- [x] Rooms audio: **TURN/TLS on 443 is live.** Hetzner floating IP `5.78.25.5` (us-west, the server's own zone) carries `turn.penplayground.com`; nginx's ten IPv4 listeners pinned to `5.78.205.172:443` and nginx *restarted* (a reload keeps its existing sockets, so the wildcard survives one); `PEN_TURN_TLS_BIND=5.78.25.5:443`; certificate via certbot with `cert-sync.sh` installed as a deploy hook. Verified from the public internet: the handshake to `turn.penplayground.com:443` presents `CN=turn.penplayground.com`, and all ten hostnames on the box returned identical status codes before and after.
+- [ ] Rooms audio follow-ups: expert joins the media room as an agent (mixed track for export); guest voice in the ledger
 - [ ] **Rename leftovers that are identifiers, not words.** `pen-academy` still spells
   the JWT issuer (`services/api/src/identity.ts`), the Onten policy id
   (`packages/onten/src/policy.ts`), the PostHog `app` property and the Sentry project names.
