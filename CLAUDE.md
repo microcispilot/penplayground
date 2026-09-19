@@ -15,8 +15,18 @@ source. It is a **memory**, with exactly two abilities:
 2. **Retrieve in under 20 ms** — `runtime.query(input)` returns a schema-faithful
    `AnswerContext` for *any* question, with no re-thinking, inside
    `ONTEN_LATENCY_BUDGET_MS = 20` (`packages/contracts/src/onten.ts`). That is
-   Onten's own number, and `packages/onten/test/latency.test.ts` fails the build
-   if p95 crosses it at 20,000 knowledge units.
+   Onten's own number, measured at 20,000 knowledge units by
+   `packages/onten/test/latency.test.ts`.
+   
+   That test asserts two different things, and the distinction matters. The
+   **absolute** budget is checked only on a machine close enough in speed for
+   the number to mean something: building the same corpus takes 1.5 s on a
+   laptop and has taken 29 s on a CI runner, and a p95 of 0.97 ms became
+   20.87 ms with no code change. The **regression** bound is checked
+   everywhere, normalised by that same index build, and it is far tighter than
+   the budget because we now clear the budget twentyfold. Do not "fix" a
+   latency failure by loosening a bound — find what got slower, as the fuzzy
+   matching change did.
 
 **Simulated content is acceptable. Its contract is not.** Until the real SDK
 lands, units, scores and packs are approximations and nobody worries about that.

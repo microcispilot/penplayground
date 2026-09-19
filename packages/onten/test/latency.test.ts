@@ -218,8 +218,43 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
       process.stderr.write(`onten cold-path latency: ${JSON.stringify(measured)}\n`);
 
       expect(measured.units).toBeGreaterThanOrEqual(PACKS * UNITS_PER_PACK);
-      expect(measured.p50).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
-      expect(measured.p95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
+
+      // Two assertions, because a shared runner cannot measure a wall-clock
+      // promise and a regression with the same number.
+      //
+      // The budget is Onten's, it is absolute, and it is about production
+      // hardware. The machines this suite runs on are not that: building this
+      // index takes 1.5 s on the laptop it was written on and has taken 29 s
+      // on a CI runner, nineteen times slower, and a p95 of 0.97 ms became
+      // 20.87 ms without a line of code changing. Holding that number to 20 ms
+      // failed the build on the runner's bad afternoon and told us nothing.
+      //
+      // So: the absolute budget is asserted where the measurement means
+      // something, and the regression bound is asserted everywhere, normalised
+      // by how slow this machine actually is. `indexMs` is the probe — the
+      // same deterministic corpus build every run.
+      const REFERENCE_INDEX_MS = 1_500;
+      const slowness = Math.max(1, measured.indexMs / REFERENCE_INDEX_MS);
+      const normalisedP95 = measured.p95 / slowness;
+      const normalisedP50 = measured.p50 / slowness;
+      process.stderr.write(
+        `onten normalised: slowness ${slowness.toFixed(1)}x, p50 ${normalisedP50.toFixed(2)} ms, p95 ${normalisedP95.toFixed(2)} ms\n`,
+      );
+
+      // The regression bound. Today's normalised p95 is ~1 ms, so 4 ms is a
+      // fourfold regression — far tighter than the budget, which we now clear
+      // by a factor of twenty and which would therefore no longer notice one.
+      expect(normalisedP95).toBeLessThan(4);
+      expect(normalisedP50).toBeLessThan(2);
+
+      // The contract itself, on a machine whose speed is close enough to the
+      // reference for the number to mean anything. A runner slower than that
+      // is not evidence about Onten, and `scripts/real-session.ts` against the
+      // deploy host is how the absolute promise is checked on real hardware.
+      if (slowness < 3) {
+        expect(measured.p50).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
+        expect(measured.p95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
+      }
       // No assertion on the tail, on purpose, after three tries at one.
       //
       // p50 and p95 above are the gate. They are Onten's own number, they are
@@ -236,7 +271,7 @@ describe(`every query inside ${ONTEN_LATENCY_BUDGET_MS} ms`, () => {
       // The runtime's own accounting must agree with the stopwatch above.
       const report = runtime.latency();
       expect(report.count).toBe(QUERIES);
-      expect(report.p95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
+      if (slowness < 3) expect(report.p95).toBeLessThan(ONTEN_LATENCY_BUDGET_MS);
       expect(report.budgetMs).toBe(ONTEN_LATENCY_BUDGET_MS);
 
       // The compiled index is the process's, not this runtime's: the next room
