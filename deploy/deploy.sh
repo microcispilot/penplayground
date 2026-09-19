@@ -19,6 +19,7 @@
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /
 # VITE_GOOGLE_CLIENT_ID (web build args),
+# GOOGLE_CLIENT_ID (written into the host's api.env; sign-in needs both halves — see below),
 #
 # Serving the app under a path prefix instead of the root of its host — the test deployment:
 #   PEN_VHOST=test                               which vhost to render: "prod" (default) or "test"
@@ -316,12 +317,24 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # is wrong without them (share links, og:image, the sitemap, MP4 download links, Stripe's
 # return URLs). Set either variable and its line is rewritten in place; leave them unset — the
 # default — and api.env is not touched at all.
-for var in PEN_PUBLIC_URL PEN_API_URL; do
+#
+# `GOOGLE_CLIENT_ID` rides along for a reason learned the hard way: the web
+# build takes its half of sign-in from `VITE_GOOGLE_CLIENT_ID` as a build arg,
+# so setting only that ships a button the API cannot honour — it verifies the
+# token the button returns against its own copy of the id. One variable set and
+# the other not is the one combination that looks deployed and is not, which is
+# exactly what happened here on 2026-09-18 (`/api/health` said `google:false`
+# beside a rendered button). They are set together or the deploy says so.
+for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID; do
   value="${!var:-}"
   [ -n "$value" ] || continue
-  case "$value" in
-    http://*|https://*) ;;
-    *) die "$var must be an absolute URL (got '$value')" ;;
+  case "$var" in
+    PEN_PUBLIC_URL|PEN_API_URL)
+      case "$value" in
+        http://*|https://*) ;;
+        *) die "$var must be an absolute URL (got '$value')" ;;
+      esac
+      ;;
   esac
   log "setting $var in api.env"
   remote "set -e; cd '$PEN_DEPLOY_ROOT'
@@ -329,8 +342,21 @@ for var in PEN_PUBLIC_URL PEN_API_URL; do
     printf '%s=%s\n' '$var' '$value' >> api.env.next
     chmod 600 api.env.next
     mv api.env.next api.env"
-  echo "  $var=$value"
+  # A client id is a credential, not a URL: say that it was set, never what it is.
+  case "$var" in
+    GOOGLE_CLIENT_ID) echo "  $var=<set>" ;;
+    *) echo "  $var=$value" ;;
+  esac
 done
+
+# The half-enabled state, called out rather than shipped.
+if [ -n "${VITE_GOOGLE_CLIENT_ID:-}" ] && [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
+  log "sign-in: VITE_GOOGLE_CLIENT_ID is set but GOOGLE_CLIENT_ID is not"
+  log "         → the button renders and the API refuses the token it returns"
+elif [ -z "${VITE_GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
+  log "sign-in: GOOGLE_CLIENT_ID is set but VITE_GOOGLE_CLIENT_ID is not"
+  log "         → the API can verify a token no button will ever produce"
+fi
 
 # ── 5. up ────────────────────────────────────────────────────────────────────
 if [ "$NO_UP" = 1 ]; then
