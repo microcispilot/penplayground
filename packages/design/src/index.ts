@@ -1,6 +1,7 @@
 export { cn } from './cn.js';
 export * from './components/Avatar.js';
 export * from './components/Button.js';
+export * from './components/ButtonGroup.js';
 export * from './components/Caption.js';
 export * from './components/Card.js';
 export * from './components/Chip.js';

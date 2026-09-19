@@ -7,6 +7,11 @@ export interface ProgressBarProps {
   className?: string;
 }
 
+/**
+ * M3's linear progress indicator: a 4 px `corner-full` track in
+ * `secondary-container` with a `primary` indicator running across it.
+ * (@material/web tokens/versions/v0_192/_md-comp-linear-progress.scss)
+ */
 export function ProgressBar({ value, label, className }: ProgressBarProps) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   return (
@@ -17,10 +22,10 @@ export function ProgressBar({ value, label, className }: ProgressBarProps) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
-      className={cn('h-0.5 w-full overflow-hidden rounded-full bg-surface-2', className)}
+      className={cn('h-1 w-full overflow-hidden rounded-full bg-secondary-container', className)}
     >
       <div
-        className="h-full bg-accent transition-[width] duration-[var(--duration-scene)] ease-[var(--ease-out)]"
+        className="h-full rounded-full bg-primary transition-[width] duration-[var(--duration-scene)] ease-[var(--ease-out)]"
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -48,8 +53,8 @@ export function SegmentDots({ total, done, active, className }: SegmentDotsProps
           // biome-ignore lint/suspicious/noArrayIndexKey: dots are positional by definition (segment i)
           key={i}
           className={cn(
-            'h-1 rounded-sm transition-colors duration-[var(--duration-slow)]',
-            i < done ? 'bg-accent' : i === active ? 'bg-accent/50' : 'bg-line-strong',
+            'h-1 rounded-full transition-colors duration-[var(--duration-slow)]',
+            i < done ? 'bg-primary' : i === active ? 'bg-primary/50' : 'bg-outline-variant',
           )}
           style={{ width: 'clamp(5px, calc((100vw - 640px) / 12), 14px)' }}
         />

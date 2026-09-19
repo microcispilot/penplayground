@@ -66,10 +66,10 @@ export function Experts() {
           : `${experts.length} experts across science, software, coding, medicine, law, money, arts, and more. They can teach you in your language.`
       }
       actions={
-        <label className="flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3.5 hairline">
-          <Search size={14} className="shrink-0 text-fg-3" aria-hidden />
+        <label className="flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-surface-container px-3.5 hairline">
+          <Search size={14} className="shrink-0 text-on-surface-dim" aria-hidden />
           <input
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-3"
+            className="min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-dim"
             placeholder="Filter experts"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -96,7 +96,7 @@ export function Experts() {
       >
         {experts === null
           ? Array.from({ length: 12 }, (_, i) => `sk-${i}`).map((k) => (
-              <Skeleton key={k} className="aspect-[4/5] rounded-[var(--radius-xl)]" />
+              <Skeleton key={k} className="aspect-[4/5] rounded-xl" />
             ))
           : visible.map((e) => (
               <ExpertCard
@@ -113,8 +113,10 @@ export function Experts() {
 
       {experts !== null && visible.length === 0 ? (
         <div className="flex flex-col items-center gap-1 py-20 text-center">
-          <p className="text-md text-fg">No experts match.</p>
-          <p className="text-sm text-fg-2">Try another domain, or clear the filter.</p>
+          <p className="text-body-large text-on-surface">No experts match.</p>
+          <p className="text-body-medium text-on-surface-variant">
+            Try another domain, or clear the filter.
+          </p>
         </div>
       ) : null}
     </ShellPage>

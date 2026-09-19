@@ -84,12 +84,12 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
       aria-label="Advertisement"
       data-testid="video-ad"
       data-status={status}
-      className="absolute inset-0 z-[8] grid place-items-center bg-navy-900/85 px-4 backdrop-blur-[2px]"
+      className="absolute inset-0 z-[8] grid place-items-center bg-scrim/85 px-4 backdrop-blur-[2px]"
     >
       <div className="flex w-[min(880px,94%)] animate-rise flex-col gap-3">
         <div
           ref={frameRef}
-          className="relative aspect-video w-full overflow-hidden rounded-[var(--radius-lg)] bg-black shadow-pop"
+          className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-level3"
         >
           {/* Content element the SDK requires; it never plays anything of ours. */}
           <video
@@ -103,7 +103,7 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
           <div ref={containerRef} className="absolute inset-0" />
           {status !== 'playing' ? (
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="flex items-center gap-2 text-[13px] text-white/75">
+              <div className="flex items-center gap-2 text-body-medium text-white/75">
                 <span className="block size-[13px] animate-spin rounded-full border-2 border-white/25 border-t-white/85" />
                 {status === 'ended' ? 'Back to the lesson…' : 'Loading ad…'}
               </div>
@@ -111,26 +111,28 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
           ) : null}
           <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-2">
             {/* Controls sit on a dark video surface, so they use their own scrim rather than the paper tokens. */}
-            <span className="inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white">
+            <span className="inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-body-small font-medium text-white">
               {label}
             </span>
             {view?.title ? (
-              <span className="max-w-[40vw] truncate text-[12px] text-white/80">{view.title}</span>
+              <span className="max-w-[40vw] truncate text-body-small text-white/80">
+                {view.title}
+              </span>
             ) : null}
           </div>
-          <div className="pointer-events-none absolute top-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white/90 tabular">
+          <div className="pointer-events-none absolute top-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-body-small text-white/90 tabular">
             {remaining}s
           </div>
           {muted && status === 'playing' ? (
             <button
               type="button"
               onClick={() => playerRef.current?.unmute()}
-              className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white hover:bg-black/75"
+              className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-body-small font-medium text-white hover:bg-black/75"
             >
               <VolumeX size={14} /> Tap to unmute
             </button>
           ) : status === 'playing' ? (
-            <span className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-xs text-white/80">
+            <span className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-body-small text-white/80">
               <Volume2 size={14} /> Sound on
             </span>
           ) : null}
@@ -139,7 +141,7 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
             disabled={!skippable}
             onClick={() => playerRef.current?.skip()}
             className={cn(
-              'absolute right-3 bottom-3 inline-flex h-9 min-w-[118px] select-none items-center justify-center gap-2 rounded-[var(--radius-md)] px-4 text-sm font-medium tabular transition-[background-color,color,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)]',
+              'absolute right-3 bottom-3 inline-flex h-9 min-w-[118px] select-none items-center justify-center gap-2 rounded-md px-4 text-body-medium font-medium tabular transition-[background-color,color,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)]',
               skippable
                 ? 'bg-white text-black hover:bg-white/90 active:scale-[0.985]'
                 : 'cursor-default bg-black/55 text-white/80 ring-1 ring-white/20',
@@ -155,7 +157,7 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
             )}
           </button>
         </div>
-        <div className="flex items-center justify-between text-xs text-white/70">
+        <div className="flex items-center justify-between text-body-small text-white/70">
           <span>
             {ad.slot === 'preparation'
               ? 'Your session is being prepared.'

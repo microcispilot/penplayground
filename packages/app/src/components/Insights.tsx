@@ -20,19 +20,19 @@ export const SENTRY_ISSUES_URL = 'https://pen-playground.sentry.io/issues/?query
 
 /** Stage → semantic colour token. Same hue in light and dark; the legend names them. */
 const STAGE_CLASS: Record<StageName, string> = {
-  intake: 'bg-fg-3',
-  resolve: 'bg-fg-3',
+  intake: 'bg-on-surface-dim',
+  resolve: 'bg-on-surface-dim',
   context: 'bg-success',
   prepare: 'bg-warm',
-  llm: 'bg-accent',
+  llm: 'bg-primary',
   image: 'bg-speaking',
   tts: 'bg-warm',
   stt: 'bg-presence',
   board: 'bg-ink-muted',
-  turn: 'bg-accent-strong',
-  ad: 'bg-danger',
-  join: 'bg-fg-2',
-  leave: 'bg-fg-2',
+  turn: 'bg-primary',
+  ad: 'bg-error',
+  join: 'bg-on-surface-variant',
+  leave: 'bg-on-surface-variant',
 };
 
 const STAGE_LABEL: Record<StageName, string> = {
@@ -111,10 +111,12 @@ export function describeComponent(
 
 function LatencyCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-[var(--radius-lg)] bg-surface p-4 hairline">
-      <span className="text-[11px] font-medium tracking-[0.08em] text-fg-3 uppercase">{label}</span>
-      <span className="text-xl font-medium tracking-[-0.02em] text-fg tabular">{value}</span>
-      {detail ? <span className="text-xs text-fg-3">{detail}</span> : null}
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg bg-surface-container-low p-4 hairline">
+      <span className="text-label-small font-medium tracking-wider text-on-surface-dim uppercase">
+        {label}
+      </span>
+      <span className="text-headline-small font-medium text-on-surface tabular">{value}</span>
+      {detail ? <span className="text-body-small text-on-surface-dim">{detail}</span> : null}
     </div>
   );
 }
@@ -158,13 +160,15 @@ export function StageTimeline({
       .filter((l) => l.items.length > 0);
   }, [stages]);
   if (stages.length === 0)
-    return <p className="text-sm text-fg-3">No stage timings were recorded.</p>;
+    return <p className="text-body-medium text-on-surface-dim">No stage timings were recorded.</p>;
   return (
     <div className="flex flex-col gap-1.5">
       {lanes.map((lane) => (
         <div key={lane.stage} className="flex items-center gap-3">
-          <span className="w-16 shrink-0 text-xs text-fg-3">{STAGE_LABEL[lane.stage]}</span>
-          <div className="relative h-4 min-w-0 flex-1 rounded-[3px] bg-surface-2">
+          <span className="w-16 shrink-0 text-body-small text-on-surface-dim">
+            {STAGE_LABEL[lane.stage]}
+          </span>
+          <div className="relative h-4 min-w-0 flex-1 rounded-xs bg-surface-container-high">
             {lane.items.map((s, i) => {
               const left = (s.t / span) * 100;
               const width = Math.max(minWidth, (s.ms / span) * 100);
@@ -181,9 +185,9 @@ export function StageTimeline({
                   onFocus={() => setHover(s)}
                   onBlur={() => setHover(null)}
                   className={cn(
-                    'absolute top-0 h-full rounded-[2px] transition-opacity',
-                    s.ok ? STAGE_CLASS[s.stage] : 'bg-danger',
-                    reused && 'opacity-50 ring-1 ring-inset ring-bg',
+                    'absolute top-0 h-full rounded-xs transition-opacity',
+                    s.ok ? STAGE_CLASS[s.stage] : 'bg-error',
+                    reused && 'opacity-50 ring-1 ring-inset ring-surface',
                     hover && hover !== s && 'opacity-40',
                   )}
                   style={{ left: `${left}%`, width: `${Math.min(100 - left, width)}%` }}
@@ -193,9 +197,9 @@ export function StageTimeline({
           </div>
         </div>
       ))}
-      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-fg-3">
+      <div className="mt-1 flex items-center justify-between gap-3 text-body-small text-on-surface-dim">
         <span className="tabular">0:00</span>
-        <span className="min-w-0 truncate text-fg-2">
+        <span className="min-w-0 truncate text-on-surface-variant">
           {hover
             ? `${STAGE_LABEL[hover.stage]} · ${formatMs(hover.ms)} at ${formatClock(hover.t)}${describeMeta(hover)}`
             : 'Hover a bar for its timing'}
@@ -285,7 +289,7 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
   return (
     <div className="mt-5 flex flex-col gap-7" data-testid="insights">
       <section>
-        <h6 className="mb-2.5 text-fg-2">Latency</h6>
+        <h6 className="mb-2.5 text-on-surface-variant">Latency</h6>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <LatencyCard
             label="Time to first audio"
@@ -302,32 +306,38 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
 
       <section>
         <div className="mb-2.5 flex items-baseline justify-between gap-3">
-          <h6 className="text-fg-2">Cost</h6>
-          <span className="text-sm text-fg tabular" data-testid="insights-total-usd">
+          <h6 className="text-on-surface-variant">Cost</h6>
+          <span
+            className="text-body-medium text-on-surface tabular"
+            data-testid="insights-total-usd"
+          >
             {formatUsd(t.cost.totalUsd)} total
             {t.cost.revenueUsd > 0 ? (
-              <span className="text-fg-3"> · {formatUsd(t.cost.revenueUsd)} ads (est.)</span>
+              <span className="text-on-surface-dim">
+                {' '}
+                · {formatUsd(t.cost.revenueUsd)} ads (est.)
+              </span>
             ) : null}
           </span>
         </div>
         {components.length === 0 ? (
-          <p className="text-sm text-fg-3">Nothing was billed.</p>
+          <p className="text-body-medium text-on-surface-dim">Nothing was billed.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {components.map(({ component, entry }) => (
               <li
                 key={component}
-                className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-surface px-3 py-2 text-sm hairline"
+                className="flex items-center justify-between gap-3 rounded-md bg-surface-container-low px-3 py-2 text-body-medium hairline"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="w-14 shrink-0 font-medium text-fg">
+                  <span className="w-14 shrink-0 font-medium text-on-surface">
                     {COMPONENT_LABEL[component]}
                   </span>
-                  <span className="min-w-0 truncate text-fg-2">
+                  <span className="min-w-0 truncate text-on-surface-variant">
                     {describeComponent(component, entry)}
                   </span>
                 </span>
-                <span className="shrink-0 text-fg tabular">
+                <span className="shrink-0 text-on-surface tabular">
                   {component === 'ads' ? '+' : ''}
                   {formatUsd(entry.usd)}
                 </span>
@@ -339,8 +349,8 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
 
       <section data-testid="insights-reuse">
         <div className="mb-2.5 flex items-baseline justify-between gap-3">
-          <h6 className="text-fg-2">Reuse</h6>
-          <span className="text-sm text-fg tabular">
+          <h6 className="text-on-surface-variant">Reuse</h6>
+          <span className="text-body-medium text-on-surface tabular">
             saved {formatUsd(t.reuse.savedUsd)} of {formatUsd(t.reuse.freshEquivalentUsd)}
           </span>
         </div>
@@ -366,32 +376,36 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
             {t.reuse.intakeCacheHit ? 'Topic translation cached' : 'No translation needed'}
           </Pill>
         </div>
-        <p className="mt-2 text-xs text-fg-3">
+        <p className="mt-2 text-body-small text-on-surface-dim">
           {t.canonicalId ? `Topic ${t.canonicalId}. ` : ''}Voice is synthesised fresh every session;
           there is no synthesis cache yet.
         </p>
       </section>
 
       <section>
-        <h6 className="mb-2.5 text-fg-2">Timeline</h6>
+        <h6 className="mb-2.5 text-on-surface-variant">Timeline</h6>
         <StageTimeline stages={t.stages} durationMs={t.totals.durationMs} />
       </section>
 
       <section>
-        <h6 className="mb-2.5 text-fg-2">Interactions</h6>
+        <h6 className="mb-2.5 text-on-surface-variant">Interactions</h6>
         {shown.length === 0 ? (
-          <p className="text-sm text-fg-3">No interactions were reported.</p>
+          <p className="text-body-medium text-on-surface-dim">No interactions were reported.</p>
         ) : (
           <ol className="flex max-h-[360px] flex-col gap-1 overflow-auto">
             {shown.map((i, idx) => (
               <li
                 // biome-ignore lint/suspicious/noArrayIndexKey: interactions are append-only
                 key={`${i.t}-${idx}`}
-                className="flex items-baseline gap-3 text-sm"
+                className="flex items-baseline gap-3 text-body-medium"
               >
-                <span className="w-12 shrink-0 text-xs text-fg-3 tabular">{formatClock(i.t)}</span>
-                <span className="text-fg">{INTERACTION_LABEL[i.event] ?? i.event}</span>
-                <span className="min-w-0 truncate text-xs text-fg-3">{describeInteraction(i)}</span>
+                <span className="w-12 shrink-0 text-body-small text-on-surface-dim tabular">
+                  {formatClock(i.t)}
+                </span>
+                <span className="text-on-surface">{INTERACTION_LABEL[i.event] ?? i.event}</span>
+                <span className="min-w-0 truncate text-body-small text-on-surface-dim">
+                  {describeInteraction(i)}
+                </span>
               </li>
             ))}
           </ol>
@@ -399,23 +413,29 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
       </section>
 
       <section>
-        <h6 className="mb-2.5 text-fg-2">Errors</h6>
+        <h6 className="mb-2.5 text-on-surface-variant">Errors</h6>
         {t.errors.length === 0 ? (
-          <p className="text-sm text-success">Nothing went wrong.</p>
+          <p className="text-body-medium text-success">Nothing went wrong.</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {t.errors.map((e: ErrorEvent, idx) => (
               <li
                 // biome-ignore lint/suspicious/noArrayIndexKey: errors are append-only
                 key={`${e.t}-${idx}`}
-                className="flex items-baseline gap-3 text-sm"
+                className="flex items-baseline gap-3 text-body-medium"
               >
-                <span className="w-12 shrink-0 text-xs text-fg-3 tabular">{formatClock(e.t)}</span>
-                <code className="text-danger">{e.code}</code>
-                {e.stage ? <span className="text-xs text-fg-3">{STAGE_LABEL[e.stage]}</span> : null}
+                <span className="w-12 shrink-0 text-body-small text-on-surface-dim tabular">
+                  {formatClock(e.t)}
+                </span>
+                <code className="text-error">{e.code}</code>
+                {e.stage ? (
+                  <span className="text-body-small text-on-surface-dim">
+                    {STAGE_LABEL[e.stage]}
+                  </span>
+                ) : null}
                 {e.ref ? (
                   <a
-                    className="text-xs text-accent-strong underline-offset-2 hover:underline"
+                    className="text-body-small text-primary underline-offset-2 hover:underline"
                     href={`${SENTRY_ISSUES_URL}${encodeURIComponent(e.ref)}`}
                     target="_blank"
                     rel="noreferrer noopener"

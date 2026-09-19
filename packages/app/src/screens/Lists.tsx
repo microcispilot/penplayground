@@ -47,10 +47,10 @@ export function SignInInvite({ line }: { line: string }) {
       className="mt-6 flex flex-col items-center gap-3.5 text-center"
       data-testid="sign-in-invite"
     >
-      <p className="max-w-[420px] text-[14px] leading-[1.55] text-fg-2 text-pretty">{line}</p>
+      <p className="max-w-[420px] text-label-large text-on-surface-variant text-pretty">{line}</p>
       <div ref={slot} className="flex min-h-[44px] justify-center" data-testid="google-signin" />
       {problem ? (
-        <p className="text-sm text-danger" role="alert">
+        <p className="text-body-medium text-error" role="alert">
           {problem}
         </p>
       ) : null}
@@ -69,11 +69,13 @@ interface EmptyProps {
 function Empty({ title, line, signIn, action }: EmptyProps) {
   return (
     <div
-      className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface/60 px-6 py-16 text-center"
+      className="flex flex-col items-center rounded-xl bg-surface-container-low/60 px-6 py-16 text-center"
       data-testid="list-empty"
     >
-      <p className="text-md text-fg">{title}</p>
-      <p className="mt-1.5 max-w-[440px] text-sm text-fg-2 text-pretty">{line}</p>
+      <p className="text-body-large text-on-surface">{title}</p>
+      <p className="mt-1.5 max-w-[440px] text-body-medium text-on-surface-variant text-pretty">
+        {line}
+      </p>
       {action ? <div className="mt-5">{action}</div> : null}
       {signIn ? <SignInInvite line={signIn} /> : null}
     </div>
@@ -95,16 +97,16 @@ function SessionRow({
   const navigate = useNavigate();
   const live = session.endedAt === null;
   return (
-    <div className="group flex flex-col gap-3.5 rounded-[var(--radius-lg)] bg-surface p-3.5 hairline transition-shadow hover:shadow-[0_0_0_1px_var(--color-line-strong)] sm:flex-row sm:gap-[18px]">
+    <div className="group flex flex-col gap-3.5 rounded-lg bg-surface-container-low p-3.5 hairline transition-shadow hover:shadow-[0_0_0_1px_var(--color-outline)] sm:flex-row sm:gap-[18px]">
       <SessionThumb
         session={session}
         watch={live}
         className="relative h-[124px] w-full shrink-0 sm:h-[106px] sm:w-[188px]"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="text-[16.5px] font-medium tracking-[-0.012em]">{session.title}</span>
-        <span className="text-sm text-fg-2">{detail}</span>
-        <span className="line-clamp-2 text-sm leading-[1.45] text-fg-3">
+        <span className="text-body-large font-medium">{session.title}</span>
+        <span className="text-body-medium text-on-surface-variant">{detail}</span>
+        <span className="line-clamp-2 text-body-medium text-on-surface-dim">
           {session.description || session.promise || session.topic}
         </span>
         {extra}

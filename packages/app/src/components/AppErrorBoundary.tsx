@@ -84,15 +84,18 @@ export function ErrorScreen({
   homeHref?: string;
 }) {
   return (
-    <div className="grid min-h-screen place-items-center bg-bg px-6" data-testid="error-screen">
+    <div
+      className="grid min-h-screen place-items-center bg-surface px-6"
+      data-testid="error-screen"
+    >
       <div className="flex w-full max-w-[460px] flex-col items-center text-center">
-        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-[18px] bg-bg-elevated text-fg shadow-float">
+        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-lg-increased bg-surface-container text-on-surface shadow-level2">
           <PenMark size={28} />
         </span>
-        <h1 className="animate-rise text-[clamp(1.6rem,3.4vw,2.1rem)] leading-[1.1] tracking-[-0.03em] text-fg text-pretty">
+        <h1 className="animate-rise text-headline-small text-on-surface text-pretty">
           This screen stopped drawing
         </h1>
-        <p className="animate-rise mt-3 max-w-[380px] text-[15.5px] leading-[1.55] text-fg-2 text-pretty">
+        <p className="animate-rise mt-3 max-w-[380px] text-title-small text-on-surface-variant text-pretty">
           Something in the page gave up halfway. Nothing you did caused it, and your sessions are
           safe. Try it again — it usually comes back.
         </p>
@@ -112,10 +115,10 @@ export function ErrorScreen({
           </Button>
         </div>
         {reference ? (
-          <p className="animate-rise mt-6 text-[12.5px] text-fg-3">
+          <p className="animate-rise mt-6 text-body-small text-on-surface-dim">
             If it keeps happening, this is where we look:{' '}
             <code
-              className="rounded-[var(--radius-sm)] bg-surface-2 px-1.5 py-0.5 font-mono text-[12px] text-fg-2"
+              className="rounded-sm bg-surface-container-high px-1.5 py-0.5 font-mono text-body-small text-on-surface-variant"
               data-testid="error-reference"
             >
               {reference}

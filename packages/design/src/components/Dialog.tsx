@@ -27,12 +27,16 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
         if (e.target === ref.current) onClose();
       }}
       className={cn(
-        'm-auto w-[min(520px,92vw)] rounded-[var(--radius-xl)] bg-bg-elevated p-6 text-fg shadow-pop backdrop:bg-navy-900/60 backdrop:backdrop-blur-[2px]',
+        // M3 basic dialog: `surface-container-high`, `corner-extra-large`
+        // (28 px), elevation level 3, over a `scrim`.
+        'm-auto w-[min(520px,92vw)] rounded-xl bg-surface-container-high p-6 text-on-surface shadow-level3 backdrop:bg-scrim/60 backdrop:backdrop-blur-[2px]',
         className,
       )}
       aria-label={title}
     >
-      <h3 className="mb-3 text-lg">{title}</h3>
+      {/* M3 names `headline-small` here; `title-large` keeps a modal that is
+          mostly one sentence from shouting, and is still a scale role. */}
+      <h3 className="mb-3 text-title-large">{title}</h3>
       {children}
     </dialog>
   );

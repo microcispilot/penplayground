@@ -12,21 +12,43 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+/**
+ * M3 buttons, Expressive shapes.
+ *
+ * Every button is a true pill (`corner-full`) at every size, which is the one
+ * thing the Expressive sheet says loudest. The four variants map onto M3's
+ * own: filled, outlined, text, and filled-with-error.
+ *
+ *   @material/web tokens/versions/v0_192/_md-comp-filled-button.scss
+ *     container `primary`, label `on-primary`, shape `corner-full`,
+ *     label type `label-large`.
+ *   …/_md-comp-outlined-button.scss   1 px `outline`, label `primary`.
+ *   …/_md-comp-text-button.scss       no container, label `primary`.
+ *
+ * Hover, focus and press are M3 state layers rather than second colours: the
+ * button lays its own label colour over itself at 8 % / 12 % / 12 %
+ * (`state-layer`, defined in styles/index.css from _md-sys-state.scss).
+ */
 const base =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap select-none rounded-[var(--radius-md)] font-medium transition-[background-color,color,box-shadow,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)] disabled:opacity-45 disabled:cursor-not-allowed active:scale-[0.985]';
+  'state-layer inline-flex items-center justify-center gap-2 whitespace-nowrap select-none rounded-full transition-[background-color,color,box-shadow,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)] disabled:opacity-disabled disabled:cursor-not-allowed active:scale-[0.985]';
+
 const variants: Record<ButtonVariant, string> = {
-  // Not --color-accent: that tone under --color-on-accent measures 3.75:1, which
-  // is fine for a stroke and below AA for the product's main call to action.
-  primary:
-    'bg-accent-strong text-on-accent hover:bg-accent-pressed shadow-[0_1px_0_oklch(1_0_0/12%)_inset]',
-  secondary: 'bg-transparent text-fg hairline hover:bg-surface-2',
-  ghost: 'bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg',
-  danger: 'bg-danger text-white hover:brightness-110',
+  primary: 'bg-primary text-on-primary',
+  secondary: 'bg-transparent text-primary border border-outline',
+  ghost: 'bg-transparent text-primary',
+  danger: 'bg-error text-on-error',
 };
+
+/**
+ * M3 Expressive button heights: extra-small 32, small 40, medium 56. Leading
+ * and trailing space grows with them (12 / 16 / 24 px), and the label steps
+ * from `label-large` to `title-medium` at the largest size — never to a
+ * display or headline role, which is what made the old buttons shout.
+ */
 const sizes: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-9 px-4 text-sm',
-  lg: 'h-11 px-5 text-base',
+  sm: 'h-8 px-3 text-label-large',
+  md: 'h-10 px-4 text-label-large',
+  lg: 'h-14 px-6 text-title-medium',
 };
 
 export function Button({
@@ -61,7 +83,7 @@ export function Spinner({ size = 16, className }: { size?: number; className?: s
       role="status"
       aria-label="Loading"
       className={cn(
-        'inline-block rounded-full border-2 border-line-strong border-t-accent animate-spin',
+        'inline-block animate-spin rounded-full border-2 border-outline-variant border-t-primary',
         className,
       )}
       style={{ width: size, height: size }}

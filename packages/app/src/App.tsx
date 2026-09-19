@@ -99,7 +99,7 @@ function ScrollToTop() {
 /**
  * What a split screen shows while its chunk is in flight. The header and the
  * sidebar are already painted around it, so this is only the panel: the shape
- * of the page in `bg-surface-2`, at the same measure `ShellPage` uses. No
+ * of the page in `bg-surface-container-high`, at the same measure `ShellPage` uses. No
  * spinner, and nothing that flashes — on a warm cache the chunk is there
  * within a frame and this is never seen at all.
  */
@@ -109,7 +109,7 @@ function ShellFallback() {
       <div className="mx-auto w-full max-w-[1100px]">
         <Skeleton className="h-9 w-[min(18rem,60%)]" />
         <Skeleton className="mt-3 h-4 w-[min(32rem,85%)]" />
-        <Skeleton className="mt-9 h-[42vh] min-h-[220px] w-full rounded-[var(--radius-lg)]" />
+        <Skeleton className="mt-9 h-[42vh] min-h-[220px] w-full rounded-lg" />
       </div>
     </div>
   );
@@ -121,7 +121,7 @@ function ShellFallback() {
  * page skeleton sized for the shell.
  */
 function BoardFallback() {
-  return <div className="h-dvh w-full bg-bg" data-testid="route-loading" aria-hidden />;
+  return <div className="h-dvh w-full bg-surface" data-testid="route-loading" aria-hidden />;
 }
 
 /** Everything but the room and the replay lives in the shell (ADR-0015). */

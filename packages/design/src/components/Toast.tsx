@@ -27,13 +27,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         aria-live="polite"
       >
         {items.map((t) => (
+          /*
+           * M3's snackbar: `inverse-surface` with `inverse-on-surface`,
+           * `corner-extra-small`, `body-medium`, elevation level 3.
+           * (@material/web …/_md-comp-snackbar.scss)
+           */
           <div
             key={t.id}
             className={cn(
-              'animate-rise rounded-full px-4 py-2 text-sm shadow-pop',
-              t.tone === 'neutral' && 'bg-fg text-bg',
-              t.tone === 'danger' && 'bg-danger text-white',
-              t.tone === 'success' && 'bg-success text-white',
+              'animate-rise rounded-xs px-4 py-2 text-body-medium shadow-level3',
+              t.tone === 'neutral' && 'bg-inverse-surface text-inverse-on-surface',
+              t.tone === 'danger' && 'bg-error text-on-error',
+              t.tone === 'success' && 'bg-success text-on-success',
             )}
           >
             {t.text}

@@ -5,6 +5,7 @@ import {
   Caption,
   cn,
   IconButton,
+  IconButtonGroup,
   Pill,
   SegmentDots,
   Sheet,
@@ -122,13 +123,16 @@ export function RoomStatus({
 }
 
 const STATUS_BASE =
-  'pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-bg-elevated/92 px-3 py-1.5 text-[12.5px] text-fg-2 shadow-card backdrop-blur-[6px] hairline';
+  'pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-surface-container/92 px-3 py-1.5 text-body-small text-on-surface-variant shadow-level1 backdrop-blur-[6px] hairline';
 
 function StatusPill({ text, pulse, testid }: { text: string; pulse?: boolean; testid: string }) {
   return (
     <span className={cn(STATUS_BASE, 'animate-rise')} data-testid={testid}>
       {pulse ? (
-        <span className="size-1.5 shrink-0 rounded-full bg-fg-3 animate-blink" aria-hidden />
+        <span
+          className="size-1.5 shrink-0 rounded-full bg-on-surface-dim animate-blink"
+          aria-hidden
+        />
       ) : null}
       <span className="truncate">{text}</span>
     </span>
@@ -152,7 +156,7 @@ function StatusButton({
       data-testid={testid}
       className={cn(
         STATUS_BASE,
-        'animate-rise text-fg transition-colors duration-[var(--duration-fast)] hover:bg-bg-elevated focus-visible:outline-accent',
+        'animate-rise text-on-surface transition-colors duration-[var(--duration-fast)] hover:bg-surface-container focus-visible:outline-primary',
       )}
     >
       <span className="truncate">{text}</span>
@@ -267,27 +271,30 @@ export function BottomBar(p: BottomBarProps) {
   return (
     <>
       <div
-        className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-2.5 pb-[env(safe-area-inset-bottom)] sm:gap-3 sm:px-3.5"
+        className="flex shrink-0 items-center gap-2 border-t border-outline-variant bg-surface-container-low px-2.5 pb-[env(safe-area-inset-bottom)] sm:gap-3 sm:px-3.5"
         style={{ minHeight: 56 }}
       >
         <span
-          className="hidden size-[26px] shrink-0 place-items-center rounded-[8px] bg-accent-strong text-[13px] text-on-accent sm:grid"
+          className="hidden size-[26px] shrink-0 place-items-center rounded-full bg-primary text-body-small text-on-primary sm:grid"
           aria-hidden
         >
           ◇
         </span>
         {/* Title and status: the first thing to go when the screen narrows. */}
-        <div className="hidden min-w-0 flex-auto items-center gap-2.5 border-l border-line-strong pl-2.5 md:flex">
-          <span className="min-w-0 truncate text-sm text-fg">
+        <div className="hidden min-w-0 flex-auto items-center gap-2.5 border-l border-outline pl-2.5 md:flex">
+          <span className="min-w-0 truncate text-body-medium text-on-surface">
             {p.state.plan?.title ?? p.state.topic}
           </span>
           {p.state.mode === 'complete' ? <Pill tone="accent">Complete</Pill> : null}
-          <span className="hidden text-xs text-fg-3 lg:inline" data-testid="room-status-label">
+          <span
+            className="hidden text-body-small text-on-surface-dim lg:inline"
+            data-testid="room-status-label"
+          >
             {statusLabel}
           </span>
         </div>
         {/* On a phone the same sentence is the only thing worth the width. */}
-        <span className="min-w-0 flex-auto truncate text-[12.5px] text-fg-2 md:hidden">
+        <span className="min-w-0 flex-auto truncate text-body-small text-on-surface-variant md:hidden">
           {statusLabel}
         </span>
         {total > 0 ? (
@@ -298,99 +305,101 @@ export function BottomBar(p: BottomBarProps) {
             className="hidden sm:flex"
           />
         ) : null}
-        <span className="hidden shrink-0 text-sm text-fg-2 tabular sm:inline">
+        <span className="hidden shrink-0 text-body-medium text-on-surface-variant tabular sm:inline">
           {formatClock(p.clockMs)}
         </span>
-        {p.isHost ? (
-          <IconButton
-            label={playing ? 'Pause' : 'Resume'}
-            onClick={p.onTogglePlay}
-            disabled={!canPlayPause}
-            className="hidden md:grid"
-          >
-            {playing ? <Pause size={14} /> : <Play size={14} />}
-          </IconButton>
-        ) : null}
-        <PaceMenu
-          value={p.state.pace}
-          onChange={p.onSetPace}
-          disabled={!p.isHost}
-          disabledReason="Only the host sets the pace"
-          className="hidden md:block"
-        />
-        <IconButton
-          label="Captions"
-          state={p.captionsOn ? 'on' : 'default'}
-          onClick={p.onToggleCaptions}
-          className="hidden sm:grid"
-        >
-          <Captions size={16} />
-        </IconButton>
-        {/* The microphone is the point of the product, so on a phone it is the biggest thing here. */}
-        <IconButton
-          label={micLabel}
-          state={
-            p.inputsPaused
-              ? 'default'
-              : p.audio?.mutedByHost
-                ? 'warn'
-                : p.micState === 'listening'
-                  ? 'on'
-                  : p.micState === 'denied'
-                    ? 'warn'
-                    : 'default'
-          }
-          onClick={onMic}
-          disabled={p.inputsPaused ?? false}
-          size={44}
-          className="relative sm:[--icon-size:32px]"
-          data-testid="mic-toggle"
-        >
-          {micLive ? <Mic size={20} /> : <MicOff size={20} />}
-          {micLive ? (
-            <>
-              <span
-                aria-hidden
-                className="absolute inset-0 rounded-[var(--radius-sm)] ring-2 ring-presence/60"
-                style={{ opacity: Math.min(1, p.micLevel * 12) }}
-              />
-              {/* Live is a ring and a dot, the way a call marks it. */}
-              <span
-                aria-hidden
-                className="absolute top-1 right-1 size-1.5 rounded-full bg-presence animate-blink"
-              />
-            </>
+        <IconButtonGroup label="Room controls" className="shrink-0">
+          {p.isHost ? (
+            <IconButton
+              label={playing ? 'Pause' : 'Resume'}
+              onClick={p.onTogglePlay}
+              disabled={!canPlayPause}
+              className="hidden md:grid"
+            >
+              {playing ? <Pause size={14} /> : <Play size={14} />}
+            </IconButton>
           ) : null}
-        </IconButton>
-        {p.onReact ? (
-          <ReactionPicker
-            disabled={p.inputsPaused ?? false}
-            disabledReason="Reactions are back after the ad"
-            onReact={p.onReact}
+          <PaceMenu
+            value={p.state.pace}
+            onChange={p.onSetPace}
+            disabled={!p.isHost}
+            disabledReason="Only the host sets the pace"
+            className="hidden md:block"
           />
-        ) : null}
-        {p.onTogglePanel ? (
           <IconButton
-            label={p.panelOpen ? 'Hide the session panel' : 'Show the session panel'}
-            onClick={p.onTogglePanel}
-            aria-expanded={p.panelOpen ?? false}
-            className={cn(p.panelOpen && 'bg-surface-2 text-fg')}
-            data-testid="panel-toggle"
+            label="Captions"
+            state={p.captionsOn ? 'on' : 'default'}
+            onClick={p.onToggleCaptions}
+            className="hidden sm:grid"
           >
-            <PanelRight size={17} />
+            <Captions size={16} />
           </IconButton>
-        ) : null}
-        <IconButton label="Full screen" onClick={p.onFullscreen} className="hidden lg:grid">
-          <Maximize2 size={15} />
-        </IconButton>
-        <IconButton
-          label="More controls"
-          onClick={() => setMore(true)}
-          className="md:hidden"
-          data-testid="more-controls"
-        >
-          <Ellipsis size={18} />
-        </IconButton>
+          {/* The microphone is the point of the product, so on a phone it is the biggest thing here. */}
+          <IconButton
+            label={micLabel}
+            state={
+              p.inputsPaused
+                ? 'default'
+                : p.audio?.mutedByHost
+                  ? 'warn'
+                  : p.micState === 'listening'
+                    ? 'on'
+                    : p.micState === 'denied'
+                      ? 'warn'
+                      : 'default'
+            }
+            onClick={onMic}
+            disabled={p.inputsPaused ?? false}
+            size={44}
+            className="relative sm:[--icon-size:32px]"
+            data-testid="mic-toggle"
+          >
+            {micLive ? <Mic size={20} /> : <MicOff size={20} />}
+            {micLive ? (
+              <>
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-full ring-2 ring-presence/60"
+                  style={{ opacity: Math.min(1, p.micLevel * 12) }}
+                />
+                {/* Live is a ring and a dot, the way a call marks it. */}
+                <span
+                  aria-hidden
+                  className="absolute top-1 right-1 size-1.5 rounded-full bg-presence animate-blink"
+                />
+              </>
+            ) : null}
+          </IconButton>
+          {p.onReact ? (
+            <ReactionPicker
+              disabled={p.inputsPaused ?? false}
+              disabledReason="Reactions are back after the ad"
+              onReact={p.onReact}
+            />
+          ) : null}
+          {p.onTogglePanel ? (
+            <IconButton
+              label={p.panelOpen ? 'Hide the session panel' : 'Show the session panel'}
+              onClick={p.onTogglePanel}
+              aria-expanded={p.panelOpen ?? false}
+              className={cn(p.panelOpen && 'bg-surface-container-high text-on-surface')}
+              data-testid="panel-toggle"
+            >
+              <PanelRight size={17} />
+            </IconButton>
+          ) : null}
+          <IconButton label="Full screen" onClick={p.onFullscreen} className="hidden lg:grid">
+            <Maximize2 size={15} />
+          </IconButton>
+          <IconButton
+            label="More controls"
+            onClick={() => setMore(true)}
+            className="md:hidden"
+            data-testid="more-controls"
+          >
+            <Ellipsis size={18} />
+          </IconButton>
+        </IconButtonGroup>
         <Button variant="danger" size="sm" onClick={p.onLeave} className="shrink-0">
           {p.isHost ? 'End' : 'Leave'}
         </Button>
@@ -403,7 +412,7 @@ export function BottomBar(p: BottomBarProps) {
         title={p.state.plan?.title ?? p.state.topic}
         data-testid="more-sheet"
       >
-        <p className="mb-2 px-3 text-[13px] text-fg-2">
+        <p className="mb-2 px-3 text-body-medium text-on-surface-variant">
           {statusLabel} · {formatClock(p.clockMs)}
         </p>
         {total > 0 ? (
@@ -429,8 +438,8 @@ export function BottomBar(p: BottomBarProps) {
           pressed={p.captionsOn}
           onClick={p.onToggleCaptions}
         />
-        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-3">
-          <span className="flex items-center gap-3 text-[15px] text-fg">
+        <div className="flex items-center justify-between gap-3 rounded-md px-3 py-3">
+          <span className="flex items-center gap-3 text-body-medium text-on-surface">
             <Gauge size={16} className="shrink-0" aria-hidden />
             Pace
           </span>
@@ -498,7 +507,7 @@ export function CaptionOverlay({
     return hint ? (
       <div className={cn(box, 'text-center')} data-caption-box>
         <span
-          className="inline rounded-[2px] px-[0.4em] py-[0.18em] text-[12px] text-white/85"
+          className="inline rounded-xs px-[0.4em] py-[0.18em] text-body-small text-white/85"
           style={{ background: 'var(--color-caption-scrim)' }}
         >
           {hint}
@@ -534,12 +543,12 @@ export function CheckCard({
 }) {
   const [text, setText] = useState('');
   return (
-    <div className="absolute inset-x-2 bottom-3 z-[6] mx-auto max-h-[70%] w-[min(560px,100%)] animate-rise overflow-y-auto rounded-[var(--radius-lg)] bg-bg-elevated p-4 shadow-pop sm:inset-x-0 sm:bottom-[70px] sm:w-[min(560px,90%)]">
-      <div className="mb-1 text-[10px] font-medium tracking-[0.1em] text-accent-strong uppercase">
+    <div className="absolute inset-x-2 bottom-3 z-[6] mx-auto max-h-[70%] w-[min(560px,100%)] animate-rise overflow-y-auto rounded-lg bg-surface-container p-4 shadow-level3 sm:inset-x-0 sm:bottom-[70px] sm:w-[min(560px,90%)]">
+      <div className="mb-1 text-label-small font-medium tracking-widest text-primary uppercase">
         Quick check
       </div>
       <p
-        className="mb-3 text-[15px] font-medium leading-snug text-fg text-pretty"
+        className="mb-3 text-body-medium font-medium leading-snug text-on-surface text-pretty"
         {...(language ? { lang: language, dir: dirOf(language) } : { dir: 'auto' as const })}
       >
         {question}
@@ -567,7 +576,7 @@ export function CheckCard({
         }}
       >
         <input
-          className="h-9 min-w-0 flex-1 rounded-[var(--radius-md)] bg-surface px-3 text-sm outline-none hairline focus:shadow-[0_0_0_2px_var(--color-accent)]"
+          className="h-9 min-w-0 flex-1 rounded-md bg-surface-container-low px-3 text-body-medium outline-none hairline focus:shadow-[0_0_0_2px_var(--color-primary)]"
           placeholder="Or say it out loud — or type here"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -599,42 +608,37 @@ export function RecapPanel({
   const lang = state.language;
   const dir = dirOf(lang);
   return (
-    <div className="absolute inset-0 z-[7] flex justify-end bg-navy-900/70">
+    <div className="absolute inset-0 z-[7] flex justify-end bg-scrim/70">
       {/* A drawer on a wide screen; the whole screen on a phone, where a drawer is just a cramped page. */}
-      <div className="h-full w-full animate-rise overflow-auto bg-bg px-5 pt-6 pb-8 shadow-[-20px_0_50px_rgba(0,0,0,.5)] sm:w-[min(430px,86%)] sm:px-6">
-        <h6 className="mb-2 text-accent-strong">Session saved</h6>
-        <h3 className="mb-1.5 leading-[1.14] tracking-[-0.02em] text-pretty" lang={lang} dir={dir}>
+      <div className="h-full w-full animate-rise overflow-auto bg-surface px-5 pt-6 pb-8 shadow-[-20px_0_50px_rgba(0,0,0,.5)] sm:w-[min(430px,86%)] sm:px-6">
+        <h6 className="mb-2 text-primary">Session saved</h6>
+        <h3 className="mb-1.5 text-pretty" lang={lang} dir={dir}>
           {state.plan?.title ?? state.topic}
         </h3>
-        <p className="mb-[22px] text-sm text-fg-2">
+        <p className="mb-[22px] text-body-medium text-on-surface-variant">
           {expertFirstName} · {formatClock(state.clockMs)} · {questions.length} question
           {questions.length === 1 ? '' : 's'}
         </p>
-        <h6 className="mb-2.5 text-fg-2">What {expertFirstName} covered</h6>
+        <h6 className="mb-2.5 text-on-surface-variant">What {expertFirstName} covered</h6>
         <div className="mb-6 flex flex-col gap-2" lang={lang} dir={dir}>
           {(state.recap ?? []).map((r) => (
             <div key={r} className="flex items-start gap-2.5">
-              <span className="mt-2 size-[5px] shrink-0 rounded-full bg-accent" aria-hidden />
-              <span className="text-sm leading-[1.5] text-fg-2">{r}</span>
+              <span className="mt-2 size-[5px] shrink-0 rounded-full bg-primary" aria-hidden />
+              <span className="text-body-medium text-on-surface-variant">{r}</span>
             </div>
           ))}
         </div>
-        <h6 className="mb-2.5 text-fg-2">Your questions</h6>
+        <h6 className="mb-2.5 text-on-surface-variant">Your questions</h6>
         <div className="mb-[26px] flex flex-col gap-3">
           {questions.length === 0 ? (
-            <p className="text-[13.5px] text-fg-3">
+            <p className="text-body-medium text-on-surface-dim">
               You didn't stop {expertFirstName} this time. Next one, jump in whenever.
             </p>
           ) : (
             questions.map((q) => (
-              <div
-                key={q.q}
-                className="border-accent-strong border-s-2 ps-[11px]"
-                lang={lang}
-                dir={dir}
-              >
-                <p className="mb-1 text-sm text-fg">{q.q}</p>
-                <p className="text-[13px] leading-[1.5] text-fg-2">{q.a}</p>
+              <div key={q.q} className="border-primary border-s-2 ps-[11px]" lang={lang} dir={dir}>
+                <p className="mb-1 text-body-medium text-on-surface">{q.q}</p>
+                <p className="text-body-medium text-on-surface-variant">{q.a}</p>
               </div>
             ))
           )}
@@ -669,11 +673,11 @@ export function PreparingView({
   progress: { fraction: number; status: string } | null;
 }) {
   return (
-    <div className="grid min-h-screen place-items-center bg-bg px-7 py-12">
+    <div className="grid min-h-screen place-items-center bg-surface px-7 py-12">
       <div className="flex w-full max-w-[380px] flex-col items-center text-center">
         <div
           className={cn(
-            'size-[92px] overflow-hidden rounded-full bg-surface-2 shadow-[0_0_0_3px_oklch(1_0_0/10%)] animate-ring',
+            'size-[92px] overflow-hidden rounded-full bg-surface-container-high shadow-[0_0_0_3px_oklch(1_0_0/10%)] animate-ring',
           )}
         >
           {portraitUrl ? (
@@ -689,26 +693,30 @@ export function PreparingView({
             <Avatar name={expertName} size={92} />
           )}
         </div>
-        <div className="mt-4 text-base font-medium text-fg">{expertName}</div>
-        <div className="mt-0.5 text-[12.5px] text-fg-3">AI expert · {expertRole.toLowerCase()}</div>
-        <div className="my-[26px] h-px w-11 bg-line-strong" />
-        <div className="text-[19px] font-medium leading-[1.25] tracking-[-0.02em] text-fg text-pretty">
+        <div className="mt-4 text-body-medium font-medium text-on-surface">{expertName}</div>
+        <div className="mt-0.5 text-body-small text-on-surface-dim">
+          AI expert · {expertRole.toLowerCase()}
+        </div>
+        <div className="my-[26px] h-px w-11 bg-outline" />
+        <div className="text-title-large font-medium text-on-surface text-pretty">
           {plan?.title ?? topic}
         </div>
-        <div className="mt-[7px] text-[12.5px] text-fg-3">
+        <div className="mt-[7px] text-body-small text-on-surface-dim">
           {plan
             ? `${plan.segments.length} steps · about ${Math.round(plan.seconds / 60)} minutes`
             : 'Getting the material together'}
         </div>
-        <div className="mt-[34px] h-0.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div className="mt-[34px] h-0.5 w-full overflow-hidden rounded-full bg-surface-container-high">
           <div
-            className="h-full bg-accent transition-[width] duration-[var(--duration-scene)] ease-[var(--ease-out)]"
+            className="h-full bg-primary transition-[width] duration-[var(--duration-scene)] ease-[var(--ease-out)]"
             style={{ width: `${Math.round((progress?.fraction ?? 0.05) * 100)}%` }}
           />
         </div>
         <div className="mt-3.5 flex items-center gap-2" aria-live="polite">
-          <span className="block size-[13px] animate-spin rounded-full border-2 border-line-strong border-t-accent" />
-          <span className="text-sm text-fg-2">{progress?.status ?? 'Connecting…'}</span>
+          <span className="block size-[13px] animate-spin rounded-full border-2 border-outline border-t-accent" />
+          <span className="text-body-medium text-on-surface-variant">
+            {progress?.status ?? 'Connecting…'}
+          </span>
         </div>
       </div>
     </div>

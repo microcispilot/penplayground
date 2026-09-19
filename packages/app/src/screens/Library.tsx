@@ -43,9 +43,9 @@ export function Library() {
             <Skeleton key={k} className="h-[136px]" />
           ))
         ) : sessions.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] bg-surface p-6 hairline">
-            <p className="text-md">No sessions yet.</p>
-            <p className="text-sm text-fg-2">
+          <div className="flex flex-col items-start gap-3 rounded-lg bg-surface-container-low p-6 hairline">
+            <p className="text-body-large">No sessions yet.</p>
+            <p className="text-body-medium text-on-surface-variant">
               Your first one will appear here the moment you start it.
             </p>
             <Button variant="primary" onClick={() => navigate('/')}>
@@ -59,7 +59,7 @@ export function Library() {
             return (
               <div
                 key={s.id}
-                className="flex gap-[18px] rounded-[var(--radius-lg)] bg-surface p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-line-strong)]"
+                className="flex gap-[18px] rounded-lg bg-surface-container-low p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-outline)]"
               >
                 <SessionThumb
                   session={s}
@@ -67,8 +67,8 @@ export function Library() {
                   className="relative h-[106px] w-[188px] shrink-0"
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="text-[17px] font-medium tracking-[-0.012em]">{s.title}</span>
-                  <span className="text-sm text-fg-2">
+                  <span className="text-body-large font-medium">{s.title}</span>
+                  <span className="text-body-medium text-on-surface-variant">
                     {relativeDay(s.startedAt)} · {live ? 'live now' : formatDuration(s.durationMs)}{' '}
                     ·{' '}
                     {s.questions === 0
@@ -77,7 +77,7 @@ export function Library() {
                     · {expert?.displayName ?? 'AI expert'}
                   </span>
                   {s.recap[0] ? (
-                    <span className="mt-1 border-l-2 border-accent-strong pl-[11px] text-sm leading-[1.5] text-fg-2">
+                    <span className="mt-1 border-l-2 border-primary pl-[11px] text-body-medium text-on-surface-variant">
                       {s.recap[0]}
                     </span>
                   ) : null}

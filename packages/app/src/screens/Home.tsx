@@ -259,7 +259,7 @@ export function Home() {
             is genuinely too narrow to hold it.
           */}
           <h1
-            className="animate-rise text-[clamp(2.1rem,5vw,3.5rem)] leading-[1.05] tracking-[-0.035em] text-fg text-balance"
+            className="animate-rise text-headline-large text-on-surface text-balance"
             style={{ animationDelay: '40ms' }}
           >
             What do you want to learn?
@@ -267,8 +267,10 @@ export function Home() {
 
           <form
             className={cn(
-              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-[20px] bg-bg-elevated p-2 pl-5 text-left shadow-ask transition-shadow duration-[var(--duration-base)]',
-              'focus-within:shadow-[var(--shadow-lift),0_0_0_2px_var(--color-accent)]',
+              // M3's search bar: `corner-full` on `surface-container-high`, lifted by
+              // elevation level 1 rather than by a wash.
+              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-xl-increased bg-surface-container-high p-2 pl-5 text-left shadow-level1 transition-shadow duration-[var(--duration-base)]',
+              'focus-within:shadow-[var(--shadow-level2),0_0_0_2px_var(--color-primary)]',
             )}
             style={{ animationDelay: '160ms' }}
             onSubmit={(e) => {
@@ -276,9 +278,9 @@ export function Home() {
               void start(query, withExpert?.id);
             }}
           >
-            <Search size={19} className="shrink-0 text-fg-3" aria-hidden />
+            <Search size={19} className="shrink-0 text-on-surface-dim" aria-hidden />
             {withExpert ? (
-              <span className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent-soft py-0.5 pr-1.5 pl-1 text-[13px] font-medium text-accent-strong">
+              <span className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary-container py-0.5 pr-1.5 pl-1 text-label-large text-on-primary-container">
                 <img
                   src={api.portraitUrl(withExpert.portrait?.src, 192) ?? undefined}
                   alt=""
@@ -291,7 +293,7 @@ export function Home() {
                 <button
                   type="button"
                   aria-label="Any expert"
-                  className="grid size-5 place-items-center rounded-full hover:bg-accent/20"
+                  className="state-layer grid size-5 place-items-center rounded-full"
                   onClick={() => setWithExpert(null)}
                 >
                   <X size={12} />
@@ -300,7 +302,7 @@ export function Home() {
             ) : null}
             <input
               ref={inputRef}
-              className="h-12 min-w-0 flex-1 bg-transparent px-3 text-[17px] text-fg outline-none placeholder:text-fg-3 caret-accent"
+              className="h-12 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface outline-none placeholder:text-on-surface-dim caret-primary"
               placeholder="Try “how Transformers work in LLMs”"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -325,10 +327,10 @@ export function Home() {
               aria-label="Say it instead"
               aria-pressed={listening}
               className={cn(
-                'grid size-11 shrink-0 place-items-center rounded-full transition-colors',
+                'state-layer grid size-11 shrink-0 place-items-center rounded-full transition-colors',
                 listening
-                  ? 'bg-presence-soft text-presence shadow-[0_0_0_1px_var(--color-presence)]'
-                  : 'text-fg-3 hover:bg-surface-2 hover:text-fg',
+                  ? 'bg-presence-container text-on-presence-container'
+                  : 'text-on-surface-variant',
               )}
               onClick={listen}
             >
@@ -337,7 +339,7 @@ export function Home() {
             <button
               type="submit"
               disabled={!query.trim() || starting || waiting}
-              className="group ml-1 flex h-12 shrink-0 items-center gap-2 rounded-[14px] bg-fg px-5 text-[15px] font-medium text-bg transition-[transform,opacity,background-color] duration-[var(--duration-fast)] hover:bg-navy-700 active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-3 dark:hover:bg-white"
+              className="state-layer group ml-1 flex h-12 shrink-0 items-center gap-2 rounded-full bg-primary px-6 text-label-large text-on-primary transition-[transform,opacity] duration-[var(--duration-fast)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-disabled"
             >
               {starting ? 'Starting…' : 'Start'}
               <ArrowRight
@@ -350,7 +352,7 @@ export function Home() {
           {/* The allowance only speaks when it is in the way; the running count is gone. */}
           {waiting ? (
             <p
-              className="animate-rise mt-5 max-w-[560px] text-[14px] text-fg-2 text-pretty"
+              className="animate-rise mt-5 max-w-[560px] text-body-medium text-on-surface-variant text-pretty"
               style={{ animationDelay: '220ms' }}
               data-testid="home-allowance"
             >
@@ -359,7 +361,7 @@ export function Home() {
                 : `That is your ${usage?.sessionsPerDay ?? 3} sessions for today. They are back at midnight UTC. `}
               <Link
                 to="/pricing"
-                className="text-accent-strong underline decoration-line-strong underline-offset-4 hover:decoration-accent"
+                className="text-primary underline decoration-outline underline-offset-4 hover:decoration-primary"
               >
                 Standard makes them unlimited
               </Link>
@@ -370,14 +372,12 @@ export function Home() {
       </section>
 
       {/* ── experts ──────────────────────────────────────────────────────── */}
-      <section className="border-t border-line/70 py-16">
+      <section className="border-t border-outline-variant/70 py-16">
         <div className="mx-auto w-full max-w-[1280px] px-6">
           <SectionBand>
             <div className="min-w-0">
-              <h2 className="text-[clamp(1.25rem,1.7vw,1.5rem)] tracking-[-0.025em]">
-                Taught by experts who never lose patience.
-              </h2>
-              <p className="mt-2 max-w-[920px] text-[15px] text-fg-2 text-pretty">
+              <h2 className="text-title-large">Taught by experts who never lose patience.</h2>
+              <p className="mt-2 max-w-[920px] text-body-medium text-on-surface-variant text-pretty">
                 100+ experts across science, software, coding, medicine, law, money, arts, and more.
                 They can teach you in your language.
               </p>
@@ -389,10 +389,7 @@ export function Home() {
           >
             {experts.length === 0
               ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
-                  <Skeleton
-                    key={k}
-                    className="aspect-[4/5] w-[196px] shrink-0 rounded-[var(--radius-xl)]"
-                  />
+                  <Skeleton key={k} className="aspect-[4/5] w-[196px] shrink-0 rounded-xl" />
                 ))
               : [
                   ...featured.map((e) => (
@@ -416,10 +413,10 @@ export function Home() {
       </section>
 
       {/* ── sessions ─────────────────────────────────────────────────────── */}
-      <section className="border-t border-line/70 bg-surface py-16">
+      <section className="border-t border-outline-variant/70 bg-surface-container-low py-16">
         <div className="mx-auto w-full max-w-[1280px] px-6">
           <SectionBand>
-            <h2 className="mr-2 text-[clamp(1.25rem,1.7vw,1.5rem)] tracking-[-0.025em]">
+            <h2 className="mr-2 text-title-large">
               {sessions !== null && sessions.length === 0
                 ? 'Start with one of these'
                 : 'Most learned'}
@@ -433,10 +430,10 @@ export function Home() {
                     </Chip>
                   ))}
                 </div>
-                <label className="flex h-9 w-full shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3.5 hairline sm:w-[260px]">
-                  <Search size={14} className="shrink-0 text-fg-3" aria-hidden />
+                <label className="flex h-9 w-full shrink-0 items-center gap-2 rounded-full bg-surface-container px-3.5 hairline sm:w-[260px]">
+                  <Search size={14} className="shrink-0 text-on-surface-dim" aria-hidden />
                   <input
-                    className="min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-3"
+                    className="min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-dim"
                     placeholder="Filter sessions"
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
@@ -445,7 +442,7 @@ export function Home() {
                 </label>
               </>
             ) : sessions !== null ? (
-              <p className="basis-full text-[15px] text-fg-2">
+              <p className="basis-full text-body-medium text-on-surface-variant">
                 Sessions people learn from most will gather here. Until then, these are prepared and
                 ready to teach.
               </p>
@@ -456,7 +453,7 @@ export function Home() {
             {sessions === null
               ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
                   <div key={k} className="flex flex-col gap-3">
-                    <Skeleton className="aspect-video rounded-[var(--radius-lg)]" />
+                    <Skeleton className="aspect-video rounded-lg" />
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-3 w-1/2" />
                   </div>
@@ -479,8 +476,10 @@ export function Home() {
                   })}
             {sessions !== null && sessions.length > 0 && visible.length === 0 ? (
               <div className="col-span-full flex flex-col items-center gap-1 py-16 text-center">
-                <p className="text-md text-fg">No sessions match.</p>
-                <p className="text-sm text-fg-2">Try another category, or clear the filter.</p>
+                <p className="text-body-large text-on-surface">No sessions match.</p>
+                <p className="text-body-medium text-on-surface-variant">
+                  Try another category, or clear the filter.
+                </p>
               </div>
             ) : null}
           </div>
@@ -488,15 +487,15 @@ export function Home() {
       </section>
 
       {/* The bottom pane is furniture too: the same surface the sidebar sits on. */}
-      <footer className="border-t border-line/70 bg-chrome">
-        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-8 text-[13px] text-fg-3">
-          <span className="flex items-center gap-1.5 text-fg-2">
+      <footer className="border-t border-outline-variant/70 bg-surface-container-low">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-8 text-body-medium text-on-surface-dim">
+          <span className="flex items-center gap-1.5 text-on-surface-variant">
             <PenMark size={16} /> Pen Playground
           </span>
-          <NavLink to="/pricing" className="hover:text-fg">
+          <NavLink to="/pricing" className="hover:text-on-surface">
             Pricing
           </NavLink>
-          <NavLink to="/sessions" className="hover:text-fg">
+          <NavLink to="/sessions" className="hover:text-on-surface">
             Your sessions
           </NavLink>
           {/*
@@ -504,13 +503,17 @@ export function Home() {
             footer, which is in the layout from 1024 px up (AppShell). One copy
             is enough: below that the sidebar is a drawer, so Home carries them.
           */}
-          <NavLink to="/terms" className="hover:text-fg lg:hidden">
+          <NavLink to="/terms" className="hover:text-on-surface lg:hidden">
             Terms
           </NavLink>
-          <NavLink to="/privacy" className="hover:text-fg lg:hidden">
+          <NavLink to="/privacy" className="hover:text-on-surface lg:hidden">
             Privacy
           </NavLink>
-          <button type="button" className="hover:text-fg" onClick={() => setPrivacyOpen(true)}>
+          <button
+            type="button"
+            className="hover:text-on-surface"
+            onClick={() => setPrivacyOpen(true)}
+          >
             Privacy choices
           </button>
           <span className="flex-1" />
@@ -557,22 +560,20 @@ function StarterCard({
     <button
       type="button"
       onClick={onStart}
-      className="group flex cursor-pointer flex-col gap-3.5 rounded-[var(--radius-xl)] p-2.5 text-left transition-[background-color,transform] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:bg-bg-elevated hover:shadow-card"
+      className="group flex cursor-pointer flex-col gap-3.5 rounded-xl p-2.5 text-left transition-[background-color,transform] duration-[var(--duration-base)] hover:-translate-y-0.5 hover:bg-surface-container hover:shadow-level1"
     >
-      <div className="relative aspect-video overflow-hidden rounded-[var(--radius-lg)] shadow-[var(--shadow-thumb)] transition-shadow duration-[var(--duration-base)] group-hover:shadow-[var(--shadow-thumb-hover)]">
+      <div className="relative aspect-video overflow-hidden rounded-lg shadow-[var(--shadow-thumb)] transition-shadow duration-[var(--duration-base)] group-hover:shadow-[var(--shadow-thumb-hover)]">
         <BoardThumb seed={topic} className="absolute inset-0 rounded-none" />
-        <span className="absolute top-2.5 left-2.5 rounded-full bg-navy-900/80 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+        <span className="absolute top-2.5 left-2.5 rounded-full bg-scrim/80 px-2 py-0.5 text-label-small font-medium text-white backdrop-blur">
           {domain}
         </span>
-        <span className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5 rounded-full bg-bg-elevated px-2.5 py-1 text-[12px] font-medium text-fg opacity-0 shadow-card transition-opacity group-hover:opacity-100">
+        <span className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5 rounded-full bg-surface-container px-2.5 py-1 text-body-small font-medium text-on-surface opacity-0 shadow-level1 transition-opacity group-hover:opacity-100">
           Start <ArrowRight size={12} />
         </span>
       </div>
       <div className="flex flex-col gap-1 px-1">
-        <span className="text-[15.5px] font-medium leading-[1.3] tracking-[-0.01em] text-fg">
-          {topic}
-        </span>
-        <span className="line-clamp-2 text-[13.5px] leading-[1.45] text-fg-3 text-pretty">
+        <span className="text-title-small font-medium text-on-surface">{topic}</span>
+        <span className="line-clamp-2 text-body-medium text-on-surface-dim text-pretty">
           {promise}
         </span>
       </div>

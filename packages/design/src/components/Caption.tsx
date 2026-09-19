@@ -38,7 +38,7 @@ export function Caption({
       dir={dir}
     >
       <span
-        className="inline rounded-[2px] px-[0.4em] py-[0.18em] text-[13px] leading-[1.55] text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:text-[13.5px]"
+        className="inline rounded-xs px-[0.4em] py-[0.18em] text-body-medium text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone]"
         style={{ background: 'var(--color-caption-scrim)', textWrap: 'pretty' }}
       >
         <span
@@ -58,7 +58,7 @@ export function Caption({
         <div className="mt-1.5">
           {/* Its own scrim: the hint lands on paper, where white text would vanish. */}
           <span
-            className="inline rounded-[2px] px-[0.4em] py-[0.15em] text-[11px] text-white/85"
+            className="inline rounded-xs px-[0.4em] py-[0.15em] text-label-small text-white/85"
             style={{ background: 'var(--color-caption-scrim)' }}
           >
             {hint}

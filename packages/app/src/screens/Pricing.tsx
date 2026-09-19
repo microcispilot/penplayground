@@ -1,5 +1,5 @@
 import { LEGENDS_BY_PLAN } from '@pen/contracts';
-import { Button, cn, Pill, useToast } from '@pen/design';
+import { Button, cn, Pill, SegmentedButtons, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -95,28 +95,23 @@ export function Pricing() {
     <div className="flex flex-1 flex-col">
       <div className="flex-1 px-6 pt-14 pb-20 sm:px-8">
         <div className="mx-auto flex max-w-[1100px] flex-col items-center">
-          <h1 className="text-center text-2xl tracking-[-0.03em]">
-            Free to learn. Pay only for more.
-          </h1>
-          <p className="mt-3 max-w-[560px] text-center text-[15px] text-fg-2 text-pretty">
+          <h1 className="text-center text-headline-small">Free to learn. Pay only for more.</h1>
+          <p className="mt-3 max-w-[560px] text-center text-body-medium text-on-surface-variant text-pretty">
             Sessions are cheap enough to run that the free plan is real. Standard removes ads and
             unlocks sharing; Professional turns a session into a room.
           </p>
-          <div className="mt-7 inline-flex overflow-hidden rounded-[var(--radius-md)] hairline">
-            {(['month', 'year'] as const).map((i) => (
-              <button
-                key={i}
-                type="button"
-                className={cn(
-                  'px-4 py-2 text-sm',
-                  interval === i ? 'bg-fg text-bg' : 'text-fg-2 hover:bg-surface-2',
-                )}
-                onClick={() => setInterval(i)}
-              >
-                {i === 'month' ? 'Monthly' : 'Yearly · 2 months free'}
-              </button>
-            ))}
-          </div>
+          {/* Exactly what M3 calls a segmented button: one question, two
+              answers, the chosen one filled rather than merely coloured. */}
+          <SegmentedButtons
+            label="Billing period"
+            className="mt-7"
+            value={interval}
+            onChange={setInterval}
+            options={[
+              { value: 'month', label: 'Monthly' },
+              { value: 'year', label: 'Yearly · 2 months free' },
+            ]}
+          />
           <div className="mt-10 grid w-full grid-cols-1 gap-4 md:grid-cols-3">
             {PLANS.map((p) => {
               const current = participant?.plan === p.code;
@@ -125,29 +120,27 @@ export function Pricing() {
                 <div
                   key={p.code}
                   className={cn(
-                    'flex flex-col gap-5 rounded-[var(--radius-xl)] bg-surface p-6 hairline',
-                    'highlight' in p && p.highlight && 'shadow-pop ring-1 ring-accent',
+                    'flex flex-col gap-5 rounded-xl bg-surface-container-low p-6 hairline',
+                    'highlight' in p && p.highlight && 'shadow-level3 ring-1 ring-primary',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg">{p.name}</h3>
+                    <h3 className="text-title-medium">{p.name}</h3>
                     {'highlight' in p && p.highlight ? (
                       <Pill tone="accent">Most popular</Pill>
                     ) : null}
                     {current ? <Pill tone="live">Your plan</Pill> : null}
                   </div>
                   <div>
-                    <span className="font-display text-[40px] font-semibold leading-none tracking-[-0.04em]">
-                      ${price}
-                    </span>
-                    <span className="ml-1 text-sm text-fg-2">
+                    <span className="font-display text-headline-large font-medium">${price}</span>
+                    <span className="ml-1 text-body-medium text-on-surface-variant">
                       / month{interval === 'year' ? ', billed yearly' : ''}
                     </span>
                   </div>
-                  <p className="text-sm text-fg-2">{p.blurb}</p>
+                  <p className="text-body-medium text-on-surface-variant">{p.blurb}</p>
                   <ul className="flex flex-col gap-2">
                     {p.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm">
+                      <li key={f} className="flex items-start gap-2 text-body-medium">
                         <Check size={15} className="mt-0.5 shrink-0 text-success" aria-hidden />
                         {f}
                       </li>
@@ -183,7 +176,9 @@ export function Pricing() {
               );
             })}
           </div>
-          <p className="mt-8 text-center text-xs text-fg-3">Cancel any time. Prices in USD.</p>
+          <p className="mt-8 text-center text-body-small text-on-surface-dim">
+            Cancel any time. Prices in USD.
+          </p>
         </div>
       </div>
     </div>

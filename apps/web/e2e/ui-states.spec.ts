@@ -59,10 +59,22 @@ test.describe('honest states', () => {
     const danger = await page
       .getByTestId('status-reconnecting')
       .evaluate((el) => getComputedStyle(el).color);
-    // The pill uses the room's own foreground token, never the danger red.
-    const dangerToken = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim(),
-    );
-    expect(danger).not.toBe(dangerToken);
+    /*
+     * The pill uses the room's own foreground role, never M3's `error`. Both
+     * sides are resolved by the browser — `getPropertyValue` hands back the
+     * token as it was authored (`#ba1a1a`) while `getComputedStyle().color`
+     * hands back `rgb(…)`, so comparing those two strings would pass however
+     * red the pill was.
+     */
+    const errorColor = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--color-error)';
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return resolved;
+    });
+    expect(errorColor, 'the error role must resolve for this to mean anything').toMatch(/^rgb/);
+    expect(danger).not.toBe(errorColor);
   });
 });

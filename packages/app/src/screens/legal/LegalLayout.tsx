@@ -18,33 +18,35 @@ export interface LegalSection {
    both themes without a typography plugin or ad-hoc colours. */
 
 export function P({ children }: { children: ReactNode }) {
-  return <p className="mb-4 text-[15px] leading-[1.65] text-fg-2 text-pretty">{children}</p>;
+  return <p className="mb-4 text-body-medium text-on-surface-variant text-pretty">{children}</p>;
 }
 
 export function UL({ children }: { children: ReactNode }) {
   return (
-    <ul className="mb-4 flex flex-col gap-2 text-[15px] leading-[1.6] text-fg-2">{children}</ul>
+    <ul className="mb-4 flex flex-col gap-2 text-body-medium text-on-surface-variant">
+      {children}
+    </ul>
   );
 }
 
 export function LI({ children }: { children: ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span className="mt-[9px] size-[5px] shrink-0 rounded-full bg-accent" aria-hidden />
+      <span className="mt-[9px] size-[5px] shrink-0 rounded-full bg-primary" aria-hidden />
       <span className="min-w-0 text-pretty">{children}</span>
     </li>
   );
 }
 
 export function Strong({ children }: { children: ReactNode }) {
-  return <strong className="font-semibold text-fg">{children}</strong>;
+  return <strong className="font-semibold text-on-surface">{children}</strong>;
 }
 
 export function Mail({ address = LEGAL_CONTACT }: { address?: string }) {
   return (
     <a
       href={`mailto:${address}`}
-      className="font-medium text-accent-strong underline decoration-accent/40 underline-offset-[3px] hover:decoration-accent"
+      className="font-medium text-primary underline decoration-primary/40 underline-offset-[3px] hover:decoration-primary"
     >
       {address}
     </a>
@@ -56,7 +58,7 @@ export function LegalLink({ to, children }: { to: string; children: ReactNode })
   return (
     <NavLink
       to={to}
-      className="font-medium text-accent-strong underline decoration-accent/40 underline-offset-[3px] hover:decoration-accent"
+      className="font-medium text-primary underline decoration-primary/40 underline-offset-[3px] hover:decoration-primary"
     >
       {children}
     </NavLink>
@@ -119,20 +121,18 @@ export function LegalLayout({
     <div className="flex-1 px-6 pt-10 pb-24 sm:px-8">
       <div className="mx-auto grid w-full max-w-[1040px] gap-12 xl:grid-cols-[minmax(0,1fr)_216px]">
         <article className="min-w-0 max-w-[68ch]">
-          <h1 className="text-[clamp(2rem,3.6vw,2.75rem)] leading-[1.05] tracking-[-0.03em] text-fg">
-            {title}
-          </h1>
-          <p className="mt-4 text-[16.5px] leading-[1.6] text-fg-2 text-pretty">{intro}</p>
-          <p className="mt-3 text-[13px] text-fg-3">Last updated {LEGAL_UPDATED}</p>
+          <h1 className="text-headline-medium text-on-surface">{title}</h1>
+          <p className="mt-4 text-body-large text-on-surface-variant text-pretty">{intro}</p>
+          <p className="mt-3 text-body-medium text-on-surface-dim">Last updated {LEGAL_UPDATED}</p>
 
           <div className="mt-10 flex flex-col">
             {sections.map((s, i) => (
               <section
                 key={s.id}
                 id={s.id}
-                className={cn('scroll-mt-24', i > 0 && 'mt-9 border-t border-line pt-9')}
+                className={cn('scroll-mt-24', i > 0 && 'mt-9 border-t border-outline-variant pt-9')}
               >
-                <h2 className="mb-3.5 text-[clamp(1.25rem,1.9vw,1.55rem)] tracking-[-0.02em] text-fg">
+                <h2 className="mb-3.5 text-title-large text-on-surface">
                   {`${i + 1}. ${s.title}`}
                 </h2>
                 {s.body}
@@ -140,7 +140,7 @@ export function LegalLayout({
             ))}
           </div>
 
-          <footer className="mt-12 border-t border-line pt-6 text-[13px] leading-[1.6] text-fg-3">
+          <footer className="mt-12 border-t border-outline-variant pt-6 text-body-medium text-on-surface-dim">
             <p>
               Pen Playground is a product of Microcis, a California limited liability company.
               Questions about this page: <Mail />.
@@ -155,20 +155,20 @@ export function LegalLayout({
 
         <nav aria-label="On this page" className="hidden xl:block">
           <div className="sticky top-24">
-            <p className="mb-3 text-[11px] font-semibold tracking-[0.07em] text-fg-3 uppercase">
+            <p className="mb-3 text-label-small font-semibold tracking-wider text-on-surface-dim uppercase">
               On this page
             </p>
-            <ul className="flex flex-col gap-0.5 border-l border-line">
+            <ul className="flex flex-col gap-0.5 border-l border-outline-variant">
               {sections.map((s, i) => (
                 <li key={s.id}>
                   <a
                     href={`#${s.id}`}
                     aria-current={active === s.id ? 'true' : undefined}
                     className={cn(
-                      '-ml-px block border-l py-1.5 pl-3 text-[13px] leading-[1.35] transition-colors',
+                      '-ml-px block border-l py-1.5 pl-3 text-body-medium transition-colors',
                       active === s.id
-                        ? 'border-accent-strong font-medium text-accent-strong'
-                        : 'border-transparent text-fg-3 hover:border-line-strong hover:text-fg-2',
+                        ? 'border-primary font-medium text-primary'
+                        : 'border-transparent text-on-surface-dim hover:border-outline hover:text-on-surface-variant',
                     )}
                   >
                     {`${i + 1}. ${s.title}`}

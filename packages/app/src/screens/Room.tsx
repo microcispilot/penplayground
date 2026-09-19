@@ -170,7 +170,7 @@ export function Room() {
     return (
       <div className="grid min-h-screen place-items-center px-7">
         <div className="flex max-w-[420px] flex-col items-center gap-4 text-center">
-          <p className="text-md text-fg">{ui.errorText}</p>
+          <p className="text-body-large text-on-surface">{ui.errorText}</p>
           <Button variant="primary" onClick={() => navigate('/')}>
             Back to Explore
           </Button>
@@ -249,11 +249,11 @@ export function Room() {
   );
 
   return (
-    <div ref={shellRef} className="flex h-dvh flex-col overflow-hidden bg-bg">
+    <div ref={shellRef} className="flex h-dvh flex-col overflow-hidden bg-surface">
       {/* The board is the content; a keyboard user should not have to walk the bar to reach it. */}
       <a
         href="#room-board"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[30] focus:rounded-[var(--radius-md)] focus:bg-bg-elevated focus:px-3 focus:py-2 focus:text-sm focus:shadow-pop"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[30] focus:rounded-md focus:bg-surface-container focus:px-3 focus:py-2 focus:text-body-medium focus:shadow-level3"
       >
         Skip to the board
       </a>
@@ -271,7 +271,7 @@ export function Room() {
             ref={boardRef}
             tabIndex={-1}
             aria-label={`${firstName}'s board`}
-            className="relative min-h-0 flex-1 overflow-hidden rounded-[6px] shadow-board outline-none"
+            className="relative min-h-0 flex-1 overflow-hidden rounded-sm shadow-board outline-none"
           >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
             <RoomStatus
