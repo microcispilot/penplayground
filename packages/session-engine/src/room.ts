@@ -1005,7 +1005,15 @@ export class SessionRoom {
     this.adsSent.set(adId, { slot, seen: new Set() });
     // A preparation ad plays at once; a boundary ad waits for the host to reach
     // the cue it was hung on, so its window stays shut until `progress` says so.
-    this.adWindow = { adId, afterSeq, openedAt: afterSeq < 0 ? this.now() : null };
+    //
+    // Unless the host is already past it. `progress` only opens the window on a
+    // report that moves the clock forward (`seq > hostProgressSeq`), so an ad
+    // hung on a cue already played would wait for a report that can never come:
+    // the overlay would be on the learner's screen with the room still taking
+    // voice, chat and reactions from behind it. Reached means reached, whether
+    // we learned it before scheduling or after.
+    const reached = afterSeq < 0 || afterSeq <= this.hostProgressSeq;
+    this.adWindow = { adId, afterSeq, openedAt: reached ? this.now() : null };
     this.d.transport.broadcast({
       kind: 'ad',
       adId,

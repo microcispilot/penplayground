@@ -478,3 +478,36 @@ describe('SessionRoom refuses questions from behind an ad', () => {
     await room.end();
   });
 });
+
+describe('an ad hung on a cue the host has already played', () => {
+  it('still shuts the room, instead of waiting for a report that cannot come', async () => {
+    // `progress` opens the ad window only on a report that moves the clock
+    // forward (`seq > hostProgressSeq`). An ad scheduled for a cue the host has
+    // already passed therefore used to wait for a report that would never
+    // arrive: the overlay on the learner's screen, and the room still taking
+    // voice, chat and reactions from behind it.
+    //
+    // This is the defect four CI failures of the reactions spec were pointing
+    // at. That test reported progress to the end of a segment and then
+    // reported the ad's own cue, which is backwards, so the guard dropped it —
+    // and whether it happened depended on how many cues had arrived by then,
+    // which is why it only failed under load.
+    const { room, transport } = await makeRoom({
+      plan: 'free',
+      miss: false,
+      sessionId: 'ad-already-played',
+    });
+    await room.start();
+    const { ad } = await adScheduled(room, transport);
+
+    // The host reports well past the cue the ad hangs on.
+    room.handle(HOST, { kind: 'progress', seq: ad.afterSeq + 50, clockMs: 12_000 });
+    const before = transport.messages.length;
+    askAloud(room, 'u-behind-the-ad', 'why does that work?');
+    expect(
+      transport.messages.slice(before).filter((m) => m.kind !== 'ad'),
+      'nothing may be taken from behind an ad that is already on screen',
+    ).toEqual([]);
+    await room.end();
+  });
+});
