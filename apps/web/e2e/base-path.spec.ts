@@ -95,7 +95,15 @@ test.describe('served under a base path', () => {
 
     // The thumbnail is built from the API base URL, so it is prefixed as well — and it loads.
     const thumb = page.getByTestId('session-thumb').first();
-    await expect(thumb.locator('img')).toHaveAttribute('src', /\/thumb\.svg$/, { timeout: 30_000 });
+    // The card's picture, by the session's own route. The file extension is a
+    // delivery detail and has already moved once (svg to png when thumbnails
+    // became photographs); what this test owns is that the card shows the
+    // session's generated picture at all.
+    await expect(thumb.locator('img')).toHaveAttribute(
+      'src',
+      /\/api\/sessions\/[^/]+\/thumb\.\w+$/,
+      { timeout: 30_000 },
+    );
     expect(await thumb.locator('img').getAttribute('src')).toContain(`${BASE}/api/sessions/`);
 
     // The share URL shown on the page is the public one, prefix included.

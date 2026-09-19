@@ -52,7 +52,7 @@ export const SessionRecord = z.object({
   questions: z.number(),
   recap: z.array(z.string()),
   views: z.number(),
-  /** API-relative path of the sketch (`/api/sessions/<id>/thumb.svg`); null until the background job lands. */
+  /** API-relative path of the picture (`/api/sessions/<id>/thumb.<ext>`); null until the background job lands. */
   thumbnail: z.string().nullable(),
   /** `${lang}.${slug}` of the resolved topic; absent on records older than the column. */
   canonicalId: z.string().nullable().optional(),

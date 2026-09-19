@@ -64,7 +64,15 @@ test.describe('a learner starts a session', () => {
     await expect(page.getByRole('heading', { name: /Transformers/ })).toBeVisible();
     // The sketch drawn in the background (ADR-0013) replaces the placeholder without a reload.
     const thumb = page.getByTestId('session-thumb').first();
-    await expect(thumb.locator('img')).toHaveAttribute('src', /\/thumb\.svg$/, { timeout: 20_000 });
+    // The card's picture, by the session's own route. The file extension is a
+    // delivery detail and has already moved once (svg to png when thumbnails
+    // became photographs); what this test owns is that the card shows the
+    // session's generated picture at all.
+    await expect(thumb.locator('img')).toHaveAttribute(
+      'src',
+      /\/api\/sessions\/[^/]+\/thumb\.\w+$/,
+      { timeout: 20_000 },
+    );
     await expect(thumb).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
     await page.getByRole('tab', { name: 'Transcript' }).click();
     await expect(page.getByText('square root of d', { exact: false })).toBeVisible();
