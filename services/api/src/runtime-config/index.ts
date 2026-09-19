@@ -1,6 +1,7 @@
 export {
   GROUP_ORDER,
   isSettingName,
+  NOT_SETTINGS,
   type RuntimeSettingName,
   SETTING_NAMES,
   SETTINGS,

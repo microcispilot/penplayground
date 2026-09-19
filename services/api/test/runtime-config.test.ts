@@ -3,8 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RuntimeConfigSnapshot } from '@pen/db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadConfig } from '../src/config.js';
-import { RuntimeConfigStore } from '../src/runtime-config/index.js';
+import { Env, loadConfig } from '../src/config.js';
+import {
+  NOT_SETTINGS,
+  RuntimeConfigStore,
+  SETTING_NAMES,
+  SHAPES,
+} from '../src/runtime-config/index.js';
 
 /**
  * The three tiers, and the promise that the product never gets worse because
@@ -243,5 +248,39 @@ describe('the telemetry snapshot', () => {
     expect(snapshot.PEN_THUMBNAIL_QUALITY).toBe('low');
     // An optional setting with no value is absent rather than null.
     expect('PEN_LLM_SERVICE_TIER' in snapshot).toBe(false);
+  });
+});
+
+describe('the catalogue', () => {
+  it('accounts for every environment variable, so a new one cannot be forgotten', () => {
+    // The decision "is this a setting?" is made once, in code, for every
+    // variable — not in a document that quietly stops being true. A variable
+    // added to config.ts fails here until somebody has said which side of the
+    // line it is on (ADR-0025).
+    const known = new Set<string>([...SETTING_NAMES, ...Object.keys(NOT_SETTINGS)]);
+    const unclassified = Object.keys(Env.shape).filter((name) => !known.has(name));
+    expect(unclassified).toEqual([]);
+    // And nothing is on both sides.
+    expect(SETTING_NAMES.filter((name) => name in NOT_SETTINGS)).toEqual([]);
+  });
+
+  it('never exposes a secret, an address or a development-only switch as a setting', () => {
+    // A second, independent reading of the same rule: whatever the reasons
+    // say, no setting may be named like a credential or a location.
+    const forbidden = /KEY|SECRET|TOKEN|DSN|PASSWORD|_URL$|_PATH$|DATABASE|ADMIN_EMAILS/;
+    expect(SETTING_NAMES.filter((name) => forbidden.test(name))).toEqual([]);
+  });
+
+  it('offers exactly the values the environment schema allows, for every choice', () => {
+    // The screen's dropdowns come from here, so a variant the schema would
+    // refuse must never be offerable.
+    for (const name of SETTING_NAMES) {
+      const shape = SHAPES[name];
+      if (!shape.options) continue;
+      for (const option of shape.options) {
+        expect(shape.parse(option).ok, `${name} should accept ${option}`).toBe(true);
+      }
+      expect(shape.parse('definitely-not-a-value').ok).toBe(false);
+    }
   });
 });

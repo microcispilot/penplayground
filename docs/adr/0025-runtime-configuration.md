@@ -159,7 +159,12 @@ the one the setting asks for.
 
 ## What is deliberately not a setting
 
-Not everything in `config.ts` belongs in a console. Excluded, and why:
+Not everything in `config.ts` belongs in a console. The decision is made **in
+code**, once per variable: `NOT_SETTINGS` in the registry names every excluded
+variable with a one-word reason, and `runtime-config.test.ts` fails the build
+unless `SETTINGS` and `NOT_SETTINGS` together account for the environment
+schema exactly. A variable added to `config.ts` therefore cannot be forgotten,
+and this list cannot quietly stop being true. The reasons:
 
 - **Secrets and credentials** — `PEN_JWT_SECRET`, `OPENAI_API_KEY_*`,
   `OPENROUTER_API_KEY`, `FISH_AUDIO_API_KEY`, `DEEPGRAM_API_KEY`,

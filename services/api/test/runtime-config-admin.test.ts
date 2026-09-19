@@ -293,6 +293,55 @@ describe('saving', () => {
   });
 });
 
+describe('a setting that may legitimately have no value', () => {
+  it('round-trips through `unset`, which stores nothing rather than the word', async () => {
+    const start = await read();
+    // Choose one.
+    const chosen = await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: start.revision,
+      reason: 'flex tier for the weekend',
+      settings: { PEN_LLM_SERVICE_TIER: 'flex' },
+    });
+    expect(chosen.status).toBe(200);
+    expect(
+      settingOf((await chosen.json()) as RuntimeConfigDocument, 'PEN_LLM_SERVICE_TIER'),
+    ).toMatchObject({ storedValue: 'flex', effectiveValue: 'flex', source: 'stored' });
+    expect(services.config.get('PEN_LLM_SERVICE_TIER')).toBe('flex');
+
+    // Choose nothing. `unset` is how the screen says it, and the document
+    // holds no value at all afterwards rather than the string "unset".
+    const doc = await read();
+    const cleared = await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: doc.revision,
+      reason: 'back to the account default',
+      settings: { PEN_LLM_SERVICE_TIER: 'unset' },
+    });
+    expect(cleared.status).toBe(200);
+    const after = (await cleared.json()) as RuntimeConfigDocument;
+    expect(settingOf(after, 'PEN_LLM_SERVICE_TIER')).toMatchObject({
+      storedValue: null,
+      effectiveValue: null,
+      source: 'default',
+    });
+    expect(services.config.get('PEN_LLM_SERVICE_TIER')).toBeUndefined();
+    // And the history records the clearing as an empty document, not as "unset".
+    const history = (await (
+      await call('GET', '/api/admin/runtime-config/history?limit=1', ownerAuth)
+    ).json()) as RuntimeConfigHistory;
+    expect(history.entries[0]?.settings.PEN_LLM_SERVICE_TIER).toBeUndefined();
+  });
+
+  it('refuses `unset` on a setting that must always have a value', async () => {
+    const doc = await read();
+    const res = await call('PUT', '/api/admin/runtime-config', ownerAuth, {
+      expectedRevision: doc.revision,
+      reason: 'there is no such thing as no picture quality',
+      settings: { PEN_THUMBNAIL_QUALITY: 'unset' },
+    });
+    expect(res.status).toBe(422);
+  });
+});
+
 describe('rollback', () => {
   it('restores an old document as a NEW revision, leaving the history it came from intact', async () => {
     const start = await read();

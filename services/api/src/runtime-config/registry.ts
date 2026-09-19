@@ -187,6 +187,79 @@ export const SETTINGS = {
   },
 } as const satisfies Record<string, SettingDefinition>;
 
+/**
+ * Every other environment variable, and why it is not a setting (ADR-0025).
+ *
+ * This exists so the decision cannot rot. `runtime-config.test.ts` asserts
+ * that `SETTINGS` and this together account for the environment schema
+ * exactly — so a new variable added to `config.ts` fails the build until
+ * somebody has said, in one word, which side of the line it is on. The
+ * alternative is a list in a document that quietly stops being true.
+ */
+export const NOT_SETTINGS = {
+  // Secrets and credentials. A console that can read them is a console that can leak them.
+  PEN_JWT_SECRET: 'secret',
+  OPENAI_API_KEY_FREE: 'secret',
+  OPENAI_API_KEY_STANDARD: 'secret',
+  OPENAI_API_KEY_PROFESSIONAL: 'secret',
+  OPENAI_API_KEY_PLATFORM: 'secret',
+  OPENROUTER_API_KEY: 'secret',
+  FISH_AUDIO_API_KEY: 'secret',
+  DEEPGRAM_API_KEY: 'secret',
+  ASSEMBLYAI_API_KEY: 'secret',
+  TAVILY_API_KEY: 'secret',
+  EXA_API_KEY: 'secret',
+  GOOGLE_CLIENT_ID: 'secret',
+  STRIPE_SECRET_KEY: 'secret',
+  STRIPE_WEBHOOK_SECRET: 'secret',
+  STRIPE_PORTAL_CONFIGURATION_ID: 'secret',
+  STRIPE_PRICE_STANDARD_MONTH: 'secret',
+  STRIPE_PRICE_STANDARD_YEAR: 'secret',
+  STRIPE_PRICE_PROFESSIONAL_MONTH: 'secret',
+  STRIPE_PRICE_PROFESSIONAL_YEAR: 'secret',
+  LIVEKIT_API_KEY: 'secret',
+  LIVEKIT_API_SECRET: 'secret',
+  POSTHOG_PROJECT_TOKEN: 'secret',
+  SENTRY_DSN: 'secret',
+
+  // A wrong value here loses data that cannot be got back.
+  DATABASE_URL: 'data-loss',
+  PEN_DATA_DIR: 'data-loss',
+
+  // Where this box is, not what the product does.
+  PEN_PORT: 'address',
+  PEN_PUBLIC_URL: 'address',
+  PEN_API_URL: 'address',
+  PEN_LLM_BASE_URL: 'address',
+  PEN_TTS_BRIDGE_URL: 'address',
+  PEN_STT_RELAY_URL: 'address',
+  SEARXNG_URL: 'address',
+  LIVEKIT_URL: 'address',
+  LIVEKIT_API_URL: 'address',
+  PEN_AD_TAG_URL: 'address',
+  PEN_FFMPEG_PATH: 'address',
+  PEN_CHROMIUM_PATH: 'address',
+  PEN_CHROMIUM_ARGS: 'address',
+  PEN_RENDER_BASE_URL: 'address',
+  POSTHOG_HOST: 'address',
+
+  // Self-referential: a setting that governs where settings come from, how
+  // often they are read, or who may change them cannot be changed from there.
+  PEN_ADMIN_EMAILS: 'self-referential',
+  PEN_RUNTIME_CONFIG_POLL_MS: 'self-referential',
+
+  // Alerting must not depend on the store it would be alerting about.
+  SENTRY_CRON_MONITOR_SLUG: 'alerting',
+  SENTRY_CRON_INTERVAL_MINUTES: 'alerting',
+  SENTRY_ENVIRONMENT: 'alerting',
+
+  // Development affordances `loadConfig` already refuses in production. A
+  // stored value arrives after that check runs, so this would be a way round it.
+  NODE_ENV: 'environment',
+  PEN_DEV_PLAN: 'development-only',
+  PEN_AD_TEST_TAGS: 'development-only',
+} as const satisfies Partial<Record<keyof Config, string>>;
+
 export type RuntimeSettingName = keyof typeof SETTINGS & keyof Config;
 
 export const SETTING_NAMES = Object.keys(SETTINGS) as RuntimeSettingName[];
