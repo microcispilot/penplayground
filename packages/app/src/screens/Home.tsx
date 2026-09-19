@@ -363,7 +363,7 @@ export function Home() {
         <div className="mx-auto w-full max-w-[1280px] px-6">
           <SectionBand>
             <div className="min-w-0">
-              <h2 className="text-[clamp(1.6rem,2.4vw,2.1rem)] tracking-[-0.03em]">
+              <h2 className="text-[clamp(1.25rem,1.7vw,1.5rem)] tracking-[-0.025em]">
                 Taught by experts who never lose patience.
               </h2>
               <p className="mt-2 max-w-[920px] text-[15px] text-fg-2 text-pretty">
@@ -408,7 +408,7 @@ export function Home() {
       <section className="border-t border-line/70 bg-surface py-16">
         <div className="mx-auto w-full max-w-[1280px] px-6">
           <SectionBand>
-            <h2 className="mr-2 text-[clamp(1.6rem,2.4vw,2.1rem)] tracking-[-0.03em]">
+            <h2 className="mr-2 text-[clamp(1.25rem,1.7vw,1.5rem)] tracking-[-0.025em]">
               {sessions !== null && sessions.length === 0
                 ? 'Start with one of these'
                 : 'Most learned'}
