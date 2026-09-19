@@ -46,7 +46,11 @@ beforeAll(async () => {
   // `Services` is a plain record, so the registry can be composed with an observed model and intake
   // without any change to buildServices.
   spy = new SpyModel(base.modelFor('free'));
-  services = { ...base, modelFor: () => spy, intake: new TopicIntake(spy, join(dir, 'intake')) };
+  services = {
+    ...base,
+    modelFor: () => spy,
+    intake: new TopicIntake(() => spy, join(dir, 'intake')),
+  };
   rooms = new RoomRegistry(services);
 }, 60_000);
 

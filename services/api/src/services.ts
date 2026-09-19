@@ -390,6 +390,12 @@ export async function buildServices(
   const imageFor = (plan: PlanCode): ImageModel => buildImage(plan);
   // Null when the key is absent, so a deployment without it still boots and the
   // scripts that need it say why they cannot run instead of billing a learner.
+  //
+  // These two bind their model at boot on purpose, and it is the one place a
+  // model setting is not read per use: they belong to no learner and no
+  // session, and every caller is a short-lived script (backfill, probe,
+  // prewarm) that boots, does its work on the settings in force when it
+  // started, and exits.
   const hasPlatformKey =
     config.get('PEN_LLM_PROVIDER') === 'fake' || Boolean(cfg.OPENAI_API_KEY_PLATFORM);
   const platformModel = hasPlatformKey
@@ -411,7 +417,7 @@ export async function buildServices(
   if (!google) logger.info('google sign-in disabled: set GOOGLE_CLIENT_ID');
   const analytics = new Analytics(cfg);
   await loadLanguageId();
-  const intake = new TopicIntake(modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
+  const intake = new TopicIntake(() => modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
   const renderer = new PlaywrightRenderer({
     baseUrl: cfg.PEN_RENDER_BASE_URL ?? cfg.PEN_PUBLIC_URL,
     allowedOrigins: [cfg.PEN_API_URL, cfg.PEN_PUBLIC_URL],

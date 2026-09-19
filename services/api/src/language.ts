@@ -157,7 +157,12 @@ export class TopicIntake {
   private readonly file: string;
 
   constructor(
-    private readonly model: LanguageModel,
+    /**
+     * Read per call, not held: the session model is a runtime setting
+     * (ADR-0025) and intake runs at the top of every room build, so it must
+     * use the same model that room is about to teach with.
+     */
+    private readonly model: () => LanguageModel,
     dataDir: string,
   ) {
     mkdirSync(dataDir, { recursive: true });
@@ -190,7 +195,7 @@ export class TopicIntake {
     const hit = this.cache.get(key);
     if (hit) return { ...detected, title, ...hit, via: 'cache', usage: null };
     try {
-      const { value, usage } = await this.model.complete({
+      const { value, usage } = await this.model().complete({
         messages: [
           {
             role: 'system',

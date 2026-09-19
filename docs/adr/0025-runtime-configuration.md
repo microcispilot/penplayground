@@ -88,6 +88,14 @@ Every setting declares a scope, and the code matches it:
   that is streaming from it, and pretending otherwise would be worse than
   saying so.
 
+Two deliberate exceptions to `session`, both outside a lesson. The platform's
+own model and image adapter (`OPENAI_API_KEY_PLATFORM`, used by backfills and
+probes) are bound at boot, because every caller is a short-lived script that
+starts, works on the settings in force then, and exits. And the corpus
+builder (`createAcquirer`) takes its model through another package's
+constructor, so a model setting reaches it at the next restart. Both are
+commented where they are.
+
 The settings a room was built with go into its `session_ended` telemetry as
 `config.PEN_…`, so a finished session can be explained from its own record.
 
