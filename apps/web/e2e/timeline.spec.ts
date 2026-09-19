@@ -22,9 +22,18 @@ import { expect, type Page, test } from '@playwright/test';
  * assert around; the interrupt half and the ad half each get a clean room.
  */
 
+/**
+ * Every frame is stamped on arrival, because "nothing was sent from behind the
+ * ad" is a claim about a *window*, not about a total. Counting before and after
+ * also counts whatever the room legitimately sends in the instant after the ad
+ * hands the lesson back — the microphone is live again by then — and that is a
+ * pass the product earned being reported as a leak.
+ */
+type Frame = Record<string, unknown> & { at: number };
+
 interface Frames {
-  sent: Array<Record<string, unknown>>;
-  received: Array<Record<string, unknown>>;
+  sent: Frame[];
+  received: Frame[];
 }
 
 function watchFrames(page: Page): Frames {
@@ -33,7 +42,7 @@ function watchFrames(page: Page): Frames {
     ws.on('framesent', (f) => {
       if (typeof f.payload !== 'string') return;
       try {
-        frames.sent.push(JSON.parse(f.payload));
+        frames.sent.push({ ...JSON.parse(f.payload), at: Date.now() });
       } catch {
         /* binary or partial */
       }
@@ -41,7 +50,7 @@ function watchFrames(page: Page): Frames {
     ws.on('framereceived', (f) => {
       if (typeof f.payload !== 'string') return;
       try {
-        frames.received.push(JSON.parse(f.payload));
+        frames.received.push({ ...JSON.parse(f.payload), at: Date.now() });
       } catch {
         /* binary or partial */
       }
@@ -128,10 +137,10 @@ test.describe("the owner's in-session timeline", () => {
     );
     // Reactions go with them: the same gate, the same reason.
     await expect(page.getByTestId('reaction-toggle')).toBeDisabled();
-    // And nothing the learner does under the overlay reaches the room.
-    const questionsBefore = frames.sent.filter(
-      (m) => m.kind === 'transcript' || m.kind === 'interrupt',
-    ).length;
+    // And nothing the learner does under the overlay reaches the room. The
+    // window is what matters, so it is measured: from the moment the overlay
+    // was up to the moment it went away.
+    const adOpenedAt = Date.now();
 
     // Skipped by the learner, or ended by the player when the creative never
     // renders — either way the lesson gets its time back.
@@ -150,10 +159,14 @@ test.describe("the owner's in-session timeline", () => {
       await page.waitForTimeout(250);
     }
     await expect(overlay).toBeHidden({ timeout: 20_000 });
-    expect(
-      frames.sent.filter((m) => m.kind === 'transcript' || m.kind === 'interrupt').length,
-      'nothing was asked from behind the ad',
-    ).toBe(questionsBefore);
+    const adClosedAt = Date.now();
+    const behindTheAd = frames.sent.filter(
+      (m) =>
+        (m.kind === 'transcript' || m.kind === 'interrupt') &&
+        m.at >= adOpenedAt &&
+        m.at <= adClosedAt,
+    );
+    expect(behindTheAd, 'nothing was asked from behind the ad').toEqual([]);
 
     // Everything is the learner's again on the same line.
     await expect(mic).toBeEnabled();
