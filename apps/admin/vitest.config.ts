@@ -3,5 +3,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
-  test: { include: ['test/**/*.test.ts', 'test/**/*.test.tsx'], environment: 'happy-dom' },
+  test: {
+    include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
+    environment: 'happy-dom',
+    // A `fetch` stubbed by one test must not be what the next one talks to.
+    unstubGlobals: true,
+  },
 });

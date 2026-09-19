@@ -194,7 +194,9 @@ export function Settings() {
             />
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-body-small text-on-surface-variant">
-                Saved against revision {document.revision}. Every change records who made it.
+                {state.phase === 'RELOAD_REQUIRED'
+                  ? 'Reload before saving again — what is on the server is no longer what this page was built from.'
+                  : `Saved against revision ${document.revision}. Every change records who made it.`}
               </p>
               <Button
                 type="submit"

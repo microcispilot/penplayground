@@ -137,3 +137,45 @@ async function tableNames(db: ReturnType<typeof drizzle<typeof schema>>): Promis
   );
   return (res.rows as Array<{ table_name: string }>).map((r) => r.table_name);
 }
+
+/**
+ * The migrations against the engine production actually runs. PGlite is
+ * Postgres, but not the same build, and `CHECK` constraints and `jsonb`
+ * defaults are exactly the sort of thing worth seeing land on the real one.
+ *
+ *   PEN_TEST_DATABASE_URL=postgres://… pnpm --filter @pen/db test
+ */
+describe.skipIf(!process.env.PEN_TEST_DATABASE_URL)('on postgres', () => {
+  it('applies every migration, and is a no-op the second time', async () => {
+    const url = process.env.PEN_TEST_DATABASE_URL ?? '';
+    let conn = await connect(url);
+    // `execute()` yields `{ rows }` on PGlite and a bare array on postgres-js.
+    const present = async () => {
+      const res: unknown = await conn.db.execute(
+        sql`select table_name from information_schema.tables where table_schema = 'public' order by 1`,
+      );
+      const rows = (
+        Array.isArray(res) ? res : ((res as { rows?: unknown[] }).rows ?? [])
+      ) as Array<{ table_name: string }>;
+      return rows.map((r) => r.table_name);
+    };
+    expect(await present()).toContain('runtime_config_state');
+    expect(await present()).toContain('runtime_config_audits');
+    // The singleton and the forward-only constraints are the database's job,
+    // not the repository's; prove the real engine is enforcing them.
+    await expect(
+      conn.db.execute(sql`insert into runtime_config_state (id, revision, updated_at)
+                          values (2, 0, 0)`),
+    ).rejects.toThrow();
+    await expect(
+      conn.db.execute(sql`insert into runtime_config_audits
+                          (revision, settings, updated_at, updated_by, updated_by_name, reason,
+                           restored_from_revision)
+                          values (5, '{}'::jsonb, 0, 'p', 'P', 'r', 9)`),
+    ).rejects.toThrow();
+    await conn.close();
+    conn = await connect(url);
+    expect(await present()).toContain('runtime_config_state');
+    await conn.close();
+  }, 60_000);
+});

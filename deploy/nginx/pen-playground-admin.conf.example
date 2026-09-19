@@ -12,9 +12,9 @@
 #   1. The console's stored bearer lives in that origin's localStorage. On the public domain it
 #      would share storage with the learner app, and an XSS anywhere in the product would reach
 #      an operator's token.
-#   2. The console's Content-Security-Policy admits Google sign-in and nothing else. The public
-#      site's has to admit an ad network and a whiteboard library, and the two cannot be one
-#      policy without the strict one becoming the loose one.
+#   2. The console's Content-Security-Policy admits this origin, Google sign-in and Sentry's
+#      ingest, and nothing else. The public site's has to admit an ad network and a whiteboard
+#      library, and the two cannot be one policy without the strict one becoming the loose one.
 #   3. Anything reached by hostname can be taken away by hostname: dropping this file offline is
 #      one `rm` and a reload, with nothing else to reason about.
 #

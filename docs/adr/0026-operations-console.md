@@ -29,9 +29,9 @@ descending order of how much they matter:
 1. **Storage.** The console's bearer lives in its origin's `localStorage`. On
    the public domain it would share storage with the learner app, and an XSS
    anywhere in the product would reach an operator's token.
-2. **Content-Security-Policy.** The console's admits Google sign-in and
-   nothing else. The public site's has to admit an ad network and a
-   whiteboard library. One policy for both is the loose one.
+2. **Content-Security-Policy.** The console's admits this origin, Google
+   sign-in and Sentry's ingest. The public site's has to admit an ad network
+   and a whiteboard library. One policy for both is the loose one.
 3. **Reversibility.** A surface reached by hostname can be taken away by
    hostname: one `rm` in `sites-enabled` and a reload.
 

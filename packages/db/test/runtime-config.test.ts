@@ -53,16 +53,20 @@ describe('the singleton document', () => {
 
 describe('compare and set', () => {
   it('refuses a stale revision and says what is actually in force', async () => {
+    const current = (await repo.read()).revision;
     const stale = await repo.write({
-      expectedRevision: 1,
+      expectedRevision: current - 1,
       settings: { a: 99 },
       reason: 'stale',
       ...author,
     });
-    expect(stale).toEqual({ ok: false, current: 2 });
+    expect(stale).toEqual({ ok: false, current });
     // Nothing moved, and nothing was appended to the history.
     expect((await repo.read()).settings).toEqual({ a: 2 });
-    expect((await repo.history({ limit: 50 })).entries.map((e) => e.revision)).toEqual([2, 1]);
+    // And nothing was appended for the refusal.
+    expect((await repo.history({ limit: 50 })).entries.map((e) => e.revision)).toEqual(
+      [...Array(current).keys()].map((n) => current - n),
+    );
   });
 
   it('lets exactly one of two writers racing on the same revision through', async () => {
@@ -120,4 +124,39 @@ describe('the audit trail', () => {
     const next = await repo.history({ beforeRevision: first.nextBeforeRevision, limit: 2 });
     expect(next.entries[0]?.revision).toBeLessThan(first.nextBeforeRevision ?? 0);
   });
+});
+
+/**
+ * The compare-and-set is the one property the settings console is built on,
+ * and pglite cannot disprove it: it is a single in-process connection whose
+ * exclusive transaction lock turns two racing writers into a queue. This runs
+ * the same race on the engine production uses, when there is one to run it
+ * against.
+ *
+ *   PEN_TEST_DATABASE_URL=postgres://… pnpm --filter @pen/db test
+ */
+const POSTGRES = process.env.PEN_TEST_DATABASE_URL;
+describe.skipIf(!POSTGRES)('compare and set on postgres', () => {
+  it('lets exactly one of two genuinely concurrent writers through', async () => {
+    const a = await connect(POSTGRES ?? '');
+    const b = await connect(POSTGRES ?? '');
+    try {
+      const one = new RuntimeConfigRepository(a.db);
+      const two = new RuntimeConfigRepository(b.db);
+      const at = (await one.read()).revision;
+      const [first, second] = await Promise.all([
+        one.write({ expectedRevision: at, settings: { who: 'a' }, reason: 'a', ...author }),
+        two.write({ expectedRevision: at, settings: { who: 'b' }, reason: 'b', ...author }),
+      ]);
+      const results = [first, second];
+      expect(results.filter((r) => r.ok)).toHaveLength(1);
+      expect(results.filter((r) => !r.ok)).toHaveLength(1);
+      expect((await one.read()).revision).toBe(at + 1);
+      const page = await one.history({ limit: 5 });
+      expect(page.entries.filter((e) => e.revision === at + 1)).toHaveLength(1);
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  }, 30_000);
 });

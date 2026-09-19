@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { AdminApi, type AdminSession } from './api.js';
+import { forgetGoogleSelection } from './google.js';
 
 /**
  * Who is here, and the one client they reach the API with (ADR-0026).
@@ -61,6 +62,9 @@ export function AdminProvider({ children, api }: { children: ReactNode; api?: Ad
       refresh,
       signOut: () => {
         client.signOut();
+        // Otherwise the next visit re-picks the account that was just
+        // signed out, which reads as a sign-out that did not work.
+        forgetGoogleSelection();
         setSession({ admin: false });
       },
     }),

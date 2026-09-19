@@ -64,8 +64,7 @@ export type EditorEvent =
       readonly requestId: number;
       readonly error: string;
       readonly reloadRequired: boolean;
-    }
-  | { readonly type: 'VALIDATION_FAILED'; readonly error: string };
+    };
 
 /** The draft a document arrives as: exactly its stored overrides, nothing invented. */
 export function draftFrom(document: RuntimeConfigDocument): Draft {
@@ -113,9 +112,6 @@ export function editorReducer(state: EditorState, event: EditorEvent): EditorSta
         phase: event.reloadRequired ? 'RELOAD_REQUIRED' : 'READY',
         error: event.error,
       };
-    case 'VALIDATION_FAILED':
-      if (state.phase !== 'READY') return state;
-      return { ...state, error: event.error, notice: null };
   }
 }
 

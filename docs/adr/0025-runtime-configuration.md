@@ -135,7 +135,10 @@ deployment running on". `runtime_config_audits` is one row per revision, with
 
 A save is a compare-and-set: the expected revision is in the UPDATE's own
 predicate, not merely checked by a read beforehand, so two editors saving at
-once produce one winner and one honest 409. A rollback is a new revision
+once produce one winner and one honest 409. PGlite cannot prove that — one
+in-process connection turns a race into a queue — so the test that does runs
+against real Postgres when `PEN_TEST_DATABASE_URL` names one, with two
+connections racing on the same revision. A rollback is a new revision
 carrying an old document; nothing is ever deleted. A save without a reason is
 refused, because history without a why is not history.
 
