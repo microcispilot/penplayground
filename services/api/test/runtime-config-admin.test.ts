@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RuntimeConfigDocument, RuntimeConfigHistory } from '@pen/contracts';
+import { RuntimeConfigRepository } from '@pen/db';
 import type { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
@@ -412,6 +413,32 @@ describe('rollback', () => {
     expect(res.status).toBe(200);
     const after = (await res.json()) as RuntimeConfigDocument;
     expect(after.settings.every((s) => s.storedValue === null)).toBe(true);
+  });
+});
+
+describe('the poll', () => {
+  it('picks up a change another process made, against the real database', async () => {
+    // Everything else here goes through this process's own routes, which
+    // apply a save to their own store immediately. This is the other path:
+    // a second API process writes, and this one only learns about it when it
+    // next reads. Same repository, same table, no fakes.
+    const elsewhere = new RuntimeConfigRepository(services.db.db);
+    const before = await elsewhere.read();
+    const written = await elsewhere.write({
+      expectedRevision: before.revision,
+      settings: { ...before.settings, PEN_ADS_EVERY_SEGMENTS: 11 },
+      updatedBy: 'p_other_process',
+      updatedByName: 'Another API',
+      reason: 'a change this process has not seen yet',
+    });
+    expect(written.ok).toBe(true);
+    // Not yet: this process is still on what it last read.
+    expect(services.config.get('PEN_ADS_EVERY_SEGMENTS')).not.toBe(11);
+
+    expect(await services.config.refresh()).toBe(true);
+    expect(services.config.get('PEN_ADS_EVERY_SEGMENTS')).toBe(11);
+    expect(services.config.revision).toBe(before.revision + 1);
+    expect(services.config.stale).toBe(false);
   });
 });
 
