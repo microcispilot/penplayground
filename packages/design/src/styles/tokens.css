@@ -12,12 +12,18 @@
  *   · shape  `@material/web@2.5.0` → tokens/versions/v0_192/_md-sys-shape.scss
  *            (`-increased` and `xxl` are the Expressive additions, 20/32/48 px)
  *   · state  `@material/web@2.5.0` → tokens/versions/v0_192/_md-sys-state.scss
- *   · colour `@material/material-color-utilities@0.4.0` — `SchemeTonalSpot`
- *            seeded with the brand teal #008EAA, read through
- *            `MaterialDynamicColors`. Neither package is a dependency of this
- *            repo: they generated these values once, and the values are the
- *            artefact. `packages/design/test/design-system.test.ts` re-measures
- *            every pair that carries text.
+ *   · colour `@material/material-color-utilities@0.4.0` — tonal spot, read
+ *            through `MaterialDynamicColors`, seeded with the brand teal
+ *            #008EAA. Neither package is a dependency of this repo: they
+ *            generate these values, and the values are the artefact.
+ *
+ *            `packages/design/scripts/brand.ts` is that generator, and it can
+ *            re-derive every colour below from its seed — run it on #008EAA
+ *            with `--full` and it prints this file's `@theme` roles hex for
+ *            hex. `test/brand-generator.test.ts` asserts that; adding a brand
+ *            family is now a command rather than an afternoon.
+ *            `test/design-system.test.ts` re-measures every pair that carries
+ *            text, under every family.
  *
  * Two owner constraints shape the colour, and both are honoured inside M3's
  * own machinery rather than around it:
@@ -29,9 +35,11 @@
  *   look this replaces.)
  *
  *   Teal. Every board sketch is drawn in teal ink, so the primary palette is
- *   seeded from #008EAA and the ink tokens at the bottom of this file are
- *   pinned to the same tone. A different hue would make the session page read
- *   as two brands.
+ *   seeded from #008EAA and the ink tokens further down are pinned to the same
+ *   tone. A different hue would make the session page read as two brands —
+ *   which is why the candidate families at the bottom of this file re-tune the
+ *   ink as well as the chrome. Teal is the default and the control; nothing in
+ *   its blocks has moved.
  */
 @import "tailwindcss/theme" layer(theme);
 
@@ -279,6 +287,16 @@
   --color-ink-highlight: oklch(0.88 0.12 90 / 55%);
   /* A live voice on that same board; teal for the same reason as the ink. */
   --color-speaking: oklch(0.66 0.1 216);
+  /*
+   * The expert orb's pulse (`@keyframes ring`). Two tokens rather than one
+   * because a keyframe cannot add an alpha to a colour it was handed, and the
+   * ring fades from 45 % to 0 % of the *same hue* — animating to `transparent`
+   * would interpolate through transparent black instead. Both are the brand's
+   * ink, so a family that re-tunes the board re-tunes the pulse with it, and
+   * `packages/design/scripts/brand.ts` emits all four together.
+   */
+  --color-ring-pulse: oklch(0.597 0.107 218.3 / 45%);
+  --color-ring-pulse-out: oklch(0.597 0.107 218.3 / 0%);
 
   /*
    * Captions sit on the board, and the board is always paper. These three are
@@ -374,10 +392,10 @@
   }
   @keyframes ring {
     0% {
-      box-shadow: 0 0 0 0 oklch(0.597 0.107 218.3 / 45%);
+      box-shadow: 0 0 0 0 var(--color-ring-pulse);
     }
     100% {
-      box-shadow: 0 0 0 22px oklch(0.597 0.107 218.3 / 0%);
+      box-shadow: 0 0 0 22px var(--color-ring-pulse-out);
     }
   }
   @keyframes caret {
@@ -580,4 +598,230 @@
   --color-on-secondary: #1c3532;
   --color-secondary-container: #324b49;
   --color-on-secondary-container: #cce8e4;
+}
+
+/* ── candidate families: a red brand, and what it costs ──────────────────
+ *
+ * Four families generated for one decision — "something youtubish" — and kept
+ * so the decision can be re-examined rather than re-argued. Every one is
+ * `packages/design/scripts/brand.ts` output, pasted whole:
+ *
+ *   youtube    #FF0000  tonal spot            their actual brand red
+ *   vermilion  #E62117  tonal spot            the older, deeper YouTube red
+ *   coral      #FF4438  tonal spot            a warmer, lighter red
+ *   ember      #E62117  vibrant, error moved  what a red brand actually needs
+ *
+ * Unlike green and forest, these re-tune the board as well as the chrome:
+ * `--color-ink-accent`, `--color-speaking`, the orb's pulse, and — for these
+ * four only — `--color-ink-warn`. Warn is the ink an expert writes a mistake
+ * in, and it is a red: oklch(0.47 0.173 20.4), nine degrees from a brand red.
+ * Two reds nine degrees apart on one sheet of paper are one red, so warn moves
+ * to amber at the lightness that keeps its 6.97:1 against paper.
+ *
+ * Read the first three together and the finding is that they are not three
+ * candidates. Tonal spot caps the primary palette at chroma 36; teal's own
+ * chroma is 43.5 and survives the cap, a saturated red's is 90–113 and does
+ * not. #FF0000, #E62117 and #FF4438 all arrive as the same dusty brick —
+ * #904b40, #904a41, #904a42 — and in dark all three arrive as #ffb4a8, which
+ * is the error role (#ffb4ab) to within ΔE 0.004 in OKLab. Teal's separation
+ * from the same error role is 0.17. That is the collision, measured: under a
+ * red brand in dark mode, "this is us" and "this went wrong" are the same
+ * pixel.
+ *
+ * `ember` is the answer to it, and it takes two changes rather than one:
+ * the vibrant variant, so the seed's chroma reaches the light scheme (#c00003,
+ * a red a person would call red), and the error roles re-seeded off red to
+ * magenta — the only family in this file that moves them. It buys ΔE 0.043 in
+ * dark and 0.095 in light. Better by ten times; still a quarter of teal.
+ *
+ * None of this decides anything. It is the evidence the owner asked for, and
+ * whether a red page reads as Pen Playground is theirs to say.
+ */
+
+:root[data-brand="youtube"] {
+  --color-primary: #904b40;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #ffdad4;
+  --color-on-primary-container: #73342a;
+  --color-inverse-primary: #ffb4a8;
+  --color-secondary: #775651;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #ffdad4;
+  --color-on-secondary-container: #5d3f3b;
+
+  /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
+  --color-ink-accent: oklch(0.628 0.258 29.2); /* #ff0000 at 3.72:1 on paper */
+  --color-speaking: oklch(0.691 0.24 29.2);
+  /* Warn moves to amber: the brand took its hue (9° apart), and two reds on one sheet are one red. */
+  --color-ink-warn: oklch(0.457 0.15 62);
+  --color-ring-pulse: oklch(0.628 0.258 29.2 / 45%);
+  --color-ring-pulse-out: oklch(0.628 0.258 29.2 / 0%);
+}
+:root[data-brand="youtube"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-primary: #ffb4a8;
+    --color-on-primary: #561e16;
+    --color-primary-container: #73342a;
+    --color-on-primary-container: #ffdad4;
+    --color-inverse-primary: #904b40;
+    --color-secondary: #e7bdb6;
+    --color-on-secondary: #442925;
+    --color-secondary-container: #5d3f3b;
+    --color-on-secondary-container: #ffdad4;
+  }
+}
+:root[data-brand="youtube"][data-theme="dark"] {
+  --color-primary: #ffb4a8;
+  --color-on-primary: #561e16;
+  --color-primary-container: #73342a;
+  --color-on-primary-container: #ffdad4;
+  --color-inverse-primary: #904b40;
+  --color-secondary: #e7bdb6;
+  --color-on-secondary: #442925;
+  --color-secondary-container: #5d3f3b;
+  --color-on-secondary-container: #ffdad4;
+}
+
+:root[data-brand="vermilion"] {
+  --color-primary: #904a41;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #ffdad5;
+  --color-on-primary-container: #73342b;
+  --color-inverse-primary: #ffb4a8;
+  --color-secondary: #775651;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #ffdad5;
+  --color-on-secondary-container: #5d3f3b;
+
+  /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
+  --color-ink-accent: oklch(0.592 0.228 29.3); /* #e62117 at 4.25:1 on paper */
+  --color-speaking: oklch(0.655 0.212 29.3);
+  /* Warn moves to amber: the brand took its hue (9° apart), and two reds on one sheet are one red. */
+  --color-ink-warn: oklch(0.457 0.15 62);
+  --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
+  --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
+}
+:root[data-brand="vermilion"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-primary: #ffb4a8;
+    --color-on-primary: #561e17;
+    --color-primary-container: #73342b;
+    --color-on-primary-container: #ffdad5;
+    --color-inverse-primary: #904a41;
+    --color-secondary: #e7bdb6;
+    --color-on-secondary: #442925;
+    --color-secondary-container: #5d3f3b;
+    --color-on-secondary-container: #ffdad5;
+  }
+}
+:root[data-brand="vermilion"][data-theme="dark"] {
+  --color-primary: #ffb4a8;
+  --color-on-primary: #561e17;
+  --color-primary-container: #73342b;
+  --color-on-primary-container: #ffdad5;
+  --color-inverse-primary: #904a41;
+  --color-secondary: #e7bdb6;
+  --color-on-secondary: #442925;
+  --color-secondary-container: #5d3f3b;
+  --color-on-secondary-container: #ffdad5;
+}
+
+:root[data-brand="coral"] {
+  --color-primary: #904a42;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #ffdad5;
+  --color-on-primary-container: #73342c;
+  --color-inverse-primary: #ffb4aa;
+  --color-secondary: #775652;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #ffdad5;
+  --color-on-secondary-container: #5d3f3b;
+
+  /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
+  --color-ink-accent: oklch(0.632 0.225 28.5); /* #ff4438 at 3.59:1 on paper */
+  --color-speaking: oklch(0.695 0.209 28.5);
+  /* Warn moves to amber: the brand took its hue (8° apart), and two reds on one sheet are one red. */
+  --color-ink-warn: oklch(0.457 0.15 62);
+  --color-ring-pulse: oklch(0.632 0.225 28.5 / 45%);
+  --color-ring-pulse-out: oklch(0.632 0.225 28.5 / 0%);
+}
+:root[data-brand="coral"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-primary: #ffb4aa;
+    --color-on-primary: #561e18;
+    --color-primary-container: #73342c;
+    --color-on-primary-container: #ffdad5;
+    --color-inverse-primary: #904a42;
+    --color-secondary: #e7bdb7;
+    --color-on-secondary: #442926;
+    --color-secondary-container: #5d3f3b;
+    --color-on-secondary-container: #ffdad5;
+  }
+}
+:root[data-brand="coral"][data-theme="dark"] {
+  --color-primary: #ffb4aa;
+  --color-on-primary: #561e18;
+  --color-primary-container: #73342c;
+  --color-on-primary-container: #ffdad5;
+  --color-inverse-primary: #904a42;
+  --color-secondary: #e7bdb7;
+  --color-on-secondary: #442926;
+  --color-secondary-container: #5d3f3b;
+  --color-on-secondary-container: #ffdad5;
+}
+
+:root[data-brand="ember"] {
+  --color-primary: #c00003;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #ffdad5;
+  --color-on-primary-container: #930002;
+  --color-inverse-primary: #ffb4a8;
+  --color-secondary: #80543e;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #ffdbcb;
+  --color-on-secondary-container: #653d28;
+  --color-error: #ba025c;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffd9e1;
+  --color-on-error-container: #8f0045;
+
+  /* The board, re-tuned: the sketches are drawn in the brand, not beside it. */
+  --color-ink-accent: oklch(0.592 0.228 29.3); /* #e62117 at 4.25:1 on paper */
+  --color-speaking: oklch(0.655 0.212 29.3);
+  /* Warn moves to amber: the brand took its hue (9° apart), and two reds on one sheet are one red. */
+  --color-ink-warn: oklch(0.457 0.15 62);
+  --color-ring-pulse: oklch(0.592 0.228 29.3 / 45%);
+  --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
+}
+:root[data-brand="ember"]:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-primary: #ffb4a8;
+    --color-on-primary: #690001;
+    --color-primary-container: #930002;
+    --color-on-primary-container: #ffdad5;
+    --color-inverse-primary: #c00003;
+    --color-secondary: #f4ba9e;
+    --color-on-secondary: #4b2714;
+    --color-secondary-container: #653d28;
+    --color-on-secondary-container: #ffdbcb;
+    --color-error: #ffb1c5;
+    --color-on-error: #65002f;
+    --color-error-container: #8f0045;
+    --color-on-error-container: #ffd9e1;
+  }
+}
+:root[data-brand="ember"][data-theme="dark"] {
+  --color-primary: #ffb4a8;
+  --color-on-primary: #690001;
+  --color-primary-container: #930002;
+  --color-on-primary-container: #ffdad5;
+  --color-inverse-primary: #c00003;
+  --color-secondary: #f4ba9e;
+  --color-on-secondary: #4b2714;
+  --color-secondary-container: #653d28;
+  --color-on-secondary-container: #ffdbcb;
+  --color-error: #ffb1c5;
+  --color-on-error: #65002f;
+  --color-error-container: #8f0045;
+  --color-on-error-container: #ffd9e1;
 }
