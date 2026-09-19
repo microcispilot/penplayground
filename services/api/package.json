@@ -35,7 +35,6 @@
     "@pen/session-engine": "workspace:*",
     "@pen/voice": "workspace:*",
     "@sentry/esbuild-plugin": "5.4.0",
-    "@resvg/resvg-js": "2.6.2",
     "@sentry/node": "10.75.0",
     "fasttext.wasm.js": "1.0.0",
     "google-auth-library": "11.1.0",
@@ -47,6 +46,7 @@
     "playwright": "1.63.0",
     "postgres": "3.4.9",
     "posthog-node": "5.52.4",
+    "sharp": "0.35.4",
     "stripe": "22.6.2",
     "ws": "8.21.3",
     "zod": "4.6.5"

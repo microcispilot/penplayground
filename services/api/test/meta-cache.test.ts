@@ -47,6 +47,7 @@ const card: SessionMeta = {
   description: 'A card.',
   keywords: ['a', 'b', 'c'],
   category: 'computing-data',
+  subject: 'a brass clock escapement, gears meshing',
 };
 
 const plan: LessonPlan = {

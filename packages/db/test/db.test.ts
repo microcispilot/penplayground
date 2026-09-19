@@ -83,6 +83,30 @@ describe('SessionRepository', () => {
     await repo.patch('t3', { thumbnail: '/api/sessions/t3/thumb.svg' });
     expect(mine(await repo.listWithoutThumbnail())).toEqual(['t1']);
   });
+
+  /**
+   * The two "what is this session's card still made of?" lists a backfill
+   * walks. They have to be separate because their prices are: a sketch has no
+   * source to derive from and needs a paid generation (`--redraw`), while a
+   * PNG card's generation is already on disk and only needs re-encoding
+   * (`--reencode`, ADR-0022). Matching on the stored path is what makes each
+   * findable — the record keeps no other trace of which format drew it.
+   */
+  it('separates the sessions a redraw must pay for from the ones a re-encode gets free', async () => {
+    const repo = new SessionRepository(conn.db);
+    await repo.upsert(record('f1', { startedAt: 1_000, thumbnail: '/api/sessions/f1/thumb.png' }));
+    await repo.upsert(record('f2', { startedAt: 2_000, thumbnail: '/api/sessions/f2/thumb.svg' }));
+    await repo.upsert(record('f3', { startedAt: 3_000, thumbnail: '/api/sessions/f3/thumb.png' }));
+    await repo.upsert(record('f4', { startedAt: 4_000, thumbnail: '/api/sessions/f4/thumb.webp' }));
+    const mine = (rows: Array<{ id: string }>) =>
+      rows.map((s) => s.id).filter((id) => id[0] === 'f');
+    // Newest first, and a card already on today's format is in neither list.
+    expect(mine(await repo.listWithPngThumbnail())).toEqual(['f3', 'f1']);
+    expect(mine(await repo.listWithSketchThumbnail())).toEqual(['f2']);
+    // Once re-encoded it drops out, so a second run has nothing to do.
+    await repo.patch('f3', { thumbnail: '/api/sessions/f3/thumb.webp' });
+    expect(mine(await repo.listWithPngThumbnail())).toEqual(['f1']);
+  });
 });
 
 describe('ParticipantRepository', () => {

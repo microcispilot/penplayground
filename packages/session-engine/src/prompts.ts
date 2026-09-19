@@ -244,14 +244,27 @@ Commands map to: pause, resume, repeat, next, slower, end, or none.`,
 }
 
 /**
- * The session-card call (ADR-0013, amended by ADR-0021): the catalogue copy,
- * and only the copy. Opens with the same persona + level prefix as the plan
- * call so the provider's prompt cache serves it under the same cache key.
+ * The session-card call (ADR-0013, amended by ADR-0021 and ADR-0022): the
+ * catalogue copy, plus the one thing the picture needs that only a model that
+ * understands the topic can supply. Opens with the same persona + level prefix
+ * as the plan call so the provider's prompt cache serves it under the same
+ * cache key.
  *
- * The thumbnail used to be written here too, as a whiteboard sketch. It is a
+ * The thumbnail used to be *drawn* here, as a whiteboard sketch. It is a
  * generated photograph now (`thumbnailImagePrompt`), because a vocabulary of
  * labels, boxes and arrows can only ever draw a board — and a board is the
  * one thing a thumbnail must not be.
+ *
+ * `subject` is the ADR-0022 field, and it is a field on a call we already make
+ * rather than a call of its own: the picture costs one generation per session
+ * and that number does not move. The reasoning is spelled out to the model on
+ * purpose — told only a title like "How Transformers work in LLMs", an image
+ * model has nothing to aim a lens at, so it photographs a diagram on paper and
+ * letters it with invented words. The fix is to hand it a thing.
+ *
+ * The exclusions below ("never a diagram…") are safe **here** and would not be
+ * in the image prompt: naming what to avoid to an image model summons it —
+ * measured, twice — while a text model asked for a noun phrase simply obeys.
  */
 export function metaMessages(args: {
   expert: Expert;
@@ -272,8 +285,10 @@ You are writing the catalogue card for a session you are about to teach.
 - description: one or two plain sentences, at most 160 characters, saying what the learner will be able to do. No "In this session", no hype, no emoji.
 - keywords: 3 to 6 short search terms, lowercase unless proper nouns.
 - category: the one domain that fits best.
+- subject: one real, physical thing a photographer could point a camera at for this session — an object, a material, a tool, a place, or a person's hands mid-action. A short noun phrase, 3 to 12 words, in English, naming what is in front of the lens and the light on it. Examples: "a brass clock escapement, gears meshing, side light"; "a thick rope running over a worn wooden pulley"; "a nurse's hands smoothing a long paper ECG trace". Choose something a person who knows this topic would recognise as belonging to it.
+  Two rules decide whether a subject is usable. It must be an object and not an idea: a camera cannot point at an abstraction, and given one it photographs a diagram on paper and letters it with invented words, so name the thing instead. And nothing in it may be a surface made to be read — never a diagram, chart, graph, screen, slide, printout, page, book, note, whiteboard, poster, sign, label, price tag or packaging, because a picture of one comes back covered in nonsense lettering. Choose a subject whose meaning survives with every word stripped out of the frame.
 
-Write the description in the session language.`,
+Write the description in the session language. Write the subject in English; it is read by a camera, not by the learner.`,
     },
     {
       role: 'user',
@@ -286,18 +301,35 @@ Session language: ${args.language}`,
 }
 
 /**
- * The thumbnail (ADR-0021). One prompt, `gpt-image-1`, one picture per
- * session — dictated by the owner and kept close to their words, so treat
- * the three lines as the specification rather than as prose to improve.
+ * The thumbnail (ADR-0021, amended by ADR-0022). One prompt, `gpt-image-1`,
+ * one picture per session. The three lines are the owner's, dictated and kept
+ * close to their words: treat them as the specification rather than as prose
+ * to improve. ADR-0022 adds one line between the first and the second, and
+ * nothing else.
  *
- * It takes the session title and nothing else: the picture is what a viewer
- * sees before they know anything about the lesson, and a card that is read at
- * the size of a stamp is carried by one subject and empty space, not by
- * detail. No text is asked for on purpose — image models spell badly, and the
- * title is already printed beside the card.
+ * **Why a subject line.** The title alone is often an abstraction, and a
+ * camera cannot point at one. Asked for "How Transformers work in LLMs" the
+ * model photographed a diagram on card and lettered it "Treassioner"; on a
+ * retry, a flowchart reading "Souk cor" and "Wzaci". Two negative fixes were
+ * tried against the real endpoint and both failed: "no letters, words or
+ * numbers anywhere in the picture" changed nothing, and naming the things to
+ * avoid ("never paper, a whiteboard, a screen…") made it markedly worse —
+ * naming a thing to an image model summons it. So the steering is positive:
+ * `metaMessages` asks the model that understands the topic for one
+ * photographable thing, and that noun becomes the second line.
+ *
+ * **The title stays.** It is the only thing carrying the session's own
+ * flavour, and the subject is a thing, not a scene.
+ *
+ * `subject` is `''` whenever the copy call failed, returned nothing usable, or
+ * was written before ADR-0022; the prompt is then exactly the three lines that
+ * shipped with ADR-0021. A missing field costs a worse picture, never a job.
  */
-export function thumbnailImagePrompt(title: string): string {
-  return `Design a realistic thumbnail for a YouTube video titled "${title}".
-Not crowded: one clear subject, plenty of empty space, no text.
-Hyper realistic photography, natural light, shallow depth of field.`;
+export function thumbnailImagePrompt(title: string, subject = ''): string {
+  return [
+    `Design a realistic thumbnail for a YouTube video titled "${title}".`,
+    ...(subject ? [`Photograph this: ${subject}.`] : []),
+    'Not crowded: one clear subject, plenty of empty space, no text.',
+    'Hyper realistic photography, natural light, shallow depth of field.',
+  ].join('\n');
 }

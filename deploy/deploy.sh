@@ -14,7 +14,9 @@
 # PEN_NODE_IMAGE (default node:22-bookworm-slim — the BUILD stage must use the same libc as the
 # runtime, because native modules resolve one binary per platform: an Alpine/musl build stage
 # produced a @resvg/resvg-js the glibc Playwright runtime could not load, and the API died at
-# startup with MODULE_NOT_FOUND),
+# startup with MODULE_NOT_FOUND. That rasteriser is gone (ADR-0022) and `sharp` is in its place,
+# which resolves @img/sharp-linux-x64 against glibc and @img/sharp-linuxmusl-x64 against musl —
+# so the rule is the same rule, and the same mismatch would break it the same way),
 # PEN_DEPLOY_ROOT (default /srv/pen-playground), PEN_DEPLOY_EXPECTED_HOSTNAME (default
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /

@@ -20,6 +20,7 @@ import { createSessionMetaJobs, thumbnailPath } from '../src/thumbnails.js';
  *   pnpm --filter @pen/api thumbnails:backfill --limit 50      the 50 newest
  *   pnpm --filter @pen/api thumbnails:backfill --dry-run       what it would do, and what it would cost
  *   pnpm --filter @pen/api thumbnails:backfill --redraw        also replace pre-ADR-0021 sketches
+ *   pnpm --filter @pen/api thumbnails:backfill --reencode      PNG cards → WebP + JPEG, no calls
  *
  * A backfill belongs to no learner, so it bills to `OPENAI_API_KEY_PLATFORM`
  * and never to a host's plan key — the opposite of a live session, whose card
@@ -33,6 +34,13 @@ import { createSessionMetaJobs, thumbnailPath } from '../src/thumbnails.js';
  * scope has no cached picture is a fresh generation. `--dry-run` prices it
  * first, and the estimate is the number to look at before running it.
  *
+ * `--reencode` is the opposite: it spends nothing at all. Sessions written
+ * under ADR-0021 have a 434 kB PNG card and the generation that made it still
+ * on disk as `source.png`, so ADR-0022's WebP card and JPEG Open Graph image
+ * are re-derived from those bytes and the record is pointed at the new file.
+ * No model is asked anything. It runs alone — combining it with a mode that
+ * generates would blur a run that costs money into one that cannot.
+ *
  * The lesson the card describes comes from the lesson memo when one exists for
  * the session's scope; otherwise the record's own title and promise stand in.
  */
@@ -40,14 +48,16 @@ interface Args {
   limit: number;
   dryRun: boolean;
   redraw: boolean;
+  reencode: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { limit: 500, dryRun: false, redraw: false };
+  const args: Args = { limit: 500, dryRun: false, redraw: false, reencode: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') args.dryRun = true;
     else if (a === '--redraw') args.redraw = true;
+    else if (a === '--reencode') args.reencode = true;
     else if (a === '--limit') {
       const n = Number(argv[++i]);
       if (!Number.isFinite(n) || n <= 0) throw new Error('--limit needs a positive number');
@@ -57,10 +67,14 @@ function parseArgs(argv: string[]): Args {
       if (!Number.isFinite(n) || n <= 0) throw new Error('--limit needs a positive number');
       args.limit = Math.floor(n);
     } else if (a === '-h' || a === '--help') {
-      console.log('usage: thumbnails:backfill [--limit N] [--dry-run] [--redraw]');
+      console.log('usage: thumbnails:backfill [--limit N] [--dry-run] [--redraw | --reencode]');
       process.exit(0);
     } else if (a !== undefined) throw new Error(`unknown argument: ${a}`);
   }
+  if (args.redraw && args.reencode)
+    throw new Error(
+      '--redraw generates and --reencode never does; run them one at a time so a run that spends is never mistaken for one that does not.',
+    );
   return args;
 }
 
@@ -92,6 +106,53 @@ const cfg = loadConfig();
 const services = await buildServices(cfg);
 
 try {
+  /**
+   * The format pass. It asks no model anything, so it needs no key and runs
+   * before the key check: every session it touches already has the generation
+   * that paid for it, and only the derived files change.
+   */
+  if (args.reencode) {
+    const candidates = await services.sessions.listWithPngThumbnail(args.limit);
+    console.log(
+      `${candidates.length} session${candidates.length === 1 ? '' : 's'} still on a PNG card ` +
+        `(limit ${args.limit}) — re-derived from source.png, no API calls, $0.0000`,
+    );
+    let moved = 0;
+    let after = 0;
+    let withoutSource = 0;
+    for (const record of candidates) {
+      if (args.dryRun) {
+        // `ready()` is the source's presence, which is the only thing that
+        // decides between the two outcomes, so the dry run can report it.
+        const can = services.thumbnails.ready(record.id);
+        console.log(
+          `  would ${can ? 're-encode' : 'skip     '} ${record.id}  ` +
+            `${can ? '' : '(no source.png)  '}${record.title.slice(0, 56)}`,
+        );
+        continue;
+      }
+      const written = await services.thumbnails.reencode(record.id);
+      if (!written) {
+        withoutSource += 1;
+        console.log(`  skip ${record.id}  no source.png to derive from`);
+        continue;
+      }
+      await services.sessions.patch(record.id, { thumbnail: thumbnailPath(record.id) });
+      moved += 1;
+      after += written.cardBytes;
+      console.log(
+        `  re-encoded ${record.id}  card ${Math.round(written.cardBytes / 1024)} kB · ` +
+          `og ${Math.round(written.ogBytes / 1024)} kB · ${Math.round(written.resizeMs)} ms`,
+      );
+    }
+    if (!args.dryRun)
+      console.log(
+        `done: ${moved} re-encoded, ${withoutSource} without a source · ` +
+          `cards now ${Math.round(after / 1024)} kB in total · spent $0.0000`,
+      );
+    process.exit(0);
+  }
+
   // A backfill belongs to no learner, so it runs on the platform key and
   // never on a plan key. `PLATFORM` is passed as the job's host plan, so the
   // queue asks for that key for every call it makes here.

@@ -358,6 +358,9 @@ export const demoScripts: {
         description: 'ببینید یک جمله چطور بردار می‌شود و توجه چطور توکن بعدی را انتخاب می‌کند.',
         keywords: ['ترنسفورمر', 'توجه', 'توکن'],
         category: 'computing-data',
+        // The subject is written in English whatever the session language: it
+        // is read by the image model, never by the learner (ADR-0022).
+        subject: 'a server rack with glowing processor modules, cool blue light',
       },
     },
     {
@@ -409,13 +412,15 @@ export const demoScripts: {
     },
     { purpose: 'intent', value: { intent: 'question', command: 'none' } },
     {
-      // The card copy (ADR-0013). The picture is the fake image generator's, not a script.
+      // The card copy (ADR-0013), and the thing its picture is pointed at
+      // (ADR-0022). The picture itself is the fake image generator's, not a script.
       purpose: 'session_meta',
       value: {
         description:
           'See how a sentence becomes vectors and how attention weighs each earlier token to predict the next one.',
         keywords: ['transformers', 'attention', 'tokens', 'softmax', 'LLM'],
         category: 'computing-data',
+        subject: 'a server rack with glowing processor modules, cool blue light',
       },
     },
     {

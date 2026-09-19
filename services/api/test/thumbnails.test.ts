@@ -1,24 +1,41 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { THUMBNAIL_SIZE } from '@pen/contracts';
 import type { SessionRecord } from '@pen/db';
 import { solidPng } from '@pen/llm';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { Identity } from '../src/identity.js';
 import { seedPacks } from '../src/seed-packs.js';
 import { buildServices, DATA_DIR, type Services } from '../src/services.js';
-import { StoredSessionMeta, THUMB_FILES, thumbnailPath } from '../src/thumbnails.js';
+import {
+  derive,
+  StoredSessionMeta,
+  THUMB_FILES,
+  THUMB_SIZES,
+  thumbnailPath,
+} from '../src/thumbnails.js';
 
 /**
  * The whole thumbnail path against real services (PGlite in memory, the fake
  * model's scripted `session_meta`, the fake image generator, silent
  * synthesizer): a created session ends up with one generated source PNG and
- * both sizes derived from it, and `thumbnail` on its record; the routes
- * enforce visibility and caching; the share page advertises the Open Graph
- * PNG; a repeat of the same lesson pays for neither the copy nor the picture.
+ * both sizes derived from it, in the formats they are served in (ADR-0022:
+ * a WebP card, a JPEG Open Graph image), and `thumbnail` on its record; the
+ * routes enforce visibility and caching; the share page advertises the Open
+ * Graph image; a repeat of the same lesson pays for neither the copy nor the
+ * picture.
  */
 const dataDir = mkdtempSync(join(tmpdir(), 'pen-thumbs-'));
 let services: Services;
@@ -83,23 +100,37 @@ describe('a fake-provider session gets a real thumbnail', () => {
     for (const f of [THUMB_FILES.source, THUMB_FILES.card, THUMB_FILES.og, THUMB_FILES.meta])
       expect(existsSync(join(dir, f)), f).toBe(true);
     expect(existsSync(join(dir, THUMB_FILES.svg))).toBe(false);
-    const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
-    for (const f of [THUMB_FILES.source, THUMB_FILES.card, THUMB_FILES.og])
-      expect(readFileSync(join(dir, f)).subarray(0, 4), f).toEqual(PNG);
+    // The source stays the PNG the model returned — it is the master every
+    // size is re-derived from. The two derived files are not PNGs any more.
+    expect(readFileSync(join(dir, THUMB_FILES.source)).subarray(0, 4)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    );
+    const card = readFileSync(join(dir, THUMB_FILES.card));
+    expect(card.subarray(0, 4).toString('ascii')).toBe('RIFF');
+    expect(card.subarray(8, 12).toString('ascii')).toBe('WEBP');
+    const og = readFileSync(join(dir, THUMB_FILES.og));
+    expect(og.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+    // Neither PNG is written any more, so no stale pair is left to be served.
+    expect(existsSync(join(dir, THUMB_FILES.cardPng))).toBe(false);
+    expect(existsSync(join(dir, THUMB_FILES.ogPng))).toBe(false);
     const stored = StoredSessionMeta.parse(
       JSON.parse(readFileSync(join(dir, THUMB_FILES.meta), 'utf8')),
     );
     expect(stored.attempts).toBe(1);
     // One generation; the card and the og image are downscales of its bytes.
     expect(stored.image).toMatchObject({ quality: 'low', reused: false, attempts: 1 });
-    expect(stored.render.sourcePngBytes).toBeGreaterThan(0);
-    expect(stored.render.cardPngBytes).toBeGreaterThan(0);
-    expect(stored.render.ogPngBytes).toBeGreaterThan(0);
-    expect(stored.render.sourcePngBytes).toBe(statSync(join(dir, THUMB_FILES.source)).size);
-    expect(stored.render.cardPngBytes).toBe(statSync(join(dir, THUMB_FILES.card)).size);
+    expect(stored.version).toBe(3);
+    expect(stored.render.sourceBytes).toBeGreaterThan(0);
+    expect(stored.render.cardBytes).toBeGreaterThan(0);
+    expect(stored.render.ogBytes).toBeGreaterThan(0);
+    expect(stored.render.sourceBytes).toBe(statSync(join(dir, THUMB_FILES.source)).size);
+    expect(stored.render.cardBytes).toBe(statSync(join(dir, THUMB_FILES.card)).size);
+    expect(stored.render.ogBytes).toBe(statSync(join(dir, THUMB_FILES.og)).size);
+    // The subject the picture was built around is kept with the card that named it.
+    expect(typeof stored.meta.subject).toBe('string');
     const record = await services.sessions.get(sessionId);
     expect(record?.thumbnail).toBe(thumbnailPath(sessionId));
-    expect(record?.thumbnail?.endsWith('/thumb.png')).toBe(true);
+    expect(record?.thumbnail?.endsWith('/thumb.webp')).toBe(true);
     expect(record?.description).toMatch(/attention/i);
     expect(record?.keywords).toContain('transformers');
     // The call is the session's own spend (ADR-0011): an `llm` sample and cost lines under its purpose.
@@ -146,38 +177,85 @@ describe('a fake-provider session gets a real thumbnail', () => {
     await rooms.end(sessionId);
   }, 30_000);
 
-  it('serves the PNGs publicly with a long cache and an ETag, and answers 304', async () => {
-    const card = await fetchApp(`/api/sessions/${sessionId}/thumb.png`);
+  it('serves each size publicly under its own type, with a long cache, an ETag and a 304', async () => {
+    const card = await fetchApp(`/api/sessions/${sessionId}/thumb.webp`);
     expect(card.status).toBe(200);
-    expect(card.headers.get('content-type')).toBe('image/png');
+    expect(card.headers.get('content-type')).toBe('image/webp');
     expect(card.headers.get('cache-control')).toBe(
       'public, max-age=86400, stale-while-revalidate=604800',
     );
     const etag = card.headers.get('etag');
     expect(etag).toMatch(/^"[a-z0-9]+-\d+"$/);
-    expect(Number(card.headers.get('content-length'))).toBeGreaterThan(1000);
-    const again = await fetchApp(`/api/sessions/${sessionId}/thumb.png`, {
+    // A real encoded body, not an empty one. The fixture is the fake
+    // generator's flat colour, which WebP compresses to a few hundred bytes —
+    // the format's effect on a real photograph is measured in `derive` below.
+    expect(Number(card.headers.get('content-length'))).toBeGreaterThan(100);
+    const again = await fetchApp(`/api/sessions/${sessionId}/thumb.webp`, {
       headers: { 'if-none-match': etag ?? '' },
     });
     expect(again.status).toBe(304);
-    for (const file of ['thumb.png', 'og.png']) {
-      const png = await fetchApp(`/api/sessions/${sessionId}/${file}`);
-      expect(png.status, file).toBe(200);
-      expect(png.headers.get('content-type')).toBe('image/png');
-      expect(new Uint8Array(await png.arrayBuffer()).subarray(1, 4)).toEqual(
-        new Uint8Array([0x50, 0x4e, 0x47]),
-      );
-    }
-    // Nothing writes a sketch any more; an old session's file would still be served.
+    // The route, the extension and the bytes all have to agree — a WebP served
+    // as a PNG is a broken card in every browser that trusts the header.
+    const bytesOf = async (file: string) =>
+      new Uint8Array(await (await fetchApp(`/api/sessions/${sessionId}/${file}`)).arrayBuffer());
+    const webp = await bytesOf('thumb.webp');
+    expect(Buffer.from(webp.subarray(0, 4)).toString('ascii')).toBe('RIFF');
+    expect(Buffer.from(webp.subarray(8, 12)).toString('ascii')).toBe('WEBP');
+    const jpeg = await fetchApp(`/api/sessions/${sessionId}/og.jpg`);
+    expect(jpeg.status).toBe(200);
+    expect(jpeg.headers.get('content-type')).toBe('image/jpeg');
+    expect(new Uint8Array(await jpeg.arrayBuffer()).subarray(0, 3)).toEqual(
+      new Uint8Array([0xff, 0xd8, 0xff]),
+    );
+    // Nothing writes a sketch or a PNG card any more; an old session's files
+    // are still served, this session simply has none.
     expect((await fetchApp(`/api/sessions/${sessionId}/thumb.svg`)).status).toBe(404);
+    expect((await fetchApp(`/api/sessions/${sessionId}/thumb.png`)).status).toBe(404);
+    expect((await fetchApp(`/api/sessions/${sessionId}/og.png`)).status).toBe(404);
+  });
+
+  /**
+   * The promise ADR-0022 makes to every session that already exists: their
+   * records point at `thumb.png` (ADR-0021) or `thumb.svg` (before it), and
+   * those links keep working, under the type they were written as. Nothing
+   * re-derives them and nothing writes one — they are served because they are
+   * there, and that is the whole contract.
+   */
+  it('keeps serving the files older sessions have on disk, each as what it is', async () => {
+    const dir = join(dataDir, 'sessions', sessionId);
+    const png = solidPng(16, 9, [10, 20, 30]);
+    writeFileSync(join(dir, THUMB_FILES.cardPng), png);
+    writeFileSync(join(dir, THUMB_FILES.ogPng), png);
+    writeFileSync(join(dir, THUMB_FILES.svg), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    try {
+      for (const [file, type] of [
+        ['thumb.png', 'image/png'],
+        ['og.png', 'image/png'],
+        ['thumb.svg', 'image/svg+xml'],
+      ] as const) {
+        const res = await fetchApp(`/api/sessions/${sessionId}/${file}`);
+        expect(res.status, file).toBe(200);
+        expect(res.headers.get('content-type'), file).toBe(type);
+      }
+      // Served as they are, never re-derived: the bytes are the ones on disk.
+      expect(
+        new Uint8Array(
+          await (await fetchApp(`/api/sessions/${sessionId}/thumb.png`)).arrayBuffer(),
+        ),
+      ).toEqual(new Uint8Array(png));
+    } finally {
+      for (const f of [THUMB_FILES.cardPng, THUMB_FILES.ogPng, THUMB_FILES.svg])
+        unlinkSync(join(dir, f));
+    }
   });
 
   it('derives a missing size from the stored source again, never from a second generation', async () => {
     const og = join(dataDir, 'sessions', sessionId, THUMB_FILES.og);
     unlinkSync(og);
     const before = services.costs.snapshot().session_thumbnail?.calls ?? 0;
-    const res = await fetchApp(`/api/sessions/${sessionId}/og.png`);
+    const res = await fetchApp(`/api/sessions/${sessionId}/og.jpg`);
     expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/jpeg');
     expect(existsSync(og)).toBe(true);
     expect(services.costs.snapshot().session_thumbnail?.calls ?? 0).toBe(before);
   });
@@ -232,20 +310,23 @@ describe('a fake-provider session gets a real thumbnail', () => {
     await rooms.end(second.record.id);
   }, 30_000);
 
-  it('the share page advertises the Open Graph PNG and the description', async () => {
+  it('the share page advertises the Open Graph JPEG, its type and the description', async () => {
     const res = await fetchApp(`/s/${sessionId}`);
     const html = await res.text();
     expect(html).toContain(
-      `<meta property="og:image" content="http://api.test/api/sessions/${sessionId}/og.png">`,
+      `<meta property="og:image" content="http://api.test/api/sessions/${sessionId}/og.jpg">`,
     );
+    // The type tag has to name what the route actually serves; Meta's
+    // documented list for og:image is jpeg/gif/png, which is why og is JPEG.
+    expect(html).toContain('<meta property="og:image:type" content="image/jpeg">');
     expect(html).toContain('<meta property="og:image:width" content="1200">');
     expect(html).toContain('<meta name="twitter:card" content="summary_large_image">');
     expect(html).toMatch(/<meta property="og:description" content="[^"]*attention[^"]*">/i);
   });
 
   it('is 404 for unknown or malformed ids and for a session without a thumbnail', async () => {
-    expect((await fetchApp('/api/sessions/nope/thumb.png')).status).toBe(404);
-    expect((await fetchApp('/api/sessions/s_does_not_exist/thumb.png')).status).toBe(404);
+    expect((await fetchApp('/api/sessions/nope/thumb.webp')).status).toBe(404);
+    expect((await fetchApp('/api/sessions/s_does_not_exist/thumb.webp')).status).toBe(404);
     const bare: SessionRecord = {
       id: 's_bare_0001',
       topic: 't',
@@ -272,7 +353,7 @@ describe('a fake-provider session gets a real thumbnail', () => {
       likes: 0,
     };
     await services.sessions.upsert(bare);
-    const res = await fetchApp('/api/sessions/s_bare_0001/thumb.png');
+    const res = await fetchApp('/api/sessions/s_bare_0001/thumb.webp');
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'NOT_READY' });
     const share = await (await fetchApp('/s/s_bare_0001')).text();
@@ -286,15 +367,15 @@ describe('a fake-provider session gets a real thumbnail', () => {
     const record = await services.sessions.get(sessionId);
     if (!record) throw new Error('record missing');
     await services.sessions.patch(sessionId, { visibility: 'private', hostId: owner.id });
-    expect((await fetchApp(`/api/sessions/${sessionId}/thumb.png`)).status).toBe(401);
+    expect((await fetchApp(`/api/sessions/${sessionId}/thumb.webp`)).status).toBe(401);
     expect(
       (
-        await fetchApp(`/api/sessions/${sessionId}/thumb.png`, {
+        await fetchApp(`/api/sessions/${sessionId}/thumb.webp`, {
           headers: { authorization: other.authorization },
         })
       ).status,
     ).toBe(403);
-    const mine = await fetchApp(`/api/sessions/${sessionId}/og.png`, {
+    const mine = await fetchApp(`/api/sessions/${sessionId}/og.jpg`, {
       headers: { authorization: owner.authorization },
     });
     expect(mine.status).toBe(200);
@@ -307,15 +388,18 @@ describe('a fake-provider session gets a real thumbnail', () => {
 });
 
 /**
- * Downscaling is native, and the synchronous resvg call blocked the event loop
- * for ~120 ms per session — long enough to stall the PCM fan-out of every room
- * still speaking. A 50-session load run showed it as ~160 ms stalls on a
- * trivial request; moving to `renderAsync` took that to single digits. A real
- * 1536 × 1024 photograph is a heavier source than the old sketch, so the guard
- * matters more now, not less.
+ * Deriving the two sizes is native work, and doing it synchronously blocked
+ * the event loop for ~120 ms per session — long enough to stall the PCM
+ * fan-out of every room still speaking. A 50-session load run showed it as
+ * ~160 ms stalls on a trivial request; the async entry point took that to
+ * single digits. `sharp` inherits the requirement, not an exemption from it:
+ * its `toBuffer()` decodes, resizes and encodes on libuv's threadpool.
  *
- * This is the regression guard: while a thumbnail is being written, a 5 ms
- * interval must keep firing. Going back to the synchronous API makes it fail.
+ * The guard is the longest gap between two ticks of a 5 ms interval, not how
+ * many ticks there were: sharp does the same work in ~32 ms where resvg took
+ * ~250, so a count would only measure how fast the encoder got. A blocking
+ * encoder makes the whole write one gap; an async one keeps every gap near
+ * the interval, however long the work takes.
  */
 describe('writing a thumbnail keeps the event loop turning', () => {
   it('lets timers run while the two sizes are downscaled', async () => {
@@ -323,13 +407,17 @@ describe('writing a thumbnail keeps the event loop turning', () => {
       description: 'Loop-liveness probe',
       keywords: ['attention'],
       category: 'computing-data' as const,
+      subject: 'a brass clock escapement, gears meshing',
     };
     // A full-size generation's worth of pixels, so the work is the real work.
     const png = solidPng(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, [90, 140, 200]);
 
-    let ticks = 0;
+    const gaps: number[] = [];
+    let last = Date.now();
     const ticker = setInterval(() => {
-      ticks += 1;
+      const now = Date.now();
+      gaps.push(now - last);
+      last = now;
     }, 5);
     const startedAt = Date.now();
     try {
@@ -348,11 +436,191 @@ describe('writing a thumbnail keeps the event loop turning', () => {
       clearInterval(ticker);
     }
     const elapsed = Date.now() - startedAt;
+    const longestStall = Math.max(...gaps, Date.now() - last);
 
-    // However fast the machine, the loop must not have been held shut: with the
-    // synchronous rasteriser the whole write is one uninterruptible block and
-    // `ticks` comes back as 0–1.
+    // However fast the machine, the loop must not have been held shut. A
+    // synchronous encoder gives one gap the length of the whole write; the
+    // threshold is generous enough for a loaded CI box and still an order of
+    // magnitude under that.
     expect(elapsed).toBeGreaterThan(0);
-    expect(ticks).toBeGreaterThanOrEqual(Math.min(3, Math.floor(elapsed / 5)));
+    expect(longestStall).toBeLessThan(Math.max(20, elapsed * 0.6));
   }, 30_000);
+});
+
+/**
+ * The formats themselves (ADR-0022). A flat colour proves nothing about an
+ * encoder — every format stores one — so the fixture here is deterministic
+ * noise at the generated size, which is as incompressible as a photograph and
+ * is exactly the case PNG is the wrong format for.
+ */
+describe('the derived sizes are the formats they are served in', () => {
+  /** A photograph-like source: no flat regions, so PNG cannot cheat. */
+  const noisySource = async (): Promise<Buffer> => {
+    const { width, height } = THUMBNAIL_SIZE;
+    const raw = Buffer.alloc(width * height * 3);
+    let seed = 0x2f6e2b1;
+    for (let i = 0; i < raw.length; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      raw[i] = (seed >> 16) & 0xff;
+    }
+    return sharp(raw, { raw: { width, height, channels: 3 } })
+      .png()
+      .toBuffer();
+  };
+
+  it('writes a WebP card and a JPEG Open Graph image at the right sizes', async () => {
+    const source = await noisySource();
+    const [card, og] = await Promise.all([derive(source, 'card'), derive(source, 'og')]);
+    const cardMeta = await sharp(card).metadata();
+    expect(cardMeta.format).toBe('webp');
+    expect([cardMeta.width, cardMeta.height]).toEqual([
+      THUMB_SIZES.card.width,
+      THUMB_SIZES.card.height,
+    ]);
+    const ogMeta = await sharp(og).metadata();
+    expect(ogMeta.format).toBe('jpeg');
+    expect([ogMeta.width, ogMeta.height]).toEqual([THUMB_SIZES.og.width, THUMB_SIZES.og.height]);
+  }, 30_000);
+
+  it('crops to fill rather than letterboxing: 3:2 into 16:9 loses sky, never gains bars', async () => {
+    // A cover of a 3:2 source into 16:9 keeps the full width and trims the top
+    // and bottom, so the centre row of the card is the centre row of the source.
+    const source = await noisySource();
+    const card = await derive(source, 'card');
+    const { width, height } = await sharp(card).metadata();
+    expect(width / (height ?? 1)).toBeCloseTo(16 / 9, 2);
+  }, 30_000);
+
+  it('is why the card stopped being a PNG: the same pixels, an order of magnitude smaller', async () => {
+    const source = await noisySource();
+    const asPng = await sharp(source)
+      .resize(THUMB_SIZES.card.width, THUMB_SIZES.card.height, { fit: 'cover', position: 'centre' })
+      .png()
+      .toBuffer();
+    const card = await derive(source, 'card');
+    const og = await derive(source, 'og');
+    const ogAsPng = await sharp(source)
+      .resize(THUMB_SIZES.og.width, THUMB_SIZES.og.height, { fit: 'cover', position: 'centre' })
+      .png()
+      .toBuffer();
+    // Measured on five real generations (docs/COST.md): 442 kB → 15 kB for the
+    // card, 1,525 kB → 49 kB for the og image. Noise is the hardest case for
+    // both formats, so the guard here is a conservative 5×.
+    expect(asPng.length / card.length).toBeGreaterThan(5);
+    expect(ogAsPng.length / og.length).toBeGreaterThan(5);
+  }, 30_000);
+
+  /**
+   * `--reencode`: what moves a session written under ADR-0021 onto the new
+   * formats. It re-derives from the source that is already on disk, so it
+   * costs nothing, and it removes the PNG pair it replaces so no route can
+   * keep serving them.
+   */
+  it('re-encodes an ADR-0021 session from its source without asking any model for anything', async () => {
+    const id = 's_reencode0001';
+    const dir = join(dataDir, 'sessions', id);
+    const source = await noisySource();
+    await services.thumbnails.write(
+      id,
+      {
+        description: 'Already drawn',
+        keywords: ['a'],
+        category: 'computing-data',
+        subject: 'a brass clock escapement',
+      },
+      source,
+      {
+        usage: {
+          model: 'fake',
+          inputTokens: 1,
+          cachedTokens: 0,
+          outputTokens: 1,
+          usd: 0.5,
+          totalMs: 1,
+        },
+        attempts: 1,
+        image: {
+          model: 'gpt-image-1',
+          quality: 'low',
+          inputTokens: 67,
+          outputTokens: 400,
+          usd: 0.016_335,
+          ms: 11_000,
+          attempts: 1,
+          reused: false,
+        },
+      },
+    );
+    // Put the session back in the state ADR-0021 left it in: a PNG pair, and a
+    // meta.json at version 2 whose byte counts use the old names.
+    const oldCard = await sharp(source)
+      .resize(THUMB_SIZES.card.width, THUMB_SIZES.card.height, { fit: 'cover', position: 'centre' })
+      .png()
+      .toBuffer();
+    writeFileSync(join(dir, THUMB_FILES.cardPng), oldCard);
+    writeFileSync(join(dir, THUMB_FILES.ogPng), oldCard);
+    writeFileSync(
+      join(dir, THUMB_FILES.meta),
+      JSON.stringify({
+        version: 2,
+        sessionId: id,
+        createdAt: Date.now(),
+        meta: { description: 'Already drawn', keywords: ['a'], category: 'computing-data' },
+        usage: {
+          model: 'fake',
+          inputTokens: 1,
+          cachedTokens: 0,
+          outputTokens: 1,
+          usd: 0.5,
+          totalMs: 1,
+        },
+        attempts: 1,
+        image: {
+          model: 'gpt-image-1',
+          quality: 'low',
+          inputTokens: 52,
+          outputTokens: 400,
+          usd: 0.016_26,
+          ms: 11_000,
+          attempts: 1,
+          reused: false,
+        },
+        render: {
+          sourcePngBytes: source.length,
+          cardPngBytes: oldCard.length,
+          ogPngBytes: oldCard.length,
+          resizeMs: 250,
+        },
+      }),
+    );
+    // A version-2 file still reads, through the names it was written with.
+    const before = services.thumbnails.meta(id);
+    expect(before?.version).toBe(2);
+    expect(before?.render.cardBytes).toBe(oldCard.length);
+    expect(before?.meta.subject).toBe('');
+
+    const callsBefore = services.costs.snapshot().session_thumbnail?.calls ?? 0;
+    const written = await services.thumbnails.reencode(id);
+    expect(services.costs.snapshot().session_thumbnail?.calls ?? 0).toBe(callsBefore);
+    if (!written) throw new Error('reencode returned nothing for a session that has a source');
+    expect(written.cardBytes).toBeLessThan(oldCard.length);
+    expect((await sharp(readFileSync(join(dir, THUMB_FILES.card))).metadata()).format).toBe('webp');
+    expect((await sharp(readFileSync(join(dir, THUMB_FILES.og))).metadata()).format).toBe('jpeg');
+    // The pair it supersedes is KEPT: `og.png` is the URL sitting in every
+    // unfurl cache that has seen this session's share page, and deleting it
+    // would turn a picture already in someone's Slack into a 404.
+    expect(existsSync(join(dir, THUMB_FILES.cardPng))).toBe(true);
+    expect(existsSync(join(dir, THUMB_FILES.ogPng))).toBe(true);
+    // The numbers move to the new names; what the generation cost does not move.
+    const after = services.thumbnails.meta(id);
+    expect(after?.version).toBe(3);
+    expect(after?.render.cardBytes).toBe(written.cardBytes);
+    expect(after?.image?.usd).toBe(0.016_26);
+    expect(after?.meta.description).toBe('Already drawn');
+    expect(services.thumbnails.stat(join(dir, THUMB_FILES.card)).size).toBe(written.cardBytes);
+  }, 30_000);
+
+  it('re-encodes nothing for a session with no source to derive from', async () => {
+    expect(await services.thumbnails.reencode('s_no_source_at_all')).toBeNull();
+  });
 });

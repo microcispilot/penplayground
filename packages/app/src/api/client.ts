@@ -450,7 +450,7 @@ export class ApiClient {
     const sized = width === 192 ? src.replace(/-w384(\.[a-z0-9]+)$/i, '-w192$1') : src;
     return `${this.baseUrl}${sized}`;
   }
-  /** Absolute URL of a session's sketch (`thumbnail` is API-relative); null until it is ready. */
+  /** Absolute URL of a session's picture (`thumbnail` is API-relative); null until it is ready. */
   thumbnailUrl(session: Pick<SessionRecord, 'thumbnail'>): string | null {
     return session.thumbnail ? `${this.baseUrl}${session.thumbnail}` : null;
   }

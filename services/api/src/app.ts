@@ -48,7 +48,7 @@ import {
 } from './seo.js';
 import { DATA_DIR, type Services } from './services.js';
 import { aggregateReuse, computeTelemetry } from './telemetry.js';
-import { THUMB_CONTENT_TYPE, THUMB_SIZES, type ThumbnailKind } from './thumbnails.js';
+import { THUMB_CONTENT_TYPE, THUMB_FILES, THUMB_SIZES, type ThumbnailKind } from './thumbnails.js';
 import { publicUrl } from './urls.js';
 
 export interface App {
@@ -936,13 +936,17 @@ export function buildApp(services: Services): App {
     c.header('Content-Length', String(size));
     return c.body(Readable.toWeb(createReadStream(path)) as ReadableStream);
   };
-  app.get('/api/sessions/:id/thumb.png', (c) => thumbnail(c, 'card'));
-  app.get('/api/sessions/:id/og.png', (c) => thumbnail(c, 'og'));
+  app.get('/api/sessions/:id/thumb.webp', (c) => thumbnail(c, 'card'));
+  app.get('/api/sessions/:id/og.jpg', (c) => thumbnail(c, 'og'));
   /**
-   * Sessions taught before ADR-0021 still point at the hand-drawn sketch that
-   * is on their disk, so the route keeps serving the file. Nothing writes one
-   * any more; `thumbnails:backfill --redraw` replaces them with pictures.
+   * What earlier sessions have on disk and their records still point at: the
+   * PNG pair from ADR-0021, and the hand-drawn sketch from before it. Both are
+   * served as they are and neither is ever written again — a missing one is a
+   * 404 rather than a re-derivation, because the file the card wants now is
+   * `thumb.webp`. `thumbnails:backfill --redraw` moves a session forward.
    */
+  app.get('/api/sessions/:id/thumb.png', (c) => thumbnail(c, 'cardPng'));
+  app.get('/api/sessions/:id/og.png', (c) => thumbnail(c, 'ogPng'));
   app.get('/api/sessions/:id/thumb.svg', (c) => thumbnail(c, 'svg'));
 
   /**
@@ -1186,11 +1190,11 @@ export function buildApp(services: Services): App {
       record.thumbnail && record.visibility === 'public'
         ? publicUrl(
             services.cfg.PEN_API_URL,
-            `/api/sessions/${encodeURIComponent(record.id)}/og.png`,
+            `/api/sessions/${encodeURIComponent(record.id)}/${THUMB_FILES.og}`,
           )
         : null;
     const imageTags = image
-      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(record.title)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(record.title)}">`
+      ? `<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="${THUMB_CONTENT_TYPE.og}"><meta property="og:image:width" content="${THUMB_SIZES.og.width}"><meta property="og:image:height" content="${THUMB_SIZES.og.height}"><meta property="og:image:alt" content="${esc(record.title)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(record.title)}">`
       : '<meta name="twitter:card" content="summary">';
     // Structured data only for a page a crawler can actually read: a private session is
     // host-only, so advertising it as a learning resource would be a lie.

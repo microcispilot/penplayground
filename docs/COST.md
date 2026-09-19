@@ -7,8 +7,8 @@
 | STT | AssemblyAI Universal-Streaming $0.15/h (or $0 browser on-device / self-hosted) | $0.05 |
 | Onten context | mock today; target < 20 ms, amortised across learners | ~$0 |
 | Topic preparation (only on a miss, once per topic) | seed + Tavily + luna | $0.05–0.65 |
-| Session card copy (ADR-0013) | one luna structured-output call, ~0.9k in (persona prefix cached) + ~0.12k out | ≈ $0.0004 |
-| Session thumbnail (ADR-0021) | one `gpt-image-1` generation, 1536×1024, quality `low`: 52 text tokens in + 400 image tokens out; downscaled in-process to the card and the og image | ≈ $0.0163 |
+| Session card copy (ADR-0013, ADR-0022) | one luna structured-output call, ~0.9k in (persona prefix cached) + ~0.12k out; ADR-0022's `subject` field added 270 in / 12 out, measured | ≈ $0.0004 |
+| Session thumbnail (ADR-0021, ADR-0022) | one `gpt-image-1` generation, 1536×1024, quality `low`: 67 text tokens in + 400 image tokens out; derived in-process to a WebP card and a JPEG og image | ≈ $0.0163 |
 | **Total marginal** | | **≈ $0.30 paid voice / ≈ $0.07 with free-tier voice and on-device STT** |
 
 Levers, in order of leverage: prompt-cache prefix discipline (input is >90 % of
@@ -50,6 +50,33 @@ apart, so `PEN_THUMBNAIL_QUALITY` defaults to `low`. `high` has not been
 measured here; `freshThumbnailUsd` falls back to `medium`'s number rather than
 inventing one. The bill is per generation, not per size: one call per lesson
 produces the source, and the card and Open Graph images are downscales of it.
+
+**The prompt's subject costs nothing worth naming.** ADR-0022 gives the camera
+something to point at, by adding one field to the copy call and one line to the
+image prompt — no extra call of either kind. Measured on the same title, same
+model, 2026-09-18:
+
+| | before | after | delta |
+|---|---|---|---|
+| copy call | 372 in / 55 out, $0.000140 | 642 in / 67 out, $0.000209 | +270 in / +12 out, **+$0.000068** |
+| image prompt | 52 text tokens | 67 text tokens | +15 tokens, **+$0.000075** |
+
+$0.00014 a session against $0.0163 for the generation it steers: under 1 %.
+
+**Bytes on the wire, measured on five real generations** (2026-09-18, same
+pixels encoded both ways, `thumbnails:probe`):
+
+| | PNG (ADR-0021) | today | |
+|---|---|---|---|
+| card 640 × 360 | 442 kB average | **15 kB** WebP q82 | 29× |
+| og 1200 × 630 | 1,525 kB average | **49 kB** JPEG q82 | 31× |
+| source 1536 × 1024 | 1.9 MB PNG | unchanged — it is the master every size is re-derived from | |
+
+Deriving both from the source takes **32 ms** on an M-series laptop, against
+~250 ms for the SVG rasteriser it replaced. A row of twenty cards went from
+~8.6 MB to ~0.3 MB. The Open Graph image is JPEG and not WebP because the only
+place Meta enumerates formats for `og:image` lists `image/jpeg`, `image/gif`
+and `image/png` (developers.facebook.com/docs/sharing/webmasters/).
 
 ### Reuse: what a session did not have to generate
 

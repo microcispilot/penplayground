@@ -170,7 +170,7 @@ describe('the share page', () => {
     expect(data.name).toBe('How Transformers work in LLMs');
     expect(data.description).toMatch(/attention/i);
     expect(data.url).toBe('https://penplayground.test/sessions/s_seo_public1');
-    expect(data.thumbnailUrl).toBe('http://api.test/api/sessions/s_seo_public1/og.png');
+    expect(data.thumbnailUrl).toBe('http://api.test/api/sessions/s_seo_public1/og.jpg');
     expect(data.provider).toEqual({
       '@type': 'Organization',
       name: 'Pen Playground',
