@@ -45,7 +45,7 @@
  *   generated red families at the bottom of this file are the evidence.
  *   `primary` stays toned per theme because text has to be readable and no
  *   single colour can be; the containers under both are the same chroma-0
- *   greys as every other surface, and error moves to magenta. The board ink
+ *   greys as every other surface, and error is the owner's #ED424A. The ink
  *   moves with the brand: a page in one hue around sketches in another reads
  *   as two products.
  */
@@ -238,17 +238,26 @@
   --color-on-tertiary-container: #414465;
 
   /*
-   * error: magenta, not red. M3's own error is #ba1a1a — one degree of hue
-   * from the brand and 1.1:1 against it. What error cannot be is the brand.
-   * Seeded from #B0008A rather than from a rose: a rose error is only ΔE
-   * 0.095 from this red in OKLab, inside the 0.15 that the separation gate
-   * calls "shades of one another". At hue 341 it clears the gate in both
-   * themes (0.175 light, 0.157 dark) and still reads as something gone wrong.
+   * error: the owner's #ED424A, through M3's tonal machinery.
+   *
+   * This is a red six degrees of hue from the brand, and it is the owner's
+   * call over the measurement: the error role and the brand are ΔE 0.025
+   * apart in light and 0.017 in dark, where 0.15 is the distance
+   * `design-system.test.ts` calls "two colours" rather than two shades of
+   * one. The magenta this replaced cleared that at 0.175 and 0.157. The
+   * numbers are recorded rather than gated for the default (see that file),
+   * so the cost stays visible and a later drift still fails.
+   *
+   * Laddered rather than pinned, unlike the brand, and for a reason that is
+   * not stylistic: #ED424A itself carries white at 3.83:1 and reads on a
+   * light page at 3.64:1 falling to 2.96:1 on `surface-container-highest`.
+   * `text-error` is an error *message* — body copy — so the role has to be
+   * the tone of that red that a person can read, which is what these are.
    */
-  --color-error: #b1008b;
+  --color-error: #bb162a;
   --color-on-error: #ffffff;
-  --color-error-container: #ffd8ec;
-  --color-on-error-container: #88006a;
+  --color-error-container: #ffdad8;
+  --color-on-error-container: #93001a;
 
   /*
    * Surfaces. Chroma 0: a panel lifts off the page by lightness alone, which
@@ -463,10 +472,10 @@
     --color-on-tertiary: #2a2e4d;
     --color-tertiary-container: #414465;
     --color-on-tertiary-container: #dfe0ff;
-    --color-error: #ffaedd;
-    --color-on-error: #60004a;
-    --color-error-container: #88006a;
-    --color-on-error-container: #ffd8ec;
+    --color-error: #ffb3b0;
+    --color-on-error: #68000f;
+    --color-error-container: #93001a;
+    --color-on-error-container: #ffdad8;
     --color-surface: #131313;
     --color-surface-dim: #131313;
     --color-surface-bright: #393939;
@@ -510,10 +519,10 @@
   --color-on-tertiary: #2a2e4d;
   --color-tertiary-container: #414465;
   --color-on-tertiary-container: #dfe0ff;
-  --color-error: #ffaedd;
-  --color-on-error: #60004a;
-  --color-error-container: #88006a;
-  --color-on-error-container: #ffd8ec;
+  --color-error: #ffb3b0;
+  --color-on-error: #68000f;
+  --color-error-container: #93001a;
+  --color-on-error-container: #ffdad8;
   --color-surface: #131313;
   --color-surface-dim: #131313;
   --color-surface-bright: #393939;

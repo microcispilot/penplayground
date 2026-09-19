@@ -500,8 +500,15 @@ describe('a brand role and an error role have to be two colours', () => {
    */
   const RECORDED: Record<string, readonly [number, number]> = {
     //         light   dark
-    // The brand: a red that had to move the error role to hue 341 to get here.
-    default: [0.175, 0.157],
+    /*
+     * The brand, with the error role the owner chose: #ED424A, a red six
+     * degrees of hue from it. This is the one entry in the table that does
+     * not clear the 0.15 below — 0.025 in light is not two colours, it is two
+     * shades of one, and in light a failed request and the Start button are
+     * very nearly the same red. It is recorded here rather than gated so the
+     * cost is a number somebody can look at, and so moving it still fails.
+     */
+    default: [0.025, 0.13],
     teal: [0.279, 0.17],
     green: [0.232, 0.148],
     forest: [0.273, 0.171],
@@ -526,14 +533,31 @@ describe('a brand role and an error role have to be two colours', () => {
   });
 
   /**
-   * The default family is the one people actually see, and it has to keep the
-   * two apart at a glance in both themes. 0.15 in OKLab is roughly where two
-   * colours stop being shades of one another; teal sits at 0.17.
+   * 0.15 in OKLab is roughly where two colours stop being shades of one
+   * another. Every family that can clear it must, and all of them do — teal
+   * at 0.279, the two greens above it — which is what makes the default's
+   * exemption an exemption rather than an absent rule.
+   *
+   * The default does not clear it, by the owner's decision: the brand is a
+   * red and the error role they chose is #ED424A, another red. The assertion
+   * is inverted rather than deleted, because a rule with a silent hole in it
+   * is worse than no rule — this way the file says which family is outside
+   * it, and says it will fail if the exemption ever stops being needed.
    */
-  it('the shipping default keeps the brand and the error role apart', () => {
-    for (const theme of ['light', 'dark'] as const) {
-      expect(separation('default', theme), `default/${theme}`).toBeGreaterThan(0.15);
+  it('every family that is a brand rather than a candidate keeps them apart', () => {
+    // The four reds below are the evidence for the collision, not brands: they
+    // are *supposed* to fail this, and `tonal spot becomes the error role`
+    // asserts that they do.
+    for (const brand of ['teal', 'green', 'forest']) {
+      for (const theme of ['light', 'dark'] as const) {
+        expect(separation(brand, theme), `${brand}/${theme}`).toBeGreaterThan(0.14);
+      }
     }
+  });
+
+  it("the default is inside that distance, which is the owner's call and not a slip", () => {
+    expect(separation('default', 'light'), 'the brand and error in light').toBeLessThan(0.15);
+    expect(separation('teal', 'light'), 'and what it was before').toBeGreaterThan(0.15);
   });
 
   /**

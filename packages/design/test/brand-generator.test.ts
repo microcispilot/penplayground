@@ -463,16 +463,25 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
 
   /**
    * ΔE 0.004 is what a tonal-spot red scores against the error role — the
-   * collision the whole review turned up. Moving error off the brand hue is
-   * the only reason a red brand is possible at all.
+   * collision the whole review turned up, and the reason the brand is not
+   * generated. The error role the owner then chose is #ED424A, which is
+   * itself a red: it does not undo the collision so much as accept it, at
+   * 0.093 from the brand in light and 0.283 in dark.
+   *
+   * What it must still not be is *indistinguishable*. 0.004 was two colours
+   * a person cannot tell apart at all; this asserts the floor under that,
+   * and `design-system.test.ts` records the full numbers.
    */
-  it.each(['light', 'dark'] as const)('%s: error is not the brand', (theme) => {
-    const error = declared(themeBlock(theme), 'error') ?? '';
-    expect(
-      oklabDistance(primary(theme), error),
-      `primary ${primary(theme)} vs error ${error}`,
-    ).toBeGreaterThan(0.1);
-  });
+  it.each(['light', 'dark'] as const)(
+    '%s: error is at least not identical to the brand',
+    (theme) => {
+      const error = declared(themeBlock(theme), 'error') ?? '';
+      expect(
+        oklabDistance(brand(theme), error),
+        `brand ${brand(theme)} vs error ${error}`,
+      ).toBeGreaterThan(0.05);
+    },
+  );
 
   /** Teal is kept so the change is reversible; a family that lost a role is not a way back. */
   it.each(['light', 'dark'] as const)('%s: teal still declares every role it replaced', (theme) => {

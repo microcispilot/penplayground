@@ -188,11 +188,26 @@ must not change between themes:
   built from. This removes the rejected brown at its source, and it is also
   why the red reads as red: nothing around it is tinted. It is what YouTube
   does, and the reason their red survives a grey page.
-- **Error moves to hue 341**, seeded from #B0008A. A rose error is ΔE 0.095
-  from this red — inside the 0.15 that `design-system.test.ts` calls "shades
-  of one another". The magenta clears it at 0.175 light and 0.157 dark.
-  Families that used to inherit M3's red error now declare their own, so the
-  four candidates still record their collision honestly.
+- **The error role is the owner's #ED424A**, and this is the one place the
+  measurement lost. Error was first moved to a magenta at hue 341, because a
+  rose error is ΔE 0.095 from this red — inside the 0.15 that
+  `design-system.test.ts` calls "shades of one another" — and the magenta
+  cleared it at 0.175 light and 0.157 dark. The owner then chose #ED424A,
+  which is a red six degrees of hue from the brand: 0.025 in light, 0.130 in
+  dark. That is their call and it is implemented, with the consequence stated
+  rather than hidden: in light, a failed request and the Start button are very
+  nearly the same red, so an error has to say what is wrong in words and the
+  colour can only agree with them. The number is recorded in `RECORDED` and
+  the separation gate now names the default as its one exemption, so the hole
+  is visible and a drift still fails. Families that used to inherit M3's red
+  error declare their own, so the four candidates still record their collision
+  honestly.
+
+  It is laddered rather than pinned, unlike the brand, for a reason that is
+  not stylistic: #ED424A carries white at 3.83:1 and reads on a light page at
+  3.64:1, falling to 2.96:1 on `surface-container-highest`. `text-error` is
+  body copy, so the role is the readable tone of that red — #bb162a in light,
+  #ffb3b0 in dark.
 - **Red no longer means "wrong".** "End" is an M3 filled-tonal button
   (`Button variant="neutral"`), a liked session is the brand, and the ad lane
   in Insights is `tertiary`. `CLAUDE.md`'s one-line "no red for ordinary
