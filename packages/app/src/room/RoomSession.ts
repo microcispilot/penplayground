@@ -18,6 +18,7 @@ import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
 import {
+  errorCodeFor,
   reportClientError,
   setAnalyticsContext,
   setRoomReporter,
@@ -339,7 +340,23 @@ export class RoomSession {
             },
           });
       },
-      onError: (area, error) => console.warn(`[${area}]`, error),
+      /**
+       * To Sentry, not to the console.
+       *
+       * Every failure `RoomAudio` reports is one of: minting the media
+       * token, connecting the media room, publishing the microphone,
+       * unpublishing it, resuming playback, or giving up after five
+       * connection attempts. Each of those is a learner whose voice or
+       * hearing in the room has stopped working, and each one used to reach
+       * `console.warn` and nothing else — invisible to us, while the
+       * playback and microphone paths beside it have always reported
+       * properly. `CLAUDE.md`: never swallow an error silently.
+       *
+       * The code is derived from the area so the issues group the way the
+       * other two paths' do (`PEN_ROOMS_AUDIO_PUBLISH`, and so on).
+       */
+      onError: (area, error) =>
+        reportClientError(`PEN_${area.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`, error, 'rooms'),
       onRemoteSpeaking: (speaking) => {
         this.remoteSpeaking = speaking;
         this.syncPlaybackActive();
@@ -655,11 +672,7 @@ export class RoomSession {
           set({ notice: { text: line, tone: 'neutral' } });
           return;
         }
-        reportClientError(
-          `PEN_STT_${code.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
-          error,
-          'stt',
-        );
+        reportClientError(errorCodeFor(`stt.${code}`), error, 'stt');
       },
     };
   }

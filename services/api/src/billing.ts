@@ -134,12 +134,16 @@ export class Billing {
         const terms = await this.termsOf(s.subscription);
         if (participantId && plan) {
           const before = await this.participants.get(participantId);
-          await this.participants.setPlan(participantId, plan, customer, {
+          const applied = await this.participants.setPlan(participantId, plan, customer, {
             interval: terms.interval,
             status: terms.status ?? 'active',
             since: new Date(event.created * 1000),
           });
+          // The ledger is written either way: an event that arrived out of
+          // order still happened, and `recordPlanEvent` is deduplicated by
+          // event, so the history stays true even when the row does not move.
           this.record(event.created * 1000, participantId, before?.plan ?? null, plan, terms);
+          if (!applied) observer.event('billing.out_of_order', { type: event.type, plan });
         }
         observer.event('billing.checkout_completed', {
           plan: plan ?? 'unknown',
@@ -161,7 +165,7 @@ export class Billing {
             : (planFrom(sub.metadata?.plan) ?? 'free');
         const terms = termsOfSubscription(sub);
         const before = await this.participants.get(participantId);
-        await this.participants.setPlan(
+        const applied = await this.participants.setPlan(
           participantId,
           plan,
           typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
@@ -174,7 +178,14 @@ export class Billing {
           },
         );
         this.record(event.created * 1000, participantId, before?.plan ?? null, plan, terms);
-        observer.event('billing.subscription', { type: event.type, status: sub.status, plan });
+        observer.event('billing.subscription', {
+          type: event.type,
+          status: sub.status,
+          plan,
+          // False is the interesting one: a retry that arrived after the
+          // event which superseded it, and was refused rather than applied.
+          applied,
+        });
         return { handled: true, type: event.type };
       }
       default:

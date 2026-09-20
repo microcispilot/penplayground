@@ -220,6 +220,31 @@ describe('the shutdown path', () => {
       expect(await services.reports.session(room.record.id), room.record.id).not.toBeNull();
   }, 120_000);
 
+  /**
+   * And it is told apart from a learner who walked away. A deploy landing
+   * mid-lesson used to read as `left_mid_segment` — our own releases in the
+   * drop-off curve the product is judged by, quietly flattering or damning
+   * it depending on when we shipped.
+   */
+  it('a lesson we stopped is interrupted, not abandoned', async () => {
+    const live = await rooms.create({
+      topic: 'Reading an ECG strip',
+      host: { id: 'p_shutdown_reason', name: 'Sam', plan: 'free' },
+      band: 'beginner',
+      visibility: 'private',
+    });
+    const id = live.record.id;
+    // Before the lesson can finish: a completed lesson is `completed`
+    // whatever closed the room, which is the rule this must not break.
+    await rooms.end(id, 'shutdown');
+    await services.deriver.flush();
+
+    const detail = await services.reports.session(id);
+    expect(detail?.session.leaveReason).toBe(
+      detail?.session.completed ? 'completed' : 'interrupted',
+    );
+  }, 120_000);
+
   it('ending them all again is nothing to do, not an error', async () => {
     expect(await rooms.endAll('shutdown')).toBe(0);
   });

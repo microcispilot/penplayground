@@ -272,19 +272,24 @@ export function deriveSession(input: DeriveInput): DerivedSession {
 
   const leaveReason: LeaveReason = completed
     ? 'completed'
-    : input.endReason === 'length_ceiling'
-      ? 'length_ceiling'
-      : !everAudible
-        ? 'never_started'
-        : adPlayingAtEnd
-          ? 'left_during_ad'
-          : lastErrorCode !== null
-            ? 'left_after_error'
-            : segmentsReached > 0
-              ? 'left_mid_segment'
-              : input.endReason === 'idle'
-                ? 'idle_timeout'
-                : 'unknown';
+    : // Above every `left_*` answer, because the learner did not leave: we
+      // did. A deploy in the middle of a lesson belongs in its own bucket,
+      // not in the drop-off curve the product is judged by.
+      input.endReason === 'shutdown'
+      ? 'interrupted'
+      : input.endReason === 'length_ceiling'
+        ? 'length_ceiling'
+        : !everAudible
+          ? 'never_started'
+          : adPlayingAtEnd
+            ? 'left_during_ad'
+            : lastErrorCode !== null
+              ? 'left_after_error'
+              : segmentsReached > 0
+                ? 'left_mid_segment'
+                : input.endReason === 'idle'
+                  ? 'idle_timeout'
+                  : 'unknown';
 
   // Reuse of the card and the picture is not in `ReuseSummary` — those jobs run
   // beside the lesson, not inside it — so they are read off their own samples.

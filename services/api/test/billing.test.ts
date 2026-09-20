@@ -39,12 +39,32 @@ class FakeParticipants {
   async get(id: string): Promise<Row | null> {
     return this.rows.get(id) ?? null;
   }
-  async setPlan(id: string, plan: Row['plan'], stripeCustomerId?: string): Promise<void> {
+  /**
+   * Honours `since` the way the real repository does, because that ordering
+   * guard is the whole subject of `a retried webhook…` below. Everything
+   * else here is still the simplest thing that answers.
+   */
+  async setPlan(
+    id: string,
+    plan: Row['plan'],
+    stripeCustomerId?: string,
+    billing?: { interval?: 'month' | 'year' | null; status?: string | null; since?: Date },
+  ): Promise<boolean> {
     this.setPlanCalls.push({ id, plan, customer: stripeCustomerId });
     const row = this.rows.get(id);
-    if (!row) return;
+    if (!row) return false;
+    const stored = (row as Row & { planSince?: Date }).planSince;
+    if (billing?.since && stored) {
+      // The real repository's rule: strictly newer wins, and a cancellation
+      // wins a tie (packages/db/src/participants.ts).
+      const older = stored.getTime() > billing.since.getTime();
+      const tie = stored.getTime() === billing.since.getTime();
+      if (older || (tie && plan !== 'free')) return false;
+    }
     row.plan = plan;
+    if (billing?.since) (row as Row & { planSince?: Date }).planSince = billing.since;
     if (stripeCustomerId) row.stripeCustomerId = stripeCustomerId;
+    return true;
   }
   asRepository(): ParticipantRepository {
     return this as unknown as ParticipantRepository;
@@ -79,12 +99,12 @@ function sign(payload: string, secret = WEBHOOK_SECRET): string {
   return new Stripe('sk_test_signer').webhooks.generateTestHeaderString({ payload, secret });
 }
 
-function event(type: string, object: Record<string, unknown>): string {
+function event(type: string, object: Record<string, unknown>, createdAt?: number): string {
   return JSON.stringify({
-    id: `evt_${type.replace(/\W/g, '_')}`,
+    id: `evt_${type.replace(/\W/g, '_')}_${createdAt ?? ''}`,
     object: 'event',
     api_version: '2026-06-24.dahlia',
-    created: Math.floor(Date.now() / 1000),
+    created: createdAt ?? Math.floor(Date.now() / 1000),
     livemode: false,
     pending_webhooks: 1,
     request: { id: null, idempotency_key: null },
@@ -385,5 +405,78 @@ describe('Billing.webhook', () => {
     await expect(billing.webhook(payload, 'garbage')).rejects.toThrow();
     expect(participants.setPlanCalls).toEqual([]);
     expect(participants.rows.get('p_1')?.plan).toBe('free');
+  });
+});
+
+/**
+ * Stripe delivers at least once and in no particular order, and retries a
+ * failed delivery for days. So the event that made a subscription active can
+ * arrive *after* the one that cancelled it — and an unconditional write then
+ * restores a cancelled subscriber's entitlements, permanently: the row
+ * afterwards looks like an ordinary paying customer, and no later event is
+ * coming to correct it.
+ */
+describe('a retried webhook that arrives after the one that superseded it', () => {
+  const SUBSCRIBED = 1_789_000_000;
+  const CANCELLED = SUBSCRIBED + 60;
+
+  it('does not bring a cancelled subscription back', async () => {
+    const participants = new FakeParticipants();
+    participants.add({ id: 'p_1', plan: 'standard', stripeCustomerId: 'cus_1' });
+    const billing = new Billing(configured(), participants.asRepository());
+    const subscription = {
+      id: 'sub_1',
+      object: 'subscription',
+      customer: 'cus_1',
+      metadata: { participantId: 'p_1', plan: 'standard' },
+    };
+
+    const cancelled = event(
+      'customer.subscription.deleted',
+      { ...subscription, status: 'canceled' },
+      CANCELLED,
+    );
+    await billing.webhook(cancelled, sign(cancelled));
+    expect(participants.rows.get('p_1')?.plan).toBe('free');
+
+    // A minute older, delivered now: the update Stripe could not deliver
+    // when it happened.
+    const retried = event(
+      'customer.subscription.updated',
+      { ...subscription, status: 'active' },
+      SUBSCRIBED,
+    );
+    await expect(billing.webhook(retried, sign(retried))).resolves.toMatchObject({
+      handled: true,
+    });
+
+    expect(participants.rows.get('p_1')?.plan, 'the cancellation stands').toBe('free');
+  });
+
+  it('still applies one that really is newer', async () => {
+    const participants = new FakeParticipants();
+    participants.add({ id: 'p_2', plan: 'free', stripeCustomerId: 'cus_2' });
+    const billing = new Billing(configured(), participants.asRepository());
+    const subscription = {
+      id: 'sub_2',
+      object: 'subscription',
+      customer: 'cus_2',
+      metadata: { participantId: 'p_2', plan: 'professional' },
+    };
+    const first = event(
+      'customer.subscription.updated',
+      { ...subscription, status: 'active' },
+      SUBSCRIBED,
+    );
+    await billing.webhook(first, sign(first));
+    expect(participants.rows.get('p_2')?.plan).toBe('professional');
+
+    const cancelled = event(
+      'customer.subscription.deleted',
+      { ...subscription, status: 'canceled' },
+      CANCELLED,
+    );
+    await billing.webhook(cancelled, sign(cancelled));
+    expect(participants.rows.get('p_2')?.plan).toBe('free');
   });
 });

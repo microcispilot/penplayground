@@ -186,6 +186,8 @@ export function hourLabel(hour: number): string {
  */
 const LEAVE_REASONS: Record<string, string> = {
   completed: 'Reached the recap',
+  // Not "stopped part-way through": the learner did not stop, we did.
+  interrupted: 'Interrupted by a deploy',
   length_ceiling: 'Hit the plan’s length limit',
   never_started: 'No audio ever played',
   left_during_ad: 'Left during an ad',

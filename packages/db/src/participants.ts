@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, lt, lte, or } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { type ParticipantRow, participants, sessions } from './schema.js';
 
@@ -164,10 +164,33 @@ export class ParticipantRepository {
     billing?: {
       interval?: 'month' | 'year' | null;
       status?: string | null;
+      /**
+       * When the change happened at Stripe — `event.created`, not now.
+       *
+       * It is also the **ordering guard**. Webhooks are at-least-once and in
+       * no particular order: Stripe retries a failed delivery for days, so a
+       * `customer.subscription.updated` can land minutes after the
+       * `customer.subscription.deleted` that superseded it. This used to be
+       * an unconditional UPDATE, which meant that retry restored a cancelled
+       * subscriber's entitlements — and nothing would ever correct it,
+       * because the row looks like a perfectly ordinary paying customer.
+       *
+       * So a write only applies when it is strictly newer than the one on
+       * the row — with one deliberate exception. Stripe's `created` is in
+       * whole seconds, and two events inside one second are simultaneous as
+       * far as anything here can tell, so a tie is decided by which mistake
+       * is recoverable: **a cancellation wins a tie.** Refusing one would
+       * leave a cancelled subscriber entitled for ever, because no further
+       * event is coming; refusing an upgrade costs the subscriber minutes
+       * until the next event, and Stripe sends plenty.
+       *
+       * Omitted, the write is unconditional — which is right for the places
+       * that are not a webhook (a test, a manual grant).
+       */
       since?: Date;
     },
-  ): Promise<void> {
-    await this.db
+  ): Promise<boolean> {
+    const applied = await this.db
       .update(participants)
       .set({
         plan,
@@ -176,7 +199,21 @@ export class ParticipantRepository {
         ...(billing?.status !== undefined ? { planStatus: billing.status } : {}),
         ...(billing?.since !== undefined ? { planSince: billing.since } : {}),
       })
-      .where(eq(participants.id, id));
+      .where(
+        billing?.since === undefined
+          ? eq(participants.id, id)
+          : and(
+              eq(participants.id, id),
+              or(
+                isNull(participants.planSince),
+                plan === 'free'
+                  ? lte(participants.planSince, billing.since)
+                  : lt(participants.planSince, billing.since),
+              ),
+            ),
+      )
+      .returning();
+    return applied.length > 0;
   }
 
   /** Everyone who has turned analytics off: the visit ingest checks this set. */

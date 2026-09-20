@@ -370,3 +370,37 @@ afterwards, each with a test that fails on an unchanged checkout.
       when we did. One enum member in `packages/contracts/src/stats.ts` plus
       a branch in `derive.ts` — deliberately not done while the statistics
       pages were being written against the current set.
+- [x] **Stripe webhooks apply plan changes in order.** `setPlan` was an
+      unconditional UPDATE, and Stripe delivers at least once, in no order,
+      retrying a failed delivery for days — so a `subscription.updated`
+      landing after the `subscription.deleted` that superseded it **restored
+      a cancelled subscriber's entitlements**, permanently: the row
+      afterwards looks like an ordinary paying customer and no later event is
+      coming. `planSince` is Stripe's `event.created` and is now the guard as
+      well as the record. A tie (whole seconds, so two events in one second
+      are simultaneous as far as anything here can tell) is decided by which
+      mistake is recoverable: **a cancellation wins.** Refusing one would
+      leave a cancelled subscriber entitled for ever; refusing an upgrade
+      costs minutes. The ledger is still written either way — an event that
+      arrived out of order still happened — and `billing.subscription` now
+      reports `applied`, whose false is the interesting one.
+- [x] **`WS_LIMITS` covers the whole protocol.** It had buckets for the
+      chatty families and none for the expensive ones: `auth` verifies a JWT,
+      `join` reads the session row, `progress` walks every lesson sentence
+      between reports, `utterance_start`/`end` open and close a **paid**
+      recognition — and upstream audio, the binary branch, had no ceiling at
+      all and is the one that streams. `ws-limits.test.ts` asserts the table
+      covers every `ClientMessage` kind, so a new message with no bucket
+      fails a test rather than shipping unlimited.
+- [x] **Room-audio failures reach Sentry.** Every failure `RoomAudio`
+      reports — the media token, the connection, publish, unpublish, playback,
+      giving up after five attempts — is a learner whose voice or hearing in
+      the room has stopped, and every one of them went to `console.warn` and
+      nowhere else, while the playback and microphone paths beside it have
+      always reported properly. `errorCodeFor` shapes the code both paths use
+      and is idempotent, because a code that changes shape splits one Sentry
+      issue into two and makes the older one look resolved.
+- [x] **`LeaveReason` gained `interrupted`.** A lesson the process shut down
+      under read as `left_mid_segment` — our own releases inside the drop-off
+      curve the product is judged by. It ranks above every `left_*` answer,
+      because the learner did not leave: we stopped.

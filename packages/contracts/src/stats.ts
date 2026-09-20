@@ -41,10 +41,18 @@ export const STATS_SCHEMA_VERSION = 1;
  *                       purpose: it says how the *room* closed, not why the
  *                       *person* left, and when both are true the other
  *                       answer is the useful one.
- * 8. `unknown`          a ledger that fits none of the above.
+ * 8. `interrupted`      the process shut down under a live lesson — a
+ *                       deploy, almost always. It ranks above the
+ *                       `left_*` answers because the learner did not leave:
+ *                       we stopped. Counting it as "stopped part-way
+ *                       through" would put our own releases into the
+ *                       learner's drop-off curve and quietly flatter or
+ *                       damn the product with them.
+ * 9. `unknown`          a ledger that fits none of the above.
  */
 export const LeaveReason = z.enum([
   'completed',
+  'interrupted',
   'left_during_ad',
   'left_after_error',
   'left_mid_segment',

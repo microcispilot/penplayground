@@ -47,6 +47,7 @@ type SortKey = keyof typeof SORTABLE;
 
 const LEAVE_REASONS = [
   'completed',
+  'interrupted',
   'length_ceiling',
   'never_started',
   'left_during_ad',

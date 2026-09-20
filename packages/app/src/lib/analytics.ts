@@ -234,6 +234,26 @@ export function trackInteraction(
 }
 
 /** A client-side failure: captured (content-free) and, in a room, written to the ledger with its Sentry ref. */
+/**
+ * A dotted area name — `rooms.audio.publish`, `stt.no_speech` — as the code
+ * an issue groups by: `PEN_ROOMS_AUDIO_PUBLISH`.
+ *
+ * Two callers shape it the same way and used to each write the expression
+ * out; a third would have made three. What matters is that it is stable,
+ * because a code that changes shape splits one Sentry issue into two and the
+ * older one looks resolved.
+ */
+export function errorCodeFor(area: string): string {
+  const body = area
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  // Idempotent: a code that has already been shaped comes back unchanged
+  // rather than as `PEN_PEN_…`, so passing one through twice — which is what
+  // a refactor does before anyone notices — cannot split a Sentry issue.
+  return body.startsWith('PEN_') ? body : `PEN_${body}`;
+}
+
 export function reportClientError(code: string, error: unknown, stage?: string): string | null {
   const ref = monitor?.captureError(code, error, { ...context, stage: stage ?? null }) ?? null;
   trackInteraction('error_shown', ref ? { code, ref } : { code });

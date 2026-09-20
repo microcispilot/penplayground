@@ -128,7 +128,16 @@ function anonymise<T extends { hostId: string; hostName: string }>(record: T): T
  * transcripts, ad steps — so these are set well above what the product
  * produces and only catch a client that has stopped behaving like one.
  */
-const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
+/**
+ * Every message family a socket can send, and how many of them a minute.
+ *
+ * Exported so `ws-limits.test.ts` can assert that the table covers the whole
+ * of `ClientMessage`: a family with no entry here is not rate limited at
+ * all, and the ones that were missing — `auth`, `join`, `progress`,
+ * `utterance_start`/`end`, and the binary audio branch — each reach a JWT
+ * verification, a database read, the TTS lookahead or a paid recogniser.
+ */
+export const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
   report: { limit: 240, windowMs: 60_000 },
   ad_event: { limit: 60, windowMs: 60_000 },
   /** Interim transcripts stream while someone speaks. */
@@ -145,6 +154,32 @@ const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
    * has stopped behaving like one.
    */
   reaction: { limit: 120, windowMs: 60_000 },
+  /**
+   * The rest of the protocol, which had no bucket at all until every family
+   * was checked against this table. Each of these reaches something that
+   * costs: `auth` verifies a JWT, `join` reads the session row and builds a
+   * seat, `progress` walks every lesson sentence between reports and moves
+   * the TTS lookahead, and `utterance_start`/`end` open and close a
+   * server-side recognition — which is a paid provider.
+   *
+   * The numbers are "far more than the product can produce, far less than a
+   * loop": one authentication per socket becomes sixty, one join becomes
+   * sixty, and progress is reported a few times a second at most.
+   */
+  auth: { limit: 60, windowMs: 60_000 },
+  join: { limit: 60, windowMs: 60_000 },
+  progress: { limit: 600, windowMs: 60_000 },
+  utterance_start: { limit: 300, windowMs: 60_000 },
+  utterance_end: { limit: 300, windowMs: 60_000 },
+  resumed: { limit: 120, windowMs: 60_000 },
+  /**
+   * Upstream audio, which is not a `kind` at all — it is the binary branch,
+   * and it was the one family that could reach a paid recogniser with no
+   * ceiling whatever. 20 ms frames at 50 a second is 3,000 a minute; this is
+   * four times that, so a client streaming normally never sees it and one
+   * replaying a capture as fast as it can does.
+   */
+  audio: { limit: 12_000, windowMs: 60_000 },
 };
 /** Frames that fail Zod before the socket is closed. One is a bug; ten is a client to stop talking to. */
 const MAX_BAD_FRAMES = 10;
@@ -1636,6 +1671,8 @@ export function buildApp(services: Services): App {
       let authTimer: NodeJS.Timeout | null = null;
       /** Frames this socket sent that were not valid protocol. */
       let badFrames = 0;
+      /** Said once per socket: a flood is frames, and one report per frame is another flood. */
+      let audioFloodReported = false;
       /** Characters of recognised speech this socket has sent. */
       let transcriptChars = 0;
       /** One token bucket per message family, per socket (the socket is one participant). */
@@ -1729,6 +1766,15 @@ export function buildApp(services: Services): App {
                   ? new Uint8Array(await evt.data.arrayBuffer())
                   : null;
             if (!bytes) return;
+            if (!allow('audio')) {
+              // Quietly: an audio flood is frames, not sentences, and one
+              // `fail` per frame would be its own flood.
+              if (!audioFloodReported) {
+                audioFloodReported = true;
+                observer.event('ws.audio_flood', { sessionId });
+              }
+              return;
+            }
             const { header, pcm } = decodeAudioFrame(bytes);
             if (header.dir !== 'up') return;
             if (!services.recognizer) {
