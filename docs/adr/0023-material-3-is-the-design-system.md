@@ -183,20 +183,30 @@ must not change between themes:
   #353535. That is arithmetic, not a shortage of imagination, and
   `brand-generator.test.ts` proves it with black and white as witnesses so
   nobody goes looking for the hex that would have worked.
-- **The containers are split, and the split is the point.** What the owner
-  rejected was not hue, it was *M3's* hue: `secondary-container` generated
-  from a red seed is a brown-orange, and a page of those turns brown-rose
-  while the red stops reading as red. Both containers went neutral at first,
-  which removed the brown and went one step too far — the owner, looking at
-  it: *"Why do I see less red? Only the sign in button shows red. Why not
-  the background of the selected tab item?"* Fair. **Selected** is the one
-  state a person is actively looking for on a page, so `secondary-container`
-  — the sidebar's active row, a chosen chip, a pressed toggle — carries the
-  brand itself, at `#E62117` with white on it (4.57:1). `primary-container`
-  stays a platform grey: it sits beside Sign in and under the pagination,
-  and two brand-red fills competing in one corner is neither of them.
-  `Progress`'s track moved off `secondary-container` for the same reason —
-  a red fill on a red track is one bar with no reading.
+- **Every container fill is a platform grey, and selected is named in the
+  brand.** This took three passes and each one is worth keeping, because the
+  wrong answers were wrong in different directions.
+
+  M3's own answer for a red seed is a brown-orange `secondary-container`,
+  which the owner rejected on sight and rightly: a page of those turns
+  brown-rose and the red stops reading as red. Neutralising the fill *and*
+  the label fixed the brown and lost the brand — *"Why do I see less red?
+  Only the sign in button shows red. Why not the background of the selected
+  tab item?"* A saturated red fill put it back and read as loud: a solid
+  block on the one row a person keeps returning to.
+
+  The resolution is that the pill and the label are two decisions, and only
+  one of them has to be red — *"maybe instead of the background of selected
+  item to be red, you just make the previous background but make the text
+  red instead."* So the fill is `surface-container-highest`, the grey behind
+  every other raised thing, and the label and icon are `primary`: 5.00:1 in
+  light, 4.83:1 in dark. It is `primary` and not `primary-fixed`, and the
+  numbers are why — `#E62117` on those greys is 3.53:1 and 2.68:1. That is
+  the clearest illustration in the system of what the two halves are for.
+
+  `Progress`'s track moved to an explicit `surface-container-highest` while
+  `secondary-container` was briefly red, and stayed there: a track should
+  name the neutral it wants rather than borrow a role that means selected.
 - **The error role is the owner's #ED424A**, and this is the one place the
   measurement lost. Error was first moved to a magenta at hue 341, because a
   rose error is ΔE 0.095 from this red — inside the 0.15 that

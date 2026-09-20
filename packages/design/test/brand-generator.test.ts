@@ -437,39 +437,38 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
   });
 
   /**
-   * What the owner rejected in the candidates was not hue, it was *M3's*
-   * hue: `secondary-container` generated from a red seed is a brown-orange,
-   * and a page of those turns brown-rose while the red stops reading as red.
-   * So the containers are split rather than all neutralised.
-   *
-   * `secondary-container` is selected — the sidebar's active row, a chosen
-   * chip, a pressed toggle — and selected is the one state a person is
-   * looking for on a page, so it carries the brand itself.
-   * `primary-container` is the quieter surface behind Sign in's neighbours
-   * and the pagination, and stays a platform grey: two brand-red fills
-   * competing in one corner is neither of them.
+   * Selected — a nav row you are on, a chosen chip, a pressed toggle — is a
+   * platform grey **named in the brand**. The pill and the label are two
+   * decisions and only one of them has to be red: M3's generated fill for a
+   * red seed is a brown, a neutral fill with a neutral label loses the brand
+   * entirely, and a saturated red fill is a block on the one row a person
+   * keeps looking at. The grey carries the shape; the words carry the brand.
    */
-  it.each(['light', 'dark'] as const)('%s: selected carries the brand', (theme) => {
-    const block = themeBlock(theme);
-    expect(declared(block, 'secondary-container')).toBe(brand(theme));
-    const on = declared(block, 'on-secondary-container') ?? '';
-    expect(
-      contrast(rgb(on), rgb(brand(theme))),
-      `${on} on the selected fill ${brand(theme)}`,
-    ).toBeGreaterThan(4.5);
-  });
-
-  it.each(['light', 'dark'] as const)('%s: the quieter containers stay grey', (theme) => {
+  it.each(['light', 'dark'] as const)('%s: every container fill is a platform grey', (theme) => {
     const block = themeBlock(theme);
     const neutral = new Set(
       ['surface-container-high', 'surface-container-highest', 'surface-container', 'on-surface']
         .map((role) => declared(block, role))
         .filter((hex): hex is string => hex !== undefined),
     );
-    for (const role of ['primary-container', 'on-primary-container']) {
+    for (const role of ['primary-container', 'on-primary-container', 'secondary-container']) {
       const hex = declared(block, role) ?? '';
       expect(neutral, `--color-${role} is ${hex}, which is not a platform neutral`).toContain(hex);
     }
+  });
+
+  it.each(['light', 'dark'] as const)('%s: and selected says so in the brand', (theme) => {
+    const block = themeBlock(theme);
+    const label = declared(block, 'on-secondary-container') ?? '';
+    const fill = declared(block, 'secondary-container') ?? '';
+    // The toned role, not the fixed one, and this is the number that decides
+    // it: #E62117 on these greys is 3.53:1 and 2.68:1.
+    expect(label, 'selected is labelled in `primary`').toBe(declared(block, 'primary'));
+    expect(contrast(rgb(label), rgb(fill)), `${label} on ${fill}`).toBeGreaterThan(4.5);
+    expect(
+      contrast(rgb(brand(theme)), rgb(fill)),
+      'and the fixed brand could not have carried it',
+    ).toBeLessThan(4.5);
   });
 
   /**

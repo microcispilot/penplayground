@@ -242,21 +242,31 @@
   --color-on-primary-fixed: #ffffff;
 
   /*
-   * secondary: the fill under a selected nav row, a selected chip, a pressed
-   * toggle. It carries the brand.
+   * secondary: the selected state — a nav row you are on, a chosen chip, a
+   * pressed toggle. **A platform grey, named in the brand.**
    *
-   * It was neutral at first, on the reasoning that a red spreading into every
-   * container is the red that turns pale — which is true of the *tinted*
-   * containers M3 generates (the brown-orange pill the owner rejected) and
-   * not of the brand red itself. Selected is the one state a person is
-   * looking for on a page, so it is the one place besides Sign in and Start
-   * where the brand belongs. `secondary` itself stays neutral: it is the
-   * focus ring and a headline, and neither should be red.
+   * Three passes to get here, and the middle one is why the comment is long.
+   * M3's own answer for a red seed is a brown-orange fill, which the owner
+   * rejected on sight and rightly: a page of those turns brown-rose and the
+   * red stops reading as red. Neutralising the fill *and* the label fixed
+   * the brown and lost the brand — "only the sign in button shows red". A
+   * red fill then put it back, and read as loud: a saturated block on the
+   * one row you keep looking at.
+   *
+   * The pill and the label are two decisions, and only one of them has to
+   * be red. So: the fill is `surface-container-highest`, the same grey
+   * behind every other raised thing, and the *label and icon* are `primary`
+   * — 5.00:1 in light, 4.83:1 in dark. Note that it is `primary` and not
+   * `primary-fixed`: #E62117 on this grey is 3.53:1 and 2.68:1, which is
+   * exactly the reason `primary` is toned per theme and the brand is not.
+   *
+   * `secondary` itself stays neutral. It is the focus ring and a headline,
+   * and neither of those should be red.
    */
   --color-secondary: #474747;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #e62117;
-  --color-on-secondary-container: #ffffff;
+  --color-secondary-container: #e2e2e2;
+  --color-on-secondary-container: #c00003;
 
   --color-tertiary: #585c7e;
   --color-on-tertiary: #ffffff;
@@ -492,8 +502,8 @@
     --color-inverse-primary: #c00003;
     --color-secondary: #c6c6c6;
     --color-on-secondary: #1b1b1b;
-    --color-secondary-container: #e62117;
-    --color-on-secondary-container: #ffffff;
+    --color-secondary-container: #353535;
+    --color-on-secondary-container: #ff7a6e;
     --color-tertiary: #c1c4eb;
     --color-on-tertiary: #2a2e4d;
     --color-tertiary-container: #414465;
@@ -539,8 +549,8 @@
   --color-inverse-primary: #c00003;
   --color-secondary: #c6c6c6;
   --color-on-secondary: #1b1b1b;
-  --color-secondary-container: #e62117;
-  --color-on-secondary-container: #ffffff;
+  --color-secondary-container: #353535;
+  --color-on-secondary-container: #ff7a6e;
   --color-tertiary: #c1c4eb;
   --color-on-tertiary: #2a2e4d;
   --color-tertiary-container: #414465;
