@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --port 5174",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@pen/contracts": "workspace:*",
@@ -21,6 +22,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/react": "16.3.3",
     "@types/react": "19.3.0",
@@ -28,6 +30,7 @@
     "@vitejs/plugin-react": "6.1.1",
     "happy-dom": "20.14.5",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vite": "8.3.0",
     "vitest": "5.0.1"

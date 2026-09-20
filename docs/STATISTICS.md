@@ -354,6 +354,72 @@ that cost when it was.
 
 ---
 
+## The console that reads it
+
+The pages live in `apps/admin/src/screens/statistics/` and are reached from
+the operations console's own nav (ADR-0026). Thirteen endpoints, seven pages,
+cut by the **question being asked** rather than by the route that answers it —
+one scrolling page would put the cost of a lesson, a cohort grid and a list of
+browsers in the same breath, and a page per endpoint would leave several of
+them holding six numbers.
+
+| Page | Answers | Reads |
+|---|---|---|
+| Overview | the headline, and the way in to the other six | `/overview`, `/cost`, `/visits` |
+| Money | what the product spends and what it earns | `/cost`, `/plans` |
+| Sessions | one lesson at a time, and what later lessons took from it | `/sessions`, `/sessions/:id`, `/reuse` |
+| Pipeline | where time and money go inside a lesson, what failed, where the learner stopped | `/stages`, `/abandonment` |
+| People | who they are, how long they spent, whether they came back | `/users`, `/users/:id`, `/retention`, `/overview` |
+| Visits | what happens on the site, signed in or not | `/visits` |
+| Audience | where they are, on what, and when | `/geography`, `/devices`, `/clock` |
+
+`/reuse/:id` is the one route with no page of its own, deliberately: its whole
+content — "reused fourteen times, for these searches" — already arrives with
+`/sessions/:id`, which returns the same `gaveTo` block plus everything else
+about that lesson. `/reuse` itself ranks the lessons others lean on, at the
+top of Sessions; its totals reach Overview inside `/overview`'s own payload.
+
+**The range.** One control for the whole section, above the tabs, held in the
+URL as a *preset* (`?range=7d`) rather than as resolved milliseconds, so a
+reload keeps it and a link carries it without freezing "the last seven days"
+to the seven days it was copied on. Its default reproduces the API's own:
+thirty days, by day. `apps/admin/test/range.test.ts` asserts that against
+`DEFAULT_WINDOW_MS` and `MAX_WINDOW_MS` read out of `routes.ts` itself, so the
+two cannot drift apart. The bucket selector appears only on the pages that
+read a bucket.
+
+**Charts, without a chart library.** A sparkline, a run of columns, a bar
+behind a table row, a heat grid and a stacked lane — the geometry is about a
+hundred lines in `apps/admin/src/charts/geometry.ts`, pure and unit-tested, and
+the components do nothing but turn those numbers into elements. Everything is
+drawn in the brand at varying weight rather than in a categorical palette: the
+design system's other hues each carry a meaning (`presence`, `warm`,
+`success`, `error`), and borrowing one to mean "yearly subscribers" would say
+something untrue on the page where being untrue matters most.
+
+**Honesty on the page.** `/geography`'s `note` is printed verbatim rather than
+paraphrased, and the region and city columns are kept and left visibly empty —
+the owner asked for countries, regions and cities, and hiding the two that
+cannot be answered would answer a different question. `/visits` prints the
+server's own definition of engaged time beside the tile that carries it. A
+cohort period that has not happened yet is drawn as an empty cell, never as
+0 %. A null is an em dash and a zero is a zero: "no audio ever played" and "no
+time at all" are different facts.
+
+**What the console cannot show yet.** There is no window total for replays,
+shares, downloads or exports: `session_engagement` is only joined per session
+(`SessionListRow.replays`/`shares`, `SessionDetail.downloads`/`exports`), so
+those numbers are on the Sessions list and a lesson's own page and nowhere
+else. The smallest honest fix is one more aggregate in
+`ReportRepository` — `select sum(replays), sum(shares), sum(downloads),
+sum(exports) from session_engagement e join session_stats t using (session_id)
+where t.started_at >= $from and t.started_at < $to` — surfaced on `/overview`.
+It was not added here because `packages/db` was outside the change's fence.
+`ORDERABLE` likewise has no `replays` or `shares` key, so the Sessions list
+sorts by views but not by either of those.
+
+---
+
 ## The published privacy policy, and what it does and does not cover
 
 **The policy is unchanged, by the owner's instruction.** They were asked
@@ -531,3 +597,14 @@ only facts about sessions the product already stores.
 - **`plan_interval` is blank for every subscription that predates it** and
   fills in on that customer's next Stripe webhook. Nothing can backfill it but
   Stripe.
+- **The console has never rendered a real answer.** Every page has been driven
+  end to end in Chromium (`apps/admin/e2e/statistics.spec.ts`) and in
+  happy-dom (`apps/admin/test/statistics-screen.test.tsx`), but against a
+  deterministic fixture rather than against the API — a month of derived
+  sessions and visits is not something either suite can produce. The fixture
+  is parsed by the *same* zod schemas the console parses a live answer with
+  (`apps/admin/src/lib/stats-schemas.ts`), and those schemas are written
+  against `routes.ts` and `packages/db/src/reports.ts` column by column, so a
+  shape that drifts fails a test. What is still unproved is the round trip:
+  point the console at a live API with rows in it and read the numbers. The
+  review pictures are in `.pen-data/admin-review/`.

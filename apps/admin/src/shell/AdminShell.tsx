@@ -10,18 +10,16 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   end?: boolean;
-  /** Announced and styled as not yet here; another agent is building these. */
-  soon?: boolean;
 }
 
 /**
  * The console's navigation. One array, so a page that lands next week is one
- * line here and nothing else (ADR-0026) — statistics are already named so the
- * shape of the console is honest about what is coming.
+ * line here and nothing else (ADR-0026). Statistics is a section rather than
+ * a page: the link lands on its overview and the section carries its own tabs.
  */
 const NAV: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: SlidersHorizontal },
-  { to: '/statistics', label: 'Statistics', icon: BarChart3, soon: true },
+  { to: '/statistics', label: 'Statistics', icon: BarChart3 },
 ];
 
 export function AdminShell() {
@@ -43,19 +41,6 @@ export function AdminShell() {
         <nav className="flex flex-1 flex-col gap-1 p-2">
           {NAV.map((item) => {
             const Icon = item.icon;
-            if (item.soon)
-              return (
-                <span
-                  key={item.to}
-                  title={`${item.label} — coming soon`}
-                  aria-disabled="true"
-                  className="flex h-11 items-center justify-center gap-3 rounded-full px-3 text-label-large text-on-surface-variant/55 sm:justify-start"
-                >
-                  <Icon size={19} className="shrink-0" aria-hidden />
-                  <span className="hidden sm:inline">{item.label}</span>
-                  <span className="hidden text-body-small sm:ml-auto sm:inline">Soon</span>
-                </span>
-              );
             return (
               <NavLink
                 key={item.to}
@@ -103,9 +88,7 @@ export function AdminShell() {
       </aside>
 
       <main className="min-w-0 flex-1 px-5 py-8 sm:px-10">
-        <div className="mx-auto w-full max-w-[1000px]">
-          <Outlet />
-        </div>
+        <Outlet />
       </main>
     </div>
   );
@@ -116,15 +99,28 @@ export function ConsolePage({
   title,
   intro,
   actions,
+  width = 'default',
   children,
 }: {
   title: string;
   intro?: ReactNode;
   actions?: ReactNode;
+  /**
+   * `wide` is for the statistics pages and only for them: a cohort grid and
+   * a session table have columns that a 1000 px measure turns into a
+   * horizontal scrollbar on a desktop. Prose stays at `default`, because a
+   * paragraph 1280 px wide is unreadable however much room there is.
+   */
+  width?: 'default' | 'wide';
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-7">
+    <div
+      className={cn(
+        'mx-auto flex w-full flex-col gap-7',
+        width === 'wide' ? 'max-w-[1280px]' : 'max-w-[1000px]',
+      )}
+    >
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-[62ch]">
           <h1 className="text-headline-small text-on-surface">{title}</h1>

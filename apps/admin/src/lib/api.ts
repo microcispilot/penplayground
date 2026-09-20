@@ -192,6 +192,33 @@ export class AdminApi {
     });
   }
 
+  /**
+   * One report (ADR-0027). Every route under `/api/admin/stats` is a GET that
+   * takes `from`, `to` and `bucket` and answers JSON, so there is one method
+   * for all thirteen rather than thirteen methods that differ by a string —
+   * and the schema stays the caller's, which is what keeps the parse honest.
+   *
+   * A parameter whose value is `undefined` is left out entirely rather than
+   * sent as the word "undefined", so "no filter" reaches the server as no
+   * filter and the endpoint's own default stands.
+   */
+  report<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    query: Record<string, string | number | boolean | undefined> = {},
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined) search.set(key, String(value));
+    const qs = search.toString();
+    return this.request(
+      `/api/admin/stats/${path}${qs ? `?${qs}` : ''}`,
+      schema,
+      ...(signal ? [{ signal }] : []),
+    );
+  }
+
   runtimeConfigHistory(
     beforeRevision?: number,
     signal?: AbortSignal,
