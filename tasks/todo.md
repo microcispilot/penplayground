@@ -193,3 +193,180 @@ first audio. After: **4924 / 4036 / 4683 ms**.
       The privacy policy is unchanged by instruction; `docs/STATISTICS.md`
       records what is stored, for how long, and which published sentence does
       and does not cover it.
+
+## The identity window, and words on the thumbnails (2026-09-19)
+
+- [x] **Identity is issued once and waited for (ADR-0030).** Three bugs in the
+      same window — the tens of milliseconds between the shell mounting and
+      the anonymous bearer arriving — and all three the same shape: a field
+      read, an `await`, the field read again. `ensureParticipant()` was not
+      single-flight, so two callers each minted a participant and the second
+      write orphaned the first; any authed call made in the window went out
+      with no `authorization` header; and `Home.start` papered over that by
+      checking `participant`, saying "Connecting to Pen Playground…" and
+      **dropping the click**. The fix is one in-flight promise in `ApiClient`
+      that every call needing a bearer joins (`request`'s `identity` mode,
+      `'required'` by default and *ensure* rather than merely wait, so the
+      call after a failed mint retries instead of going out bare). `Home`
+      stopped checking anything and guards re-entry with a ref, because
+      `starting` is a render and a second click in the same frame reads the
+      stale value. `packages/app/test/identity-race.test.ts` (7) and
+      `start-before-identity.test.tsx` (2); all nine fail on an unchanged
+      checkout, 227 pass in `@pen/app`.
+- [x] **Thumbnails carry a headline (ADR-0029).** The owner: "make sure the
+      images that are generated has some titles or text on them, not just a
+      pure image of a place." ADR-0021 had ended the prompt with "no text"
+      because a model *choosing* its own lettering invents it; handed an
+      exact short string it sets type instead. `headline` rides on the copy
+      call that was already being made, so the cost per session does not
+      move: still one text call and one generation. Measured against the real
+      endpoint, quality `low`, 11 generations across 9 titles — every
+      headline spelled correctly. Two defects found and fixed in the
+      measuring: one generation set the quoted *title* instead of the
+      headline (the title is now unquoted context, `about <title>`), and two
+      chose a subject that is a surface made to be read, whose background
+      lettered itself (the exclusion list gains `card`/`sticky note`/etc and,
+      what actually worked, a positive redirect to the tool or the hands).
+      Non-Latin scripts get no text on purpose: `gpt-image-1` renders Arabic
+      script as decorative marks, which is worse than a clean photograph.
+- [ ] Older sessions keep the pictures they have: `headline` defaults to `''`
+      so their `meta.json` and cache entries parse unchanged, and
+      `thumbnails:backfill` re-encodes rather than re-generates. Giving the
+      existing library text means paying for a generation each — the owner's
+      call, and not free like the re-encode was.
+- [x] **One lesson, one card — and the duplicates already stored are gone
+      (ADR-0031).** The owner: *"why duplicate topics are stored and
+      generated? this is very bad if true. because it means we spent more
+      tokens, time and storage"*, then: delete them. Measured first, and the
+      premise is half right. **The generation is not duplicated**: the lesson
+      memo held one entry reused 16 times, the card/picture cache one entry
+      per scope, and per-session cost on one topic fell $0.002106 → $0.001221
+      → $0.000302 → ~$0.00009 — a repeat costs about a twentieth of the
+      first. All 25 recordings on this machine had cost $0.009355 in total.
+      **The catalogue was duplicated**: `listPublic` returned every public
+      ended row and Home drew one card each — 20 cards, 14 of them the same
+      lesson. Fixed at the query: one card per lesson scope
+      (`canonicalId|band|expertId|language`, the same key the memo, card and
+      picture share), best telling representing it; "My sessions", history
+      and the shelves stay uncollapsed on purpose. `sessions:dedupe` erases
+      the rest, dry by default (`--apply` does it, `--include-accounts` for a
+      signed-in host's session), repairing a missing `canonical_id` from the
+      session's own ledger or the registry first. Nothing is dropped on the
+      floor: saves, likes, history and site visits move to the survivor, its
+      views absorb theirs, and `session_redirects` makes an old share link
+      open the lesson that was kept rather than 404. `sessions.segments` is
+      *not* the completeness measure — it is the plan's length and identical
+      for every telling — so the rule ranks on recap points then duration;
+      the script also prefers a telling whose recording is still on disk.
+      Found and fixed on the way: `session_saves`, `session_likes` and
+      `session_visits` had **no deleter at all**, and
+      `site_visits.last_session_id` was never nulled, so every session
+      deletion since ADR-0015 has left invisible permanent rows behind.
+      Measured on this machine: 5 rows repaired, 15 tellings erased, 15
+      redirects, 10 shelf rows moved, 0 failures; sessions 27 → 12, cards
+      20 → 4, recordings 18 MB → 14 MB, orphaned visits 0. Tests:
+      `packages/db/test/duplicates.test.ts` (15) and
+      `services/api/test/dedupe.test.ts` (3); the catalogue and deletion
+      cases fail on an unchanged checkout.
+- [ ] The recap is the one piece of model work still generated per session on
+      a memoised lesson (~$0.0002 a time; 0 of 10 reused on disk). It
+      summarises a script that was itself replayed, so it is probably
+      memoisable under the same scope — a decision, not a bug.
+
+## Races, and the things that only look like races (2026-09-19)
+
+An audit of the whole codebase for interleaving across `await`, swallowed
+rejections, lifecycle leaks and bad conversions. Eight findings were fixed in
+the audit itself (see the commit); these four are the ones taken on
+afterwards, each with a test that fails on an unchanged checkout.
+
+- [x] **Both ceilings on `POST /api/sessions` were walk-throughs
+      (`services/api/src/admissions.ts`).** The plan's daily allowance and
+      `PEN_MAX_SESSIONS_PER_IP` were both check-then-act across
+      `rooms.create()` — the intake model call, a second and a half. Measured
+      before the fix: **eight concurrent POSTs on a three-a-day free plan
+      returned eight 201s**, and six concurrent on a cap of two returned six.
+      Both ceilings exist to bound real provider spend. A place is now taken
+      in the same tick as the check and given back in a `finally` after the
+      row is written, so the eighth request counts the seven ahead of it. The
+      IP check also moved *outside* `if (hosted)`: on the first burst from a
+      new address there is no set to count, which was the easiest moment to
+      walk through. In-process, like `SpendBreaker` beside it — a second node
+      needs a shared counter, and that caveat is the one already recorded for
+      spend above.
+- [x] **A failed cache write ended writing, for the life of the process
+      (`services/api/src/write-queue.ts`).** `this.writing =
+      this.writing.then(work)` in both file caches: after one rejection the
+      chain is permanently rejected, every later `work` never runs, and every
+      later caller gets the *original* error. One transient `ENOSPC` and the
+      card cache and the picture cache are off — silently, because nothing
+      re-reads a cache it just failed to write. The symptom is every session
+      paying ~$0.016 again for a picture already bought. The queue keeps the
+      ordering and drops the poison; proved on a real directory chmod'd
+      read-only and then writable again.
+- [x] **A frame that was not JSON bypassed the bad-frame kill switch**
+      (`app.ts`). `badFrames` and `close(4002)` lived only in the branch for
+      a frame that *parsed* and failed the schema; `JSON.parse` threw past it
+      into the outer catch, which files a Sentry issue and answers
+      `INTERNAL`. One authenticated socket sending `{` was one issue per
+      frame, for as long as it kept sending, and nothing ever closed it.
+- [x] **`SessionRoom.end()`'s new claim cannot poison itself.** Two callers
+      reach it by `void this.end()`, where a rejection is an unhandled one,
+      and a claim holding a rejected promise would hand that failure to every
+      later caller including the registry's cleanup. The failure is reported
+      and the claim stands: a room that failed to finish ending is still a
+      room that must not pay for a second recap.
+- [x] **The Statistics section of the operations console is real** (ADR-0026's
+      nav entry no longer says "Soon"). Thirteen reporting endpoints, seven
+      pages, cut by the question being asked rather than by the route that
+      answers it: Overview, Money (`cost` + `plans`), Sessions (+ one
+      lesson's own page, where "reused fourteen times, and here are the
+      searches" is answered), Pipeline (`stages` + `abandonment`), People
+      (`users` + `retention`), Visits, Audience (`geography` + `devices` +
+      `clock`). One date range for the whole section, held in the URL as a
+      preset so a reload keeps it and a link carries it; its default
+      reproduces `DEFAULT_WINDOW_MS` and `range.test.ts` asserts that against
+      `routes.ts` itself rather than against a copied number. No chart
+      library: the geometry is a hundred pure lines in
+      `apps/admin/src/charts/geometry.ts`, drawn in the brand at varying
+      weight because every other hue in the design system already means
+      something. `/geography`'s note is printed verbatim and the region and
+      city columns are kept and left visibly empty. 134 unit tests, 12
+      Playwright tests, and 40 review pictures in `.pen-data/admin-review/`
+      (every page, light and dark, populated and empty, plus tablet and
+      phone). **Not done, and outside the fence:** there is no window total
+      for replays, shares, downloads or exports, because that needs one more
+      aggregate in `packages/db/src/reports.ts`; the exact SQL is written
+      down in `docs/STATISTICS.md`, "What the console cannot show yet".
+- [x] **Shutdown stopped losing the deploy's lessons.** `server.close()` never
+      fired while a room socket was open and nothing closed them, so the 3 s
+      `process.exit(0)` was the *normal* path: `db.close()` and
+      `analytics.shutdown()` were dead code, live rooms kept `endedAt: null`
+      for ever (out of the catalogue, out of every report, and in the
+      learner's own list as a lesson that never finished), and
+      `deriver.close()` **cleared** the statistics queue, binning up to
+      `STATS_SETTLE_MS` of finished sessions. Now: stop taking work, end the
+      lessons (`rooms.endAll('shutdown')`, which writes the rows and queues
+      them), `deriver.flush()` (the settle delays included, which `drain()`
+      deliberately skips), `closeAllConnections()` then `server.close()`,
+      then the database — each step failing without stopping the next, under
+      one `PEN_SHUTDOWN_GRACE_MS` ceiling of 15 s. `deploy/docker-compose.yml`
+      gains `stop_grace_period: 25s`, because Docker's default 10 s would
+      SIGKILL the process in the middle of the writes the graceful path
+      exists to do.
+- [x] **A hot microphone (`RoomAudio.publishIfReady`).** `published = true`
+      was set before awaiting `port.publish()` — correct, it is what stops a
+      second clone — and by itself a live mic. Publishing is a
+      renegotiation; a learner who turns the mic off inside that window runs
+      `detachMicrophone`, which sees `published === true`, sets it false and
+      unpublishes nothing, because nothing is there yet. The publish then
+      lands: a live clone in the room, `published === false` beside it, the
+      UI saying the microphone is off. An epoch, bumped by anything that
+      supersedes a publish, is read back across the await; the clone is
+      stopped on every path that does not keep it, because a clone left
+      running holds the browser's recording indicator on by itself.
+- [ ] `LeaveReason` has no `interrupted`: a lesson the process shut down
+      under falls through to `left_mid_segment`, which says the learner left
+      when we did. One enum member in `packages/contracts/src/stats.ts` plus
+      a branch in `derive.ts` — deliberately not done while the statistics
+      pages were being written against the current set.
