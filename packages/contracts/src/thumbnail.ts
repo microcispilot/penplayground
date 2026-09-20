@@ -84,6 +84,25 @@ export const THUMBNAIL_PROMPT_TOKENS = 67;
  */
 export const META_MAX_SUBJECT_CHARS = 120;
 
+/**
+ * The longest headline an image model still spells correctly.
+ *
+ * A thumbnail carries text — the owner asked for it: "make sure the images
+ * that are generated has some titles or text on them, not just a pure image
+ * of a place." That reverses one line of ADR-0021's prompt and nothing else
+ * about it: the picture is still a photograph, and the text is still never
+ * invented by the model, because the model is now handed the exact string.
+ *
+ * Short, because length is what breaks it. `gpt-image-1` renders a few words
+ * as typography and a sentence as a smear of letter-shaped marks, and the
+ * failure is not graceful — one word too many and the whole line turns to
+ * nonsense. Four words is the working size of a real thumbnail headline
+ * anyway ("HOW ATTENTION WORKS", "THE THREE-WAY HANDSHAKE"), so the cap is
+ * not a compromise.
+ */
+export const META_MAX_HEADLINE_CHARS = 26;
+export const META_MAX_HEADLINE_WORDS = 4;
+
 // ── the card copy ────────────────────────────────────────────────────────────
 
 export const SessionMeta = z.object({
@@ -102,6 +121,18 @@ export const SessionMeta = z.object({
    * cache entries keep parsing. An empty subject means the title-only prompt.
    */
   subject: z.string().max(META_MAX_SUBJECT_CHARS).default(''),
+  /**
+   * The words printed on the picture — at most four, in the session's own
+   * language. Like `subject` this is not card copy: it is handed to the image
+   * model as an exact string to set in type, and the learner reads it off the
+   * thumbnail rather than out of a field.
+   *
+   * Empty means the picture carries no text, and that is a real outcome
+   * rather than a failure: see `thumbnailHeadline` for the two cases that
+   * produce it. Defaulted so every `meta.json` and cache entry written before
+   * this field keeps parsing.
+   */
+  headline: z.string().max(META_MAX_HEADLINE_CHARS).default(''),
 });
 export type SessionMeta = z.infer<typeof SessionMeta>;
 
@@ -110,15 +141,18 @@ export type SessionMeta = z.infer<typeof SessionMeta>;
 // mode and a cheap model gets ranges wrong anyway. `normaliseSessionMeta`
 // clamps the result into the contract above instead of rejecting it.
 //
-// `subject` comes last on purpose: strict structured output is generated in
-// field order, so by the time the model names the thing to photograph it has
-// already committed to the description and the category it belongs to.
+// The order is the reasoning order, because strict structured output is
+// generated field by field: the model commits to the description and the
+// category, then names the thing to photograph, and only then writes the
+// words to print on it — which is the order a designer works in, and means
+// the headline is written knowing what the photograph will be.
 
 export const ModelSessionMeta = z.object({
   description: z.string(),
   keywords: z.array(z.string()),
   category: SessionCategory,
   subject: z.string(),
+  headline: z.string(),
 });
 export type ModelSessionMeta = z.infer<typeof ModelSessionMeta>;
 
@@ -155,6 +189,7 @@ export function normaliseSessionMeta(raw: ModelSessionMeta): SessionMeta {
     keywords,
     category: raw.category,
     subject: thumbnailSubject(raw.subject),
+    headline: thumbnailHeadline(raw.headline),
   };
 }
 
@@ -172,4 +207,37 @@ export function normaliseSessionMeta(raw: ModelSessionMeta): SessionMeta {
 export function thumbnailSubject(raw: string | undefined | null): string {
   const clean = trim(raw ?? '', META_MAX_SUBJECT_CHARS).replace(/[.,;:!?\s]+$/u, '');
   return /[\p{L}\p{N}]/u.test(clean) ? clean : '';
+}
+
+/**
+ * A model's `headline` → words an image model can actually set, or `''`.
+ *
+ * Trimmed, cut to `META_MAX_HEADLINE_WORDS`, stripped of the sentence
+ * punctuation a headline does not carry, and refused outright in two cases:
+ *
+ *   · nothing left with a letter or digit in it — the usual empty-field case;
+ *   · **anything outside the Latin script.** This is the one that matters.
+ *     A lesson taught in Persian gets a Persian headline from the model, and
+ *     `gpt-image-1` renders Arabic-script text as decorative marks that mean
+ *     nothing — worse than no text, because it looks like language and is
+ *     not. A learner reading Persian is better served by a clean photograph,
+ *     so the script is checked rather than the language: a Latin-script
+ *     language nobody listed still gets its headline, and a non-Latin one
+ *     nobody listed still gets none.
+ *
+ * Digits, spaces and the punctuation a headline legitimately contains
+ * (hyphen, apostrophe, ampersand, colon, comma, question mark) are allowed
+ * alongside Latin letters; one character from another script refuses the
+ * whole string, because a half-rendered headline is the worst outcome of all.
+ */
+export function thumbnailHeadline(raw: string | undefined | null): string {
+  const words = (raw ?? '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const clean = words
+    .slice(0, META_MAX_HEADLINE_WORDS)
+    .join(' ')
+    .slice(0, META_MAX_HEADLINE_CHARS)
+    .replace(/[.,;:!?\s]+$/u, '')
+    .trim();
+  if (!/[\p{L}\p{N}]/u.test(clean)) return '';
+  return /^[\p{Script=Latin}\p{N}\s\-'’&:,?]+$/u.test(clean) ? clean : '';
 }

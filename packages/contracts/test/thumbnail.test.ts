@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { freshThumbnailUsd, imageCostLines, imagePriceUsd } from '../src/pricing.js';
 import {
   META_MAX_DESCRIPTION_CHARS,
+  META_MAX_HEADLINE_CHARS,
+  META_MAX_HEADLINE_WORDS,
   META_MAX_KEYWORD_CHARS,
   META_MAX_KEYWORDS,
   META_MAX_SUBJECT_CHARS,
@@ -11,6 +13,7 @@ import {
   THUMBNAIL_IMAGE_TOKENS,
   THUMBNAIL_PROMPT_TOKENS,
   THUMBNAIL_SIZE,
+  thumbnailHeadline,
   thumbnailSubject,
 } from '../src/thumbnail.js';
 
@@ -19,6 +22,7 @@ const meta = (extra: Partial<ModelSessionMeta> = {}): ModelSessionMeta => ({
   keywords: ['transformers', 'attention', 'tokens'],
   category: 'computing-data' as const,
   subject: 'a brass clock escapement, gears meshing, side light',
+  headline: 'HOW ATTENTION WORKS',
   ...extra,
 });
 
@@ -31,6 +35,7 @@ describe('normaliseSessionMeta', () => {
       keywords: ['transformers', 'attention', 'tokens'],
       category: 'computing-data',
       subject: 'a brass clock escapement, gears meshing, side light',
+      headline: 'HOW ATTENTION WORKS',
     });
   });
 
@@ -198,5 +203,68 @@ describe('thumbnail generation pricing', () => {
         outputTokens: 400,
       }).every((l) => l.usd === 0),
     ).toBe(true);
+  });
+});
+
+/**
+ * The words printed on the picture. The owner asked for them; the reason
+ * ADR-0021 had said "no text" was that a model left to choose its own
+ * lettering produces nonsense, which is a different thing from setting a
+ * string it was handed. What is left to guard is length and script.
+ */
+describe('thumbnailHeadline', () => {
+  it('keeps a real headline exactly as written', () => {
+    expect(thumbnailHeadline('HOW ATTENTION WORKS')).toBe('HOW ATTENTION WORKS');
+    expect(thumbnailHeadline('Why time beats rate')).toBe('Why time beats rate');
+  });
+
+  it('cuts to four words, because the fifth is where the spelling goes', () => {
+    expect(thumbnailHeadline('one two three four five six')).toBe('one two three four');
+    expect(thumbnailHeadline('a b c d e').split(' ')).toHaveLength(META_MAX_HEADLINE_WORDS);
+  });
+
+  it('never exceeds the character cap either, four short words or not', () => {
+    const long = thumbnailHeadline('Antidisestablishmentarianism explained simply now');
+    expect(long.length).toBeLessThanOrEqual(META_MAX_HEADLINE_CHARS);
+  });
+
+  it('normalises whitespace and drops the punctuation a headline does not carry', () => {
+    expect(thumbnailHeadline('  three   packets,  ')).toBe('three packets');
+    expect(thumbnailHeadline('Why does it work?')).toBe('Why does it work');
+  });
+
+  it('refuses a string with nothing readable in it', () => {
+    for (const nothing of ['', '   ', '— "" …', undefined, null])
+      expect(thumbnailHeadline(nothing)).toBe('');
+  });
+
+  /**
+   * The case this field exists to get right. A Persian lesson gets a Persian
+   * headline from the copy call, and `gpt-image-1` renders Arabic script as
+   * decorative marks — text-shaped, meaningless, and worse than a clean
+   * photograph because it looks like language. The script is what is checked,
+   * not a list of languages, so a Latin-script language nobody thought about
+   * still gets its words.
+   */
+  it('refuses a script an image model cannot set', () => {
+    expect(thumbnailHeadline('چگونه ترانسفورمرها کار می‌کنند')).toBe('');
+    expect(thumbnailHeadline('注意力機制')).toBe('');
+    expect(thumbnailHeadline('Три пакета')).toBe('');
+    // One stray character from another script refuses the whole line: half a
+    // headline set correctly and half in marks is the worst of the outcomes.
+    expect(thumbnailHeadline('HOW ATTENTION حقا WORKS')).toBe('');
+  });
+
+  it('keeps Latin scripts that are not English', () => {
+    expect(thumbnailHeadline('Cómo funciona')).toBe('Cómo funciona');
+    expect(thumbnailHeadline('Trois paquets')).toBe('Trois paquets');
+    expect(thumbnailHeadline('Đường truyền')).toBe('Đường truyền');
+  });
+
+  it('is applied by normaliseSessionMeta, so nothing reaches a prompt unchecked', () => {
+    expect(normaliseSessionMeta(meta({ headline: 'یک دو سه' })).headline).toBe('');
+    expect(normaliseSessionMeta(meta({ headline: 'one two three four five' })).headline).toBe(
+      'one two three four',
+    );
   });
 });

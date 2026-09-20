@@ -48,6 +48,7 @@ const card: SessionMeta = {
   keywords: ['a', 'b', 'c'],
   category: 'computing-data',
   subject: 'a brass clock escapement, gears meshing',
+  headline: 'HOW ATTENTION WORKS',
 };
 
 const plan: LessonPlan = {

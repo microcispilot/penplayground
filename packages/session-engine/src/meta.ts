@@ -551,17 +551,23 @@ export class SessionMetaJobs {
   }
 
   /**
-   * The thing to point a camera at (ADR-0022), waited for only once a
-   * generation is certain. Never rejects and never throws: a copy call that
-   * failed, or that named nothing a lens could find, is worth a title-only
-   * picture and not worth losing one over.
+   * What the copy call contributes to the picture: the thing to point a
+   * camera at (ADR-0022) and the words to print on it. Waited for only once
+   * a generation is certain. Never rejects and never throws: a copy call
+   * that failed, or that named nothing a lens could find, is worth a
+   * title-only picture and not worth losing one over.
    */
-  private async subjectFrom(copy: Promise<CopyResult>): Promise<string> {
+  private async pictureCopyFrom(copy: Promise<CopyResult>): Promise<{
+    subject: string;
+    headline: string;
+  }> {
     try {
       const result = await copy;
-      return result.ok ? result.meta.subject : '';
+      return result.ok
+        ? { subject: result.meta.subject, headline: result.meta.headline }
+        : { subject: '', headline: '' };
     } catch {
-      return '';
+      return { subject: '', headline: '' };
     }
   }
 
@@ -619,9 +625,9 @@ export class SessionMetaJobs {
     // all say the quality it was actually drawn at.
     const quality = this.o.quality();
     const waitFrom = this.now();
-    const subject = await this.subjectFrom(copy);
+    const { subject, headline } = await this.pictureCopyFrom(copy);
     const copyWaitMs = this.now() - waitFrom;
-    const prompt = thumbnailImagePrompt(input.plan.title, subject);
+    const prompt = thumbnailImagePrompt(input.plan.title, subject, headline);
     try {
       for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
         try {
@@ -656,10 +662,14 @@ export class SessionMetaJobs {
             quality,
             outputTokens: usage.outputTokens,
             usd: usage.usd,
-            // Whether the camera was given something to point at, and what the
-            // wait for it cost. `subject: false` on a run of sessions is the
-            // signal that ADR-0022's field has stopped arriving.
+            // Whether the camera was given something to point at, whether the
+            // picture was given words to print, and what the wait for them
+            // cost. `subject: false` or `headline: false` on a run of
+            // sessions is the signal that a field has stopped arriving —
+            // except on a non-Latin-script lesson, where no headline is the
+            // correct answer (`thumbnailHeadline`).
             subject: subject.length > 0,
+            headline: headline.length > 0,
             copyWaitMs: Math.round(copyWaitMs),
           });
           return {

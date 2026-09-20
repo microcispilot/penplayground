@@ -408,6 +408,7 @@ describe('writing a thumbnail keeps the event loop turning', () => {
       keywords: ['attention'],
       category: 'computing-data' as const,
       subject: 'a brass clock escapement, gears meshing',
+      headline: 'HOW ATTENTION WORKS',
     };
     // A full-size generation's worth of pixels, so the work is the real work.
     const png = solidPng(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, [90, 140, 200]);
@@ -527,6 +528,8 @@ describe('the derived sizes are the formats they are served in', () => {
         keywords: ['a'],
         category: 'computing-data',
         subject: 'a brass clock escapement',
+        // ADR-0021 sessions predate the field; `''` is what they carry.
+        headline: '',
       },
       source,
       {

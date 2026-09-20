@@ -48,7 +48,14 @@ const DEFAULT_TITLES = [
   'Why deadlines slip on software teams',
 ];
 
-const OUT = join(process.cwd(), '..', '..', '.pen-data', 'screens', 'thumbnails-adr-0022');
+const OUT = join(
+  process.cwd(),
+  '..',
+  '..',
+  '.pen-data',
+  'screens',
+  process.env.PEN_PROBE_DIR ?? 'thumbnails-adr-0022',
+);
 
 const slug = (s: string) =>
   s
@@ -115,7 +122,7 @@ for (const title of titles) {
   });
   spent += copy.usage.usd;
   const meta = normaliseSessionMeta(copy.value);
-  const prompt = thumbnailImagePrompt(title, meta.subject);
+  const prompt = thumbnailImagePrompt(title, meta.subject, meta.headline);
 
   // 2. The one generation per session, built around that noun.
   const { png, usage } = await image.generate({
@@ -136,6 +143,7 @@ for (const title of titles) {
 
   console.log(`\n── ${title}`);
   console.log(`   subject   ${meta.subject || '(none — title-only prompt)'}`);
+  console.log(`   headline  ${meta.headline || '(none — the picture carries no text)'}`);
   console.log(`   copy      ${copy.usage.totalMs} ms · ${copy.usage.inputTokens} in / \
 ${copy.usage.cachedTokens} cached / ${copy.usage.outputTokens} out · $${copy.usage.usd.toFixed(5)}`);
   console.log(

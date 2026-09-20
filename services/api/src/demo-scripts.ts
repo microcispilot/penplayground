@@ -361,6 +361,11 @@ export const demoScripts: {
         // The subject is written in English whatever the session language: it
         // is read by the image model, never by the learner (ADR-0022).
         subject: 'a server rack with glowing processor modules, cool blue light',
+        // Persian, and therefore refused by `thumbnailHeadline`: an image
+        // model renders Arabic script as decorative marks, so this lesson's
+        // picture carries no text at all (ADR-0029). The script does that,
+        // not this fixture — the value is here because the model returns one.
+        headline: 'ترنسفورمرها چطور کار می‌کنند',
       },
     },
     {
@@ -421,6 +426,7 @@ export const demoScripts: {
         keywords: ['transformers', 'attention', 'tokens', 'softmax', 'LLM'],
         category: 'computing-data',
         subject: 'a server rack with glowing processor modules, cool blue light',
+        headline: 'HOW ATTENTION WORKS',
       },
     },
     {

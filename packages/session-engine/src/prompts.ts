@@ -286,9 +286,11 @@ You are writing the catalogue card for a session you are about to teach.
 - keywords: 3 to 6 short search terms, lowercase unless proper nouns.
 - category: the one domain that fits best.
 - subject: one real, physical thing a photographer could point a camera at for this session — an object, a material, a tool, a place, or a person's hands mid-action. A short noun phrase, 3 to 12 words, in English, naming what is in front of the lens and the light on it. Examples: "a brass clock escapement, gears meshing, side light"; "a thick rope running over a worn wooden pulley"; "a nurse's hands smoothing a long paper ECG trace". Choose something a person who knows this topic would recognise as belonging to it.
-  Two rules decide whether a subject is usable. It must be an object and not an idea: a camera cannot point at an abstraction, and given one it photographs a diagram on paper and letters it with invented words, so name the thing instead. And nothing in it may be a surface made to be read — never a diagram, chart, graph, screen, slide, printout, page, book, note, whiteboard, poster, sign, label, price tag or packaging, because a picture of one comes back covered in nonsense lettering. Choose a subject whose meaning survives with every word stripped out of the frame.
+  Two rules decide whether a subject is usable. It must be an object and not an idea: a camera cannot point at an abstraction, and given one it photographs a diagram on paper and letters it with invented words, so name the thing instead. And nothing in it may be a surface made to be read — never a diagram, chart, graph, screen, slide, printout, page, book, note, sticky note, card, ticket, receipt, form, whiteboard, poster, sign, label, price tag or packaging, because a picture of one comes back covered in nonsense lettering. Choose a subject whose meaning survives with every word stripped out of the frame. If the first thing that comes to mind for this topic is something people write on, name the tool, the material, the machine or the hands instead.
 
-Write the description in the session language. Write the subject in English; it is read by a camera, not by the learner.`,
+- headline: the words to print on the thumbnail. At most four words and 26 characters, in the session language. Name the one idea the lesson turns on, the way a good video thumbnail does — "HOW ATTENTION WORKS", "THREE PACKETS", "WHY TIME BEATS RATE". Not the title again, not a sentence, no ending punctuation, no quotation marks. It is set in type over the photograph, so it has to be short enough to read at the size of a card.
+
+Write the description and the headline in the session language. Write the subject in English; it is read by a camera, not by the learner.`,
     },
     {
       role: 'user',
@@ -325,11 +327,51 @@ Session language: ${args.language}`,
  * was written before ADR-0022; the prompt is then exactly the three lines that
  * shipped with ADR-0021. A missing field costs a worse picture, never a job.
  */
-export function thumbnailImagePrompt(title: string, subject = ''): string {
-  return [
-    `Design a realistic thumbnail for a YouTube video titled "${title}".`,
-    ...(subject ? [`Photograph this: ${subject}.`] : []),
-    'Not crowded: one clear subject, plenty of empty space, no text.',
-    'Hyper realistic photography, natural light, shallow depth of field.',
-  ].join('\n');
+/**
+ * The picture prompt.
+ *
+ * ADR-0021 ended with "no text", because a model given only a title letters
+ * the frame with invented words. The owner has since asked for text — "make
+ * sure the images that are generated has some titles or text on them, not
+ * just a pure image of a place" — and the two are not in conflict once the
+ * cause is named: the nonsense came from the model *choosing* what to write.
+ * Handed an exact short string it sets type instead of inventing it.
+ *
+ * So the line is no longer "no text"; it is "this text". Two rules hold it
+ * together, both learned the hard way (see ADR-0021's reverted attempts):
+ *
+ *   · **Say what to draw, never what to avoid.** Naming a thing to an image
+ *     model summons it — measured, twice. "No other words" is the one
+ *     exception and it is phrased positively where it can be ("the only
+ *     words in the frame").
+ *   · **Ask for room before asking for words.** A headline set over a busy
+ *     frame is unreadable whatever the typography, so the composition line
+ *     comes first and the text is placed into the space it asks for.
+ *
+ * `headline` empty is a supported outcome, not a fallback to apologise for:
+ * a lesson in a non-Latin script gets no text rather than decorative marks
+ * (`thumbnailHeadline`), and the prompt is then exactly ADR-0021's.
+ */
+export function thumbnailImagePrompt(title: string, subject = '', headline = ''): string {
+  return headline
+    ? [
+        // Not `titled "${title}"`. A quoted title is a string the model can
+        // set, and given two candidate strings it sometimes sets that one —
+        // measured: "WHY DEADLINES SLIP ON SOFTWARE TEAMS" came back where
+        // the headline was "WHY DEADLINES SLIP". Unquoted, and `about`
+        // rather than `titled`, the title is context and the headline is the
+        // only thing in the prompt shaped like words to print.
+        `Design a realistic thumbnail for a YouTube video about ${title}.`,
+        ...(subject ? [`Photograph this: ${subject}.`] : []),
+        'Compose it with one clear subject to one side and clean, empty space to the other.',
+        `Print exactly these words in that empty space, spelled exactly as written, and let them be the only words anywhere in the frame: ${headline}`,
+        'Heavy sans-serif, large enough to read at the size of a card, in a colour that separates cleanly from the photograph.',
+        'Hyper realistic photography, natural light, shallow depth of field.',
+      ].join('\n')
+    : [
+        `Design a realistic thumbnail for a YouTube video titled "${title}".`,
+        ...(subject ? [`Photograph this: ${subject}.`] : []),
+        'Not crowded: one clear subject, plenty of empty space, no text.',
+        'Hyper realistic photography, natural light, shallow depth of field.',
+      ].join('\n');
 }

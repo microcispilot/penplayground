@@ -58,6 +58,7 @@ const scripted: ModelSessionMeta = {
   keywords: ['transformers', 'attention', 'tokens', 'transformers', '  '],
   category: 'computing-data',
   subject: 'a brass clock escapement, gears meshing, side light',
+  headline: 'HOW ATTENTION WORKS',
 };
 
 const fake = (over: Partial<ModelSessionMeta> = {}) =>
@@ -169,11 +170,13 @@ describe('metaMessages', () => {
     expect(system).toContain('description');
     expect(system).toContain('keywords');
     // The sketch vocabulary is gone: nothing here can ask for a drawing any
-    // more. (A whiteboard is named once, in ADR-0022's list of surfaces the
-    // photographic subject must NOT be — the opposite of asking for one — so
-    // the guard is the ops themselves, which nothing may mention.)
-    for (const word of ['grid', 'sketch', 'thumbnail', 'arrow', 'highlight'])
+    // more. (Two words are named for the opposite reason — a whiteboard, in
+    // ADR-0022's list of surfaces the photographic subject must NOT be, and
+    // the thumbnail the headline is printed on — so the guard is the drawing
+    // ops themselves, which nothing may mention.)
+    for (const word of ['grid', 'sketch', 'arrow', 'highlight'])
       expect(system.toLowerCase()).not.toContain(word);
+    expect(system).toContain('- headline:');
     expect(m[1]?.content).toContain('SESSION: "How Transformers work in LLMs"');
     expect(m[1]?.content).toContain('Session language: en-US');
   });
@@ -195,7 +198,7 @@ describe('metaMessages', () => {
     // characters — "$1.99" on price tags, pseudo-writing on task cards — and
     // both times the model had named a surface made to be read. The text
     // model is where that is refused; the image prompt still names nothing.
-    for (const surface of ['price tag', 'whiteboard', 'sign', 'packaging', 'screen'])
+    for (const surface of ['price tag', 'whiteboard', 'sign', 'packaging', 'screen', 'sticky note'])
       expect(system).toContain(surface);
     expect(system).toContain('surface made to be read');
     // Still exactly two messages — one call, not two.
@@ -229,6 +232,40 @@ describe('thumbnailImagePrompt', () => {
       expect(thumbnailImagePrompt('Reading an ECG strip', missing)).toBe(titleOnly);
       expect(thumbnailImagePrompt('Reading an ECG strip', missing).split('\n')).toHaveLength(3);
     }
+  });
+
+  /**
+   * The owner's ask: "make sure the images that are generated has some titles
+   * or text on them, not just a pure image of a place."
+   */
+  it('hands the model the exact words rather than letting it choose any', () => {
+    const prompt = thumbnailImagePrompt(
+      'Reading an ECG strip',
+      'a nurse’s hands smoothing a paper ECG trace',
+      'RATE, RHYTHM, INTERVALS',
+    );
+    expect(prompt).toContain('spelled exactly as written');
+    // The title is context, not a second candidate string to set.
+    expect(prompt).not.toContain('titled "Reading an ECG strip"');
+    expect(prompt).toContain('RATE, RHYTHM, INTERVALS');
+    // And it asks for somewhere to put them before it asks for them.
+    const lines = prompt.split('\n');
+    expect(lines.findIndex((l) => l.includes('empty space to the other'))).toBeLessThan(
+      lines.findIndex((l) => l.includes('RATE, RHYTHM, INTERVALS')),
+    );
+  });
+
+  it('stops telling the model there is no text once there is', () => {
+    const withText = thumbnailImagePrompt('Reading an ECG strip', 'a paper trace', 'THREE LEADS');
+    expect(withText).not.toContain('no text');
+    // …and still says it when there is none, which is ADR-0021's prompt.
+    expect(thumbnailImagePrompt('Reading an ECG strip', 'a paper trace')).toContain('no text');
+  });
+
+  it('is ADR-0021’s prompt exactly when the headline is empty', () => {
+    const titleOnly = thumbnailImagePrompt('Reading an ECG strip');
+    for (const none of ['', undefined])
+      expect(thumbnailImagePrompt('Reading an ECG strip', '', none)).toBe(titleOnly);
   });
 
   /**
@@ -266,7 +303,9 @@ describe('SessionMetaJobs', () => {
     expect(image.calls).toBe(1);
     expect(image.requests[0]?.size).toEqual(THUMBNAIL_SIZE);
     expect(image.requests[0]?.quality).toBe('low');
-    expect(image.requests[0]?.prompt).toBe(thumbnailImagePrompt(plan.title, scripted.subject));
+    expect(image.requests[0]?.prompt).toBe(
+      thumbnailImagePrompt(plan.title, scripted.subject, scripted.headline),
+    );
     expect(result.image.png.subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     expect(result.image.reused).toBe(false);
     expect(onUsage.mock.calls.map(([, u]) => u.purpose).sort()).toEqual([
@@ -292,8 +331,10 @@ describe('SessionMetaJobs', () => {
     it('builds the generation around the subject the copy call named', async () => {
       const { prompt } = await promptFor();
       expect(prompt).toContain('Photograph this: a brass clock escapement, gears meshing');
-      expect(prompt).toContain('titled "How Transformers work in LLMs"');
-      expect(prompt).toBe(thumbnailImagePrompt(plan.title, scripted.subject));
+      // With a headline, the title is unquoted context — see thumbnailImagePrompt.
+      expect(prompt).toContain('about How Transformers work in LLMs');
+      expect(prompt).toContain(scripted.headline);
+      expect(prompt).toBe(thumbnailImagePrompt(plan.title, scripted.subject, scripted.headline));
     });
 
     it('is still one call to each endpoint: the field rides on the copy call', async () => {
@@ -310,8 +351,12 @@ describe('SessionMetaJobs', () => {
     ] as const)
       it(`falls back to the title-only prompt when ${why}`, async () => {
         const { prompt, image } = await promptFor({ modelFor: () => fake({ subject }) });
-        expect(prompt).toBe(thumbnailImagePrompt(plan.title));
-        expect(prompt.split('\n')).toHaveLength(3);
+        expect(prompt).toBe(thumbnailImagePrompt(plan.title, '', scripted.headline));
+        // No subject, so no `Photograph this:` line — but the headline the
+        // same call produced still reaches the picture, which is the point of
+        // the two fields being independent.
+        expect(prompt).not.toContain('Photograph this:');
+        expect(prompt).toContain(scripted.headline);
         // A missing field costs a worse picture, never the picture.
         expect(image.calls).toBe(1);
       });
@@ -331,7 +376,10 @@ describe('SessionMetaJobs', () => {
       expect(onFailure).toHaveBeenCalledTimes(1);
       // The copy is gone; the picture is not, and it was still paid for once.
       expect(image.calls).toBe(1);
+      // The call that carries both fields is the one that failed, so this is
+      // ADR-0021's prompt exactly: no subject, no headline, three lines.
       expect(image.requests[0]?.prompt).toBe(thumbnailImagePrompt(plan.title));
+      expect(image.requests[0]?.prompt.split('\n')).toHaveLength(3);
     });
 
     it('cuts a scene-length subject back to a subject before it reaches the prompt', async () => {
@@ -340,7 +388,7 @@ describe('SessionMetaJobs', () => {
       const line = prompt.split('\n')[1] ?? '';
       expect(line.startsWith('Photograph this: a weathered brass sextant')).toBe(true);
       expect(line.length).toBeLessThanOrEqual('Photograph this: .'.length + META_MAX_SUBJECT_CHARS);
-      expect(prompt.split('\n')).toHaveLength(4);
+      expect(prompt.split('\n')).toHaveLength(6);
     });
 
     /**
