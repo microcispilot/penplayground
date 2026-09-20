@@ -17,6 +17,7 @@ import type {
   ThumbnailImageCachePort,
 } from '@pen/session-engine';
 import { z } from 'zod';
+import { WriteQueue } from './write-queue.js';
 
 /**
  * Pictures already generated, kept between sessions (ADR-0021). The key is the
@@ -50,7 +51,8 @@ export const THUMBNAIL_CACHE_MAX_BYTES = 1024 * 1024 * 1024;
 export class FileThumbnailImageCache implements ThumbnailImageCachePort {
   private readonly dir: string;
   /** Writes are serialised through one chain: two jobs finishing together never interleave a sweep. */
-  private writing: Promise<void> = Promise.resolve();
+  /** Writes in order, and a failed one that does not take the next with it (`write-queue.ts`). */
+  private readonly writing = new WriteQueue();
 
   constructor(
     dataDir: string,
@@ -94,7 +96,7 @@ export class FileThumbnailImageCache implements ThumbnailImageCachePort {
       bytes: value.png.length,
       createdAt: Date.now(),
     };
-    this.writing = this.writing.then(() => {
+    await this.writing.run(() => {
       mkdirSync(this.dir, { recursive: true });
       // Write-then-rename: a crash mid-write leaves the previous entry, never half a picture.
       const tmp = `${base}.${process.pid}.tmp`;
@@ -103,7 +105,6 @@ export class FileThumbnailImageCache implements ThumbnailImageCachePort {
       writeFileSync(`${base}.json`, JSON.stringify(meta));
       this.sweep();
     });
-    await this.writing;
   }
 
   /** Drop the oldest entries until the store is back inside its byte cap. */

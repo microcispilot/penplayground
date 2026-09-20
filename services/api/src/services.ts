@@ -218,7 +218,11 @@ export async function buildServices(
   } = {},
 ): Promise<Services> {
   const onten = createOnten({ dataDir: join(cfg.PEN_DATA_DIR, 'onten') });
-  const memo = new FileLessonMemo(join(cfg.PEN_DATA_DIR, 'onten'));
+  // A memo file this process cannot read or write is every lesson it has
+  // taught, at risk: it goes to Sentry rather than to the bill.
+  const memo = new FileLessonMemo(join(cfg.PEN_DATA_DIR, 'onten'), {
+    onError: (area, error) => observer.error(area, error),
+  });
   const experts = ExpertCatalog.fromJson(
     JSON.parse(readFileSync(join(DATA_DIR, 'experts', 'catalog.json'), 'utf8')),
   );

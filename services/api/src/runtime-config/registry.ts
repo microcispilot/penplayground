@@ -321,6 +321,17 @@ export interface SettingShape {
   parse(value: unknown): { ok: true; value: RuntimeSettingValue | undefined } | { ok: false };
 }
 
+/**
+ * A candidate for a number field: an actual number, or a string that is one.
+ * Everything else — blank, whitespace, a boolean, an array — is a field with
+ * nothing in it, whatever `Number()` would make of it.
+ */
+function looksNumeric(value: unknown): boolean {
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value !== 'string') return false;
+  return value.trim() !== '' && Number.isFinite(Number(value));
+}
+
 function shapeOf(name: RuntimeSettingName): SettingShape {
   const field = Env.shape[name] as z.ZodType;
   const base = inner(field);
@@ -350,6 +361,18 @@ function shapeOf(name: RuntimeSettingName): SettingShape {
       if (value === null || value === undefined || (nullable && value === UNSET)) {
         return nullable ? { ok: true, value: undefined } : { ok: false };
       }
+      // A blank number field is not a zero.
+      //
+      // Every numeric setting is `z.coerce.number()`, and JavaScript's
+      // coercion turns `''`, `'  '`, `false` and `[]` into 0 — so a field
+      // cleared in the console used to save cleanly as "0". For
+      // `PEN_DAILY_SPEND_CAP_USD` that is not a small number, it is *off*:
+      // `SpendBreaker.enabled` is `capUsd() > 0`, so an empty box silently
+      // removed the ceiling on real provider spend, and the row afterwards
+      // read like somebody had chosen it. `PEN_TTS_CACHE_MB: ''` turns off
+      // the lesson voice store the same way. Only `min: 1` was stopping the
+      // others, which is luck rather than validation.
+      if (kind === 'number' && !looksNumeric(value)) return { ok: false };
       const parsed = base.safeParse(value);
       if (!parsed.success) return { ok: false };
       const out = parsed.data;

@@ -7,6 +7,7 @@ import type {
   SessionMetaCachePort,
 } from '@pen/session-engine';
 import { z } from 'zod';
+import { WriteQueue } from './write-queue.js';
 
 /**
  * Cards and sketches kept between sessions (ADR-0013). The key is the lesson
@@ -50,7 +51,8 @@ export const META_CACHE_MAX_ENTRIES = 1000;
 export class FileSessionMetaCache implements SessionMetaCachePort {
   private entries: Map<string, StoredEntry> | null = null;
   /** Writes are serialised through one chain: two jobs finishing together never interleave. */
-  private writing: Promise<void> = Promise.resolve();
+  /** Writes in order, and a failed one that does not take the next with it (`write-queue.ts`). */
+  private readonly writing = new WriteQueue();
 
   constructor(
     private readonly dir: string,
@@ -100,14 +102,13 @@ export class FileSessionMetaCache implements SessionMetaCachePort {
       version: 2,
       entries: Object.fromEntries(entries),
     } satisfies z.input<typeof StoredFile>);
-    this.writing = this.writing.then(() => {
+    await this.writing.run(() => {
       mkdirSync(this.dir, { recursive: true });
       // Write-then-rename: a crash mid-write leaves the previous cache, never half a file.
       const tmp = `${this.file}.${process.pid}.tmp`;
       writeFileSync(tmp, snapshot);
       renameSync(tmp, this.file);
     });
-    await this.writing;
   }
 
   /** Entries currently held (the backfill prints it; tests assert on it). */

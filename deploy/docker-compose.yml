@@ -26,6 +26,12 @@ services:
     image: pen-playground-api:${PEN_IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
+    # Shutdown ends the live lessons, flushes the statistics queue and closes
+    # the room sockets before it exits (services/api/src/main.ts). Docker's
+    # default is 10 s and the process allows itself 15, so without this a
+    # deploy would SIGKILL it in the middle of writing the very rows the
+    # graceful path exists to write.
+    stop_grace_period: 25s
     env_file:
       - ./api.env
     environment:

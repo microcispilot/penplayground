@@ -409,3 +409,49 @@ describe('the catalogue', () => {
     }
   });
 });
+
+/**
+ * Every numeric setting is `z.coerce.number()`, and JavaScript's coercion
+ * says `Number('') === 0`. So a number field left blank in the console did
+ * not fail validation: it saved a zero.
+ *
+ * Which is not a harmless zero. `PEN_DAILY_SPEND_CAP_USD` is the circuit
+ * breaker on real provider spend and `SpendBreaker.enabled` is `capUsd() > 0`
+ * (`services/api/src/spend.ts:60`), so an empty field turns the breaker off —
+ * and the row then reads "0" as though somebody meant it. `PEN_TTS_CACHE_MB:
+ * ''` turns off the lesson voice store the same way, and every repeat lesson
+ * is re-synthesised at full price.
+ *
+ * The three that were reachable are the three whose `min` is 0; the rest were
+ * saved only by a `min: 1` that has nothing to do with the coercion. The
+ * whitespace, boolean and array forms coerce to 0 too.
+ */
+describe('a number field that was left blank', () => {
+  const emptyish: unknown[] = ['', '   ', '\t', false, [], null];
+
+  it('is refused rather than saved as zero', () => {
+    for (const name of SETTING_NAMES) {
+      const shape = SHAPES[name];
+      if (shape.kind !== 'number') continue;
+      for (const value of emptyish) {
+        const parsed = shape.parse(value);
+        // `null` on an optional field legitimately means "no value".
+        if (value === null && shape.nullable) {
+          expect(parsed, `${name} / null`).toEqual({ ok: true, value: undefined });
+          continue;
+        }
+        expect(parsed.ok, `${name} / ${JSON.stringify(value)}`).toBe(false);
+      }
+    }
+  });
+
+  it('still takes the numbers an operator actually types', () => {
+    expect(SHAPES.PEN_DAILY_SPEND_CAP_USD.parse(0)).toEqual({ ok: true, value: 0 });
+    expect(SHAPES.PEN_DAILY_SPEND_CAP_USD.parse('0')).toEqual({ ok: true, value: 0 });
+    expect(SHAPES.PEN_DAILY_SPEND_CAP_USD.parse('12.5')).toEqual({ ok: true, value: 12.5 });
+    expect(SHAPES.PEN_DAILY_SPEND_CAP_USD.parse(' 12.5 ')).toEqual({ ok: true, value: 12.5 });
+    expect(SHAPES.PEN_TTS_CACHE_MB.parse('2048')).toEqual({ ok: true, value: 2048 });
+    expect(SHAPES.PEN_DAILY_SPEND_CAP_USD.parse('abc').ok).toBe(false);
+    expect(SHAPES.PEN_DAILY_SPEND_CAP_USD.parse('12abc').ok).toBe(false);
+  });
+});

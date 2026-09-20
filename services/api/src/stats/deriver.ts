@@ -189,6 +189,30 @@ export class StatsDeriver {
   }
 
   /** Stop accepting and stop draining (process shutdown, tests). */
+  /**
+   * Derive everything queued, settle delays included, and answer with how
+   * many. Shutdown only.
+   *
+   * `drain()` skips anything whose settle window has not opened yet, which is
+   * right on the every-few-seconds loop and wrong when the process is about
+   * to stop: `close()` used to clear the queue outright, so a deploy threw
+   * away up to `STATS_SETTLE_MS` of just-finished sessions. They are not
+   * recoverable from anywhere cheap — the backfill would have to walk every
+   * ledger on disk to notice.
+   */
+  async flush(): Promise<number> {
+    let done = 0;
+    // `drain` takes one pass and may re-queue a settle; loop until nothing is
+    // left, but never forever — a row that fails is dropped by `drain` itself.
+    for (let pass = 0; pass < 4 && this.queue.size > 0 && !this.closed; pass++) {
+      for (const queued of this.queue.values()) queued.after = 0;
+      const n = await this.drain();
+      if (n === 0) break;
+      done += n;
+    }
+    return done;
+  }
+
   close(): void {
     this.closed = true;
     this.queue.clear();

@@ -39,7 +39,13 @@ const CARD_PURPOSE = 'session_meta';
 const THUMBNAIL_PURPOSE = 'session_thumbnail';
 
 /** How the room was closed, when the caller knows. The backfill does not, and says so. */
-export type EndReason = 'host' | 'idle' | 'length_ceiling' | 'unknown';
+/**
+ * Why a room stopped. `shutdown` is the process going down under a live
+ * lesson — a deploy, almost always — and it is kept apart from `idle`
+ * because they mean opposite things about the learner: one walked away, the
+ * other was interrupted by us.
+ */
+export type EndReason = 'host' | 'idle' | 'length_ceiling' | 'shutdown' | 'unknown';
 
 export interface DeriveInput {
   telemetry: SessionTelemetry;

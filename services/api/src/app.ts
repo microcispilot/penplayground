@@ -31,6 +31,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { WSContext } from 'hono/ws';
 import type { WebSocket } from 'ws';
 import { z } from 'zod';
+import { Admissions } from './admissions.js';
 import { ExportRefused, exportFilename } from './export/index.js';
 import { GoogleTokenError } from './google.js';
 import type { Claims } from './identity.js';
@@ -172,6 +173,8 @@ export function buildApp(services: Services): App {
   });
   /** Live sessions hosted from each address, so one machine cannot open rooms without bound. */
   const liveByIp = new Map<string, Set<string>>();
+  /** Sessions admitted but not yet built: see `admissions.ts` for why both ceilings need it. */
+  const admissions = new Admissions();
   const dev = services.cfg.NODE_ENV !== 'production';
 
   app.use(
@@ -591,8 +594,17 @@ export function buildApp(services: Services): App {
     if (!allowSession(claims.sub)) return c.json({ error: 'RATE_LIMITED' }, 429);
     const body = CreateSession.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    // Every read this decision needs, taken before the decision: from the
+    // first check below to `admissions.hold` there is no `await`, because a
+    // suspension point anywhere in there is the race this guards against.
+    // `me` used to be read after the checks, which was one such point.
     const usage = await usageFor(claims);
-    if (usage.reason === 'daily_limit')
+    const me = await services.participants.get(claims.sub);
+    const ip = clientKey(c.req);
+
+    // ── no await past here until the hold is taken ──────────────────────
+    const inFlight = admissions.pendingForHost(claims.sub);
+    if (usage.reason === 'daily_limit' || (usage.remaining !== null && usage.remaining <= inFlight))
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
@@ -633,7 +645,6 @@ export function buildApp(services: Services): App {
       );
     }
     // One machine may host a handful of rooms at a time, not a farm of them.
-    const ip = clientKey(c.req);
     const hosted = liveByIp.get(ip);
     if (hosted) {
       // A room lingers in the registry for a minute after it ends so late reads
@@ -642,33 +653,49 @@ export function buildApp(services: Services): App {
         const room = rooms.get(id);
         if (!room || room.room.getState().phase === 'ended') hosted.delete(id);
       }
-      if (hosted.size >= services.config.get('PEN_MAX_SESSIONS_PER_IP')) {
-        observer.event('rooms.ip_cap', { live: hosted.size });
-        return c.json(
-          {
-            error: 'RATE_LIMITED',
-            message: 'A few sessions are already running here. End one and this will start.',
-          },
-          429,
-        );
-      }
     }
-    // The room is born at the pace this learner last chose, so a signed-in
-    // learner never hears the first sentence at someone else's speed (ADR-0010).
-    const me = await services.participants.get(claims.sub);
-    const live = await rooms.create({
-      topic: body.data.topic,
-      host: { id: claims.sub, name: claims.name, plan: claims.plan },
-      band: body.data.band,
-      visibility: body.data.visibility,
-      ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
-      ...(body.data.language ? { language: body.data.language } : {}),
-      ...(me && !me.anonymous ? { pace: clampPace(me.pace) } : {}),
-    });
-    const hostedByIp = liveByIp.get(ip) ?? new Set<string>();
-    hostedByIp.add(live.record.id);
-    liveByIp.set(ip, hostedByIp);
-    return c.json({ session: live.record, state: live.room.getState() }, 201);
+    // Outside the `if`, deliberately. The sweep above only makes sense when
+    // there is a set to sweep, but the *count* has to include what is
+    // starting whether or not this address has finished starting anything
+    // yet — and on the first burst from a new address there is no set at all,
+    // which is exactly the moment the cap is easiest to walk through.
+    const starting = admissions.pendingForAddress(ip);
+    if ((hosted?.size ?? 0) + starting >= services.config.get('PEN_MAX_SESSIONS_PER_IP')) {
+      observer.event('rooms.ip_cap', { live: hosted?.size ?? 0, starting });
+      return c.json(
+        {
+          error: 'RATE_LIMITED',
+          message: 'A few sessions are already running here. End one and this will start.',
+        },
+        429,
+      );
+    }
+    // Admitted. The place is taken here and given back below, so the next
+    // request in this same window counts this one.
+    const admission = admissions.hold(claims.sub, ip);
+    // ── awaits are safe again ───────────────────────────────────────────
+    try {
+      // The room is born at the pace this learner last chose, so a signed-in
+      // learner never hears the first sentence at someone else's speed (ADR-0010).
+      const live = await rooms.create({
+        topic: body.data.topic,
+        host: { id: claims.sub, name: claims.name, plan: claims.plan },
+        band: body.data.band,
+        visibility: body.data.visibility,
+        ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
+        ...(body.data.language ? { language: body.data.language } : {}),
+        ...(me && !me.anonymous ? { pace: clampPace(me.pace) } : {}),
+      });
+      const hostedByIp = liveByIp.get(ip) ?? new Set<string>();
+      hostedByIp.add(live.record.id);
+      liveByIp.set(ip, hostedByIp);
+      return c.json({ session: live.record, state: live.room.getState() }, 201);
+    } finally {
+      // After the await, so by the time the place is free the row this
+      // session counts as is written and `countSince` can see it. Releasing
+      // any earlier would reopen the window it was taken to close.
+      admission.release();
+    }
   });
 
   /** The caller's own allowance, for the Home screen's "2 sessions left today". */
@@ -679,10 +706,12 @@ export function buildApp(services: Services): App {
   });
   app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
-    const record = await services.sessions.get(id);
+    // `resolve`, not `get`: an id collapsed into another telling of the same
+    // lesson still opens that lesson rather than a 404 (ADR-0031).
+    const record = await services.sessions.resolve(id);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
     const claims = await bearer(c.req.header('authorization'));
-    const live = rooms.get(id);
+    const live = rooms.get(record.id);
     return c.json({
       session: claims?.sub === record.hostId ? record : anonymise(record),
       live: live !== null,
@@ -735,9 +764,9 @@ export function buildApp(services: Services): App {
     return c.json({ liked: false, likes });
   });
   app.get('/api/sessions/:id/ledger', async (c) => {
-    const id = c.req.param('id');
-    const record = await services.sessions.get(id);
+    const record = await services.sessions.resolve(c.req.param('id'));
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    const id = record.id;
     await services.sessions.recordView(id);
     const claims = await bearer(c.req.header('authorization'));
     const host = claims?.sub === record.hostId;
@@ -749,8 +778,11 @@ export function buildApp(services: Services): App {
       expert: services.experts.get(record.expertId),
     });
   });
-  app.get('/api/sessions/:id/audio/:file', (c) => {
-    const p = services.ledger.audioPath(c.req.param('id'), c.req.param('file'));
+  app.get('/api/sessions/:id/audio/:file', async (c) => {
+    // The ledger above may have answered from a session this id was collapsed
+    // into; its audio has to come from the same recording.
+    const record = await services.sessions.resolve(c.req.param('id'));
+    const p = record ? services.ledger.audioPath(record.id, c.req.param('file')) : null;
     if (!p) return c.notFound();
     c.header('Content-Type', 'application/octet-stream');
     c.header('Cache-Control', 'private, max-age=3600');
@@ -951,10 +983,11 @@ export function buildApp(services: Services): App {
     },
     kind: ThumbnailKind,
   ): Promise<Response> => {
-    const id = c.req.param('id');
-    if (!SessionId.safeParse(id).success) return c.json({ error: 'NOT_FOUND' }, 404);
-    const record = await services.sessions.get(id);
+    const asked = c.req.param('id');
+    if (!SessionId.safeParse(asked).success) return c.json({ error: 'NOT_FOUND' }, 404);
+    const record = await services.sessions.resolve(asked);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    const id = record.id;
     if (record.visibility === 'private') {
       const claims = await bearer(c.req.header('authorization'));
       if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -999,6 +1032,13 @@ export function buildApp(services: Services): App {
     if (rooms.get(sessionId)) await rooms.end(sessionId);
     services.exports.forget(sessionId);
     services.ledger.remove(sessionId);
+    // Saves, likes and history are (participant, session) pairs with no
+    // foreign key to take them along. The lists inner-join `sessions`, so a
+    // leftover pair is invisible rather than harmless: it stays for ever and
+    // would attach itself to a reused id (ADR-0031).
+    await services.lists
+      .forgetSession(sessionId)
+      .catch((error: unknown) => observer.error('lists.forget_session', error, { sessionId }));
     await services.sessions.remove(sessionId);
     // The statistics are derived from what was just erased, so they go too
     // (ADR-0027). A failure here must not turn a deletion into an error the
@@ -1217,7 +1257,10 @@ export function buildApp(services: Services): App {
 
   /** Share page metadata: crawlers get OG tags, humans get redirected to the app. */
   app.get('/s/:id', async (c) => {
-    const record = await services.sessions.get(c.req.param('id'));
+    // A link somebody already has outlives the session it was made from: when
+    // that telling was collapsed into another, the card, the canonical URL and
+    // the redirect below all name the one that was kept (ADR-0031).
+    const record = await services.sessions.resolve(c.req.param('id'));
     if (!record) return c.notFound();
     const expert = services.experts.get(record.expertId);
     const target = publicUrl(services.cfg.PEN_PUBLIC_URL, `/sessions/${record.id}`);
@@ -1703,7 +1746,21 @@ export function buildApp(services: Services): App {
             stt?.audio(header.utteranceId, pcm);
             return;
           }
-          const parsed = ClientMessage.safeParse(JSON.parse(evt.data));
+          // Parsed safely, not by `JSON.parse` inside the `try` below. A
+          // frame that is not JSON at all used to throw past this branch into
+          // the outer catch, which files a Sentry error and answers
+          // `INTERNAL` — so `badFrames` never counted it and `close(4002)`
+          // never fired. One authenticated socket sending `{` was one issue
+          // per frame, for as long as it cared to keep sending. A malformed
+          // frame is the client's mistake either way, so it takes the same
+          // path as one that parsed and did not match the protocol.
+          let payload: unknown;
+          try {
+            payload = JSON.parse(String(evt.data));
+          } catch {
+            payload = null;
+          }
+          const parsed = ClientMessage.safeParse(payload);
           if (!parsed.success) {
             badFrames += 1;
             fail(ws, 'BAD_MESSAGE', 'That message did not match the protocol.');
@@ -1770,7 +1827,13 @@ export function buildApp(services: Services): App {
           if (!live) return;
           if (msg.kind === 'control' && msg.action === 'end') {
             live.room.handle(claims.sub, msg);
-            await rooms.end(sessionId);
+            // Only the host's frame closes the room. `SessionRoom.control`
+            // has always refused a guest with `NOT_HOST` and changed nothing
+            // — and this line then ended the session anyway, so the refusal
+            // was answered and the lesson stopped regardless. Any guest in a
+            // Professional host's room could close it with one frame. The
+            // REST twin (`POST /api/sessions/:id/end`) checks the same thing.
+            if (live.record.hostId === claims.sub) await rooms.end(sessionId);
             return;
           }
           if (msg.kind === 'utterance_start' || msg.kind === 'utterance_end') {

@@ -15,6 +15,7 @@
     "intent:probe": "node --env-file=../../.env --import tsx scripts/intent-probe.ts",
     "load": "node --import tsx scripts/load.ts",
     "packs:prewarm": "node --env-file=../../.env --import tsx scripts/prewarm-packs.ts",
+    "sessions:dedupe": "node --env-file-if-exists=../../.env --import tsx scripts/dedupe-sessions.ts",
     "posthog:dashboard": "node --env-file=../../.env --import tsx scripts/posthog-dashboard.ts",
     "sentry:alerts": "node --env-file=../../.env --import tsx scripts/sentry-alerts.ts",
     "stats:backfill": "node --env-file-if-exists=../../.env --import tsx scripts/stats-backfill.ts",

@@ -34,6 +34,12 @@ import { computeTelemetry, sessionEndedProperties, stageProperties } from './tel
  */
 export const MAX_STAGE_EVENTS_PER_SESSION = 500;
 
+/**
+ * How long an ended room is kept in the registry, so a client's last "state"
+ * read after the socket closes still finds it.
+ */
+export const ROOM_RELEASE_MS = 60_000;
+
 interface Seat {
   participantId: ParticipantId;
   socket: WebSocket;
@@ -63,6 +69,8 @@ export interface LiveRoom {
  */
 export class RoomRegistry {
   private readonly rooms = new Map<string, LiveRoom>();
+  /** The one ending each live session will have, claimed in `end`'s first tick. */
+  private readonly ending = new Map<string, Promise<void>>();
 
   constructor(private readonly services: Services) {}
 
@@ -397,9 +405,57 @@ export class RoomRegistry {
     if (seat) live.room.leave(seat.participantId);
   }
 
+  /**
+   * Close a session: stop the room, tell analytics, write the row, queue the
+   * statistics, then let the room go.
+   *
+   * One ending per session, claimed in this tick. The socket's `control`/`end`
+   * frame, the REST route, `endAndErase` and `sweep()` can all reach this, and
+   * two of them overlapping used to run the whole tail twice — two
+   * `session_ended` events, two telemetry computations, and an `endReason`
+   * overwritten by whichever landed second. `SessionRoom.end` has its own
+   * claim for its own recap; this is the registry's.
+   */
   async end(sessionId: string, reason: EndReason = 'host'): Promise<void> {
     const live = this.rooms.get(sessionId);
     if (!live) return;
+    let ending = this.ending.get(sessionId);
+    if (!ending) {
+      ending = this.runEnd(sessionId, live, reason);
+      this.ending.set(sessionId, ending);
+    }
+    return ending;
+  }
+
+  private async runEnd(sessionId: string, live: LiveRoom, reason: EndReason): Promise<void> {
+    try {
+      await this.endInner(sessionId, live);
+    } finally {
+      // Whatever went wrong above, these two must still happen.
+      //
+      // `sessions.patch` used to be awaited in the middle of this tail, so one
+      // database blip took everything below it: the ledger never reached the
+      // statistics queue, and the room was never scheduled for release. The
+      // room's phase is already `ended` by then, so `sweep()` skips it for
+      // good — a whole `LiveRoom` held for the life of the process, and a
+      // session that never appears in any report.
+      this.services.deriver.enqueue(sessionId, {
+        completed: live.room.getState().mode === 'complete',
+        endReason: reason,
+      });
+      // Keep the ended room around briefly so late "state" reads succeed, then
+      // release it. Unreferenced: a process on its way out should not wait a
+      // minute to tidy a map it is about to drop anyway.
+      const release = setTimeout(() => {
+        this.rooms.delete(sessionId);
+        this.ending.delete(sessionId);
+      }, ROOM_RELEASE_MS);
+      release.unref?.();
+    }
+  }
+
+  /** The ending itself. Everything here may fail; `runEnd` owns what may not. */
+  private async endInner(sessionId: string, live: LiveRoom): Promise<void> {
     await live.room.end();
     // The media room goes with the session; clients also disconnect on the ended state, so a
     // failure here only leaves an empty room for LiveKit's own empty_timeout to collect.
@@ -442,23 +498,22 @@ export class RoomRegistry {
     }
     observer.event('room.economics', { sessionId, ...ads });
     this.services.ads.forget(sessionId);
-    await this.services.sessions.patch(sessionId, {
-      endedAt: Date.now(),
-      durationMs: state.clockMs,
-      segments: state.plan?.segments.length ?? 0,
-      recap: state.recap ?? [],
-      questions: live.room.backlog().filter((c) => c.event.type === 'note').length,
-    });
-    // Hand this session's ledger to the statistics queue (ADR-0027). A map
-    // write and nothing more: the derivation itself happens on `main`'s drain
-    // loop, seconds later, so no report ever shares the connection with a
-    // lesson's own last writes.
-    this.services.deriver.enqueue(sessionId, {
-      completed: state.mode === 'complete',
-      endReason: reason,
-    });
-    // Keep the ended room around briefly so late "state" reads succeed, then release.
-    setTimeout(() => this.rooms.delete(sessionId), 60_000);
+    try {
+      await this.services.sessions.patch(sessionId, {
+        endedAt: Date.now(),
+        durationMs: state.clockMs,
+        segments: state.plan?.segments.length ?? 0,
+        recap: state.recap ?? [],
+        questions: live.room.backlog().filter((c) => c.event.type === 'note').length,
+      });
+    } catch (error) {
+      // The room is closed either way, and the learner is not the person to
+      // tell about a database blip. It goes to Sentry, and the deletion route
+      // that is about to remove this row does not become a 500 over it.
+      observer.error('rooms.patch_ended', error, { sessionId });
+    }
+    // The statistics queue (ADR-0027) and the room's release are in `runEnd`'s
+    // `finally`, because they have to happen whether or not this write did.
   }
 
   /**
@@ -466,6 +521,33 @@ export class RoomRegistry {
    * length are ended. The length ceiling is what stops a tab left open
    * overnight from quietly spending all night (PLAN_LIMITS.maxSessionMinutes).
    */
+  /**
+   * End every room that is still running, and wait for all of them.
+   *
+   * Shutdown only. A live room that the process simply exits under keeps
+   * `endedAt: null` for ever: it never enters the catalogue, never reaches
+   * the statistics queue, and shows in "My sessions" as a lesson that never
+   * finished — which, from the learner's side, is what a deploy looked like.
+   * `reason: 'shutdown'` is what tells those rows apart afterwards from a
+   * learner who walked away.
+   *
+   * Failures are reported, never thrown: one room that cannot be written
+   * must not stop the others from being.
+   */
+  async endAll(reason: EndReason = 'shutdown'): Promise<number> {
+    const live = [...this.rooms]
+      .filter(([, room]) => room.room.getState().phase !== 'ended')
+      .map(([id]) => id);
+    await Promise.all(
+      live.map((id) =>
+        this.end(id, reason).catch((error: unknown) =>
+          observer.error('rooms.end_all', error, { sessionId: id }),
+        ),
+      ),
+    );
+    return live.length;
+  }
+
   sweep(now = Date.now()): void {
     for (const [id, live] of this.rooms) {
       const state = live.room.getState();
