@@ -60,6 +60,13 @@ export class RoomAudio {
   private port: AudioRoomPort | null = null;
   private micTrack: MediaStreamTrack | null = null;
   private published = false;
+  /**
+   * Bumped by anything that supersedes an in-flight publish — a detach, a
+   * dispose, another publish. `publishIfReady` reads it back across its
+   * await to find out whether the clone it just put in the room is still
+   * wanted.
+   */
+  private publishEpoch = 0;
   private attempts = 0;
   private cancelTimer: (() => void) | null = null;
   private disposed = false;
@@ -137,6 +144,7 @@ export class RoomAudio {
           // genuine drop: after a server-side removal a reconnect would just fight the server.
           this.port = null;
           this.published = false;
+          this.publishEpoch += 1;
           this.patch({ participants: {}, speaking: [] });
           this.o.onRemoteSpeaking?.(false);
           void port.disconnect().catch(() => undefined);
@@ -197,6 +205,8 @@ export class RoomAudio {
 
   async detachMicrophone(): Promise<void> {
     this.micTrack = null;
+    // Anything already publishing is now superseded: see `publishIfReady`.
+    this.publishEpoch += 1;
     if (!this.port || !this.published) return;
     this.published = false;
     try {
@@ -206,14 +216,46 @@ export class RoomAudio {
     }
   }
 
+  /**
+   * Publish a clone of the microphone the session already captures.
+   *
+   * `published = true` is set **before** the await and that is deliberate —
+   * it is what stops a second caller publishing a second clone — but on its
+   * own it was a hot microphone. `port.publish()` is a renegotiation and
+   * takes real time; a learner who turns the mic off inside that window runs
+   * `detachMicrophone`, which sees `published === true`, sets it to `false`
+   * and unpublishes *nothing that is there yet*. The publish then completes,
+   * and a live clone is in the room with `published === false` beside it —
+   * so nothing will ever take it down, and the UI says the microphone is
+   * off while it is not.
+   *
+   * The epoch is what closes it: whoever finishes publishing checks whether
+   * the world still wants what it published, and undoes it if not. The clone
+   * is stopped on every path that does not keep it, because a clone left
+   * running holds the browser's recording indicator on by itself.
+   */
   private async publishIfReady(): Promise<void> {
     if (!this.port || !this.micTrack || this.published) return;
+    const epoch = ++this.publishEpoch;
+    const port = this.port;
+    const clone = this.micTrack.clone();
     this.published = true;
     try {
-      await this.port.publish(this.micTrack.clone());
+      await port.publish(clone);
     } catch (error) {
       this.published = false;
+      clone.stop();
       this.o.onError('rooms.audio.publish', error);
+      return;
+    }
+    if (epoch === this.publishEpoch && this.micTrack && !this.disposed) return;
+    // Detached, disposed or superseded while we were publishing.
+    this.published = false;
+    clone.stop();
+    try {
+      await port.unpublish();
+    } catch (error) {
+      this.o.onError('rooms.audio.unpublish', error);
     }
   }
 
@@ -254,6 +296,9 @@ export class RoomAudio {
     this.port = null;
     this.micTrack = null;
     this.published = false;
+    // Same reason as `detachMicrophone`: a publish still in flight must not
+    // land in a room nobody is in any more.
+    this.publishEpoch += 1;
     this.o.onRemoteSpeaking?.(false);
     this.patch({ ...INITIAL });
     if (port)

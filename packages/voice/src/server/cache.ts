@@ -330,7 +330,15 @@ export class CachingSynthesizer implements SpeechSynthesizer {
     } catch (error) {
       shared.fail(error);
     } finally {
-      this.inFlight.delete(key);
+      // Release this claim, and only this one.
+      //
+      // A barge-in leaves a synthesis abandoned but still parked in the
+      // provider call. The next room finds it unjoinable, rightly buys its
+      // own, and claims this same key — and when the abandoned pump finally
+      // unwinds, a bare `delete(key)` evicted *that* room's live claim.
+      // Everyone after it missed a synthesis that was running at that moment
+      // and paid the provider for the same sentence again.
+      if (this.inFlight.get(key) === shared) this.inFlight.delete(key);
     }
   }
 

@@ -357,3 +357,109 @@ describe('the lesson voice store', () => {
 function lessonFile(root: string, sayId: string, take: string): string {
   return join(root, LESSON.canonicalId, LESSON.band, LESSON.expertId, `${sayId}.${take}.pcm`);
 }
+
+/**
+ * A claim has an owner.
+ *
+ * `pump`'s `finally` released the in-flight key without checking the map
+ * still held *its own* synthesis. The order that matters is ordinary: a
+ * learner barges in, so their synthesis is abandoned and stops being
+ * joinable; a second room asks for the same sentence and rightly buys its
+ * own, claiming the key; the first pump then unwinds and deletes the key —
+ * evicting the second room's live claim. Every room after that misses a
+ * synthesis that is running right now and pays the provider again for a
+ * sentence already being bought.
+ *
+ * The same shape was fixed once before, in the thumbnail single-flight
+ * ("A claim has an owner, so releasing it cannot free someone else's").
+ */
+describe('the in-flight claim', () => {
+  const FRAMES = 3;
+
+  /** A synthesizer whose every frame can be held, per call, so an order can be built exactly. */
+  function gatedSynthesizer() {
+    const holds = new Map<string, { open: () => void; held: Promise<void> }>();
+    const hold = (call: number, frame: number) => {
+      const key = `${call}:${frame}`;
+      const found = holds.get(key);
+      if (found) return found;
+      let open: () => void = () => {};
+      const held = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      const made = { open, held };
+      holds.set(key, made);
+      return made;
+    };
+    let calls = 0;
+    const inner: SpeechSynthesizer = {
+      id: 'fish-cloud:s2.1-pro',
+      async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
+        const mine = calls;
+        calls += 1;
+        for (let i = 0; i < FRAMES; i += 1) {
+          if (holds.has(`${mine}:${i}`)) await hold(mine, i).held;
+          if (request.signal?.aborted) return;
+          yield {
+            audioChunkId: i,
+            audioClockMs: i * 120,
+            sampleRate: request.sampleRate,
+            durationMs: 120,
+            pcm: new Uint8Array(FRAME_BYTES).fill(i + 1),
+            textSpan: null,
+          };
+        }
+      },
+    };
+    return {
+      inner,
+      hold,
+      get calls() {
+        return calls;
+      },
+    };
+  }
+
+  const turn = () => new Promise((r) => setTimeout(r, 0));
+
+  it('is released by its owner alone, so an abandoned synthesis cannot evict a live one', async () => {
+    const provider = gatedSynthesizer();
+    // Call 0 gives its first frame at once and then parks — the abandoned one.
+    const parked = provider.hold(0, 1);
+    // Call 1 parks before its first frame, so it is still in flight for room C.
+    const second = provider.hold(1, 0);
+    const cache = store(provider.inner);
+
+    // Room A hears a frame and its learner barges in.
+    const aborter = new AbortController();
+    const heard: SpeechChunk[] = [];
+    for await (const chunk of cache.synthesize(
+      lessonSay('L0.s1', 'Shared sentence.', { signal: aborter.signal }),
+    )) {
+      heard.push(chunk);
+      aborter.abort();
+    }
+    expect(heard).toHaveLength(1);
+
+    // Room B asks. A's synthesis is abandoned, so B rightly buys its own.
+    const b = collect(cache.synthesize(lessonSay('L0.s1', 'Shared sentence.')));
+    await turn();
+    expect(provider.calls).toBe(2);
+
+    // Only now does A's provider call come back and A's pump unwind.
+    parked.open();
+    await turn();
+
+    // Room C: B's synthesis is still running, so there is nothing to buy.
+    const c = collect(cache.synthesize(lessonSay('L0.s1', 'Shared sentence.')));
+    await turn();
+    second.open();
+    const [fromB, fromC] = await Promise.all([b, c]);
+
+    expect(provider.calls).toBe(2);
+    expect(cache.snapshot().coalesced).toBe(1);
+    expect(Buffer.concat(fromC.map((x) => Buffer.from(x.pcm)))).toEqual(
+      Buffer.concat(fromB.map((x) => Buffer.from(x.pcm))),
+    );
+  });
+});

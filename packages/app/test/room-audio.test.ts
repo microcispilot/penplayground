@@ -314,3 +314,83 @@ describe('RoomAudio', () => {
     expect(h.ports[0]?.calls.at(-1)).toBe('disconnect');
   });
 });
+
+/**
+ * The microphone that stays on.
+ *
+ * `publishIfReady` sets `published = true` before awaiting `port.publish()`,
+ * which is right — it is what stops a second caller publishing a second
+ * clone — and on its own it was a hot mic. Publishing is a renegotiation and
+ * takes real time; a learner who turns the mic off inside that window runs
+ * `detachMicrophone`, which sees `published === true`, sets it false and
+ * unpublishes nothing, because nothing is there yet. The publish then lands:
+ * a live clone in the room, `published === false` beside it, and nothing
+ * that will ever take it down. The UI says the microphone is off. It is not.
+ */
+describe('a microphone turned off while it is still being published', () => {
+  /** A port whose `publish` does not finish until the test lets it. */
+  class SlowPort extends FakePort {
+    release: (() => void) | null = null;
+    override async publish(track: MediaStreamTrack): Promise<void> {
+      this.calls.push('publish');
+      await new Promise<void>((resolve) => {
+        this.release = resolve;
+      });
+      this.published.push(track as unknown as FakeTrack);
+    }
+  }
+
+  it('does not leave a live clone in the room', async () => {
+    const slow = new SlowPort();
+    const h = harness({ portFactory: () => slow });
+    await h.audio.connect();
+    const mic = new FakeTrack();
+
+    const publishing = h.audio.attachMicrophone(mic.asTrack());
+    await Promise.resolve();
+    expect(slow.calls).toContain('publish');
+
+    // The learner turns it off, mid-renegotiation.
+    await h.audio.detachMicrophone();
+    slow.release?.();
+    await publishing;
+
+    const clone = mic.clones[0];
+    expect(clone, 'a clone was made').toBeDefined();
+    expect(clone?.stopped, 'and it is not still running').toBe(true);
+    // Undone at the port too, not merely in this object's bookkeeping.
+    expect(slow.calls.filter((c) => c === 'unpublish').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the clone when nothing superseded it', async () => {
+    const slow = new SlowPort();
+    const h = harness({ portFactory: () => slow });
+    await h.audio.connect();
+    const mic = new FakeTrack();
+
+    const publishing = h.audio.attachMicrophone(mic.asTrack());
+    await Promise.resolve();
+    slow.release?.();
+    await publishing;
+
+    expect(mic.clones[0]?.stopped, 'the ordinary path keeps the microphone').toBe(false);
+    expect(slow.calls).not.toContain('unpublish');
+  });
+
+  it('stops the clone when the publish itself fails, rather than leaking the grant', async () => {
+    class FailingPort extends FakePort {
+      override async publish(): Promise<void> {
+        this.calls.push('publish');
+        throw new Error('renegotiation failed');
+      }
+    }
+    const port = new FailingPort();
+    const h = harness({ portFactory: () => port });
+    await h.audio.connect();
+    const mic = new FakeTrack();
+    await h.audio.attachMicrophone(mic.asTrack());
+
+    expect(mic.clones[0]?.stopped).toBe(true);
+    expect(h.errors.map((e) => e.area)).toContain('rooms.audio.publish');
+  });
+});

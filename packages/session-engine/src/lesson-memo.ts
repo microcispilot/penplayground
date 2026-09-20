@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SelectionBand } from '@pen/contracts';
 import { nanoid } from 'nanoid';
@@ -137,26 +137,104 @@ function normalise(entry: LessonMemoEntry): LessonMemoEntry {
   };
 }
 
+export interface FileLessonMemoOptions {
+  /**
+   * Where a failure to read or write the file goes. The API hands it the
+   * session observer, so it reaches Sentry: losing this cache is expensive
+   * and must never be something we find out about from the bill.
+   */
+  onError?: (scope: string, error: unknown) => void;
+}
+
+/**
+ * The memo as a file, which is what production runs on
+ * (`services/api/src/services.ts`).
+ *
+ * Two things this has to get right, because the file *is* the cache that
+ * stops every lesson being written and spoken twice:
+ *
+ * **A save is all-or-nothing.** It used to be a plain `writeFile` over the
+ * destination, which truncates and then streams. A reader during that window
+ * sees half a document — measured through this class: a 388 KB memo, 36 of 40
+ * saves left at least one unparseable read behind them — and a process killed
+ * in it (a deploy, an OOM) leaves the file that way for good. So the body goes
+ * to a temporary file and is `rename`d over the destination, which is atomic:
+ * a reader sees the old document or the new one, never a seam. Saves are
+ * queued behind one another too, so two rooms finishing a segment together
+ * cannot interleave.
+ *
+ * **A file we could not read is not an empty file.** The old `load` caught
+ * everything and answered "no memos", and the next save wrote that over the
+ * file: one bad read, and every lesson the deployment had ever taught was
+ * gone, silently. A missing file is a first run and says nothing; anything
+ * else is reported, and the memo refuses to write until someone has looked.
+ */
 export class FileLessonMemo implements LessonMemo {
   private entries: LessonMemoEntry[] | null = null;
-  constructor(private readonly dir: string) {}
+  /** The one read this instance will do, claimed in `load`'s first tick. */
+  private loading: Promise<LessonMemoEntry[]> | null = null;
+  /** Saves run one at a time, in the order they were asked for. */
+  private writing: Promise<void> = Promise.resolve();
+  /** The file exists and could not be read: hold what is there for recovery. */
+  private unreadable = false;
+
+  constructor(
+    private readonly dir: string,
+    private readonly o: FileLessonMemoOptions = {},
+  ) {}
 
   private get file() {
     return join(this.dir, 'lesson-memo.json');
   }
-  private async load(): Promise<LessonMemoEntry[]> {
-    if (this.entries) return this.entries;
+  private load(): Promise<LessonMemoEntry[]> {
+    // Claimed in the same tick as the miss: two callers arriving together used
+    // to parse the file twice into two different arrays, and whichever landed
+    // second became `this.entries` while the first was still being written to.
+    this.loading ??= this.read();
+    return this.loading;
+  }
+  private async read(): Promise<LessonMemoEntry[]> {
     await mkdir(this.dir, { recursive: true });
+    let raw: string;
     try {
-      const raw = JSON.parse(await readFile(this.file, 'utf8')) as LessonMemoEntry[];
-      this.entries = raw.map(normalise);
-    } catch {
+      raw = await readFile(this.file, 'utf8');
+    } catch (error) {
+      // No file is a first run, and the only silent case there is.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        this.unreadable = true;
+        this.o.onError?.('lesson_memo.unreadable', error);
+      }
+      this.entries = [];
+      return this.entries;
+    }
+    try {
+      this.entries = (JSON.parse(raw) as LessonMemoEntry[]).map(normalise);
+    } catch (error) {
+      this.unreadable = true;
+      this.o.onError?.('lesson_memo.unreadable', error);
       this.entries = [];
     }
     return this.entries;
   }
-  private async save(): Promise<void> {
-    await writeFile(this.file, JSON.stringify(this.entries ?? []));
+  private save(): Promise<void> {
+    if (this.unreadable) return Promise.resolve();
+    // Serialised here, so the body is the array as it stands at this moment.
+    const body = JSON.stringify(this.entries ?? []);
+    const next = this.writing.then(() => this.write(body));
+    // The queue survives a failed write; this caller still hears about it.
+    this.writing = next.catch(() => undefined);
+    return next;
+  }
+  private async write(body: string): Promise<void> {
+    const tmp = `${this.file}.${process.pid}.${nanoid(8)}.tmp`;
+    try {
+      await writeFile(tmp, body);
+      await rename(tmp, this.file);
+    } catch (error) {
+      this.o.onError?.('lesson_memo.write', error);
+      await rm(tmp, { force: true }).catch(() => undefined);
+      throw error;
+    }
   }
   async find(
     canonicalKnowledgeId: string,

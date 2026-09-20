@@ -108,3 +108,106 @@ describe('a memo belongs to the knowledge it was written from', () => {
     expect((found?.plan as { title: string } | undefined)?.title).toBe('newer');
   });
 });
+
+/**
+ * The memo on disk is what production uses (`services/api/src/services.ts`),
+ * and it is the cache that stops a lesson being written and spoken twice. So
+ * the two ways it can quietly lose everything it holds both have a test.
+ *
+ * One: `save()` rewrote the whole file with no lock. Two rooms of one process
+ * finishing a segment at the same moment issue two `writeFile`s at the same
+ * path; each truncates and writes from its own offset, and the shorter one
+ * finishing last leaves the longer one's tail behind it. Measured before the
+ * fix at the OS level — 15 of 40 concurrent pairs left a file `JSON.parse`
+ * refused.
+ *
+ * Two: `load()` treated *every* read failure as "there are no memos" — which
+ * is right for a first run and catastrophic for a corrupt or unreadable file,
+ * because the next `save()` then wrote `[]` over it. Every lesson the
+ * deployment had ever taught, gone, with nothing said to anyone, and every
+ * session after it paying again to write and speak what was already there.
+ */
+describe('the memo on disk', () => {
+  const bulky = (i: number) =>
+    entry({
+      canonicalKnowledgeId: `en.topic-${i}`,
+      // A real memo holds every spoken sentence of every segment.
+      cuesBySegment: [Array.from({ length: 30 }, (_, n) => ({ say: `sentence ${n} `.repeat(20) }))],
+    });
+
+  it('never leaves half a document on disk', async () => {
+    const { mkdtemp, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { FileLessonMemo } = await import('../src/lesson-memo.js');
+    const dir = await mkdtemp(join(tmpdir(), 'pen-memo-'));
+    const file = join(dir, 'lesson-memo.json');
+    const memo = new FileLessonMemo(dir);
+    // A deployment that has taught a few dozen lessons: ~390 KB of memo.
+    for (let i = 0; i < 40; i++) await memo.put(bulky(i));
+    let torn = 0;
+    for (let round = 0; round < 20; round++) {
+      const saving = memo.put(bulky(100 + round));
+      // Anyone reading the file while a save is in flight — another process,
+      // the backfill, or this one after a crash and a restart.
+      for (let read = 0; read < 40; read++) {
+        try {
+          JSON.parse(await readFile(file, 'utf8'));
+        } catch {
+          torn += 1;
+          break;
+        }
+      }
+      await saving;
+    }
+    expect(torn).toBe(0);
+    // And every lesson is still there afterwards.
+    const reread = new FileLessonMemo(dir);
+    expect(
+      await reread.find('en.topic-0', 'beginner', 'ada-research-mentor', 'en-US'),
+    ).toBeTruthy();
+    expect(
+      await reread.find('en.topic-119', 'beginner', 'ada-research-mentor', 'en-US'),
+    ).toBeTruthy();
+  });
+
+  it('refuses to overwrite a file it could not read, and says so', async () => {
+    const { mkdtemp, readFile, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { FileLessonMemo } = await import('../src/lesson-memo.js');
+    const dir = await mkdtemp(join(tmpdir(), 'pen-memo-'));
+    const file = join(dir, 'lesson-memo.json');
+    const seed = new FileLessonMemo(dir);
+    await seed.put(bulky(1));
+    const good = await readFile(file, 'utf8');
+    // Half a write: a crash mid-save, or the race above.
+    await writeFile(file, good.slice(0, Math.floor(good.length / 2)));
+
+    const errors: Array<{ scope: string; error: unknown }> = [];
+    const memo = new FileLessonMemo(dir, {
+      onError: (scope, error) => errors.push({ scope, error }),
+    });
+    // It reads as empty — there is nothing else it can honestly return …
+    expect(await memo.find('en.topic-1', 'beginner', 'ada-research-mentor', 'en-US')).toBeNull();
+    // … but it said so, rather than swallowing it.
+    expect(errors.map((e) => e.scope)).toContain('lesson_memo.unreadable');
+    // And the next write does not turn a recoverable file into an empty one.
+    await memo.put(bulky(2));
+    expect(await readFile(file, 'utf8')).toBe(good.slice(0, Math.floor(good.length / 2)));
+  });
+
+  it('starts empty on a first run without complaining', async () => {
+    const { mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { FileLessonMemo } = await import('../src/lesson-memo.js');
+    const dir = await mkdtemp(join(tmpdir(), 'pen-memo-'));
+    const errors: string[] = [];
+    const memo = new FileLessonMemo(dir, { onError: (scope) => errors.push(scope) });
+    expect(await memo.find('en.topic-1', 'beginner')).toBeNull();
+    await memo.put(bulky(1));
+    expect(await memo.find('en.topic-1', 'beginner', 'ada-research-mentor', 'en-US')).toBeTruthy();
+    expect(errors).toEqual([]);
+  });
+});

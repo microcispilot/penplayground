@@ -418,3 +418,136 @@ describe('spokenText', () => {
     );
   });
 });
+
+/**
+ * The host's End button reaches the room twice.
+ *
+ * `services/api/src/app.ts` handles a `control`/`end` frame by giving it to
+ * the room and then ending the registry's room:
+ *
+ *   live.room.handle(claims.sub, msg);   // → control('end') → void this.end()
+ *   await rooms.end(sessionId);          // → live.room.end()
+ *
+ * `end()` guards on `phase === 'ended'`, but it only sets that phase *after*
+ * awaiting the recap completion. The first call is still suspended in the
+ * model when the second one reads the guard, so both sail past it and the
+ * session pays for two recaps — on every host-initiated end, not rarely.
+ */
+describe('SessionRoom.end', () => {
+  it('is one recap however many times the host end reaches it', async () => {
+    const { onten, memo } = await preparedPack();
+    const transport = new MemoryTransport();
+    const base = fakeModel();
+    let recaps = 0;
+    const counting = {
+      id: base.id,
+      streamEvents: (r: Parameters<typeof base.streamEvents>[0]) => base.streamEvents(r),
+      complete: async <T>(r: Parameters<typeof base.complete<T>>[0]) => {
+        if (r.purpose === 'recap') recaps += 1;
+        // A real provider takes a second or two over a recap; the race needs
+        // only that it takes longer than the next frame the socket reads.
+        await new Promise((res) => setTimeout(res, 20));
+        return base.complete(r);
+      },
+    };
+    const room = new SessionRoom({
+      sessionId: 'sess-end-twice',
+      topic: 'How Transformers work in LLMs',
+      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      expert,
+      band: 'beginner',
+      language: 'en',
+      locale: 'en-US',
+      onten,
+      runtime: onten.newRuntime(),
+      memo,
+      model: counting,
+      synthesizer: new SilentSynthesizer(),
+      voice: 'v',
+      sampleRate: 44100,
+      transport,
+      acquirer: null,
+      targetMinutes: 2,
+    });
+    await room.start();
+    await until(() => transport.cues().filter((c) => c.segment === 0).length >= 1);
+
+    // Exactly what the websocket does with one `control`/`end` frame.
+    room.handle('host-1234', { kind: 'control', action: 'end' });
+    await room.end();
+
+    expect(recaps).toBe(1);
+    expect(room.getState().phase).toBe('ended');
+    expect(room.getState().recap).toEqual([
+      'Tokens become vectors',
+      'Attention scores query against key',
+    ]);
+    // And the ended state is broadcast once, not once per caller.
+    expect(transport.states().filter((s) => s.phase === 'ended')).toHaveLength(1);
+  });
+});
+
+/**
+ * Segment lookahead waits for the host to catch up, with a safety timer so a
+ * backgrounded tab cannot stall generation forever. The wait resolves the
+ * moment progress arrives — and the safety timer was never cleared when it
+ * did, so every segment boundary left a two-minute handle behind it. Node
+ * keeps the event loop alive for those: a room that ended holds the process
+ * (and a test worker) open after it, and a drain on SIGTERM waits on nothing.
+ */
+describe('segment lookahead', () => {
+  it('clears its safety timer when the host catches up', async () => {
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    /** Handles for timers long enough that only a safety net would ask for one. */
+    const longLived = new Set<unknown>();
+    const LONG_MS = 10_000;
+    globalThis.setTimeout = ((fn: () => void, ms?: number, ...rest: unknown[]) => {
+      const handle = (realSetTimeout as (...a: unknown[]) => unknown)(fn, ms, ...rest);
+      if ((ms ?? 0) >= LONG_MS) longLived.add(handle);
+      return handle;
+    }) as typeof globalThis.setTimeout;
+    globalThis.clearTimeout = ((handle: unknown) => {
+      longLived.delete(handle);
+      return (realClearTimeout as (...a: unknown[]) => unknown)(handle);
+    }) as typeof globalThis.clearTimeout;
+    try {
+      const { onten, memo } = await preparedPack();
+      const transport = new MemoryTransport();
+      const room = new SessionRoom({
+        sessionId: 'sess-lookahead',
+        topic: 'How Transformers work in LLMs',
+        host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+        expert,
+        band: 'beginner',
+        language: 'en',
+        locale: 'en-US',
+        onten,
+        runtime: onten.newRuntime(),
+        memo,
+        model: fakeModel(),
+        synthesizer: new SilentSynthesizer(),
+        voice: 'v',
+        sampleRate: 44100,
+        transport,
+        acquirer: null,
+        targetMinutes: 2,
+      });
+      await room.start();
+      await until(() => transport.cues().filter((c) => c.segment === 0).length >= 3);
+      // Let segment 1 finish and the loop park in the lookahead wait before
+      // the host catches up — otherwise the wait is never entered at all.
+      await new Promise((r) => setTimeout(r, 400));
+      // The host reports hearing segment 1, so the lookahead wait resolves the
+      // fast way rather than by timing out.
+      room.handle('host-1234', { kind: 'progress', seq: 2, clockMs: 6000 });
+      await until(() => transport.cues().some((c) => c.segment === 1));
+      await room.end();
+      expect([...longLived]).toHaveLength(0);
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+      for (const h of longLived) realClearTimeout(h as ReturnType<typeof setTimeout>);
+    }
+  });
+});

@@ -77,6 +77,13 @@ export const MAX_REPORTS_PER_PARTICIPANT = 5000;
  */
 export const AD_WINDOW_GRACE_MS = 2_000;
 
+/**
+ * How long segment lookahead waits for the host's progress before giving up
+ * and generating anyway. A backgrounded tab stops reporting progress; the
+ * lesson must not stop with it.
+ */
+const HOST_PROGRESS_STALL_MS = 120_000;
+
 /** Lifecycle steps that mean the ad is off the learner's screen. */
 const AD_TERMINAL_EVENTS: ReadonlySet<AdEventName> = new Set([
   'ad_completed',
@@ -295,6 +302,8 @@ export class SessionRoom {
   private reportedOverBudget = false;
   /** When each participant last reacted, for the one-per-600-ms rule (`reactions.ts`). */
   private readonly lastReactionAt = new Map<ParticipantId, number>();
+  /** The one ending this room will ever have, claimed in `end()`'s first tick. */
+  private ending: Promise<void> | null = null;
 
   constructor(deps: SessionRoomDeps) {
     this.firstAudio = new Promise<void>((resolve) => {
@@ -553,9 +562,39 @@ export class SessionRoom {
     }
   }
 
-  /** Audio from a participant's mic (when STT runs server-side); the API routes STT output back through `transcript`. */
+  /**
+   * Close the session: stop generating, write the recap, tell everyone.
+   *
+   * One end, however many callers ask for one. The `phase === 'ended'` guard
+   * below is not enough on its own, because the phase is not set until the
+   * recap completion has come back — a second or two of real provider — and
+   * the host's End button reaches this room twice within that window. The
+   * websocket handler gives the `control`/`end` frame to `handle`, which calls
+   * this, and then ends the registry's room, which calls it again
+   * (`services/api/src/app.ts`). Both used to sail past the guard and the
+   * session paid for two recaps, on every host-initiated end.
+   *
+   * So the first caller claims the ending in the same tick and everyone else
+   * awaits the same promise. The claim is never released: a room ends once.
+   *
+   * And it never rejects. Two callers reach this by `void this.end()`, where
+   * a rejection is an unhandled one; and a claim holding a rejected promise
+   * would hand that same failure to every later caller for the life of the
+   * room, including the registry's `end`, which has cleanup of its own to do
+   * (`services/api/src/rooms.ts`). A room that failed to finish ending is
+   * still a room that must not pay for a second recap, so the failure is
+   * reported and the claim stands.
+   */
   async end(): Promise<void> {
     if (this.state.phase === 'ended') return;
+    this.ending ??= this.runEnd().catch((error: unknown) => {
+      this.observer.error('room.end', error, { sessionId: this.sessionId });
+    });
+    return this.ending;
+  }
+
+  /** The ending itself; `end()` owns the claim that makes it happen once. */
+  private async runEnd(): Promise<void> {
     this.abort.abort();
     this.pipeline.close();
     // Nothing is waiting for a first sentence that will never come now.
@@ -1375,18 +1414,22 @@ export class SessionRoom {
   private waitForHostProgress(seq: number): Promise<void> {
     if (this.hostProgressSeq >= seq || this.participants.size === 0) return Promise.resolve();
     return new Promise((resolve) => {
-      const check = () => {
-        if (this.abort.signal.aborted || this.hostProgressSeq >= seq) {
-          clearInterval(timer);
-          resolve();
-        }
-      };
-      const timer = setInterval(check, 100);
-      // Safety: never stall generation forever if progress reports stop (e.g. host tab in background).
-      setTimeout(() => {
-        clearInterval(timer);
+      // Both handles go together, whichever of them ends the wait. The safety
+      // timer used to be left running when progress arrived first, which is
+      // the ordinary case: every segment boundary of every session left a
+      // two-minute handle behind it, and Node keeps the event loop alive for
+      // those. An ended room went on holding the process — a drain on SIGTERM
+      // waiting for nothing, and a test worker that would not exit.
+      const finish = () => {
+        clearInterval(poll);
+        clearTimeout(safety);
         resolve();
-      }, 120_000);
+      };
+      const poll = setInterval(() => {
+        if (this.abort.signal.aborted || this.hostProgressSeq >= seq) finish();
+      }, 100);
+      // Safety: never stall generation forever if progress reports stop (e.g. host tab in background).
+      const safety = setTimeout(finish, HOST_PROGRESS_STALL_MS);
     });
   }
 

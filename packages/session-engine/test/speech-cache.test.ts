@@ -224,3 +224,105 @@ describe('when the learner takes the floor', () => {
     await vi.waitFor(() => expect(synthesizer.calls).toBeGreaterThanOrEqual(3));
   });
 });
+
+/**
+ * The lookahead budget, and the one way it silently stopped being a budget.
+ *
+ * `enqueued - heardUpTo` is how many sentences have been bought ahead of what
+ * the learner has heard, and the pipeline stops synthesising when that
+ * reaches `lookahead`. A barge-in calls `cancel()`, which throws away the
+ * audio nobody will hear and rebases the count: `enqueued = heardUpTo`.
+ *
+ * But the host's progress reports are asynchronous, and `room.ts`'s
+ * `progress` walks *every* lesson sentence between the last report and this
+ * one, calling `markHeard()` for each. The reports for sentences the barge-in
+ * has already written off arrive afterwards — and `markHeard` raised
+ * `heardUpTo` with nothing on the other side, so the difference went negative
+ * and the window grew, permanently, once per late report.
+ *
+ * Which costs money in exactly the place the budget exists to protect: more
+ * sentences synthesised ahead than the room allows, and every one of them
+ * thrown away by the next barge-in. `started.shift()` on an empty array is a
+ * silent no-op, so nothing said a word about it.
+ */
+describe('the lookahead budget', () => {
+  /** Completes at once, and counts how many sentences the pipeline let through. */
+  class CountingSynthesizer implements SpeechSynthesizer {
+    readonly id = ENGINE;
+    calls = 0;
+    async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
+      this.calls += 1;
+      yield {
+        audioChunkId: 0,
+        audioClockMs: 0,
+        sampleRate: request.sampleRate,
+        durationMs: 120,
+        pcm: new Uint8Array(Math.floor((request.sampleRate * 120) / 1000) * 2),
+        textSpan: null,
+      };
+    }
+  }
+
+  function pipelineOf(inner: CountingSynthesizer) {
+    return new SayPipeline({
+      synthesizer: inner,
+      voice: 'voice-en',
+      sampleRate: 44100,
+      transport: new Transport(),
+      observer,
+      telemetry: new Recorder(),
+      lookahead: 3,
+      gapAfter: () => null,
+    });
+  }
+
+  const sentences = (n: number, from = 0): SayEvent[] =>
+    Array.from({ length: n }, (_, i) => ({
+      type: 'say' as const,
+      id: `s${from + i}`,
+      text: SENTENCE,
+      tone: 'warm' as const,
+    }));
+
+  const settle = () => new Promise((r) => setTimeout(r, 30));
+
+  it('stops at the lookahead when nothing has been heard', async () => {
+    const inner = new CountingSynthesizer();
+    const pipeline = pipelineOf(inner);
+    for (const say of sentences(10)) pipeline.enqueue(say, 'lesson');
+    await settle();
+    expect(inner.calls).toBe(3);
+  });
+
+  it('is not widened by progress reports that arrive after a barge-in', async () => {
+    const inner = new CountingSynthesizer();
+    const pipeline = pipelineOf(inner);
+    for (const say of sentences(10)) pipeline.enqueue(say, 'lesson');
+    await settle();
+    expect(inner.calls).toBe(3);
+
+    // The learner cuts in: everything not yet heard is thrown away and the
+    // budget is rebased.
+    pipeline.cancel();
+    // Their conductor's progress for the sentences played before the barge-in
+    // now lands. `room.ts` walks every lesson sentence between the last
+    // report and this one and reports each one heard.
+    for (let i = 0; i < 3; i += 1) pipeline.markHeard();
+    await settle();
+
+    // The lesson resumes. It may run three sentences ahead — no more.
+    for (const say of sentences(10, 100)) pipeline.enqueue(say, 'lesson');
+    await settle();
+    expect(inner.calls).toBe(6);
+  });
+
+  it('cannot be widened without bound by a client that keeps reporting', async () => {
+    const inner = new CountingSynthesizer();
+    const pipeline = pipelineOf(inner);
+    pipeline.cancel();
+    for (let i = 0; i < 40; i += 1) pipeline.markHeard();
+    for (const say of sentences(10)) pipeline.enqueue(say, 'lesson');
+    await settle();
+    expect(inner.calls).toBe(3);
+  });
+});

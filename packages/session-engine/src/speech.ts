@@ -126,6 +126,19 @@ export class SayPipeline {
 
   /** The room heard sentence #n (client progress); allows more lookahead. */
   markHeard(): void {
+    // Only a sentence this pipeline actually bought can be heard.
+    //
+    // `cancel()` and `resetLookahead()` rebase `enqueued` onto `heardUpTo`
+    // and clear `started`, because the audio they threw away is not going to
+    // be heard. The host's progress for those sentences then arrives anyway —
+    // `room.ts`'s `progress` walks every lesson sentence between the last
+    // report and this one — and counting it here pushed `heardUpTo` *past*
+    // `enqueued`. The difference the budget is measured on went negative, so
+    // the window grew by one for every late report and never shrank: more
+    // sentences synthesised ahead than the room allows, and every one of them
+    // thrown away by the next barge-in. `started.shift()` on an empty array
+    // is a silent no-op, so nothing ever said so.
+    if (this.heardUpTo >= this.enqueued) return;
     this.heardUpTo += 1;
     this.started.shift();
     void this.drain();
