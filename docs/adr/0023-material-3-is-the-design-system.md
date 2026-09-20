@@ -183,11 +183,20 @@ must not change between themes:
   #353535. That is arithmetic, not a shortage of imagination, and
   `brand-generator.test.ts` proves it with black and white as witnesses so
   nobody goes looking for the hex that would have worked.
-- **Every container is neutral.** `primary-container` and
-  `secondary-container` are the chroma-0 greys the rest of the platform is
-  built from. This removes the rejected brown at its source, and it is also
-  why the red reads as red: nothing around it is tinted. It is what YouTube
-  does, and the reason their red survives a grey page.
+- **The containers are split, and the split is the point.** What the owner
+  rejected was not hue, it was *M3's* hue: `secondary-container` generated
+  from a red seed is a brown-orange, and a page of those turns brown-rose
+  while the red stops reading as red. Both containers went neutral at first,
+  which removed the brown and went one step too far — the owner, looking at
+  it: *"Why do I see less red? Only the sign in button shows red. Why not
+  the background of the selected tab item?"* Fair. **Selected** is the one
+  state a person is actively looking for on a page, so `secondary-container`
+  — the sidebar's active row, a chosen chip, a pressed toggle — carries the
+  brand itself, at `#E62117` with white on it (4.57:1). `primary-container`
+  stays a platform grey: it sits beside Sign in and under the pagination,
+  and two brand-red fills competing in one corner is neither of them.
+  `Progress`'s track moved off `secondary-container` for the same reason —
+  a red fill on a red track is one bar with no reading.
 - **The error role is the owner's #ED424A**, and this is the one place the
   measurement lost. Error was first moved to a magenta at hue 341, because a
   rose error is ΔE 0.095 from this red — inside the 0.15 that
@@ -224,3 +233,21 @@ reversed in one attribute is a migration rather than a decision.
 `apps/web/e2e/ui-brand.spec.ts` keeps producing the six-family review on six
 screens in both themes, and now also reads the rendered Sign in button's
 computed background in each theme and fails if it is not `rgb(230, 33, 23)`.
+
+### Two smaller corrections from the same review
+
+**A focus ring is not a validation error.** The ask bar drew
+`0 0 0 2px var(--color-primary)` on `focus-within`, and the field is focused
+the moment Home opens — so the first thing a visitor saw was their search box
+outlined in a heavy dark red for no reason at all (*"wtf, why you have the
+border of this input as red?"*). Focus now lifts the bar to elevation 2 and
+draws a 1 px hairline in `outline`, which is neutral and clears WCAG 1.4.11's
+3:1 on that surface. The brand stays where it means something: the caret, and
+the Start button.
+
+**`--text-label-tiny`, the file's second extension.** M3's smallest label is
+`label-small` at 11 px, which is right for a label somebody reads and too big
+for a *tag beside* one: "Professional" at 11 px is wider than the sidebar row
+it annotates and truncated the row's own name. 10 px with wider tracking, and
+only ever for a word that repeats something the row already says. Named as an
+extension for the same reason `--color-on-surface-dim` is.

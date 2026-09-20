@@ -22,7 +22,12 @@ export function ProgressBar({ value, label, className }: ProgressBarProps) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
-      className={cn('h-1 w-full overflow-hidden rounded-full bg-secondary-container', className)}
+      // The track is neutral, not `secondary-container`: that role carries the
+      // brand now, and a red fill on a red track is one bar with no reading.
+      className={cn(
+        'h-1 w-full overflow-hidden rounded-full bg-surface-container-highest',
+        className,
+      )}
     >
       <div
         className="h-full rounded-full bg-primary transition-[width] duration-[var(--duration-scene)] ease-[var(--ease-out)]"

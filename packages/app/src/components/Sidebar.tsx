@@ -111,7 +111,7 @@ function Row({ to, icon, label, rail, railLabel, end = false, count, tag, onNavi
             // of prose. M3's badge shape — a filled tonal pill at
             // `label-small`, the smallest role in the scale — so it reads as a
             // marker beside the row's name and never competes with it.
-            <span className="shrink-0 rounded-full bg-surface-container-highest px-2 py-0.5 text-label-small font-normal text-on-surface-variant">
+            <span className="shrink-0 rounded-full bg-surface-container-highest px-1.5 py-px text-label-tiny font-normal text-on-surface-variant">
               {tag}
             </span>
           ) : null}

@@ -437,27 +437,51 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
   });
 
   /**
-   * The point of the whole scheme, and the thing the owner rejected in the
-   * candidates: the sidebar pill, the chips, the header nav and the
-   * pagination are containers, and M3's "calmer companion" to a red is a
-   * brown. If they carry hue the page turns brown-rose and the red stops
-   * reading as red. Every one of them is a platform grey.
+   * What the owner rejected in the candidates was not hue, it was *M3's*
+   * hue: `secondary-container` generated from a red seed is a brown-orange,
+   * and a page of those turns brown-rose while the red stops reading as red.
+   * So the containers are split rather than all neutralised.
+   *
+   * `secondary-container` is selected — the sidebar's active row, a chosen
+   * chip, a pressed toggle — and selected is the one state a person is
+   * looking for on a page, so it carries the brand itself.
+   * `primary-container` is the quieter surface behind Sign in's neighbours
+   * and the pagination, and stays a platform grey: two brand-red fills
+   * competing in one corner is neither of them.
    */
-  it.each(['light', 'dark'] as const)('%s: the containers are the platform greys', (theme) => {
+  it.each(['light', 'dark'] as const)('%s: selected carries the brand', (theme) => {
+    const block = themeBlock(theme);
+    expect(declared(block, 'secondary-container')).toBe(brand(theme));
+    const on = declared(block, 'on-secondary-container') ?? '';
+    expect(
+      contrast(rgb(on), rgb(brand(theme))),
+      `${on} on the selected fill ${brand(theme)}`,
+    ).toBeGreaterThan(4.5);
+  });
+
+  it.each(['light', 'dark'] as const)('%s: the quieter containers stay grey', (theme) => {
     const block = themeBlock(theme);
     const neutral = new Set(
       ['surface-container-high', 'surface-container-highest', 'surface-container', 'on-surface']
         .map((role) => declared(block, role))
         .filter((hex): hex is string => hex !== undefined),
     );
-    for (const role of [
-      'primary-container',
-      'on-primary-container',
-      'secondary-container',
-      'on-secondary-container',
-    ]) {
+    for (const role of ['primary-container', 'on-primary-container']) {
       const hex = declared(block, role) ?? '';
       expect(neutral, `--color-${role} is ${hex}, which is not a platform neutral`).toContain(hex);
+    }
+  });
+
+  /**
+   * And the one that made it a brown: M3's generated `secondary` for a red
+   * seed. Nothing in the file may be it, because reaching for the M3 answer
+   * here is exactly the mistake.
+   */
+  it.each(['light', 'dark'] as const)('%s: nothing is M3’s companion brown', (theme) => {
+    const block = themeBlock(theme);
+    for (const role of ['secondary', 'secondary-container', 'on-secondary-container']) {
+      const hex = declared(block, role) ?? '';
+      expect(['#5d3f3b', '#653d28', '#775651', '#80543e'], `--color-${role}`).not.toContain(hex);
     }
   });
 

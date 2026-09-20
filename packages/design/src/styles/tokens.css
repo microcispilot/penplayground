@@ -130,6 +130,21 @@
   --text-label-medium--line-height: 1rem;
   --text-label-medium--letter-spacing: 0.03125rem;
   --text-label-medium--font-weight: 500;
+  /*
+   * Not an M3 role, and the second extension in this file (the first is
+   * `--color-on-surface-dim`, further down, for the same kind of reason).
+   * M3's smallest label is `label-small` at 11 px, which is right for a
+   * label somebody reads and too big for a *tag beside* one — the plan pills
+   * on the sidebar's gated rows, where "Professional" at 11 px is wider than
+   * the row's own name and truncates it. 10 px, wider tracking so it still
+   * reads at that size, and only ever for a word that repeats something the
+   * row already says.
+   */
+  --text-label-tiny: 0.625rem;
+  --text-label-tiny--line-height: 0.875rem;
+  --text-label-tiny--letter-spacing: 0.04em;
+  --text-label-tiny--font-weight: 500;
+
   --text-label-small: 0.6875rem;
   --text-label-small--line-height: 1rem;
   --text-label-small--letter-spacing: 0.03125rem;
@@ -226,11 +241,22 @@
   --color-primary-fixed: #e62117;
   --color-on-primary-fixed: #ffffff;
 
-  /* secondary: the fill under a selected nav row — neutral, so the red stays the only hue. */
+  /*
+   * secondary: the fill under a selected nav row, a selected chip, a pressed
+   * toggle. It carries the brand.
+   *
+   * It was neutral at first, on the reasoning that a red spreading into every
+   * container is the red that turns pale — which is true of the *tinted*
+   * containers M3 generates (the brown-orange pill the owner rejected) and
+   * not of the brand red itself. Selected is the one state a person is
+   * looking for on a page, so it is the one place besides Sign in and Start
+   * where the brand belongs. `secondary` itself stays neutral: it is the
+   * focus ring and a headline, and neither should be red.
+   */
   --color-secondary: #474747;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #e2e2e2;
-  --color-on-secondary-container: #1b1b1b;
+  --color-secondary-container: #e62117;
+  --color-on-secondary-container: #ffffff;
 
   --color-tertiary: #585c7e;
   --color-on-tertiary: #ffffff;
@@ -466,8 +492,8 @@
     --color-inverse-primary: #c00003;
     --color-secondary: #c6c6c6;
     --color-on-secondary: #1b1b1b;
-    --color-secondary-container: #353535;
-    --color-on-secondary-container: #e2e2e2;
+    --color-secondary-container: #e62117;
+    --color-on-secondary-container: #ffffff;
     --color-tertiary: #c1c4eb;
     --color-on-tertiary: #2a2e4d;
     --color-tertiary-container: #414465;
@@ -513,8 +539,8 @@
   --color-inverse-primary: #c00003;
   --color-secondary: #c6c6c6;
   --color-on-secondary: #1b1b1b;
-  --color-secondary-container: #353535;
-  --color-on-secondary-container: #e2e2e2;
+  --color-secondary-container: #e62117;
+  --color-on-secondary-container: #ffffff;
   --color-tertiary: #c1c4eb;
   --color-on-tertiary: #2a2e4d;
   --color-tertiary-container: #414465;

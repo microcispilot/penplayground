@@ -258,7 +258,14 @@ export function Home() {
               // M3's search bar: `corner-full` on `surface-container-high`, lifted by
               // elevation level 1 rather than by a wash.
               'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-xl-increased bg-surface-container-high p-2 pl-5 text-left shadow-level1 transition-shadow duration-[var(--duration-base)]',
-              'focus-within:shadow-[var(--shadow-level2),0_0_0_2px_var(--color-primary)]',
+              // Focus lifts the bar and draws a hairline, and does **not**
+              // ring it in the brand. Two pixels of `primary` around a 64 px
+              // pill is the shape of a validation error, and the field is
+              // focused the moment the page opens — so the first thing a
+              // visitor saw was their search box outlined in red for no
+              // reason. `outline` is neutral and clears 3:1 on this surface,
+              // which is what a focus indicator owes (WCAG 1.4.11).
+              'focus-within:shadow-[var(--shadow-level2),0_0_0_1px_var(--color-outline)]',
             )}
             style={{ animationDelay: '160ms' }}
             onSubmit={(e) => {
