@@ -72,6 +72,8 @@ export function Home() {
   const [withExpert, setWithExpert] = useState<Expert | null>(null);
   const [listening, setListening] = useState(false);
   const [starting, setStarting] = useState(false);
+  /** The re-entrancy guard `starting` cannot be: state is a render, this is the same tick. */
+  const startingRef = useRef(false);
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
   const [experts, setExperts] = useState<Expert[]>([]);
   const [filter, setFilter] = useState('');
@@ -168,14 +170,28 @@ export function Home() {
     }, 12_000);
   };
 
+  /**
+   * Pressing Start starts a session. It is not conditional on anything this
+   * screen happens to know yet.
+   *
+   * It used to be: `if (!participant) { toast('Connecting…'); return; }` —
+   * which dropped the click for the tens of milliseconds between the shell
+   * mounting and the anonymous bearer arriving, and asked the learner to
+   * press it again. That window is small on a warm connection and long on a
+   * cold phone, and the first thing a first-time visitor does is type and
+   * press. The wait belongs in the client, where it is one in-flight promise
+   * every call can join (`api/client.ts`, `identity`), not in a guard on
+   * every screen that can start something.
+   *
+   * `startingRef` rather than the state: `starting` is what the button
+   * renders, and a second click in the same frame would read the stale
+   * value. The ref is written in the same tick as the check.
+   */
   const start = async (topic: string, expertId?: string) => {
     markStartClicked();
     const t = topic.trim();
-    if (!t || starting) return;
-    if (!participant) {
-      toast('Connecting to Pen Playground…');
-      return;
-    }
+    if (!t || startingRef.current) return;
+    startingRef.current = true;
     setStarting(true);
     try {
       const { session } = await api.createSession(expertId ? { topic: t, expertId } : { topic: t });
@@ -188,6 +204,7 @@ export function Home() {
         error instanceof ApiError ? error.message : 'Could not start the session',
         calm ? 'neutral' : 'danger',
       );
+      startingRef.current = false;
       setStarting(false);
     }
   };

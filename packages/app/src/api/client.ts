@@ -121,6 +121,24 @@ export class ApiClient {
   private paceWanted: number | null = null;
   /** Serialises `rememberPace`'s writes so they cannot land out of order. */
   private paceWrite: Promise<void> = Promise.resolve();
+  /**
+   * The mint or check in flight, if there is one. Two things read it, and
+   * both are about the same window — the tens of milliseconds between the
+   * shell mounting and a bearer existing:
+   *
+   *   · `ensureParticipant()` makes N callers into one request, so a rename,
+   *     a retry and a StrictMode double mount cannot each create a separate
+   *     anonymous participant and leave the losers orphaned.
+   *   · `request()` waits on it, so a call made inside the window goes out
+   *     *as somebody* instead of unauthenticated. Before this, pressing Start
+   *     the moment the page painted created a session with no bearer.
+   *
+   * Cleared when it settles, by whichever caller took the claim — so a failed
+   * mint is retried rather than cached, and a later flight is never released
+   * by an earlier one. `packages/app/test/identity-race.test.ts` holds the
+   * mint open and asserts all of it.
+   */
+  private identity: Promise<Participant> | null = null;
   constructor(
     readonly baseUrl: string,
     private readonly storage: KeyValueStorage,
@@ -140,7 +158,27 @@ export class ApiClient {
     return this.storage.get(NAME_KEY) ?? '';
   }
 
-  private async request<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
+  /**
+   * `'required'` — the default, and the safe one: wait for an in-flight mint
+   * so this call carries a bearer. `'none'` is for the two calls that *are*
+   * the mint (waiting on themselves would deadlock) and for the public reads
+   * that paint the first screen, which must not be made to queue behind
+   * identity: a first-time visitor has nothing to personalise, and a
+   * returning one already has a bearer in storage before the constructor
+   * returns.
+   */
+  private async request<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    init: RequestInit = {},
+    identity: 'required' | 'none' = 'required',
+  ): Promise<T> {
+    // Ensure rather than merely wait. Waiting on `this.identity` would be
+    // enough for the common case — a click during the first mint — and wrong
+    // for the one after a failed mint, where the slot is empty and the call
+    // would go out bare and 401. `ensureParticipant()` is single-flight, so
+    // joining an existing mint and starting a missing one are the same call.
+    if (identity === 'required' && !this.token) await this.ensureParticipant();
     const headers: Record<string, string> = {
       ...(init.headers as Record<string, string> | undefined),
     };
@@ -164,11 +202,33 @@ export class ApiClient {
     return schema.parse(body);
   }
 
-  /** Ensure we have a participant token (anonymous by default). */
-  async ensureParticipant(name?: string): Promise<Participant> {
+  /**
+   * Ensure we have a participant token (anonymous by default).
+   *
+   * Single-flight. The body below is a read of `this.token`, an `await`, and
+   * a write of `this.token` — so two callers inside that window would each
+   * see no token and each mint a participant, and the second write would
+   * orphan the first row along with anything already attached to it. The
+   * claim is taken in the same tick as the miss, and released only by the
+   * caller that took it.
+   */
+  ensureParticipant(name?: string): Promise<Participant> {
+    if (!this.identity) this.identity = this.issueParticipant(name);
+    const mine = this.identity;
+    return mine.finally(() => {
+      if (this.identity === mine) this.identity = null;
+    });
+  }
+
+  private async issueParticipant(name?: string): Promise<Participant> {
     if (this.token) {
       try {
-        const me = await this.request('/api/me', z.object({ participant: Participant }));
+        const me = await this.request(
+          '/api/me',
+          z.object({ participant: Participant }),
+          {},
+          'none',
+        );
         this.account = me.participant;
         return me.participant;
       } catch (error) {
@@ -183,6 +243,7 @@ export class ApiClient {
         method: 'POST',
         body: JSON.stringify({ name: name || this.rememberedName || undefined }),
       },
+      'none',
     );
     this.token = res.token;
     this.storage.set(TOKEN_KEY, res.token);
@@ -315,10 +376,14 @@ export class ApiClient {
     this.storage.remove(NAME_KEY);
   }
 
+  /** Public, and the first paint: see `request`'s note on why it does not wait. */
   listPublicSessions() {
-    return this.request('/api/sessions', z.object({ sessions: z.array(SessionRecord) })).then(
-      (r) => r.sessions,
-    );
+    return this.request(
+      '/api/sessions',
+      z.object({ sessions: z.array(SessionRecord) }),
+      {},
+      'none',
+    ).then((r) => r.sessions);
   }
   listMySessions() {
     return this.request('/api/sessions/mine', z.object({ sessions: z.array(SessionRecord) })).then(
@@ -361,8 +426,9 @@ export class ApiClient {
       method: liked ? 'PUT' : 'DELETE',
     });
   }
+  /** Public, and the first paint: see `request`'s note on why it does not wait. */
   listExperts() {
-    return this.request('/api/experts', z.object({ experts: z.array(Expert) })).then(
+    return this.request('/api/experts', z.object({ experts: z.array(Expert) }), {}, 'none').then(
       (r) => r.experts,
     );
   }
