@@ -65,8 +65,13 @@ The script refuses to run unless the remote hostname is `prod-app-01`
 
 - Source of truth: `git@github.com:microcispilot/penplayground.git`, branch `main`.
 - Every web release gets a branch `release/web/<semver>` cut from `main`
-  (`release/web/0.0.1` is the first, deployed 2026-09-17). The next one is
-  `release/web/0.0.2`, and so on; branches are never force-pushed after they ship.
+  (`release/web/0.0.1` is the first, deployed 2026-09-17; `0.0.2` and `0.0.3`
+  on 2026-09-19). Each also gets an annotated tag `web/<semver>` at its tip.
+- **A shipped branch never moves.** A fix after a release is the next release,
+  not a commit on the last one — the branch is what `PEN_IMAGE_TAG=<previous>`
+  rolls back to, and a branch that moved is a rollback to something that was
+  never live. (0.0.2 was fast-forwarded once by mistake and put back within
+  the minute; the rule is written here now rather than assumed.)
 - Deploy from the release branch so the image tag is that branch's commit:
 
   ```sh
