@@ -157,7 +157,31 @@ export class StatsRepository {
         .update(sessionReuseLinks)
         .set({ sourceSessionId: null })
         .where(eq(sessionReuseLinks.sourceSessionId, sessionId));
+      // A visit's "last session" is the only place a site visit names one.
+      // Left behind it would point at nothing, and "which session did this
+      // visit end on" would answer with an id no report can open.
+      await tx
+        .update(siteVisits)
+        .set({ lastSessionId: null })
+        .where(eq(siteVisits.lastSessionId, sessionId));
     });
+  }
+
+  /**
+   * Point everything that names one session at another (ADR-0031): what
+   * `sessions:dedupe` does for the visit rows before it erases a duplicate
+   * telling of a lesson. The derived rows are *not* moved — they were rolled
+   * out of a ledger that is about to be erased, and `removeSession` takes
+   * them. This is only the recorded rows that survive their session.
+   */
+  async moveSession(fromSessionId: string, toSessionId: string): Promise<number> {
+    if (fromSessionId === toSessionId) return 0;
+    const rows = await this.db
+      .update(siteVisits)
+      .set({ lastSessionId: toSessionId })
+      .where(eq(siteVisits.lastSessionId, fromSessionId))
+      .returning();
+    return rows.length;
   }
 
   /**

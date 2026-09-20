@@ -78,6 +78,13 @@
       "when": 1789851107633,
       "tag": "0010_visit_identifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789861168432,
+      "tag": "0011_session_redirects",
+      "breakpoints": true
     }
   ]
 }

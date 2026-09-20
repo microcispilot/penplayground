@@ -194,6 +194,109 @@ export class ListRepository {
     };
   }
 
+  // ── a session leaving ────────────────────────────────────────────────────
+
+  /**
+   * Move one session's shelves onto another (ADR-0031): what `sessions:dedupe`
+   * does before it erases a duplicate telling of a lesson. A learner who saved
+   * or liked the copy keeps the lesson — it simply points at the telling that
+   * was kept — and their history says they sat in that lesson, which they did.
+   *
+   * A pair the target already has is dropped rather than duplicated, exactly
+   * as an adoption drops one; `sessions.likes` is then recomputed from the
+   * rows rather than added up, so the public counter is `count(session_likes)`
+   * on both sessions whatever the overlap was. Returns how many rows moved.
+   */
+  async moveSession(
+    fromSessionId: string,
+    toSessionId: string,
+  ): Promise<{ saved: number; liked: number; history: number }> {
+    if (fromSessionId === toSessionId) return { saved: 0, liked: 0, history: 0 };
+    return this.db.transaction(async (tx) => {
+      const saves = await tx
+        .select()
+        .from(sessionSaves)
+        .where(eq(sessionSaves.sessionId, fromSessionId));
+      let saved = 0;
+      for (const row of saves) {
+        const moved = await tx
+          .insert(sessionSaves)
+          .values({ ...row, sessionId: toSessionId })
+          .onConflictDoNothing()
+          .returning();
+        saved += moved.length;
+      }
+      await tx.delete(sessionSaves).where(eq(sessionSaves.sessionId, fromSessionId));
+
+      const likes = await tx
+        .select()
+        .from(sessionLikes)
+        .where(eq(sessionLikes.sessionId, fromSessionId));
+      let liked = 0;
+      for (const row of likes) {
+        const moved = await tx
+          .insert(sessionLikes)
+          .values({ ...row, sessionId: toSessionId })
+          .onConflictDoNothing()
+          .returning();
+        liked += moved.length;
+      }
+      await tx.delete(sessionLikes).where(eq(sessionLikes.sessionId, fromSessionId));
+
+      const visits = await tx
+        .select()
+        .from(sessionVisits)
+        .where(eq(sessionVisits.sessionId, fromSessionId));
+      let history = 0;
+      for (const row of visits) {
+        const moved = await tx
+          .insert(sessionVisits)
+          .values({ ...row, sessionId: toSessionId })
+          .onConflictDoUpdate({
+            target: [sessionVisits.participantId, sessionVisits.sessionId],
+            set: {
+              firstJoinedAt: sql`least(${sessionVisits.firstJoinedAt}, ${row.firstJoinedAt})`,
+              lastJoinedAt: sql`greatest(${sessionVisits.lastJoinedAt}, ${row.lastJoinedAt})`,
+              ...(row.role === 'host' ? { role: 'host' as const } : {}),
+            },
+          })
+          .returning();
+        history += moved.length;
+      }
+      await tx.delete(sessionVisits).where(eq(sessionVisits.sessionId, fromSessionId));
+
+      // Recompute rather than adjust: after a move with overlap, only the rows
+      // themselves know the truth.
+      for (const id of [fromSessionId, toSessionId])
+        await tx
+          .update(sessions)
+          .set({
+            likes: sql`(select count(*)::int from ${sessionLikes} where ${sessionLikes.sessionId} = ${id})`,
+          })
+          .where(eq(sessions.id, id));
+      return { saved, liked, history };
+    });
+  }
+
+  /**
+   * Erase one session's shelves. A session row can be deleted (by its host, by
+   * an account deletion, by the deduplicator with nowhere to move the rows to)
+   * and these pairs have no foreign key to take them with it: the list reads
+   * inner-join `sessions`, so leftovers are invisible rather than harmless —
+   * they sit in the table for ever and would attach themselves to a reused id.
+   * Returns how many rows went.
+   */
+  async forgetSession(sessionId: string): Promise<number> {
+    return this.db.transaction(async (tx) => {
+      const gone = await Promise.all([
+        tx.delete(sessionSaves).where(eq(sessionSaves.sessionId, sessionId)).returning(),
+        tx.delete(sessionLikes).where(eq(sessionLikes.sessionId, sessionId)).returning(),
+        tx.delete(sessionVisits).where(eq(sessionVisits.sessionId, sessionId)).returning(),
+      ]);
+      return gone.reduce((n, rows) => n + rows.length, 0);
+    });
+  }
+
   // ── adoption ─────────────────────────────────────────────────────────────
 
   /**

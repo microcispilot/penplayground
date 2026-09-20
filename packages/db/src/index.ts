@@ -43,9 +43,15 @@ export {
   type RuntimeConfigSnapshot,
   type RuntimeConfigWrite,
 } from './runtime-config.js';
-export type { RuntimeConfigAuditRow } from './schema.js';
+export type { RuntimeConfigAuditRow, SessionRedirectRow } from './schema.js';
 export * as schema from './schema.js';
-export { type SessionRecord, SessionRepository } from './sessions.js';
+export {
+  type DuplicateGroup,
+  type DuplicateMember,
+  rankTellings,
+  type SessionRecord,
+  SessionRepository,
+} from './sessions.js';
 export {
   type DerivedSessionWrite,
   type EngagementKind,

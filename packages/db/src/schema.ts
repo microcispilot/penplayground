@@ -130,6 +130,9 @@ export const sessionSaves = pgTable(
   (t) => [
     primaryKey({ columns: [t.participantId, t.sessionId] }),
     index('session_saves_participant_idx').on(t.participantId, t.createdAt),
+    // By session, not by participant: what the catalogue's engagement count
+    // groups on, and what moving a collapsed session's shelves reads.
+    index('session_saves_session_idx').on(t.sessionId),
   ],
 );
 
@@ -164,6 +167,38 @@ export const sessionVisits = pgTable(
   (t) => [
     primaryKey({ columns: [t.participantId, t.sessionId] }),
     index('session_visits_participant_idx').on(t.participantId, t.lastJoinedAt),
+    /** By session: what moving or erasing one session's history rows reads. */
+    index('session_visits_session_idx').on(t.sessionId),
+  ],
+);
+
+/**
+ * Where a session id that no longer exists now points (ADR-0031).
+ *
+ * Two sessions taught from the same lesson memo are the same lesson told
+ * twice; the catalogue shows one of them, and `sessions:dedupe` erases the
+ * rest. A share link somebody already has must not become a 404 because of
+ * housekeeping, so every erased id leaves this one row behind and the read
+ * routes follow it to the session that was kept.
+ *
+ * One hop, always: when a survivor is itself later collapsed, the rows that
+ * pointed at it are repointed rather than chained, so resolution is a single
+ * indexed lookup and can never loop. The check enforces the base case.
+ */
+export const sessionRedirects = pgTable(
+  'session_redirects',
+  {
+    /** The id that is gone. */
+    fromId: text('from_id').primaryKey(),
+    /** The session it resolves to, which exists. */
+    toId: text('to_id').notNull(),
+    /** Why it moved, for the operator reading the table a year from now. */
+    reason: text('reason').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    index('session_redirects_to_idx').on(t.toId),
+    check('session_redirects_not_self', sql`${t.fromId} <> ${t.toId}`),
   ],
 );
 
@@ -227,4 +262,5 @@ export const runtimeConfigAudits = pgTable(
 export type SessionRow = typeof sessions.$inferSelect;
 export type ParticipantRow = typeof participants.$inferSelect;
 export type SessionVisitRow = typeof sessionVisits.$inferSelect;
+export type SessionRedirectRow = typeof sessionRedirects.$inferSelect;
 export type RuntimeConfigAuditRow = typeof runtimeConfigAudits.$inferSelect;
