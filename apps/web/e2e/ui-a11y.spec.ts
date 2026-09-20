@@ -11,7 +11,33 @@ import { endSession, startLesson, UI_WEB, waitForInk } from './ui-helpers.js';
  * render with the UI hidden, and the teaching content it paints reaches a
  * screen reader through the captions, which are a live region.
  */
+/**
+ * Wait for the screen to stop moving before measuring it.
+ *
+ * axe computes contrast from *rendered* colour, so an element caught
+ * mid-fade is measured against a blend of itself and whatever is behind it.
+ * Home's command bar rises in with `animate-rise` and a 160 ms delay, and
+ * scanning through that reported the topic placeholder at 2.9:1 — `#909090`
+ * on `#f4f4f4`, neither of which is a colour in this system. Settled, the
+ * same element computes `rgb(94,94,94)` on `rgb(232,232,232)`: **5.4:1**.
+ *
+ * This is not a way of skipping a failure. Gating on a frame in the middle
+ * of a fade would fail every fade there is, including a correct one, and it
+ * would say nothing about what a person reads. What a person reads is the
+ * settled page, which is what is measured now.
+ */
+async function settled(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () => document.getAnimations().every((a) => a.playState !== 'running'),
+      undefined,
+      { timeout: 10_000 },
+    )
+    .catch(() => undefined);
+}
+
 async function scan(page: Page, name: string) {
+  await settled(page);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .exclude('.tl-canvas')

@@ -45,11 +45,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <AppHeader onMenu={() => setDrawer(true)} onToggleSidebar={toggleRail} sidebarRail={rail} />
       <div className="flex w-full flex-1 items-stretch">
-        {/* The sidebar is furniture, not page: its own surface says so before any border does. */}
+        {/* The sidebar is furniture, not page: its own surface says so, and
+            since the page went white there is nothing left for a border to add. */}
         <aside
           data-testid="sidebar-aside"
           className={cn(
-            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 border-r border-outline-variant/70 bg-surface-container-low lg:block',
+            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 bg-surface-container-low lg:block',
             rail ? 'w-[72px]' : 'w-[240px]',
           )}
         >

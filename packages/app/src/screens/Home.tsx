@@ -367,7 +367,8 @@ export function Home() {
       </section>
 
       {/* ── sessions ─────────────────────────────────────────────────────── */}
-      <section className="border-t border-outline-variant/70 bg-surface-container-low py-16">
+      {/* No band and no rule: the catalogue *is* the page. */}
+      <section className="py-16">
         <div className="mx-auto w-full max-w-[1280px] px-6">
           <SectionBand>
             <h2 className="mr-2 text-title-large">
@@ -441,7 +442,7 @@ export function Home() {
       </section>
 
       {/* The bottom pane is furniture too: the same surface the sidebar sits on. */}
-      <footer className="border-t border-outline-variant/70 bg-surface-container-low">
+      <footer className="bg-surface-container-low">
         <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-8 text-body-medium text-on-surface-dim">
           <span className="flex items-center gap-1.5 text-on-surface-variant">
             <PenMark size={16} /> Pen Playground

@@ -79,7 +79,12 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        'z-20 border-b border-outline-variant/70 bg-surface/80 backdrop-blur-xl backdrop-saturate-150',
+        // Opaque rather than a blurred wash of the page, and no rule under
+        // it: the header is one of the three pieces of furniture, and now
+        // that the page is the brighter surface the colour marks the edge on
+        // its own. A translucent header over a white page was a smear with a
+        // line drawn under it to make up for being one.
+        'z-20 bg-surface-container-low',
         sticky && 'sticky top-0',
       )}
     >

@@ -261,3 +261,42 @@ for a *tag beside* one: "Professional" at 11 px is wider than the sidebar row
 it annotates and truncated the row's own name. 10 px with wider tracking, and
 only ever for a word that repeats something the row already says. Named as an
 extension for the same reason `--color-on-surface-dim` is.
+
+### The page is the brighter surface, and the furniture is not
+
+The owner, looking at the catalogue: *"make the entire background white, no
+line separator as well. only the bottom bar, top nav bar and left side bar
+should be that other color."*
+
+So the arrangement inverts M3's. The page is `surface-container-lowest` —
+`#ffffff` in light, `#0e0e0e` in dark — and the three pieces of furniture
+(header, sidebar, footer) are `surface-container-low`. M3 puts the page at
+tone 98 and lifts everything above it; this puts the content at the top of
+the ladder and the chrome below it.
+
+The reasoning survives the inversion, and arguably reads better for this
+product: the furniture and the content have to be two surfaces, and making
+the content the brighter one means a thumbnail is the brightest thing on the
+screen, which is what a catalogue is for.
+
+**Every separator came out with it.** `border-b` under the header, `border-r`
+beside the sidebar, `border-t` above the catalogue band and above the footer
+— each of those existed to mark an edge that two surfaces now mark by
+themselves, and a rule drawn along a colour change is the same edge stated
+twice. The header also stopped being `bg-surface/80` with a backdrop blur: a
+translucent header over a white page is a smear, and the line under it was
+there to make up for being one.
+
+A room and a replay keep `--color-surface`. They are not pages — they are a
+single stage — and nothing in them is furniture around content.
+
+*One thing this change surfaced rather than caused.* `ui-a11y` began failing
+on Home's topic placeholder at 2.9:1, `#909090` on `#f4f4f4` — neither of
+which is a colour in this system. axe measures *rendered* colour, and it was
+catching the command bar mid-`animate-rise`, against a blend. Settled, the
+same element computes `rgb(94,94,94)` on `rgb(232,232,232)`: 5.4:1. The scan
+now waits for `document.getAnimations()` to stop before it measures, which
+is what a person reads; gating on a frame in the middle of a fade would fail
+every fade there is and say nothing about legibility. The earlier
+intermittent reports of this same violation, recorded twice in `tasks/todo.md`
+as "did not reproduce", were the same thing on a slower frame.

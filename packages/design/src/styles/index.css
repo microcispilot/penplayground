@@ -13,7 +13,24 @@
   }
   body {
     margin: 0;
-    background: var(--color-surface);
+    /*
+     * The page is `surface-container-lowest` — white in light, the darkest
+     * step in dark — and the chrome around it (header, sidebar, footer) is
+     * `surface-container-low`. That is the owner's arrangement and it is the
+     * opposite way round from M3's, where the page is tone 98 and everything
+     * raised off it is lighter.
+     *
+     * The reasoning is the same either way: the furniture and the content
+     * have to be two surfaces. Putting the content on the brighter one makes
+     * a thumbnail the brightest thing on the screen, which is what a
+     * catalogue is for, and it means the chrome no longer needs a border to
+     * say where it ends — the colour does it, which is why the separators
+     * came out with this change.
+     *
+     * A room and a replay are not pages and keep `--color-surface`: they are
+     * a single dark stage, not content on furniture.
+     */
+    background: var(--color-surface-container-lowest);
     color: var(--color-on-surface);
     font-family: var(--font-sans);
     /* body-medium: the page's default voice in M3. */
