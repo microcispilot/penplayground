@@ -17,7 +17,7 @@
  * ── what is derived, and from what ──────────────────────────────────────────
  *
  *   src/components/PenLogo.tsx   the mark and the lockup, as React. The charcoal
- *                                becomes `currentColor` and the red becomes
+ *                                becomes `var(--color-mark-ink)` and the red becomes
  *                                `var(--color-primary-fixed)`; nothing else is
  *                                touched, and the `d` of every path is copied
  *                                byte for byte out of the artwork.
@@ -45,6 +45,7 @@
  * than quietly reflowing the header.
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -56,17 +57,63 @@ const WEB_PUBLIC = join(REPO, 'apps/web/public');
 
 /**
  * The artwork's own bounding boxes, in the user units of the supplied files —
- * before their outer `translate`, which is where `getBBox()` reports. Measured
- * in Chromium; `test/brand-mark.test.ts` re-measures them.
+ * before their outer `translate`, which is where `getBBox()` reports.
+ *
+ * These are *measured*, in Chromium, not computed here: the triangle is a run
+ * of cubic curves and its true extent is not the extent of its control points.
+ * `scripts/measure-bbox.mjs` is the measurement, and `ARTWORK` below is what
+ * keeps it honest — a revised drawing whose numbers were not re-measured fails
+ * the generator rather than rendering slightly cropped.
  */
 export const BBOX = {
-  icon: { x: 1120.1735, y: 268.5233, w: 224.8506, h: 281.8508 },
-  logo: { x: 380, y: 268.5233, w: 965.024, h: 322.7433 },
+  icon: { x: 1120.1735, y: 268.5233, w: 266.3785, h: 326.5287 },
+  logo: { x: 380, y: 268.5233, w: 1006.552, h: 326.5287 },
 } as const;
 
-/** The two colours in the artwork, and what each one becomes. */
+/**
+ * The artwork these numbers were measured against.
+ *
+ * The second revision of the drawing changed only the two strokes — thickening
+ * them to the 60-unit stem of the capital P — and that alone moved the icon
+ * from 224.9x281.9 to 266.4x326.5. Nothing about the file announces that, and
+ * a stale box crops a logo by a few per cent, which reads as bad drawing
+ * rather than as a bug. So the checksum is the announcement.
+ */
+export const ARTWORK: Record<string, string> = {
+  'pen-favicon.svg': 'e9ac23018bcb22de196de3488baeb90264892f433b0daecd69fb645c3a734ec9',
+  'pen-logo.svg': '301a2e2028646c5f8caa2a5a03d408c93ef4a7acc646cdb2e363b8c7168ad6e9',
+  'pen-favicon-dark.svg': '6f8d3aa52dc459c0697845a359641076495066ffca4a0d4d50522fecf3fdfc25',
+  'pen-logo-dark.svg': 'b421c3a9d23a09979f358ec00a4e05096aeb966a7fc947bc32f440039fcdb4dd',
+};
+
+/**
+ * The three colours in the artwork.
+ *
+ * The owner supplies the mark twice — `pen-logo.svg` and `pen-logo-dark.svg` —
+ * and the pair differ in exactly one way: the ink is #2A2A2A in one and
+ * #FFFFFF in the other, with identical geometry and the same red triangle in
+ * both. `assertDarkIsLightWithWhiteInk()` proves that rather than trusting it,
+ * and it is why this ships one component instead of two files somebody has to
+ * keep in step.
+ *
+ * Note that the dark ink is *pure white*, not `on-surface` (#e2e2e2). That is
+ * the owner's drawing and it is the usual thing for a logotype: body text on a
+ * dark page is softened to stop it glaring, a mark is not.
+ */
 export const CHARCOAL = '#2A2A2A';
+export const WHITE = '#FFFFFF';
 export const BRAND_RED = '#E62117';
+
+/**
+ * The token the ink becomes. Declared in `styles/tokens.css` as #2A2A2A in
+ * light and #FFFFFF in dark, so the component reproduces both supplied files
+ * exactly and a theme switch is a variable rather than a second asset.
+ *
+ * It is a token rather than `currentColor` for that reason alone: inheriting
+ * the ink would have made the mark #e2e2e2 in dark — close, wrong, and the
+ * kind of wrong nobody can point at.
+ */
+export const INK_TOKEN = 'var(--color-mark-ink)';
 
 /**
  * The favicon's square. The icon is taller than it is wide, so the square is
@@ -114,9 +161,54 @@ export function paths(svg: string, id: string): Path[] {
   return out;
 }
 
+/**
+ * Read one artwork file, and refuse it if it is not the drawing `BBOX` was
+ * measured against. The check is the whole point of pinning a box: a revised
+ * logo renders happily inside a stale viewBox, just clipped.
+ */
+function artwork(name: string): string {
+  const body = readFileSync(join(DESIGN, 'brand', name), 'utf8');
+  const sum = createHash('sha256').update(body).digest('hex');
+  if (sum !== ARTWORK[name]) {
+    throw new Error(
+      `brand/${name} is not the drawing BBOX was measured against.\n` +
+        `  expected ${ARTWORK[name]}\n  found    ${sum}\n` +
+        'Re-measure with `node packages/design/scripts/measure-bbox.mjs`, put the ' +
+        'numbers in BBOX and the checksum in ARTWORK, then run this again.',
+    );
+  }
+  return body;
+}
+
+/**
+ * The dark artwork has to be the light artwork with white ink and nothing
+ * else: same paths, same transforms, same red triangle. If that ever stops
+ * being true the two files are two marks, and a token cannot express the
+ * difference — it would need a second component and a second favicon.
+ */
+function assertDarkIsLightWithWhiteInk(light: string, dark: string, id: string): void {
+  const [a, b] = [paths(artwork(light), id), paths(artwork(dark), id)];
+  if (a.length !== b.length) {
+    throw new Error(`${light} and ${dark} have different path counts in #${id}`);
+  }
+  a.forEach((p, i) => {
+    const q = b[i];
+    if (!q || p.d !== q.d || p.transform !== q.transform) {
+      throw new Error(`${dark} #${id} path ${i} is not the same shape as ${light}`);
+    }
+    const want = p.fill.toUpperCase() === CHARCOAL ? WHITE : p.fill.toUpperCase();
+    if (q.fill.toUpperCase() !== want) {
+      throw new Error(
+        `${dark} #${id} path ${i} is ${q.fill}, expected ${want} — the dark ` +
+          'artwork may only repaint the ink, never the triangle',
+      );
+    }
+  });
+}
+
 export function art(): { icon: Path[]; wordmark: Path[] } {
-  const favicon = readFileSync(join(DESIGN, 'brand/pen-favicon.svg'), 'utf8');
-  const logo = readFileSync(join(DESIGN, 'brand/pen-logo.svg'), 'utf8');
+  const favicon = artwork('pen-favicon.svg');
+  const logo = artwork('pen-logo.svg');
   const icon = paths(favicon, 'icon');
   // The icon is in both files. If they ever disagree, the lockup and the tab
   // icon are two different marks and nobody would notice until it shipped.
@@ -124,14 +216,17 @@ export function art(): { icon: Path[]; wordmark: Path[] } {
   if (JSON.stringify(icon) !== JSON.stringify(inLogo)) {
     throw new Error('pen-favicon.svg and pen-logo.svg draw different icons');
   }
+  assertDarkIsLightWithWhiteInk('pen-favicon.svg', 'pen-favicon-dark.svg', 'icon');
+  assertDarkIsLightWithWhiteInk('pen-logo.svg', 'pen-logo-dark.svg', 'icon');
+  assertDarkIsLightWithWhiteInk('pen-logo.svg', 'pen-logo-dark.svg', 'wordmark');
   return { icon, wordmark: paths(logo, 'wordmark') };
 }
 
 // ── the component ───────────────────────────────────────────────────────────
 
-/** The charcoal follows the ink; the red is named rather than repeated. */
+/** The ink becomes a token; the red is named rather than repeated. */
 const role = (fill: string): string => {
-  if (fill.toUpperCase() === CHARCOAL) return 'currentColor';
+  if (fill.toUpperCase() === CHARCOAL) return INK_TOKEN;
   if (fill.toUpperCase() === BRAND_RED) return 'var(--color-primary-fixed)';
   throw new Error(`the artwork uses ${fill}, which this generator has no role for`);
 };
@@ -174,12 +269,14 @@ export function component(): string {
  *
  * Two substitutions are made on the way in, and only two:
  *
- *   The charcoal becomes \`currentColor\`. The artwork is a single #2A2A2A,
- *   which is 14.3:1 on a white page and 1.07:1 on \`surface-container\` in dark
- *   — a logo that is simply not there on half the product. As \`currentColor\`
- *   the mark is made of whatever ink it is sitting in, so it needs no dark
- *   copy for anybody to keep in step, and it stays right inside a disabled
- *   control or an inverted surface for free.
+ *   The ink becomes \`var(--color-mark-ink)\`. The owner draws the mark twice —
+ *   #2A2A2A on light, #FFFFFF on dark, identical geometry — and shipping the
+ *   light one alone puts a logo at 1.07:1 on \`surface-container\`, which is to
+ *   say no logo at all on half the product. The token carries both, so the
+ *   pair is one component and a theme switch rather than two assets somebody
+ *   has to remember to change together. It is pure white in dark and not
+ *   \`on-surface\` (#e2e2e2): body text is softened on a dark page so it does
+ *   not glare, a mark is not, and that is the owner's drawing.
  *
  *   The red becomes \`var(--color-primary-fixed)\`. Same hex, named: it is then
  *   one thing with Sign in, Start and the board's ink rather than a fourth
@@ -190,6 +287,13 @@ export function component(): string {
  * Size is a height. A mark is set against a line of text, and it is the height
  * that has to agree with it; the width follows from the artwork's own aspect,
  * so neither of these can be squashed by passing the wrong number.
+ *
+ * The default is 22, and it is not arbitrary. What the header carried before
+ * this component was a 22 px mark beside "Pen" set at \`title-large\` — about
+ * 66 px of brand in total. The lockup's aspect is 3.08, so 22 px of height is
+ * 67.8 px of width: the same block, in the same place, drawn rather than
+ * typeset. A first attempt used 26 and the owner caught it immediately — a
+ * logotype that grows when it becomes artwork is a redesign nobody asked for.
  */
 import type { SVGProps } from 'react';
 
@@ -241,7 +345,7 @@ ${jsx(icon, '        ')}
  * setting "Pen" in a UI face beside the mark, which is a different logo on
  * every operating system.
  */
-export function PenLogo({ size = 26, title, ...rest }: PenArtProps) {
+export function PenLogo({ size = 22, title, ...rest }: PenArtProps) {
   return (
     // biome-ignore lint/a11y/noSvgWithoutTitle: \`label()\` sets aria-hidden, or role="img" with a name when \`title\` is given; the rule cannot see through the spread
     <svg
@@ -265,8 +369,9 @@ ${jsx(icon, '        ')}
 // ── the favicon ─────────────────────────────────────────────────────────────
 
 /**
- * A favicon has no document to inherit from, so the swap `currentColor` does
- * for the component has to be written into the file. `prefers-color-scheme`
+ * A favicon has no document to read a token from, so the swap that
+ * `--color-mark-ink` does for the component has to be written into the file.
+ * `prefers-color-scheme`
  * inside an SVG favicon is honoured by Safari, Firefox and Chrome.
  *
  * Where it is not, the rule is simply ignored and the icon stays charcoal —
@@ -296,7 +401,7 @@ export function faviconSvg(): string {
     /* The ink follows the tab strip. The triangle does not: it is the one part
        of the mark that reads on both, and it is the brand. */
     .ink { fill: ${CHARCOAL} }
-    @media (prefers-color-scheme: dark) { .ink { fill: #E2E2E2 } }
+    @media (prefers-color-scheme: dark) { .ink { fill: ${WHITE} } }
   </style>
   <g transform="translate(${round(dx)} ${round(dy)})">
 ${body}

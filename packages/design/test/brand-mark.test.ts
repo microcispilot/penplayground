@@ -7,17 +7,23 @@
  * trustworthy if something re-derives it, so this file does: it regenerates
  * every artefact and fails if what is on disk has drifted.
  *
- * It also holds the two facts a regeneration cannot catch, because they are
- * the point of the exercise rather than a product of it: that no charcoal
- * survives into the component (the artwork's single #2A2A2A is invisible in
- * dark, which is the whole reason this pipeline exists), and that the red is
- * named as `primary-fixed` rather than written out a fourth time.
+ * It also holds the facts a regeneration cannot catch, because they are the
+ * point of the exercise rather than a product of it:
+ *
+ *   · no literal hex survives into the component — the ink is
+ *     `--color-mark-ink` and the triangle is `primary-fixed`, so one component
+ *     carries the owner's two drawings and the red is not written down a
+ *     fourth time;
+ *   · the dark artwork is the light artwork with white ink and nothing else,
+ *     which is the assumption that makes a single token sufficient. The day
+ *     that stops being true, this fails and the product needs two components.
  */
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  ARTWORK,
   art,
   BBOX,
   BRAND_RED,
@@ -25,7 +31,9 @@ import {
   component,
   FAVICON_SIDE,
   faviconSvg,
+  INK_TOKEN,
   paths,
+  WHITE,
 } from '../scripts/mark.js';
 
 const DESIGN = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -43,6 +51,38 @@ describe('the generated artefacts are still the artwork', () => {
   it.each(GENERATED)('%s is what the generator writes today', (file) => {
     const expected = file.endsWith('.tsx') ? component() : faviconSvg();
     expect(read(file)).toBe(expected);
+  });
+
+  /**
+   * The owner supplies four files: the mark and the lockup, each twice. The
+   * dark pair may repaint the ink and nothing else — if one of them is ever
+   * redrawn on its own, a single token cannot express the difference and the
+   * product needs two components instead. `art()` enforces it; this says so
+   * out loud, and names the files so a fifth one is not added silently.
+   */
+  it('the artwork is four files, and every one is the drawing BBOX was measured against', () => {
+    expect(Object.keys(ARTWORK).sort()).toEqual([
+      'pen-favicon-dark.svg',
+      'pen-favicon.svg',
+      'pen-logo-dark.svg',
+      'pen-logo.svg',
+    ]);
+    // art() throws on a checksum or ink mismatch; reaching here is the pass.
+    expect(() => art()).not.toThrow();
+  });
+
+  it('the dark artwork is the light artwork with white ink and nothing else', () => {
+    for (const [light, dark, id] of [
+      ['brand/pen-favicon.svg', 'brand/pen-favicon-dark.svg', 'icon'],
+      ['brand/pen-logo.svg', 'brand/pen-logo-dark.svg', 'wordmark'],
+      ['brand/pen-logo.svg', 'brand/pen-logo-dark.svg', 'icon'],
+    ] as const) {
+      const [a, b] = [paths(read(light), id), paths(read(dark), id)];
+      expect(b.map((p) => [p.d, p.transform])).toEqual(a.map((p) => [p.d, p.transform]));
+      expect(b.map((p) => p.fill.toUpperCase())).toEqual(
+        a.map((p) => (p.fill.toUpperCase() === CHARCOAL ? WHITE : p.fill.toUpperCase())),
+      );
+    }
   });
 
   it('the two supplied files draw the same icon', () => {
@@ -84,12 +124,28 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
     for (const fill of fills()) expect(fill).not.toMatch(/^#/);
   });
 
-  it('the charcoal became currentColor, once per path that had it', () => {
+  it('the ink became the token, once per path that had it', () => {
     const { icon, wordmark } = art();
-    const charcoals = [...wordmark, ...icon, ...icon].filter(
+    const inked = [...wordmark, ...icon, ...icon].filter(
       (p) => p.fill.toUpperCase() === CHARCOAL,
     ).length;
-    expect(fills().filter((f) => f === 'currentColor')).toHaveLength(charcoals);
+    expect(fills().filter((f) => f === INK_TOKEN)).toHaveLength(inked);
+  });
+
+  it('the ink is a token and not currentColor, which would be #e2e2e2 in dark', () => {
+    // The owner's dark drawing is pure white. Inheriting `on-surface` would
+    // put the mark at #e2e2e2 — close enough to look deliberate and wrong.
+    expect(fills()).not.toContain('currentColor');
+    expect(INK_TOKEN).toBe('var(--color-mark-ink)');
+  });
+
+  it('tokens.css carries the mark ink in both themes, and they are the artwork', () => {
+    const tokens = read('src/styles/tokens.css');
+    const declared = [...tokens.matchAll(/--color-mark-ink:\s*(#[0-9a-f]{6})/gi)].map((m) =>
+      (m[1] ?? '').toUpperCase(),
+    );
+    // @theme, the prefers-color-scheme block, and [data-theme="dark"].
+    expect(declared).toEqual([CHARCOAL, WHITE, WHITE]);
   });
 
   it('the red is named, and appears once in the mark and once in the lockup', () => {

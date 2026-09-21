@@ -126,7 +126,7 @@ export function AppHeader({
             Windows and Inter on everything else — three logos. The word is
             outlines now, so it is one.
           */}
-          <PenLogo size={26} />
+          <PenLogo />
         </button>
         {/* Inside the shell the sidebar is the navigation; a standalone header keeps its own. */}
         <nav

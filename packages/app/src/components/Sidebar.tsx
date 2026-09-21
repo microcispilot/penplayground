@@ -379,7 +379,7 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         <div className="flex h-16 items-center gap-2 px-5">
           {/* The drawer has no header above it, so this is the one place the
               lockup carries the product's name rather than repeating it. */}
-          <PenLogo size={26} title="Pen Playground" />
+          <PenLogo title="Pen Playground" />
         </div>
         <Sidebar className="h-[calc(100%-4rem)]" onNavigate={onClose} />
       </div>

@@ -242,6 +242,24 @@
   --color-on-primary-fixed: #ffffff;
 
   /*
+   * The mark's ink — the lettering and the two strokes of the logo, and
+   * nothing else. The owner draws the mark twice, #2A2A2A on light and
+   * #FFFFFF on dark with identical geometry, and this token is that pair:
+   * `PenLogo`/`PenMark` paint with it, so the two drawings are one component.
+   *
+   * It is deliberately not `on-surface`, which is #1b1b1b / #e2e2e2. Body text
+   * on a dark page is softened so it does not glare; a logotype is not, and
+   * #e2e2e2 is the kind of wrong that nobody can point at but everybody sees.
+   * It is deliberately not `currentColor` either, for the same reason — the
+   * mark would inherit whatever rank of text it happened to sit in.
+   *
+   * The triangle is not here: it is `primary-fixed`, the same red in both
+   * themes, which is the owner's instruction and the reason the mark still
+   * reads when a client ignores a colour-scheme rule.
+   */
+  --color-mark-ink: #2a2a2a;
+
+  /*
    * secondary: the selected state — a nav row you are on, a chosen chip, a
    * pressed toggle. **A platform grey, named in the brand.**
    *
@@ -499,6 +517,8 @@
     --color-primary-container: #2a2a2a;
     --color-on-primary-container: #e2e2e2;
     --color-inverse-primary: #c00003;
+    /* The mark is pure white on a dark page, not `on-surface`. See @theme. */
+    --color-mark-ink: #ffffff;
     --color-secondary: #c6c6c6;
     --color-on-secondary: #1b1b1b;
     --color-secondary-container: #353535;
@@ -546,6 +566,8 @@
   --color-primary-container: #2a2a2a;
   --color-on-primary-container: #e2e2e2;
   --color-inverse-primary: #c00003;
+  /* The mark is pure white on a dark page, not `on-surface`. See @theme. */
+  --color-mark-ink: #ffffff;
   --color-secondary: #c6c6c6;
   --color-on-secondary: #1b1b1b;
   --color-secondary-container: #353535;
