@@ -2,7 +2,7 @@
 
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SoloExpert } from '../src/components/SoloExpert.js';
+import { SoloPresence } from '../src/components/SoloPresence.js';
 import { EXPERT } from './room-fixtures.js';
 
 /**
@@ -19,19 +19,30 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-const solo = (over: Partial<Parameters<typeof SoloExpert>[0]> = {}) =>
+const SELF = {
+  id: 'p_self_000001',
+  name: 'Sam Okonkwo',
+  role: 'host' as const,
+  hue: 200,
+  micOn: true,
+  joinedAt: 0,
+};
+
+const solo = (over: Partial<Parameters<typeof SoloPresence>[0]> = {}) =>
   render(
-    <SoloExpert
+    <SoloPresence
       expert={EXPERT}
       presence="listening"
       portraitUrl={null}
+      self={SELF}
+      audio={null}
       soundBlocked={false}
       onEnableSound={() => undefined}
       {...over}
     />,
   );
 
-describe('SoloExpert', () => {
+describe('SoloPresence', () => {
   it('says who is here and what they are doing', () => {
     solo({ presence: 'thinking' });
     const tile = screen.getByTestId('solo-expert');
@@ -94,13 +105,68 @@ describe('SoloExpert', () => {
   /** A Persian session mirrors, so nothing may be pinned to a physical side. */
   it('is positioned logically, so it mirrors in an RTL session', () => {
     solo();
-    const html = screen.getByTestId('solo-expert').outerHTML;
-    expect(html).toContain('end-3');
-    expect(html).not.toMatch(/\b(left|right)-\d/);
+    const strip = screen.getByTestId('solo-presence');
+    expect(strip.className).toContain('end-3');
+    expect(strip.outerHTML).not.toMatch(/\b(left|right)-\d/);
   });
 
   it('still names an expert the room has not sent yet', () => {
     solo({ expert: null });
     expect(screen.getByTestId('solo-expert').textContent).toContain('Expert');
+  });
+});
+
+/**
+ * Both people, not one.
+ *
+ * The first version showed only the expert, on the reasoning that you know
+ * where you are. The owner: *"even if there's solo person, they should
+ * always see an avatar of the expert and themselves. like in zoom and other
+ * apps you can see."* The reason every meeting app does it is that a
+ * self-view is how you know the room can hear *you* — take it away and the
+ * only feedback that your microphone works is that the expert answers, which
+ * is the moment it is too late to find out.
+ */
+describe('the self tile', () => {
+  const audio = (over: Record<string, unknown> = {}) =>
+    ({
+      status: 'connected',
+      participants: {},
+      speaking: [],
+      mutedByHost: false,
+      playbackBlocked: false,
+      ...over,
+    }) as never;
+
+  it('is there beside the expert, always', () => {
+    solo();
+    expect(screen.getByTestId('solo-expert')).toBeTruthy();
+    expect(screen.getByTestId('solo-self')).toBeTruthy();
+    expect(screen.getByTestId('solo-self').textContent).toContain('You');
+  });
+
+  it('says whether the room can hear you', () => {
+    const cases = [
+      [audio({ speaking: ['p_self_000001'] }), 'Speaking'],
+      [audio({ mutedByHost: true }), 'Muted'],
+      [audio(), 'Mic on'],
+      [null, 'Mic off'],
+    ] as const;
+    for (const [state, word] of cases) {
+      const { unmount } = solo({ audio: state });
+      expect(screen.getByTestId('solo-self').textContent, word).toContain(word);
+      unmount();
+    }
+  });
+
+  /** The bar owns the microphone. A second switch for one thing is two switches. */
+  it('is not a second microphone control', () => {
+    solo({ audio: audio({ mutedByHost: true }) });
+    expect(screen.getByTestId('solo-self').tagName).not.toBe('BUTTON');
+  });
+
+  it('still draws you before the room has answered with your seat', () => {
+    solo({ self: null });
+    expect(screen.getByTestId('solo-self').textContent).toContain('You');
   });
 });

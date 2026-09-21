@@ -476,33 +476,27 @@ export function CaptionOverlay({
   /** The session's language: Persian, Arabic and Hebrew captions read right to left. */
   language?: string;
 }) {
-  const [shown, setShown] = useState('');
-  useEffect(() => {
-    if (!line) {
-      setShown('');
-      return;
-    }
-    if (line.who === 'learner' || line.revealMs <= 0) {
-      setShown(line.text);
-      return;
-    }
-    // Typewriter paced to the sentence's audio so the caption never leads the voice.
-    const chars = line.text.length;
-    const start = performance.now();
-    let raf = 0;
-    const tick = () => {
-      const t = performance.now() - start;
-      const n = Math.min(chars, Math.ceil((t / Math.max(1, line.revealMs * 0.92)) * chars));
-      setShown(line.text.slice(0, n));
-      if (n < chars) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [line]);
-  // The board is the caption's whole width now: the expert's portrait moved
-  // into the session panel, so nothing sits in the bottom-right to avoid.
+  /*
+   * Subtitles, the way a film does them: **one sentence, whole, at a time.**
+   *
+   * This used to reveal the sentence letter by letter, paced to the audio. It
+   * read as a machine typing rather than as a person speaking — the owner:
+   * *"CC should be like in movies, one sentence at a time shown synced."*
+   * Right, and for a reason beyond taste: a caption exists for somebody who
+   * cannot rely on the audio, and a line that is still arriving is a line
+   * they cannot read at their own speed. A film subtitle is complete the
+   * moment it appears and is gone when the next one starts.
+   *
+   * The sync is the room's already: the caption *is* `line`, and the room
+   * replaces it per spoken sentence. So there is nothing to animate and
+   * nothing to time here — which is why `revealMs` is no longer read.
+   */
+  const shown = line?.text ?? '';
+  // Centred and measured, like a subtitle: a sentence running the whole width
+  // of a 1440 board is a line nobody can read in one movement. ~46 characters
+  // is roughly what broadcast subtitling allows per line.
   const box =
-    'pointer-events-none absolute inset-x-3 bottom-3 z-[5] sm:inset-x-5 sm:bottom-[18px] lg:inset-x-6 lg:bottom-[22px]';
+    'pointer-events-none absolute inset-x-3 bottom-3 z-[5] flex justify-center sm:inset-x-5 sm:bottom-[18px] lg:inset-x-6 lg:bottom-[22px]';
   if (!on || !line)
     return hint ? (
       <div className={cn(box, 'text-center')} data-caption-box>
@@ -517,6 +511,7 @@ export function CaptionOverlay({
   return (
     <div className={box} data-caption-box data-testid="caption">
       <Caption
+        className="max-w-[46ch]"
         text={shown || '…'}
         live={line.live}
         {...(language ? { lang: language, dir: dirOf(language) } : {})}

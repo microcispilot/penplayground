@@ -35,9 +35,21 @@ otherwise.** `state.participants.length <= 1` is the whole condition.
 - No panel toggle in the bottom bar, and **no reaction control** — a reaction
   is broadcast to participants, and there are none, so it is the same silliness
   one control along.
-- One small tile over the board's lower corner (`SoloExpert`), the way a
-  self-view sits in Meet. It carries exactly the three things the roster
-  carried that still mean something alone:
+- A strip of **two** small tiles over the board's lower corner
+  (`SoloPresence`), the way a self-view sits in Meet: the expert, and you.
+
+  The first version showed only the expert, on the reasoning that you know
+  where you are. The owner, immediately: *"even if there's solo person, they
+  should always see an avatar of the expert and themselves. like in zoom and
+  other apps you can see."* Right, and for the reason every meeting app does
+  it — a self-view is how you know the room can hear *you*. Without it the
+  only feedback that your microphone works is that the expert answers, which
+  is the moment it is too late to find out. Yours says `Speaking`, `Mic on`,
+  `Muted` or `Mic off`, and is not a control: the bar owns the microphone,
+  and a second switch for one thing is two switches.
+
+  The expert's tile carries exactly the three things the roster carried that
+  still mean something alone:
   - **the expert is here**, with a face rather than a name in a list;
   - **what they are doing right now** — listening, thinking, speaking — which
     is what keeps a voice-first lesson from being indistinguishable from a

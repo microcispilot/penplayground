@@ -300,3 +300,21 @@ is what a person reads; gating on a frame in the middle of a fade would fail
 every fade there is and say nothing about legibility. The earlier
 intermittent reports of this same violation, recorded twice in `tasks/todo.md`
 as "did not reproduce", were the same thing on a slower frame.
+
+### Captions are film subtitles
+
+They used to reveal themselves letter by letter, paced to the sentence's
+audio. It looked like a machine typing rather than a person speaking, and the
+owner said so: *"CC should be like in movies, one sentence at a time shown
+synced."*
+
+The reason goes past taste. A caption exists for somebody who cannot rely on
+the audio, and a line that is still arriving is a line they cannot read at
+their own speed — the one reader it is *for* is the one reader a typewriter
+fails. So the caption holds one whole sentence, appears when that sentence
+does, and is replaced by the next: the sync is the room's already, because
+the caption *is* the line the room is speaking.
+
+It is also measured now — `max-w-[46ch]`, centred — because a sentence
+running the full width of a 1440 board is a line nobody reads in one
+movement. That is roughly what broadcast subtitling allows.

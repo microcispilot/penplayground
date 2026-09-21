@@ -38,6 +38,19 @@ test.describe('a learner starts a session', () => {
     await expect(page.getByTestId('caption')).toContainText("Let's start with a sentence", {
       timeout: 30_000,
     });
+    /*
+     * And it is a film subtitle, not a typewriter: **one whole sentence at a
+     * time**. It used to reveal itself letter by letter, paced to the audio,
+     * which is a line somebody who cannot rely on the audio has no way to
+     * read at their own speed. So the caption holds one sentence entire, and
+     * never a fragment of the next one on top of it.
+     */
+    const caption = page.getByTestId('caption');
+    const sentence = (await caption.innerText()).trim();
+    expect(sentence, 'the sentence arrives whole').toMatch(/[.!?…]$/);
+    expect(sentence.split(/[.!?…]\s/).length, 'one sentence, not a paragraph').toBeLessThanOrEqual(
+      2,
+    );
     await captions.click();
     await expect(page.getByTestId('caption')).toHaveCount(0);
 

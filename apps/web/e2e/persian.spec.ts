@@ -46,11 +46,11 @@ test.describe('a session taught in Persian', () => {
      * does not flip under the learner — `ui-panel.spec.ts` asserts exactly
      * that of `session-panel` — so the expert's tile stays where it is, and
      * only the words inside it read in their own direction. (It is pinned
-     * with a logical inset either way; `solo-expert.test.tsx` holds that, so
+     * with a logical inset either way; `solo-presence.test.tsx` holds that, so
      * the day the chrome does mirror, this mirrors with it.)
      */
     await expect(page.getByTestId('session-panel')).toHaveCount(0);
-    const solo = page.getByTestId('solo-expert');
+    const solo = page.getByTestId('solo-presence');
     await expect(solo).toBeVisible();
     await expect(solo).not.toHaveAttribute('dir', 'rtl');
     // And nothing the expert says is written anywhere — not in any language.

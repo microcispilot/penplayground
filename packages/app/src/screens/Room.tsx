@@ -12,7 +12,7 @@ import {
   RoomStatus,
 } from '../components/RoomChrome.js';
 import { SessionPanel, useSessionPanel } from '../components/SessionPanel.js';
-import { SoloExpert } from '../components/SoloExpert.js';
+import { SoloPresence } from '../components/SoloPresence.js';
 import { VideoAd } from '../components/VideoAd.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
@@ -329,10 +329,12 @@ export function Room() {
               </div>
             ) : null}
             {solo && state.phase !== 'ended' ? (
-              <SoloExpert
+              <SoloPresence
                 expert={expert}
                 presence={presence}
                 portraitUrl={portrait}
+                self={state.participants.find((p) => p.id === participant?.id) ?? null}
+                audio={ui.audio}
                 soundBlocked={ui.soundBlocked || needsGesture}
                 onEnableSound={enableSound}
               />

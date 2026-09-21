@@ -43,13 +43,18 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
   await expect(page.getByTestId('reaction-button')).toHaveCount(0);
   expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.85);
 
-  // The expert is here, and says what they are doing: a voice-first lesson
-  // with a silent expert and nothing on screen is indistinguishable from a
-  // page that stopped loading.
+  // Both people are here, the way a one-to-one call shows both: the expert,
+  // saying what they are doing — a voice-first lesson with a silent expert
+  // and nothing on screen is indistinguishable from a page that stopped
+  // loading — and you, saying whether the room can hear you.
   const soloExpert = page.getByTestId('solo-expert');
   await expect(soloExpert).toBeVisible();
   await expect(soloExpert).toHaveAttribute('data-presence', /idle|listening|thinking|speaking/);
-  const soloBox = await soloExpert.boundingBox();
+  const soloSelf = page.getByTestId('solo-self');
+  await expect(soloSelf).toBeVisible();
+  await expect(soloSelf).toContainText('You');
+  await expect(soloSelf).toContainText(/Mic on|Mic off|Muted|Speaking/);
+  const soloBox = await page.getByTestId('solo-presence').boundingBox();
   const boardBox = await page.locator('.pen-board').boundingBox();
   // Over the board's lower corner, inside it, and small: it is a presence,
   // not a second panel.
