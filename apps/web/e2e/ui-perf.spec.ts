@@ -105,6 +105,15 @@ test.describe('route load performance', () => {
     const roomUrl = page.url();
 
     // Reload it as a cold navigation, with the observer in from the first byte.
+    //
+    // Cold means the *cache* too. `decodedBodySize` is 0 for anything Chrome
+    // serves from its memory cache, so without this the room reported 1,500
+    // bytes across seven script requests and the budget below measured
+    // nothing at all. It passed only while the page was slow enough to
+    // revalidate — which is a budget that gets easier to meet the faster the
+    // page gets, i.e. exactly backwards.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Network.clearBrowserCache');
     await observeLcp(page);
     const requested: string[] = [];
     page.on('request', (r) => requested.push(r.url()));

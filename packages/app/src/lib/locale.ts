@@ -124,7 +124,7 @@ export function formatRelativeDay(ts: number, locale = readerLocale(), now = Dat
 
 /**
  * "now", "42s ago", "5m ago" — the quiet marker under a line in the room's
- * conversation, in the reader's own language and digits ("۴۲ ثانیه پیش").
+ * chat, in the reader's own language and digits ("۴۲ ثانیه پیش").
  */
 export function formatElapsed(at: number, now = Date.now(), locale = readerLocale()): string {
   const seconds = Math.max(0, Math.round((now - at) / 1000));

@@ -206,7 +206,7 @@ export interface BottomBarProps {
   onFullscreen: () => void;
   onLeave: () => void;
   /**
-   * The session panel — the AI human, the call and the conversation — is open.
+   * The session panel — the AI human, the call and the chat — is open.
    * The panel carries its own chevron on its edge; this is the way back to it
    * once it has folded away, and the way to it on a screen too narrow to dock
    * it. Absent while the room is not live.
@@ -515,11 +515,9 @@ export function CaptionOverlay({
       </div>
     ) : null;
   return (
-    <div className={box} data-caption-box>
+    <div className={box} data-caption-box data-testid="caption">
       <Caption
-        speaker={line.speaker}
         text={shown || '…'}
-        who={line.who}
         live={line.live}
         {...(language ? { lang: language, dir: dirOf(language) } : {})}
         {...(hint ? { hint } : {})}

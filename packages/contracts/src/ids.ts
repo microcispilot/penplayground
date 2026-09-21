@@ -26,3 +26,22 @@ export type CheckId = z.infer<typeof CheckId>;
 export type SessionId = z.infer<typeof SessionId>;
 export type ParticipantId = z.infer<typeof ParticipantId>;
 export type ExpertId = z.infer<typeof ExpertId>;
+
+/**
+ * The colour of a person, as a hue.
+ *
+ * One hash, in one place, because an avatar's colour is an *identity*: the
+ * header chip and the tile in the room are the two places somebody sees
+ * their own avatar at the same moment, and they were computed by two
+ * functions that looked identical and were not. The client's took the
+ * modulus on every step; the room's coerced to uint32 and took it once. For
+ * most ids those disagree, so the same person was two colours.
+ *
+ * It lives in contracts rather than in either of them for exactly that
+ * reason — the server picks it, the client draws it, and neither owns it.
+ */
+export function avatarHue(id: string): number {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 360;
+}

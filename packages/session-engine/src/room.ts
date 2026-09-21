@@ -28,6 +28,9 @@ import type {
 } from '@pen/contracts';
 import {
   AD_RULES,
+  avatarHue,
+  CHAT_MAX_CHARS,
+  CHAT_MIN_INTERVAL_MS,
   clampPace,
   freshEstimateUsd,
   hasEntitlement,
@@ -302,6 +305,8 @@ export class SessionRoom {
   private reportedOverBudget = false;
   /** When each participant last reacted, for the one-per-600-ms rule (`reactions.ts`). */
   private readonly lastReactionAt = new Map<ParticipantId, number>();
+  /** And when each last said something, for the same reason one line down. */
+  private readonly lastChatAt = new Map<ParticipantId, number>();
   /** The one ending this room will ever have, claimed in `end()`'s first tick. */
   private ending: Promise<void> | null = null;
 
@@ -553,6 +558,9 @@ export class SessionRoom {
         break;
       case 'reaction':
         this.reaction(p, message.emoji);
+        break;
+      case 'chat':
+        this.chat(p, message.text);
         break;
       case 'ad_event':
         this.adEvent(p, message);
@@ -1109,6 +1117,46 @@ export class SessionRoom {
     this.d.transport.broadcast({ kind: 'reaction', participantId: p.id, emoji, at: now });
     this.metrics.interaction(p.id, 'reaction_sent', { emoji });
     this.observer.event('room.reaction', { participantId: p.id, emoji });
+  }
+
+  /**
+   * Somebody said something to the room.
+   *
+   * Everything this method does *not* do is the point. It does not take the
+   * floor, touch the plan, stop the pipeline, reach a model, or cost
+   * anything. It is `reaction` above with words instead of an emoji, and for
+   * the same reason: a real expert teaching a room does not read the side
+   * conversation and does not stop teaching because somebody typed. Asking
+   * the expert is speaking — `transcript` — the way a person interrupts a
+   * person.
+   *
+   * The two silent rules are the reaction's, for the same reasons: a flood
+   * is dropped without a word, and an ad on the board turns chat off with
+   * everything else, through the same window.
+   */
+  private chat(p: Participant, text: string): void {
+    if (this.state.phase === 'ended') return;
+    if (this.adShowing()) return;
+    const line = text.trim().slice(0, CHAT_MAX_CHARS);
+    if (line.length === 0) return;
+    const now = this.now();
+    const last = this.lastChatAt.get(p.id) ?? Number.NEGATIVE_INFINITY;
+    if (now - last < CHAT_MIN_INTERVAL_MS) return;
+    this.lastChatAt.set(p.id, now);
+    // Echoed to its sender too, so every client shows one order and nobody's
+    // own line sits in a different place from everybody else's.
+    this.d.transport.broadcast({
+      kind: 'chat',
+      participantId: p.id,
+      name: p.name,
+      text: line,
+      at: now,
+    });
+    // Counted for the statistics and **never** stored as words: `CLAUDE.md`
+    // — never log transcripts or spoken text, and chat is neither more nor
+    // less private than speech.
+    this.metrics.interaction(p.id, 'chat_sent', { chars: line.length });
+    this.observer.event('room.chat', { participantId: p.id, chars: line.length });
   }
 
   /** The ceiling the conductor resumes the lesson at, plus the beat after it. */
@@ -2255,11 +2303,8 @@ export function qualifyIds(event: LessonEvent, prefix: string): LessonEvent {
   }
 }
 
-export function hueFor(id: string): number {
-  let h = 0;
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return h % 360;
-}
+/** Kept as the room's name for it; the hash itself belongs to contracts (`avatarHue`). */
+export const hueFor = avatarHue;
 
 export function newSessionId(): string {
   return nanoid(12);

@@ -155,6 +155,13 @@ export const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
    */
   reaction: { limit: 120, windowMs: 60_000 },
   /**
+   * Chat between participants. The room already drops anything faster than
+   * one per 400 ms in silence (`SessionRoom.chat`); this is the flood behind
+   * that. It reaches no model and costs nothing, so the ceiling is about the
+   * broadcast rather than about spend.
+   */
+  chat: { limit: 150, windowMs: 60_000 },
+  /**
    * The rest of the protocol, which had no bucket at all until every family
    * was checked against this table. Each of these reaches something that
    * costs: `auth` verifies a JWT, `join` reads the session row and builds a

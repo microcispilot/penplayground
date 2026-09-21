@@ -1,4 +1,5 @@
 import { expect, type Page, type Response, test } from '@playwright/test';
+import { askByVoice, installFakeSpeech } from './speech.js';
 
 /**
  * The whole product served under a URL path prefix rather than at the root of its origin
@@ -47,6 +48,8 @@ test.describe('served under a base path', () => {
     const { failures } = watched;
     const sockets: string[] = [];
     page.on('websocket', (ws) => sockets.push(ws.url()));
+    // Before the first navigation: the expert is asked things out loud now.
+    await installFakeSpeech(page);
 
     // `/` is not the app here: the edge redirects into the prefix, which is what anyone who
     // types the hostname gets. Following it is the first assertion.
@@ -65,9 +68,13 @@ test.describe('served under a base path', () => {
     await expect(page).toHaveURL(new RegExp(`^${origin}${BASE}/room/`));
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByText("Let's start with a sentence", { exact: false })).toBeVisible({
-      timeout: 20_000,
-    });
+    // The lesson has started when the expert has written something. Not when a
+    // caption says so: captions are off until the CC control turns them on, and
+    // the expert's words are written nowhere else (apps/web/e2e/session.spec.ts
+    // is where that rule itself is asserted).
+    await expect
+      .poll(async () => page.locator('.pen-board .tl-shape').count(), { timeout: 45_000 })
+      .toBeGreaterThan(0);
 
     // The lesson streams over a WebSocket derived from the API base URL, so it carries the
     // prefix too: `ws://host/testingxyzbdc/ws/room`.
@@ -77,9 +84,8 @@ test.describe('served under a base path', () => {
     ).toBe(true);
     expect(offBase(sockets, origin.replace(/^http/, 'ws')), 'sockets off the prefix').toEqual([]);
 
-    // A typed question interrupts and is answered.
-    await page.getByLabel('Ask a question').fill('Why do we divide by the square root of d?');
-    await page.getByTestId('composer-send').click();
+    // A spoken question interrupts and is answered.
+    await askByVoice(page, 'Why do we divide by the square root of d?');
     await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
       timeout: 20_000,
     });

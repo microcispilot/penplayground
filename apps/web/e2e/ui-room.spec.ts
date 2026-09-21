@@ -13,7 +13,6 @@ import { shot, startLesson, type Theme, useTheme, VIEWPORTS, waitForInk } from '
  */
 
 /** Where the session panel is docked beside the board rather than drawn over it. */
-const DOCK_WIDTH = 1024;
 
 async function boardWidth(page: Page): Promise<number> {
   return (await page.locator('.pen-board').boundingBox())?.width ?? 0;
@@ -23,27 +22,40 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
   await page.setViewportSize({ width: vp.width, height: vp.height });
   // Let the resize observers and the board camera settle.
   await page.waitForTimeout(600);
-  const docked = vp.width >= DOCK_WIDTH;
-
   // Nothing may push the page sideways at any size.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow, `${vp.name} overflows horizontally`).toBeLessThanOrEqual(0);
 
-  const panel = page.getByTestId('session-panel');
-  if (docked) {
-    // The panel is part of the layout, and the board still has the larger half.
-    await expect(panel).toBeVisible();
-    await expect(panel).toHaveAttribute('data-open', 'true');
-    await expect(panel).toHaveAttribute('data-mode', 'docked');
-    await expect(page.getByTestId('conversation')).toBeVisible();
-    expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.5);
-  } else {
-    // Too narrow to dock: the board keeps the whole width until it is asked for.
-    await expect(panel).toBeHidden();
-    expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.85);
-  }
+  /*
+   * This is a solo session — one learner, one expert — so there is no panel
+   * at any width (ADR-0033). A roster of two and a chat nobody else can read
+   * are furniture pretending to be features, so the board keeps the whole
+   * room and the expert is one tile over it.
+   *
+   * The docked/drawer behaviour the panel still has for a session *with*
+   * guests is covered by `ui-panel.spec.ts`, which builds that roster.
+   */
+  await expect(page.getByTestId('session-panel')).toHaveCount(0);
+  await expect(page.getByTestId('panel-toggle')).toHaveCount(0);
+  // And nothing to react to, so no reaction control either.
+  await expect(page.getByTestId('reaction-button')).toHaveCount(0);
+  expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.85);
+
+  // The expert is here, and says what they are doing: a voice-first lesson
+  // with a silent expert and nothing on screen is indistinguishable from a
+  // page that stopped loading.
+  const soloExpert = page.getByTestId('solo-expert');
+  await expect(soloExpert).toBeVisible();
+  await expect(soloExpert).toHaveAttribute('data-presence', /idle|listening|thinking|speaking/);
+  const soloBox = await soloExpert.boundingBox();
+  const boardBox = await page.locator('.pen-board').boundingBox();
+  // Over the board's lower corner, inside it, and small: it is a presence,
+  // not a second panel.
+  expect(soloBox?.width ?? 0, 'the tile does not take the room over').toBeLessThan(
+    (boardBox?.width ?? 0) * 0.6,
+  );
   const board = await page.locator('.pen-board').boundingBox();
   expect(board?.height ?? 0).toBeGreaterThan(vp.height * 0.45);
 
@@ -53,11 +65,22 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
   const micBox = await mic.boundingBox();
   expect(micBox?.width ?? 0).toBeGreaterThanOrEqual(vp.name === 'iphone' ? 44 : 32);
 
-  // The AI human lives in the panel now, not over the board — so with the
-  // panel up the board carries no caption (the conversation is the record),
-  // and the board never has an orb painted on it at any size.
-  await expect(page.locator('#room-board [data-presence]')).toHaveCount(0);
-  if (docked) await expect(page.locator('[data-caption-box]')).toHaveCount(0);
+  // Nothing is painted *on* the paper: the solo tile sits over the board in
+  // its own container, and no presence marker is drawn into the board
+  // itself. And the board carries no caption either —
+  // captions are off until the CC control turns them on, at every width and
+  // whether the panel is up or folded away. (The hint line is not a caption:
+  // it is guidance, and it has its own box.)
+  // `.pen-board` is the paper itself; the solo tile is a sibling of it inside
+  // the board's section, which is the difference between "over the board" and
+  // "written on it".
+  await expect(page.locator('.pen-board [data-presence]')).toHaveCount(0);
+  await expect(page.getByTestId('caption')).toHaveCount(0);
+  // `IconButton` only carries `aria-pressed` while it is on, so "off" is the
+  // absence of it rather than the string "false".
+  const cc = page.getByRole('button', { name: 'Captions', exact: true });
+  if (await cc.isVisible().catch(() => false))
+    await expect(cc).not.toHaveAttribute('aria-pressed', 'true');
 
   if (vp.name === 'iphone') {
     // Icon-only bar: the labelled controls live in a sheet.
@@ -72,45 +95,15 @@ async function checkSize(page: Page, vp: (typeof VIEWPORTS)[number], theme: Them
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
 
-    // The panel comes over the board as a drawer, and takes focus with it.
-    await page.getByTestId('panel-toggle').click();
-    await expect(panel).toBeVisible();
-    await expect(panel).toHaveAttribute('data-mode', 'drawer');
-    await expect(panel).toHaveAttribute('aria-modal', 'true');
-    await expect(page.getByTestId('composer-input')).toBeVisible();
-    await expect(page.getByTestId('roster-cards')).toBeVisible();
-    await shot(page, `room-${vp.name}-${theme}-panel`);
-    // Everyone on the call, from the panel's own overflow control.
-    await page.getByTestId('participants-toggle').click();
-    await expect(page.getByTestId('participants-toggle')).toHaveAttribute('aria-expanded', 'true');
-    await shot(page, `room-${vp.name}-${theme}-participants`);
-    await page.keyboard.press('Escape');
-    await expect(panel).toBeHidden();
+    // No drawer to open: see the solo note above. The pace control is what
+    // the sheet is for on a phone, and it is there.
   } else {
     // From the tablet up the pace control is in the bar itself.
     await expect(page.getByTestId('pace-pill')).toBeVisible();
   }
 
-  if (docked) {
-    // Folding the panel from the chevron on its own edge gives the board the
-    // rest of the screen, and leaves that one control behind to bring it back.
-    const wide = await boardWidth(page);
-    await page.getByTestId('session-panel-toggle').click();
-    await page.waitForTimeout(500);
-    await expect(panel).toHaveAttribute('data-open', 'false');
-    await expect(page.getByTestId('conversation')).toHaveCount(0);
-    expect(await boardWidth(page)).toBeGreaterThan(wide);
-    expect(await boardWidth(page)).toBeGreaterThan(vp.width * 0.9);
-    // …and with the panel gone the board says what was said again.
-    await expect(page.getByTestId('session-panel-toggle')).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
-    await shot(page, `room-${vp.name}-${theme}-collapsed`);
-    await page.getByTestId('session-panel-toggle').click();
-    await page.waitForTimeout(500);
-    await expect(panel).toHaveAttribute('data-open', 'true');
-  }
+  // Folding the panel is `ui-panel.spec.ts`'s: it needs a panel, and this
+  // session does not have one.
 
   await shot(page, `room-${vp.name}-${theme}`);
 }

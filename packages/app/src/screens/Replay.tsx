@@ -108,27 +108,9 @@ export function Replay() {
     await session.start(state, {
       captions: {
         showExpert: (text, revealMs) =>
-          set({
-            caption: {
-              who: 'expert',
-              speaker: expert?.displayName.split(' ')[0] ?? 'Expert',
-              text,
-              revealMs,
-              live: false,
-              at: Date.now(),
-            },
-          }),
-        showLearner: (name, text, final) =>
-          set({
-            caption: {
-              who: 'learner',
-              speaker: name,
-              text,
-              revealMs: 0,
-              live: !final,
-              at: Date.now(),
-            },
-          }),
+          set({ caption: { who: 'expert', text, revealMs, live: false, at: Date.now() } }),
+        showLearner: (_name, text, final) =>
+          set({ caption: { who: 'learner', text, revealMs: 0, live: !final, at: Date.now() } }),
         hint: (text) => set({ hint: text }),
         clear: () => set({ caption: null }),
       },
@@ -307,7 +289,14 @@ export function Replay() {
           size={88}
         />
       </div>
-      <CaptionOverlay line={ui.caption} hint={ui.hint} on={ui.captionsOn} />
+      {/*
+        A replay is a recording, and its captions are part of what was
+        recorded: the export writes them into the video, and this screen has
+        no CC control to turn them back on with. So they are on here, always —
+        the live room's `captionsOn` is the learner's choice about a lesson
+        happening now, and there is no choice to make about one that is over.
+      */}
+      <CaptionOverlay line={ui.caption} hint={ui.hint} on />
       {exportMode ? null : <ReplayNotice notice={ui.notice} />}
       {!started && !exportMode ? (
         <div className="absolute inset-0 z-[9] grid place-items-center bg-scrim/60">

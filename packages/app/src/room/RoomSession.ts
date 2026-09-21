@@ -14,7 +14,7 @@ import type {
   Reaction,
   RoomState,
 } from '@pen/contracts';
-import { AUDIO, clampPace, encodeAudioFrame } from '@pen/contracts';
+import { AUDIO, CHAT_MAX_CHARS, clampPace, encodeAudioFrame } from '@pen/contracts';
 import { Microphone, PcmPlayer } from '@pen/voice/client';
 import type { ApiClient } from '../api/client.js';
 import {
@@ -30,7 +30,7 @@ import type { Platform, SpeechRecognizer, SpeechRecognizerHandlers } from '../pl
 import { AdInputGate } from './ad-input.js';
 import { LiveKitAudioRoom } from './audio/livekit.js';
 import { RoomAudio } from './audio/RoomAudio.js';
-import { appendMessage, expertSaid, learnerSaid, systemSaid } from './conversation.js';
+import { appendChat } from './chat.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
 import { pushReaction } from './reactions.js';
@@ -46,18 +46,28 @@ export interface RoomSessionOptions {
 
 /**
  * What the learner reads when speech recognition cannot run. Each is a fact
- * and a way forward — typing always works — and every one of these codes is
- * terminal, so the sentence is shown once and stays true.
+ * and a way forward, and every one of these codes is terminal, so the sentence
+ * is shown once and stays true.
+ *
+ * The way forward is no longer "type your question instead": asking the expert
+ * is speaking, the way you interrupt a person, and the panel's composer goes to
+ * the other people in the room. So what is offered is what is actually there —
+ * the lesson, and the captions the CC control turns on.
  */
 const SPEECH_NOTICE: Record<string, string> = {
-  'audio-capture': "We can't find a microphone. You can type your question instead.",
-  'not-allowed': 'Your browser is not letting us listen. You can type your question instead.',
+  'audio-capture': "We can't find a microphone — you can still watch, with captions if you like.",
+  'not-allowed':
+    'Your browser is not letting us listen — you can still watch, with captions if you like.',
   'service-not-allowed':
-    'Your browser is not letting us listen. You can type your question instead.',
+    'Your browser is not letting us listen — you can still watch, with captions if you like.',
   'language-not-supported':
-    "This browser doesn't recognise speech in this language yet. You can type your question instead.",
-  unavailable: "This browser can't recognise speech. You can type your question instead.",
+    "This browser doesn't recognise speech in this language yet — you can still watch, with captions if you like.",
+  unavailable:
+    "This browser can't recognise speech — you can still watch, with captions if you like.",
 };
+
+/** The one line the room says about an ad, so its end can clear only that line. */
+const AD_NOTICE = 'A short ad — the lesson picks up right after.';
 
 /**
  * Owns everything that lives for one visit to a room: the socket, the audio
@@ -114,10 +124,8 @@ export class RoomSession {
    * composer. See `ad-input.ts` for the whole rule.
    */
   private readonly adGate = new AdInputGate((paused) => this.mic?.setMuted(paused));
-  /** Monotonic id for conversation lines; the store keys React rows by it. */
+  /** Monotonic tiebreaker for reaction and chat ids; the store keys React rows by them. */
   private lineCounter = 0;
-  /** The socket was away and said so: the return gets its own quiet line. */
-  private conversationSawDrop = false;
 
   constructor(private readonly o: RoomSessionOptions) {
     const store = useRoomStore.getState();
@@ -201,47 +209,24 @@ export class RoomSession {
       clear: () => board.clear(),
     };
 
+    /*
+     * Subtitles, and nothing else.
+     *
+     * The expert's words used to be written into the panel as well. They are
+     * not any more: a real expert does not put their own transcript beside the
+     * board, and the room's right-hand column is a chat between the people in
+     * the room. What was said reaches whoever wants it through the CC control,
+     * which is off until they ask (`store.ts`, `captionsOn`).
+     */
     const captions: CaptionPort = {
-      showExpert: (text, revealMs, thread) => {
-        const at = Date.now();
+      showExpert: (text, revealMs) => {
         set({
-          caption: {
-            who: 'expert',
-            speaker: this.expertName(),
-            text,
-            revealMs,
-            live: false,
-            at,
-          },
+          caption: { who: 'expert', text, revealMs, live: false, at: Date.now() },
           learnerHeard: '',
-          conversation: expertSaid(useRoomStore.getState().conversation, {
-            id: `e${++this.lineCounter}`,
-            speaker: this.expertName(),
-            text,
-            at,
-            thread: thread ?? 'lesson',
-          }),
         });
       },
-      showLearner: (name, text, final) => {
-        const at = Date.now();
-        set({
-          caption: {
-            who: 'learner',
-            speaker: name,
-            text,
-            revealMs: 0,
-            live: !final,
-            at,
-          },
-          conversation: learnerSaid(useRoomStore.getState().conversation, {
-            id: `l${++this.lineCounter}`,
-            speaker: name,
-            text,
-            final,
-            at,
-          }),
-        });
+      showLearner: (_name, text, final) => {
+        set({ caption: { who: 'learner', text, revealMs: 0, live: !final, at: Date.now() } });
       },
       hint: (text) => set({ hint: text }),
       clear: () => set({ caption: null }),
@@ -270,7 +255,10 @@ export class RoomSession {
           // However the ad ended — skipped, completed, timed out, blocked — the
           // learner gets their voice and their keyboard back on this same line.
           this.adGate.set(false);
-          set({ ad: null });
+          // Only the ad's own line goes with the ad: a microphone that was
+          // denied while the overlay was up is still denied afterwards.
+          const showing = useRoomStore.getState().notice;
+          set({ ad: null, ...(showing?.text === AD_NOTICE ? { notice: null } : {}) });
           if (this.adShownAt) {
             const { adId, at } = this.adShownAt;
             this.adShownAt = null;
@@ -294,13 +282,12 @@ export class RoomSession {
         }
         this.adEndReason = null;
         this.adGate.set(true);
+        // The room talking about itself goes to the room's own status line —
+        // the one honest-status surface (`RoomStatus`) — and never into the
+        // chat, which belongs to the people in the room.
         set({
           ad: { ...ad, ...details, startedAt: Date.now() },
-          conversation: systemSaid(useRoomStore.getState().conversation, {
-            id: `s${++this.lineCounter}`,
-            text: 'A short ad — the lesson picks up right after.',
-            at: Date.now(),
-          }),
+          notice: { text: AD_NOTICE, tone: 'neutral' },
         });
         this.adShownAt = { adId: ad.adId, at: Date.now() };
         trackInteraction('ad_shown', {
@@ -393,6 +380,7 @@ export class RoomSession {
           }
           if (m.kind === 'prep') set({ preparation: m.progress });
           if (m.kind === 'reaction') this.showReaction(m.participantId, m.emoji, m.at);
+          if (m.kind === 'chat') this.showChat(m);
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
           if (m.kind === 'cue' && m.cue.event.type === 'say') this.currentThread = m.cue.thread;
@@ -409,18 +397,11 @@ export class RoomSession {
           }
         },
         onAudio: (header, pcm) => this.conductor.handleAudio(header, pcm),
-        onStatus: (connection) => {
-          set({ connection });
-          // The transcript carries what the learner would otherwise only have
-          // caught as a pill: the room went away, and the room came back.
-          if (connection === 'reconnecting' || connection === 'failed') {
-            this.conversationSawDrop = true;
-            this.systemLine('The connection dropped — reconnecting.');
-          } else if (connection === 'open' && this.conversationSawDrop) {
-            this.conversationSawDrop = false;
-            this.systemLine('Back.');
-          }
-        },
+        // The room going away and coming back is the room talking about
+        // itself, and it says so where every other honest status does:
+        // `RoomStatus` reads this connection directly and shows
+        // "Reconnecting…" then "Back." (apps/web/e2e/ui-states.spec.ts).
+        onStatus: (connection) => set({ connection }),
       },
       o.displayName,
     );
@@ -459,15 +440,50 @@ export class RoomSession {
     this.client.send({ kind: 'reaction', emoji });
   }
 
-  /** One quiet centred line in the conversation: the room talking about itself. */
-  private systemLine(text: string): void {
-    useRoomStore.getState().set({
-      conversation: systemSaid(useRoomStore.getState().conversation, {
-        id: `s${++this.lineCounter}`,
-        text,
-        at: Date.now(),
+  /**
+   * Somebody said something to the room. It goes in the panel's chat and
+   * nowhere else: the expert does not see it, no floor changes hands, the
+   * lesson does not pause, and no model is asked anything. The room echoes
+   * every line back to its sender too, so this is also how our own line
+   * appears — in the one order everybody else sees it in.
+   */
+  private showChat(line: { participantId: string; name: string; text: string; at: number }): void {
+    const store = useRoomStore.getState();
+    store.set({
+      chat: appendChat(store.chat, {
+        id: `${line.participantId}@${line.at}#${++this.lineCounter}`,
+        participantId: line.participantId,
+        name: line.name,
+        text: line.text,
+        at: line.at,
+        own: line.participantId === this.o.participantId,
       }),
     });
+  }
+
+  /**
+   * Say something to the other people in the room.
+   *
+   * Not a question: this reaches the participants and never the expert, and
+   * it interrupts nothing (`chat.ts`, and the absences pinned by
+   * packages/session-engine/test/chat.test.ts). Refused behind an ad through
+   * the same gate that holds the microphone, and once the room has ended; the
+   * room's own rate rule does the rest, silently.
+   *
+   * Reported to product analytics only. The ledger's `chat_sent` entry is the
+   * room's own — with a length and no words — so reporting it from here as
+   * well would count every line twice.
+   */
+  sendChat(text: string): void {
+    if (this.adGate.refuses()) return;
+    if (useRoomStore.getState().state?.phase === 'ended') return;
+    // Trimmed and capped to the wire's own ceiling before it is sent: a line
+    // longer than `CHAT_MAX_CHARS` is a protocol error, and a protocol error
+    // is not what a long message deserves.
+    const line = text.trim().slice(0, CHAT_MAX_CHARS);
+    if (!line) return;
+    trackInteraction('chat_sent', { chars: line.length }, { report: false });
+    this.client.send({ kind: 'chat', text: line });
   }
 
   /**
@@ -715,34 +731,18 @@ export class RoomSession {
     return this.audio.muteParticipant(participantId);
   }
 
-  /** Typed question fallback (accessibility, no mic). */
-  ask(text: string): void {
-    // The composer is disabled for the ad's duration; this is the same rule one
-    // layer in, for a submit that raced the overlay or came from a script.
-    if (this.adGate.refuses()) return;
-    const id = `u${++this.utteranceCounter}`;
-    this.questionAt = Date.now();
-    trackInteraction('question_typed', { chars: text.length });
-    this.conductor.onTranscript(id, text, true);
-  }
-
+  /**
+   * The expert asked *you* something and you answered. Not an interruption,
+   * and so the one place text still reaches them: they stopped and waited for
+   * it. Nothing is written into the chat — the check card carried the
+   * question, and the expert's reply comes back as speech.
+   */
   answerCheck(checkId: string, text: string): void {
     if (this.adGate.refuses()) return;
     this.questionAt = Date.now();
     trackInteraction('check_answered', { checkId, chars: text.length });
     this.conductor.answerCheck(checkId, text);
-    useRoomStore.getState().set({
-      check: null,
-      conversation: appendMessage(useRoomStore.getState().conversation, {
-        id: `c${++this.lineCounter}`,
-        role: 'learner',
-        speaker: 'You',
-        text,
-        live: false,
-        at: Date.now(),
-        kind: 'check',
-      }),
-    });
+    useRoomStore.getState().set({ check: null });
   }
 
   control(action: 'pause' | 'resume' | 'end'): void {
@@ -861,17 +861,14 @@ export class RoomSession {
     setAnalyticsContext({ phase: `${phase}:${mode}` });
     trackInteraction('phase_shown', { phase, mode, segment: state.segment });
     if (phase === 'ended') {
-      this.systemLine('Session ended — it is saved.');
+      // The recap panel takes the board and says it in full; a second line
+      // about it in the chat would be the room talking over itself.
       trackInteraction('recap_shown', { points: state.recap?.length ?? 0 });
     }
   }
 
   private utteranceId(recognizerId: string): string {
     return this.currentUtterance ?? `r${recognizerId}`;
-  }
-
-  private expertName(): string {
-    return useRoomStore.getState().expert?.displayName.split(' ')[0] ?? 'Expert';
   }
 
   private syncClock(state: RoomState): void {

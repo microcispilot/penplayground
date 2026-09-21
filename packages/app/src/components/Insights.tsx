@@ -239,6 +239,8 @@ function describeMeta(s: StageSample): string {
 const INTERACTION_LABEL: Partial<Record<InteractionEvent['event'], string>> = {
   question_typed: 'Typed a question',
   question_spoken: 'Asked out loud',
+  /** A line of chat between the people in the room; the expert never saw it. */
+  chat_sent: 'Sent a message',
   check_answered: 'Answered a check',
   interrupt: 'Interrupted',
   pause: 'Paused',

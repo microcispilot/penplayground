@@ -1,6 +1,6 @@
 import type { Expert, Participant, RoomState } from '@pen/contracts';
 import { Avatar, Button, cn, ExpertOrb, type ExpertPresence, Pill } from '@pen/design';
-import { ChevronDown, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, Mic, MicOff, VolumeX } from 'lucide-react';
 import { type ReactNode, useId, useState } from 'react';
 import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import {
@@ -56,12 +56,14 @@ export function VoiceAvatar({
           'transition-shadow duration-[var(--duration-fast)]',
           voice === 'speaking' &&
             'shadow-[0_0_0_2px_var(--color-surface-container-low),0_0_0_4px_var(--color-presence)]',
-          voice === 'muted' && 'opacity-60',
+          voice === 'muted' && 'opacity-70',
         )}
       />
       {voice === 'muted' ? (
+        /* Quiet, not alarming: being muted is an ordinary state of a call, and
+           the row beside this says the word as well. */
         <span
-          className="absolute -right-0.5 -bottom-0.5 grid size-3.5 place-items-center rounded-full bg-warm text-on-primary ring-2 ring-surface-container-low"
+          className="absolute -end-0.5 -bottom-0.5 grid size-3.5 place-items-center rounded-full bg-surface-container-highest text-on-surface-variant ring-2 ring-surface-container-low"
           aria-hidden
         >
           <MicOff size={8} />
@@ -76,16 +78,38 @@ export function VoiceAvatar({
 /**
  * Everyone on the call, the AI human first.
  *
- * The layout follows the count, the way a call grid does: one card is given
- * room, three are compact, and past three only three are shown with an
+ * Built the way Meet, Zoom and Teams build a tile, because a room with one AI
+ * expert and a handful of people is a call and people already know how to
+ * read one:
+ *
+ *   The tile is the frame and the name is *in* it — bottom-left, small, over
+ *   a scrim of the tile's own colour rather than in a bordered, blurred pill
+ *   floating on top of it. The scrim does real work: the face is centred in
+ *   the whole tile, so at one or two people it passes behind the name.
+ *
+ *   The name is a name. "Amara Diallo (AI expert)" and "Learner (You)" are
+ *   not how anyone labels a participant; a meeting app writes the name, and
+ *   beside it, in a quieter weight, the one word that matters — and your own
+ *   tile simply says **You**, which is what Meet has done for a decade.
+ *
+ *   Nothing is drawn in a corner that you cannot press. The old tiles carried
+ *   a bright green circle on every face at all times to report a state the
+ *   mic glyph beside the name already reports. The corner now holds a control
+ *   only when there is something to do there: unblock the expert's voice,
+ *   toggle your own microphone, mute a guest as the host.
+ *
+ * The layout still follows the count, the way a call grid does: one card is
+ * given room, three are compact, and past three only three are shown with an
  * overflow control — the avatar-stack-with-overflow pattern Google Meet,
  * Figma and Linear all settled on, because a roster that grows without bound
  * pushes the conversation off the screen.
  *
- * Whoever holds the floor is ringed, and whoever is audible right now is
- * ringed and glowing. Both come from state the room broadcasts (`floor`, the
- * media server's active speakers, this device's own microphone level), so a
- * silent participant is never animated.
+ * Whoever is audible right now is ringed in presence green — the same green
+ * the media server's "speaking" paints on every other face in the product —
+ * and whoever merely holds the floor gets a quiet outline. Both come from
+ * state the room broadcasts (`floor`, the media server's active speakers,
+ * this device's own microphone level), so a silent participant is never
+ * animated, and no ordinary state is ever drawn in an alarm colour.
  */
 export interface ParticipantRosterProps {
   state: RoomState;
@@ -147,35 +171,44 @@ function rosterOrder(
   return [...people].sort((a, b) => rank(a) - rank(b) || a.joinedAt - b.joinedAt);
 }
 
-const CARD_BASE =
-  'relative flex items-center justify-center overflow-hidden rounded-lg bg-surface-container-high transition-[box-shadow,background-color] duration-[var(--duration-base)] ease-[var(--ease-out)]';
-
-/** The ring that says "this one has the room": bright and glowing while audible, quiet while merely holding the floor. */
-function ringFor(presence: ParticipantPresence): string {
-  if (presence === 'speaking')
-    return 'shadow-[0_0_0_2px_var(--color-primary),0_0_0_7px_var(--color-primary-container)]';
-  if (presence === 'floor') return 'shadow-[0_0_0_2px_var(--color-primary-container)]';
-  return 'shadow-[0_0_0_1px_var(--color-outline-variant)]';
-}
+/**
+ * The tile: a face with its name under it, one fill for every state — the
+ * ring is what changes. A column rather than a stack, so nothing is ever
+ * painted over a face; the first version centred the avatar in the whole tile
+ * and faded a scrim over the bottom of it, and at 44 px that scrim cut every
+ * disc in half.
+ */
+const TILE_BASE =
+  'group relative flex flex-col overflow-hidden rounded-lg bg-surface-container-high transition-[box-shadow] duration-[var(--duration-base)] ease-[var(--ease-out)]';
 
 /**
- * The name, bottom-left of its card, with what they are in muted weight
- * beside it. Three across there is no room for the parenthetical, so the card
- * keeps the name (which is what a face needs) and the control's label carries
- * the rest.
+ * The ring that says "this one has the room". Presence green while audible —
+ * the colour this product already uses for a live voice, and the colour a
+ * call UI is expected to use for its active speaker — and a plain outline for
+ * whoever holds the floor without making a sound. Never the brand red: a red
+ * box drawn round a person who is simply talking reads as an alarm.
  */
+function ringFor(presence: ParticipantPresence): string {
+  // Two pixels and no halo. A glow behind the ring was measured on screen and
+  // it reads as neon in dark and as highlighter in light — a call UI marks its
+  // active speaker with a line, not with a lamp.
+  if (presence === 'speaking') return 'shadow-[0_0_0_2px_var(--color-presence)]';
+  if (presence === 'floor') return 'shadow-[0_0_0_2px_var(--color-outline)]';
+  return 'hairline';
+}
+
 /** Three little bars that move only while this person is actually audible. */
 function SpeakingGlyph() {
   return (
-    <span className="pen-bars flex h-3 shrink-0 items-end gap-[1.5px]" aria-hidden>
+    <span className="pen-bars flex h-2.5 shrink-0 items-end gap-[1.5px]" aria-hidden>
       <i />
       <i />
       <i />
       <style>{`
         .pen-bars i { width: 2px; border-radius: 1px; background: var(--color-presence); animation: pen-bar 900ms var(--ease-in-out) infinite; }
-        .pen-bars i:nth-child(1) { height: 5px; animation-delay: 0ms; }
-        .pen-bars i:nth-child(2) { height: 10px; animation-delay: 140ms; }
-        .pen-bars i:nth-child(3) { height: 7px; animation-delay: 280ms; }
+        .pen-bars i:nth-child(1) { height: 4px; animation-delay: 0ms; }
+        .pen-bars i:nth-child(2) { height: 9px; animation-delay: 140ms; }
+        .pen-bars i:nth-child(3) { height: 6px; animation-delay: 280ms; }
         @keyframes pen-bar { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
         @media (prefers-reduced-motion: reduce) { .pen-bars i { animation: none; transform: scaleY(0.8); } }
       `}</style>
@@ -183,66 +216,97 @@ function SpeakingGlyph() {
   );
 }
 
-function NamePill({
+/**
+ * What a tile calls someone.
+ *
+ * Your own tile says "You" and nothing else — the name beside it would be a
+ * label for other people, and Meet, Teams and Slack huddles all drop it. Three
+ * across there is no room for two words, so a compact tile keeps the first
+ * one: "Mina" rather than "Mina Far…", which is a word instead of a stump.
+ */
+export function tileNameFor(name: string, isSelf: boolean, compact: boolean): string {
+  if (isSelf) return 'You';
+  const trimmed = name.trim();
+  if (!compact) return trimmed;
+  return trimmed.split(/\s+/)[0] || trimmed;
+}
+
+/**
+ * The quieter word beside the name: what this person is, when it is worth
+ * saying. Never in brackets — a meeting app writes "Ada Lovelace  Host", not
+ * "Ada Lovelace (Host)" — and never at all on a compact tile, where the name
+ * itself is already cropped.
+ */
+function qualifierFor(
+  kind: 'expert' | 'person',
+  isSelf: boolean,
+  isHostSeat: boolean,
+  compact: boolean,
+): string | null {
+  if (kind === 'expert') return compact ? 'AI' : 'AI expert';
+  if (isSelf || !isHostSeat || compact) return null;
+  return 'Host';
+}
+
+/**
+ * The face, and under it the name — bottom-left, small, on the tile's own
+ * ground.
+ *
+ * The name is part of the tile rather than a pill laid on top of one: no
+ * second background, no border, no blur. It is in the tile's flow, so it can
+ * never sit over a face and never needs a film over one to stay legible,
+ * which is the whole reason the version before this looked like a sticker.
+ */
+function TileFace({
   name,
-  note,
-  compact,
-  speaking,
+  qualifier,
+  glyph,
+  children,
 }: {
   name: string;
-  note: string;
-  compact: boolean;
-  speaking: boolean;
+  qualifier: string | null;
+  glyph: ReactNode;
+  children: ReactNode;
 }) {
-  if (compact)
-    return (
-      <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-center justify-center gap-1 rounded-full bg-surface-container/88 px-2 py-0.5 text-label-small font-medium text-on-surface backdrop-blur-[6px] hairline">
-        {speaking ? <SpeakingGlyph /> : null}
-        <span className="min-w-0 truncate" dir="auto">
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 items-center justify-center px-2 pt-2.5 pb-1">
+        {children}
+      </div>
+      <div className="flex items-center gap-1 px-2 pb-1.5" data-tile-name>
+        {glyph}
+        <span className="min-w-0 truncate text-label-small font-medium text-on-surface" dir="auto">
           {name}
         </span>
-      </span>
-    );
-  return (
-    <span className="pointer-events-none absolute end-11 bottom-2 start-2 flex min-w-0 items-center gap-1.5 rounded-full bg-surface-container/88 px-2.5 py-1 text-label-small text-on-surface backdrop-blur-[6px] hairline">
-      {speaking ? <SpeakingGlyph /> : null}
-      <span className="min-w-0 truncate font-medium" dir="auto">
-        {name}
-      </span>
-      <span className="shrink-0 text-on-surface-dim">({note})</span>
-    </span>
+        {qualifier ? (
+          <span className="shrink-0 text-label-small text-on-surface-dim">{qualifier}</span>
+        ) : null}
+      </div>
+    </>
   );
 }
 
-/** The small round control in a card's top-right corner: the speaker, or a microphone. */
-function CardControl({
+/**
+ * The small round control in a tile's top corner — and only when there is
+ * something to press. `tone` is quiet unless the state is one a person has to
+ * act on, which in a room is exactly two: the browser is holding the expert's
+ * voice, and the host has muted you.
+ */
+function TileControl({
   label,
   tone,
   onClick,
+  compact,
   children,
   testId,
 }: {
   label: string;
-  tone: 'quiet' | 'live' | 'warn';
-  onClick?: (() => void) | undefined;
+  tone: 'quiet' | 'warn';
+  onClick: () => void;
+  compact: boolean;
   children: ReactNode;
   testId?: string;
 }) {
-  const className = cn(
-    'absolute top-2 end-2 grid size-7 place-items-center rounded-full backdrop-blur-[6px] transition-colors duration-[var(--duration-fast)]',
-    tone === 'live' &&
-      'bg-presence-container text-on-presence-container shadow-[0_0_0_1px_var(--color-presence)]',
-    tone === 'warn' &&
-      'bg-warm-container text-on-warm-container shadow-[0_0_0_1px_var(--color-warm)]',
-    tone === 'quiet' && 'bg-surface-container/88 text-on-surface-variant hairline',
-    onClick && 'hover:text-on-surface focus-visible:outline-primary',
-  );
-  if (!onClick)
-    return (
-      <span className={className} role="img" aria-label={label} title={label}>
-        {children}
-      </span>
-    );
   return (
     <button
       type="button"
@@ -250,14 +314,27 @@ function CardControl({
       aria-label={label}
       title={label}
       data-testid={testId}
-      className={className}
+      className={cn(
+        'absolute top-1.5 end-1.5 z-[2] grid place-items-center rounded-full transition-[color,background-color,opacity] duration-[var(--duration-fast)] focus-visible:outline-primary',
+        compact ? 'size-6' : 'size-7',
+        tone === 'warn'
+          ? // Something is waiting on a person: the host has silenced you, or
+            // the browser is holding the expert's voice. Always on screen.
+            'bg-warm-container text-on-warm-container'
+          : // A shortcut, not a status. Meet and Zoom both keep these off the
+            // face until you reach for the tile, and a crossed-out microphone
+            // sitting permanently on somebody's tile reads as "she is muted"
+            // when it means "mute her". The full list behind "everyone on the
+            // call" carries the same controls for a touch screen.
+            'bg-surface-container/90 text-on-surface-variant opacity-0 hairline group-hover:opacity-100 group-focus-within:opacity-100 hover:text-on-surface',
+      )}
     >
       {children}
     </button>
   );
 }
 
-function ExpertCard({
+function ExpertTile({
   expert,
   presence,
   portraitUrl,
@@ -277,29 +354,42 @@ function ExpertCard({
   const name = expert?.displayName ?? 'Expert';
   const talking = presence === 'speaking';
   return (
-    <div
+    <li
       data-testid="roster-expert"
       data-presence={presence}
-      className={cn(
-        CARD_BASE,
-        ringFor(talking ? 'speaking' : presence === 'listening' ? 'floor' : 'listening'),
-      )}
-      style={{ minHeight: size + 40 }}
+      /* The tile follows the same rule as everyone else's — a green line while
+         audible, a hairline otherwise. The finer states only the AI human has
+         (thinking, listening for you) are the orb's to draw, and drawing them
+         twice put a second grey box round the expert for half the lesson. */
+      className={cn(TILE_BASE, ringFor(talking ? 'speaking' : 'listening'))}
+      style={{ minHeight: size + 46 }}
     >
-      <ExpertOrb name={name} portraitUrl={portraitUrl} presence={presence} size={size} />
-      <NamePill name={name} note="AI expert" compact={compact} speaking={talking} />
-      <CardControl
-        label={soundBlocked ? `Tap to hear ${name}` : `${name} · ${expertPresenceLabel(presence)}`}
-        tone={soundBlocked ? 'warn' : talking ? 'live' : 'quiet'}
-        {...(soundBlocked ? { onClick: onEnableSound, testId: 'roster-enable-sound' } : {})}
+      {/* The ring and the bars are the sighted read of this; a screen reader
+          gets the same fact in words rather than nothing at all. */}
+      <span className="sr-only">{expertPresenceLabel(presence)}</span>
+      <TileFace
+        name={tileNameFor(name, false, compact)}
+        qualifier={qualifierFor('expert', false, false, compact)}
+        glyph={talking ? <SpeakingGlyph /> : null}
       >
-        {soundBlocked ? <VolumeX size={13} /> : <Volume2 size={13} />}
-      </CardControl>
-    </div>
+        <ExpertOrb name={name} portraitUrl={portraitUrl} presence={presence} size={size} />
+      </TileFace>
+      {soundBlocked ? (
+        <TileControl
+          label={`Tap to hear ${name}`}
+          tone="warn"
+          compact={compact}
+          onClick={onEnableSound}
+          testId="roster-enable-sound"
+        >
+          <VolumeX size={13} />
+        </TileControl>
+      ) : null}
+    </li>
   );
 }
 
-function PersonCard({
+function PersonTile({
   p,
   presence,
   voice,
@@ -320,57 +410,48 @@ function PersonCard({
   onToggleMic: () => void;
   onMute: (() => void) | null;
 }) {
-  const note = isSelf ? 'You' : isHostSeat ? 'Host' : presenceLabel(presence, isHostSeat);
-  const micLive = isSelf
-    ? presence === 'speaking' || voice === 'on' || voice === 'speaking'
-    : false;
-  const control = isSelf
-    ? {
-        label: voice === 'muted' ? 'Muted by the host — unmute' : 'Toggle your microphone',
-        tone:
-          voice === 'muted' ? ('warn' as const) : micLive ? ('live' as const) : ('quiet' as const),
-        onClick: onToggleMic,
-        icon:
-          voice === 'muted' ? (
-            <MicOff size={13} />
-          ) : micLive ? (
-            <Mic size={13} />
-          ) : (
-            <MicOff size={13} />
-          ),
-        testId: undefined,
-      }
-    : {
-        label:
-          voice === 'muted'
-            ? `${p.name} is muted`
-            : onMute
-              ? `Mute ${p.name}`
-              : `${p.name} · ${VOICE_LABEL[voice]}`,
-        tone:
-          voice === 'muted'
-            ? ('warn' as const)
-            : voice === 'speaking'
-              ? ('live' as const)
-              : ('quiet' as const),
-        onClick: onMute && voice !== 'off' && voice !== 'muted' ? onMute : undefined,
-        icon: voice === 'muted' ? <MicOff size={13} /> : <Mic size={13} />,
-        testId: undefined,
-      };
+  const speaking = presence === 'speaking';
+  const mutedByHost = isSelf && voice === 'muted';
   return (
-    <div
+    <li
       data-testid={`roster-${p.id}`}
       data-voice={voice}
       data-presence={presence}
-      className={cn(CARD_BASE, ringFor(presence))}
-      style={{ minHeight: size + 40 }}
+      className={cn(TILE_BASE, ringFor(presence))}
+      style={{ minHeight: size + 46 }}
     >
-      <Avatar name={p.name} hue={p.hue} size={size} />
-      <NamePill name={p.name} note={note} compact={compact} speaking={presence === 'speaking'} />
-      <CardControl label={control.label} tone={control.tone} onClick={control.onClick}>
-        {control.icon}
-      </CardControl>
-    </div>
+      <span className="sr-only">
+        {isHostSeat ? 'Host, ' : ''}
+        {presenceLabel(presence, isHostSeat)}
+      </span>
+      <TileFace
+        name={tileNameFor(p.name, isSelf, compact)}
+        qualifier={qualifierFor('person', isSelf, isHostSeat, compact)}
+        glyph={
+          speaking ? (
+            <SpeakingGlyph />
+          ) : voice === 'muted' ? (
+            <MicOff size={11} className="shrink-0 text-on-surface-dim" aria-hidden />
+          ) : null
+        }
+      >
+        <Avatar name={p.name} hue={p.hue} size={size} />
+      </TileFace>
+      {isSelf ? (
+        <TileControl
+          label={mutedByHost ? 'Muted by the host — unmute' : 'Toggle your microphone'}
+          tone={mutedByHost ? 'warn' : 'quiet'}
+          compact={compact}
+          onClick={onToggleMic}
+        >
+          {voice === 'on' || voice === 'speaking' ? <Mic size={13} /> : <MicOff size={13} />}
+        </TileControl>
+      ) : onMute && voice !== 'off' && voice !== 'muted' ? (
+        <TileControl label={`Mute ${p.name}`} tone="quiet" compact={compact} onClick={onMute}>
+          <MicOff size={13} />
+        </TileControl>
+      ) : null}
+    </li>
   );
 }
 
@@ -419,9 +500,14 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
         >
           On the call
         </h6>
-        <Pill tone={voiceOn ? 'live' : 'neutral'} dot={voiceOn && p.audio?.status === 'connected'}>
+        {/* The count, plainly. A bright green chip around a number is not news;
+            the dot beside it is the only thing that has to say "live". */}
+        <span className="flex shrink-0 items-center gap-1.5 text-label-small text-on-surface-dim tabular">
+          {voiceOn && p.audio?.status === 'connected' ? (
+            <span className="size-1.5 animate-blink rounded-full bg-presence" aria-hidden />
+          ) : null}
           {total} {total === 1 ? 'participant' : 'participants'}
-        </Pill>
+        </span>
         <span className="flex-1" />
         <button
           type="button"
@@ -445,13 +531,17 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
 
       {!p.sectionOpen ? null : (
         <div id={`${listId}-body`}>
-          {/* The cards are the reactions' stage: pills rise over the faces. */}
-          <div className="relative">
-            <div
+          {/* The cards are the reactions' stage. The padding is the lane the
+              pills rise into: `ReactionPills` hangs 12 px below this box, and
+              without the lane a pill lands on the names. */}
+          <div className="relative pb-6">
+            {/* A list, because that is what it is: three faces read as three
+                things rather than as one run-on paragraph. */}
+            <ul
               className={cn('grid px-3', compact ? 'grid-cols-3 gap-2' : 'gap-2.5')}
               data-testid="roster-cards"
             >
-              <ExpertCard
+              <ExpertTile
                 expert={p.expert}
                 presence={p.expertPresence}
                 portraitUrl={p.expertPortraitUrl}
@@ -461,7 +551,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                 onEnableSound={p.onEnableSound}
               />
               {shownPeople.map((person) => (
-                <PersonCard
+                <PersonTile
                   key={person.id}
                   p={person}
                   presence={presenceOf(person)}
@@ -476,12 +566,12 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                   }
                 />
               ))}
-            </div>
+            </ul>
             <ReactionPills reactions={p.reactions} />
           </div>
 
           {/* The rest of the room: the overflow chip every call UI settles on. */}
-          <div className="px-3 pt-2">
+          <div className="px-3">
             <button
               type="button"
               data-testid="participants-toggle"
@@ -521,13 +611,15 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                   data-testid={`participant-${person.id}`}
                   data-voice={voice}
                 >
-                  <VoiceAvatar p={person} voice={voice} size={28} />
+                  <VoiceAvatar p={person} voice={voice} size={32} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-body-medium text-on-surface" dir="auto">
                         {person.name}
-                        {isSelf ? <span className="text-on-surface-dim"> (you)</span> : null}
                       </span>
+                      {isSelf ? (
+                        <span className="shrink-0 text-label-small text-on-surface-dim">You</span>
+                      ) : null}
                       {host ? <Pill tone="accent">Host</Pill> : null}
                     </div>
                     <div

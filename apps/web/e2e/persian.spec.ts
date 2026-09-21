@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { askByVoice, installFakeSpeech } from './speech.js';
 import { unlockAudio } from './ui-helpers.js';
 
 /**
@@ -22,6 +23,8 @@ test.describe('a session taught in Persian', () => {
     test.setTimeout(120_000);
     mkdirSync(SCREENS_DIR, { recursive: true });
 
+    // Before the first navigation: the expert is asked things out loud now.
+    await installFakeSpeech(page);
     await page.goto('/');
     await page.getByLabel('What do you want to learn?').fill(TOPIC);
     await page.getByRole('button', { name: 'Start', exact: true }).click();
@@ -34,22 +37,28 @@ test.describe('a session taught in Persian', () => {
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
     await unlockAudio(page);
-    // The lesson's own words now live in the session panel's conversation
-    // (ADR-0019), and the board keeps its caption for when the panel is folded
-    // away. Both are turned round for a Persian session, and the browser is
-    // asked what it actually computed rather than what we wrote.
-    const said = page.getByTestId('conversation');
     await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('fa-IR');
-    await expect(said).toHaveAttribute('dir', 'rtl');
-    await expect(said).toHaveAttribute('lang', 'fa-IR');
-    expect(await said.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
-    await expect(page.getByTestId('composer-input')).toHaveAttribute('dir', 'rtl');
+    /*
+     * This is a solo session, so there is no panel and no chat to turn round
+     * (ADR-0033) — the chat's own right-to-left behaviour is proved in
+     * `ui-panel.spec.ts`, which puts Persian-named guests in the room first.
+     * What has to hold here is what holds for the panel: the room's *chrome*
+     * does not flip under the learner — `ui-panel.spec.ts` asserts exactly
+     * that of `session-panel` — so the expert's tile stays where it is, and
+     * only the words inside it read in their own direction. (It is pinned
+     * with a logical inset either way; `solo-expert.test.tsx` holds that, so
+     * the day the chrome does mirror, this mirrors with it.)
+     */
+    await expect(page.getByTestId('session-panel')).toHaveCount(0);
+    const solo = page.getByTestId('solo-expert');
+    await expect(solo).toBeVisible();
+    await expect(solo).not.toHaveAttribute('dir', 'rtl');
+    // And nothing the expert says is written anywhere — not in any language.
+    await expect(page.getByTestId('caption')).toHaveCount(0);
 
     // What the expert *says* is proved further down by the board's own title,
     // the pinned note and the recap — all of which carry the lesson's words
     // and none of which need this browser to have played a sentence.
-    const spoken = said.locator('article').first();
-    if (await spoken.isVisible().catch(() => false)) await expect(spoken).toContainText(PERSIAN);
 
     // The board writes Persian too: the title is drawn as one joined, right-to-left run.
     const boardTitle = page.locator('svg text[direction="rtl"]').first();
@@ -57,9 +66,8 @@ test.describe('a session taught in Persian', () => {
     expect(await boardTitle.textContent()).toMatch(PERSIAN);
     await page.screenshot({ path: join(SCREENS_DIR, 'persian-room.png') });
 
-    // A Persian question pins a Persian note card on the board.
-    await page.getByLabel('Ask a question').fill(QUESTION);
-    await page.getByTestId('composer-send').click();
+    // A Persian question, asked out loud, pins a Persian note card on the board.
+    await askByVoice(page, QUESTION);
     const note = page.locator('.pen-note').first();
     await expect(note).toBeVisible({ timeout: 30_000 });
     await expect(note).toHaveAttribute('dir', 'rtl');

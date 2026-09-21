@@ -113,6 +113,8 @@ export const InteractionName = z.enum([
   'fullscreen',
   /** A participant reacted without taking the floor (`reactions.ts`). */
   'reaction_sent',
+  /** A chat line between participants. Counted, never read: the expert does not see chat. */
+  'chat_sent',
   /** The session panel (AI human, the call, the conversation) folded away or came back. */
   'panel_collapsed',
   'panel_opened',

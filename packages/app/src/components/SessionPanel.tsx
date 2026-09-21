@@ -1,4 +1,5 @@
 import type { Expert, RoomState } from '@pen/contracts';
+import { CHAT_MAX_CHARS } from '@pen/contracts';
 import { cn, type ExpertPresence, useModalFocus } from '@pen/design';
 import { ArrowUp, ChevronDown, ChevronRight } from 'lucide-react';
 import {
@@ -19,7 +20,7 @@ import {
 import { useNow } from '../lib/use-now.js';
 import type { KeyValueStorage } from '../platform/types.js';
 import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
-import type { ConversationMessage } from '../room/conversation.js';
+import { type ChatGroup, type ChatLine, groupChat } from '../room/chat.js';
 import type { LiveReaction } from '../room/reactions.js';
 import { ParticipantRoster } from './Participants.js';
 
@@ -47,12 +48,12 @@ export function useSessionPanel(storage: KeyValueStorage): {
 /** The strip that stays behind when the panel is collapsed: only its control. */
 export const SESSION_PANEL_RAIL = 34;
 /** How many lines are drawn at once; the store keeps more than the eye scrolls back to. */
-export const CONVERSATION_WINDOW = 80;
+export const CHAT_WINDOW = 80;
 
 /**
- * The conversation follows the newest line, unless the learner has scrolled up
- * to read something — then it stays exactly where they left it and catches up
- * the moment they come back to the bottom.
+ * The chat follows the newest line, unless the reader has scrolled up to see
+ * something — then it stays exactly where they left it and catches up the
+ * moment they come back to the bottom.
  */
 function useStickToBottom(dep: unknown): React.RefObject<HTMLDivElement | null> {
   const ref = useRef<HTMLDivElement>(null);
@@ -79,7 +80,7 @@ function useStickToBottom(dep: unknown): React.RefObject<HTMLDivElement | null> 
 /**
  * A section of the panel with its own heading and its own chevron, the way the
  * reference view groups the call and the activity: each one folds away on its
- * own so the learner can give the conversation the whole column.
+ * own so the learner can give the chat the whole column.
  */
 function SectionHeader({
   label,
@@ -128,94 +129,110 @@ function SectionHeader({
   );
 }
 
-// ── the conversation ──────────────────────────────────────────────────────────
+// ── the chat, between the people in the room ──────────────────────────────────
 
-function Line({
-  m,
+/**
+ * A run of lines from one person, under one name and one quiet timestamp.
+ *
+ * Deliberately not a wall of coloured bubbles: this column sits beside a board
+ * that is the content, and it has to stay readable at 340 px without shouting.
+ * Your own run is told apart by the rule down its leading edge and by being
+ * named "You" — the brand's own red at low weight, which is an ordinary state
+ * and wears no alarm colour (`CLAUDE.md`).
+ */
+function ChatRun({
+  group,
   now,
   locale,
 }: {
-  m: ConversationMessage;
+  group: ChatGroup;
   now: number;
   locale: string | undefined;
 }) {
-  if (m.role === 'system')
-    return (
-      <article
-        data-role="system"
-        data-kind={m.kind}
-        className="px-2 py-1 text-center text-label-small text-on-surface-dim"
-      >
-        {m.text}
-      </article>
-    );
   return (
     <article
-      data-role={m.role}
-      data-kind={m.kind}
-      {...(m.live ? { 'data-live': 'true' } : {})}
+      data-testid={`chat-run-${group.id}`}
+      data-participant={group.participantId}
+      data-own={group.own ? 'true' : 'false'}
       className={cn(
-        'rounded-md px-3 py-2.5 transition-colors duration-[var(--duration-fast)]',
-        m.live
-          ? 'border border-dashed border-primary/45 bg-primary-container/35'
+        'rounded-md px-3 py-2',
+        group.own
+          ? 'border-s-2 border-primary-fixed/60 bg-surface-container-high/50'
           : 'bg-surface-container-high/70 hairline',
       )}
     >
-      <p className="text-body-medium text-on-surface text-pretty">
-        <span
-          dir="auto"
-          className={cn('font-medium', m.role === 'expert' ? 'text-primary' : 'text-presence')}
-        >
-          {m.speaker}
-        </span>{' '}
-        <span className={cn(m.live && 'text-on-surface-variant italic')}>
-          {m.text}
-          {m.live ? '…' : ''}
+      <p className="flex items-baseline gap-2">
+        <span dir="auto" className="min-w-0 truncate text-label-large font-medium text-on-surface">
+          {group.own ? 'You' : group.name}
         </span>
+        <time
+          dateTime={new Date(group.at).toISOString()}
+          className="shrink-0 text-label-small text-on-surface-dim tabular-nums"
+        >
+          {formatElapsed(group.at, now, locale)}
+        </time>
       </p>
-      <p className="mt-1 text-label-small text-on-surface-dim">
-        {formatElapsed(m.at, now, locale)}
-      </p>
+      {group.lines.map((line) => (
+        // `dir="auto"` per line: a Persian message in an English room reads in
+        // its own direction, and an English one in a Persian room in its.
+        <p
+          key={line.id}
+          dir="auto"
+          className="mt-0.5 text-body-medium text-on-surface text-pretty break-words"
+        >
+          {line.text}
+        </p>
+      ))}
     </article>
   );
 }
 
-function Conversation({
+function Chat({
   id,
-  messages,
+  lines,
   language,
   expertFirstName,
 }: {
   id: string;
-  messages: ConversationMessage[];
+  lines: ChatLine[];
   language: string;
   expertFirstName: string;
 }) {
   const now = useNow(15_000);
-  const shown = messages.slice(-CONVERSATION_WINDOW);
+  const shown = lines.slice(-CHAT_WINDOW);
+  const groups = groupChat(shown);
   const last = shown[shown.length - 1];
-  const scroller = useStickToBottom(`${shown.length}:${last?.text.length ?? 0}`);
+  const scroller = useStickToBottom(`${shown.length}:${last?.id ?? ''}`);
   return (
     <div
       id={id}
       ref={scroller}
       // A log rather than a bare live region: assistive technology reads new
-      // lines in order and the learner can still walk back through them.
+      // lines in order and the reader can still walk back through them.
       role="log"
-      aria-label={`Conversation with ${expertFirstName}`}
-      data-testid="conversation"
+      aria-label="Chat with everyone in the room"
+      // A scrolling region has to be reachable by keyboard, or the only way
+      // back through it is a mouse: WCAG 2.1.1, and axe's
+      // `scrollable-region-focusable` at *serious*, which is what
+      // apps/web/e2e/ui-a11y.spec.ts fails the build on.
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable log must be focusable; the lint rule's general case is not this one
+      tabIndex={0}
+      data-testid="chat"
       lang={language}
       dir={dirOf(language)}
-      // Scrolls without an indicator, the way the reference conversation does.
-      className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      // Scrolls without an indicator, the way the reference column does.
+      className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] focus-visible:outline-primary [&::-webkit-scrollbar]:hidden"
     >
-      {shown.length === 0 ? (
-        <p className="m-auto max-w-[30ch] px-4 text-center text-body-small text-on-surface-dim">
-          Nothing here yet. {expertFirstName} starts in a moment — jump in whenever, out loud or
-          here.
+      {groups.length === 0 ? (
+        <p
+          data-testid="chat-empty"
+          className="m-auto max-w-[32ch] px-4 text-center text-body-small text-on-surface-dim text-pretty"
+        >
+          No messages yet. This is between the people in the room — {expertFirstName} doesn't see
+          it. To ask {expertFirstName} something, just say it.
         </p>
       ) : (
-        shown.map((m) => <Line key={m.id} m={m} now={now} locale={language} />)
+        groups.map((group) => <ChatRun key={group.id} group={group} now={now} locale={language} />)
       )}
     </div>
   );
@@ -223,18 +240,22 @@ function Conversation({
 
 // ── the composer ──────────────────────────────────────────────────────────────
 
+/**
+ * What you type here reaches the other people in the room, and nothing else.
+ * The expert never sees it and is never interrupted by it — which is why the
+ * placeholder, the label and the button all say "message" and none of them
+ * says "ask". Asking the expert is speaking, the way you interrupt a person.
+ */
 function Composer({
-  expertFirstName,
   language,
   disabled,
   note,
-  onAsk,
+  onSend,
 }: {
-  expertFirstName: string;
   language: string;
   disabled: boolean;
   note: string | null;
-  onAsk: (text: string) => void;
+  onSend: (text: string) => void;
 }) {
   const [text, setText] = useState('');
   const noteId = useId();
@@ -242,7 +263,7 @@ function Composer({
     e.preventDefault();
     const clean = text.trim();
     if (!clean || disabled) return;
-    onAsk(clean);
+    onSend(clean);
     setText('');
   };
   return (
@@ -255,18 +276,20 @@ function Composer({
       >
         <input
           className="h-8 min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-dim disabled:cursor-not-allowed"
-          placeholder={disabled ? 'Back in a moment…' : `Ask ${expertFirstName} — or just talk`}
+          placeholder={disabled ? 'Back in a moment…' : 'Message everyone'}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          aria-label="Ask a question"
+          aria-label="Message everyone in the room"
           {...(note ? { 'aria-describedby': noteId } : {})}
           disabled={disabled}
-          maxLength={4000}
+          // The wire's own ceiling, so the field stops where the protocol does
+          // rather than letting a long message come back as an error.
+          maxLength={CHAT_MAX_CHARS}
           lang={language}
           // The learner writes in the lesson's language; what they type reads in its direction.
           dir={dirOf(language)}
           // Spellchecked in that language too — `lang` above is what tells the
-          // browser which dictionary to use, so a Persian question is not
+          // browser which dictionary to use, so a Persian message is not
           // underlined as though it were bad English.
           spellCheck
           autoCorrect="on"
@@ -275,9 +298,9 @@ function Composer({
         />
         <button
           type="submit"
-          // "Ask Ada", not "Send": the room's own word for this, and the name
-          // every spec and screen reader reaches the control by.
-          aria-label={`Ask ${expertFirstName}`}
+          // It sends a message to the room; it does not ask the expert
+          // anything. The name a screen reader reads has to say so.
+          aria-label="Send to everyone in the room"
           title="Send"
           disabled={disabled || text.trim() === ''}
           data-testid="composer-send"
@@ -319,23 +342,27 @@ export interface SessionPanelProps {
   micLevel: number;
   onToggleMic: () => void;
   onMute: ((participantId?: string) => void) | null;
-  conversation: ConversationMessage[];
+  /** What the people in the room have said to each other. The expert is not in it. */
+  chat: ChatLine[];
   /** Reactions still on screen; they float over the participant cards. */
   reactions: LiveReaction[];
   /** An ad holds the floor: the composer is off for its duration, calmly. */
   adPaused: boolean;
-  onAsk: (text: string) => void;
+  /** Say something to the other people in the room. Never reaches the expert. */
+  onSend: (text: string) => void;
 }
 
 function PanelBody(p: SessionPanelProps & { bodyId: string }) {
   const [rosterOpen, setRosterOpen] = useState(true);
-  const [conversationOpen, setConversationOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(true);
   const logId = useId();
   const firstName = p.expert?.displayName.split(' ')[0] ?? 'Expert';
   const note = p.adPaused
     ? 'Voice and typing are back the moment the ad ends.'
     : p.micState === 'denied'
-      ? 'The microphone is off in your browser settings — typing still works.'
+      ? // Honest about what is actually lost: the microphone is how you reach
+        // the expert, and this box is not a way round that.
+        `The microphone is off in your browser settings — ${firstName} can't hear you until it is back on.`
       : null;
   return (
     <div id={p.bodyId} className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -359,39 +386,33 @@ function PanelBody(p: SessionPanelProps & { bodyId: string }) {
       />
 
       <SectionHeader
-        label="Conversation"
+        label="Chat"
         dot
-        open={conversationOpen}
-        onToggle={() => setConversationOpen((v) => !v)}
+        open={chatOpen}
+        onToggle={() => setChatOpen((v) => !v)}
         controls={logId}
-        testId="conversation-section-toggle"
+        testId="chat-section-toggle"
       />
-      {conversationOpen ? (
-        <Conversation
-          id={logId}
-          messages={p.conversation}
-          language={p.state.language}
-          expertFirstName={firstName}
-        />
+      {chatOpen ? (
+        <Chat id={logId} lines={p.chat} language={p.state.language} expertFirstName={firstName} />
       ) : (
         <div className="flex-1" />
       )}
 
-      <Composer
-        expertFirstName={firstName}
-        language={p.state.language}
-        disabled={p.adPaused}
-        note={note}
-        onAsk={p.onAsk}
-      />
+      <Composer language={p.state.language} disabled={p.adPaused} note={note} onSend={p.onSend} />
     </div>
   );
 }
 
 /**
- * The session panel: the AI human and everyone else on the call, the
- * conversation, and the composer — the pieces that used to be a floating orb,
- * a caption strip over the board and a question row under it.
+ * The session panel: the AI human and everyone else on the call, the chat
+ * between the people in the room, and the box that writes into it.
+ *
+ * The expert is on the call and not in the chat. Nothing the expert says is
+ * written here — a real expert does not keep a running transcript of
+ * themselves beside the board — and nothing written here reaches them. What
+ * they said is available to whoever wants it, as captions, from the CC
+ * control in the bottom bar.
  *
  * The control that folds it away sits on the panel's own left edge and is all
  * that is left when it is closed: a chevron pointing right while the panel is

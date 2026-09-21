@@ -607,13 +607,11 @@ describe('caption contrast on the board', () => {
     expect(contrast(WHITE, CAPTION_BG)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each([
-    ['expert', 'caption-expert'],
-    ['learner', 'caption-learner'],
-  ])('the %s speaker name clears WCAG AA', (_who, name) => {
-    expect(contrast(rgb(name), CAPTION_BG)).toBeGreaterThanOrEqual(4.5);
-  });
-
+  /*
+   * There is no speaker name in a caption any more — a subtitle is the words —
+   * so `--color-caption-expert` and `--color-caption-learner` are gone and
+   * there is nothing left to measure but the line itself and its hint.
+   */
   it('the hint under the caption clears WCAG AA at its 85% opacity', () => {
     expect(contrast(over(WHITE, CAPTION_BG, 0.85), CAPTION_BG)).toBeGreaterThanOrEqual(4.5);
   });

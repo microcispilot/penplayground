@@ -1,4 +1,4 @@
-import type { RoomState } from '@pen/contracts';
+import { CHAT_MAX_CHARS, type RoomState } from '@pen/contracts';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BottomBar } from '../src/components/RoomChrome.js';
@@ -8,7 +8,7 @@ import {
   useSessionPanel,
 } from '../src/components/SessionPanel.js';
 import { SESSION_PANEL_PREFERENCE_KEY } from '../src/lib/session-panel-preference.js';
-import type { ConversationMessage } from '../src/room/conversation.js';
+import type { ChatLine } from '../src/room/chat.js';
 import { memoryStorage } from './harness.js';
 import { audioUi, EXPERT, HOST_ID, roomState } from './room-fixtures.js';
 
@@ -32,23 +32,24 @@ function panelProps(over: Partial<SessionPanelProps> = {}): SessionPanelProps {
     micLevel: 0,
     onToggleMic: () => undefined,
     onMute: null,
-    conversation: [],
+    chat: [],
     reactions: [],
     adPaused: false,
-    onAsk: () => undefined,
+    onSend: () => undefined,
     ...over,
   };
 }
 
-function line(over: Partial<ConversationMessage> = {}): ConversationMessage {
+const GUEST_ID = 'p_guest_000001';
+
+function line(over: Partial<ChatLine> = {}): ChatLine {
   return {
-    id: 'm1',
-    role: 'expert',
-    speaker: 'Ada',
-    text: 'Attention is a weighted average.',
-    live: false,
+    id: 'c1',
+    participantId: GUEST_ID,
+    name: 'Mina',
+    text: 'can you see the board?',
     at: Date.now(),
-    kind: 'lesson',
+    own: false,
     ...over,
   };
 }
@@ -140,7 +141,10 @@ describe('the speaking indicator is bound to what the room actually reports', ()
     const card = screen.getByTestId('roster-expert');
     expect(card.getAttribute('data-presence')).toBe('speaking');
     expect(card.textContent).toContain('Ada Lovelace');
-    expect(card.textContent).toContain('(AI expert)');
+    // Unbracketed, the way a meeting app writes a qualifier; `roster.test.tsx`
+    // holds the whole naming rule.
+    expect(card.textContent).toContain('AI expert');
+    expect(card.textContent).not.toContain('(AI expert)');
   });
 
   it('leaves every card quiet when nobody is making a sound', () => {
@@ -150,108 +154,113 @@ describe('the speaking indicator is bound to what the room actually reports', ()
   });
 });
 
-// ── the conversation ──────────────────────────────────────────────────────────
+// ── the chat, between the people in the room ──────────────────────────────────
 
-describe('the conversation', () => {
-  it('shows the lesson, the questions, the answers and the quiet system lines', () => {
+describe('the chat', () => {
+  it('shows what the people in the room said, and nothing the expert said', () => {
+    const at = Date.now();
     render(
       <SessionPanel
         {...panelProps({
-          conversation: [
-            line({ id: 'a', text: 'Attention is a weighted average.' }),
+          state: roomState(3),
+          chat: [
+            line({ id: 'a', text: 'can you see the board?' }),
             line({
               id: 'b',
-              role: 'learner',
-              speaker: 'You',
-              text: 'Why divide by √d?',
-              kind: 'question',
-            }),
-            line({ id: 'c', text: 'Because the dot products grow.', kind: 'answer' }),
-            line({
-              id: 'd',
-              role: 'learner',
-              speaker: 'You',
-              text: 'A query from "sat"',
-              kind: 'check',
-            }),
-            line({
-              id: 'e',
-              role: 'system',
-              speaker: '',
-              text: 'Session ended — it is saved.',
-              kind: 'system',
+              participantId: HOST_ID,
+              name: 'You',
+              own: true,
+              text: 'yes, all of it',
+              at: at + 1_000,
             }),
           ],
         })}
       />,
     );
-    const log = screen.getByTestId('conversation');
+    const log = screen.getByTestId('chat');
     expect(log.getAttribute('role')).toBe('log');
-    expect(log.children).toHaveLength(5);
-    expect(log.textContent).toContain('Why divide by √d?');
-    expect(log.textContent).toContain('Because the dot products grow.');
-    // The system line is centred and carries no speaker.
-    const system = log.children[4] as HTMLElement;
-    expect(system.getAttribute('data-role')).toBe('system');
-    expect(system.className).toContain('text-center');
-    expect(system.textContent).toBe('Session ended — it is saved.');
+    expect(log.textContent).toContain('can you see the board?');
+    expect(log.textContent).toContain('yes, all of it');
+    // Nothing the expert says has ever been in this list.
+    expect(log.textContent).not.toContain('Ada');
   });
 
-  it('draws speech still being transcribed as a live caption that resolves in place', () => {
-    const { rerender } = render(
+  it('groups a run of lines from one person under one name and one time', () => {
+    const at = Date.now();
+    render(
       <SessionPanel
         {...panelProps({
-          conversation: [
+          state: roomState(3),
+          chat: [
+            line({ id: 'a', text: 'wait' }),
+            line({ id: 'b', text: 'which slide?', at: at + 2_000 }),
             line({
-              id: 'x',
-              role: 'learner',
-              speaker: 'You',
-              text: 'why do we',
-              live: true,
-              kind: 'question',
+              id: 'c',
+              participantId: 'p_guest_000002',
+              name: 'Sam',
+              text: 'the second one',
+              at: at + 4_000,
             }),
           ],
         })}
       />,
     );
-    const live = screen.getByTestId('conversation').children[0] as HTMLElement;
-    expect(live.getAttribute('data-live')).toBe('true');
-    expect(live.textContent).toContain('why do we…');
-    expect(live.className).toContain('border-dashed');
+    const runs = screen.getByTestId('chat').children;
+    expect(runs).toHaveLength(2);
+    // One name for the run of two, not one per line.
+    expect(runs[0]?.textContent?.match(/Mina/g)).toHaveLength(1);
+    expect(runs[0]?.querySelectorAll('time')).toHaveLength(1);
+    expect(runs[0]?.textContent).toContain('wait');
+    expect(runs[0]?.textContent).toContain('which slide?');
+    expect(runs[1]?.textContent).toContain('Sam');
+  });
 
-    rerender(
+  it('tells your own lines apart without a wall of coloured bubbles', () => {
+    render(
       <SessionPanel
         {...panelProps({
-          conversation: [
-            line({
-              id: 'x',
-              role: 'learner',
-              speaker: 'You',
-              text: 'why do we divide?',
-              live: false,
-              kind: 'question',
-            }),
+          state: roomState(3),
+          chat: [
+            line({ id: 'a', text: 'theirs' }),
+            line({ id: 'b', participantId: HOST_ID, name: 'Sam', own: true, text: 'mine' }),
           ],
         })}
       />,
     );
-    const settled = screen.getByTestId('conversation').children[0] as HTMLElement;
-    expect(settled.getAttribute('data-live')).toBeNull();
-    expect(settled.className).not.toContain('border-dashed');
+    const runs = screen.getByTestId('chat').children;
+    expect(runs[0]?.getAttribute('data-own')).toBe('false');
+    const mine = runs[1] as HTMLElement;
+    expect(mine.getAttribute('data-own')).toBe('true');
+    // Named the way you are named to yourself, whatever the roster calls you.
+    expect(mine.textContent).toContain('You');
+    // An edge rule, not a filled bubble in an alarm colour.
+    expect(mine.className).toContain('border-s-2');
+    expect(mine.className).not.toContain('error');
+    expect(mine.className).not.toContain('bg-primary ');
   });
 
-  it('says something calm rather than nothing before the first sentence', () => {
+  it('says something calm and true rather than nothing before anybody types', () => {
     render(<SessionPanel {...panelProps()} />);
-    expect(screen.getByTestId('conversation').textContent).toContain('Nothing here yet');
+    const empty = screen.getByTestId('chat-empty').textContent ?? '';
+    expect(empty).toContain('between the people in the room');
+    // And it says where the expert is, so nobody types a question into it.
+    expect(empty).toContain("Ada doesn't see it");
+  });
+
+  it('is reachable by keyboard, because it scrolls', () => {
+    // axe `scrollable-region-focusable`: a region a mouse can scroll has to be
+    // one a keyboard can scroll too.
+    render(<SessionPanel {...panelProps({ chat: [line()] })} />);
+    expect(screen.getByTestId('chat').getAttribute('tabindex')).toBe('0');
   });
 });
 
 // ── right to left ─────────────────────────────────────────────────────────────
 
 describe('a Persian session reads right to left', () => {
-  it('turns the conversation and the composer, and leaves the chrome alone', () => {
+  it('turns the chat and the composer, and leaves the chrome alone', () => {
     render(<SessionPanel {...panelProps({ state: roomState(1, { language: 'fa-IR' }) })} />);
-    const log = screen.getByTestId('conversation');
+    const log = screen.getByTestId('chat');
     expect(log.getAttribute('dir')).toBe('rtl');
     expect(log.getAttribute('lang')).toBe('fa-IR');
     expect(screen.getByTestId('composer-input').getAttribute('dir')).toBe('rtl');
@@ -264,7 +273,7 @@ describe('a Persian session reads right to left', () => {
     // own underline and suggestions, the mechanism Gmail and Word use on the
     // web — is better than catching it at retrieval: the learner sees the word
     // is wrong and fixes it, rather than the system guessing what they meant.
-    // `lang` is what chooses the dictionary, so a Persian question must not be
+    // `lang` is what chooses the dictionary, so a Persian message must not be
     // underlined as though it were bad English.
     render(<SessionPanel {...panelProps({ state: roomState(1, { language: 'fa-IR' }) })} />);
     const field = screen.getByTestId('composer-input');
@@ -274,32 +283,52 @@ describe('a Persian session reads right to left', () => {
 
   it('stays left to right for an English session', () => {
     render(<SessionPanel {...panelProps()} />);
-    expect(screen.getByTestId('conversation').getAttribute('dir')).toBe('ltr');
+    expect(screen.getByTestId('chat').getAttribute('dir')).toBe('ltr');
   });
 });
 
 // ── the composer, and the ad rule the learner can feel ────────────────────────
 
 describe('the composer', () => {
-  it('sends a trimmed question and empties itself', () => {
-    const asked: string[] = [];
-    render(<SessionPanel {...panelProps({ onAsk: (t) => asked.push(t) })} />);
+  it('says what it does: a message to the room, never a question to the expert', () => {
+    render(<SessionPanel {...panelProps()} />);
+    const input = screen.getByTestId('composer-input');
+    expect(input.getAttribute('placeholder')).toBe('Message everyone');
+    expect(input.getAttribute('aria-label')).toBe('Message everyone in the room');
+    expect(screen.getByTestId('composer-send').getAttribute('aria-label')).toBe(
+      'Send to everyone in the room',
+    );
+    // The expert's name appears nowhere on it: this does not reach them.
+    expect(input.getAttribute('placeholder')).not.toContain('Ada');
+    expect(screen.getByTestId('composer-send').getAttribute('aria-label')).not.toContain('Ada');
+  });
+
+  it('sends a trimmed message and empties itself', () => {
+    const sent: string[] = [];
+    render(<SessionPanel {...panelProps({ onSend: (t: string) => sent.push(t) })} />);
     const input = screen.getByTestId('composer-input') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '  why divide by √d?  ' } });
+    fireEvent.change(input, { target: { value: '  can you see the board?  ' } });
     fireEvent.click(screen.getByTestId('composer-send'));
-    expect(asked).toEqual(['why divide by √d?']);
+    expect(sent).toEqual(['can you see the board?']);
     expect(input.value).toBe('');
   });
 
-  it('will not send an empty question', () => {
+  it('will not send an empty message', () => {
     render(<SessionPanel {...panelProps()} />);
     expect((screen.getByTestId('composer-send') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('stops where the wire does, rather than sending a line the room will refuse', () => {
+    render(<SessionPanel {...panelProps()} />);
+    expect(screen.getByTestId('composer-input').getAttribute('maxlength')).toBe(
+      String(CHAT_MAX_CHARS),
+    );
+  });
+
   it('goes quietly off for the length of an ad, and says why in one calm line', () => {
-    const asked: string[] = [];
+    const sent: string[] = [];
     const { rerender } = render(
-      <SessionPanel {...panelProps({ adPaused: true, onAsk: (t) => asked.push(t) })} />,
+      <SessionPanel {...panelProps({ adPaused: true, onSend: (t: string) => sent.push(t) })} />,
     );
     const input = screen.getByTestId('composer-input') as HTMLInputElement;
     expect(input.disabled).toBe(true);
@@ -312,12 +341,23 @@ describe('the composer', () => {
 
     // Submitting anyway does nothing…
     fireEvent.submit(input.closest('form') as HTMLFormElement);
-    expect(asked).toEqual([]);
+    expect(sent).toEqual([]);
 
     // …and the instant the ad ends, everything is the learner's again.
-    rerender(<SessionPanel {...panelProps({ adPaused: false, onAsk: (t) => asked.push(t) })} />);
+    rerender(
+      <SessionPanel {...panelProps({ adPaused: false, onSend: (t: string) => sent.push(t) })} />,
+    );
     expect((screen.getByTestId('composer-input') as HTMLInputElement).disabled).toBe(false);
     expect(screen.queryByTestId('composer-note')).toBeNull();
+  });
+
+  it('is honest about a denied microphone: this box is not a way round it', () => {
+    render(<SessionPanel {...panelProps({ micState: 'denied' })} />);
+    const note = screen.getByTestId('composer-note').textContent ?? '';
+    expect(note).toContain("Ada can't hear you");
+    // The old line promised "typing still works", which was a promise about
+    // reaching the expert that this composer no longer keeps.
+    expect(note).not.toContain('typing still works');
   });
 });
 
@@ -375,13 +415,13 @@ describe("the bottom bar's microphone during an ad", () => {
 describe('the panel folds away from its own edge', () => {
   it('is the only thing left when it is closed, and says so to a keyboard', () => {
     const { rerender } = render(<SessionPanel {...panelProps({ open: true })} />);
-    expect(screen.getByTestId('conversation')).toBeTruthy();
+    expect(screen.getByTestId('chat')).toBeTruthy();
     const toggle = screen.getByTestId('session-panel-toggle');
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(toggle.getAttribute('aria-label')).toBe('Hide the session panel');
 
     rerender(<SessionPanel {...panelProps({ open: false })} />);
-    expect(screen.queryByTestId('conversation')).toBeNull();
+    expect(screen.queryByTestId('chat')).toBeNull();
     expect(screen.queryByTestId('roster')).toBeNull();
     expect(screen.queryByTestId('composer-input')).toBeNull();
     const closed = screen.getByTestId('session-panel-toggle');

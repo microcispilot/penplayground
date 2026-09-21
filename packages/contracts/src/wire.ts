@@ -99,6 +99,38 @@ export const ClientReaction = z.object({
   kind: z.literal('reaction'),
   emoji: Reaction,
 });
+/**
+ * The longest chat line. Chat is an aside between the people in the room, not
+ * a document: past a couple of sentences it stops being one and starts being
+ * something that belongs on the board.
+ */
+export const CHAT_MAX_CHARS = 500;
+/**
+ * The fastest one participant may send chat. Generous — a person typing
+ * quickly sends a line every second or two — and low enough that a script
+ * cannot turn the room's broadcast into a firehose. Enforced in the room and
+ * silent there, like the reaction rule it is modelled on: typing fast is not
+ * an error anybody should be told about.
+ */
+export const CHAT_MIN_INTERVAL_MS = 400;
+/**
+ * A chat line from one participant to the others.
+ *
+ * **The expert never sees this.** That is the whole design, and it is the
+ * same design as `ClientReaction` directly above: the room rate-limits it,
+ * refuses it while an ad is up, and broadcasts it — and nothing else in the
+ * session reads it. It takes no floor, interrupts no lesson, reaches no
+ * model, and costs nothing.
+ *
+ * A real expert teaching a room does not read the side conversation, and
+ * would not stop teaching because somebody typed. Asking *them* something is
+ * speaking: `ClientTranscript`, the same way a person would interrupt a
+ * person.
+ */
+export const ClientChat = z.object({
+  kind: z.literal('chat'),
+  text: z.string().trim().min(1).max(CHAT_MAX_CHARS),
+});
 export const ClientMessage = z.discriminatedUnion('kind', [
   ClientAuth,
   ClientJoin,
@@ -107,6 +139,7 @@ export const ClientMessage = z.discriminatedUnion('kind', [
   ClientUtteranceStart,
   ClientUtteranceEnd,
   ClientTranscript,
+  ClientChat,
   ClientCheckAnswer,
   ClientProgress,
   ClientResumed,
@@ -162,6 +195,21 @@ export const ServerAd = z.object({
   /** VAST/VMAP tag the player requests through the IMA SDK; server-chosen so the network is swappable. */
   tagUrl: z.string().url(),
   slot: AdSlot,
+});
+/**
+ * Somebody said something to the room. Stamped and echoed by the room —
+ * including back to its sender — so every client shows one order.
+ *
+ * `name` travels with the line rather than being looked up client-side: a
+ * participant can leave, and what they said stays said.
+ */
+export const ServerChat = z.object({
+  kind: z.literal('chat'),
+  participantId: ParticipantId,
+  name: z.string().min(1).max(80),
+  text: z.string().min(1).max(CHAT_MAX_CHARS),
+  /** Server wall clock, ms since epoch. */
+  at: z.number().int(),
 });
 /** Somebody reacted. Stamped by the room so every client shows it at the same moment. */
 export const ServerReaction = z.object({
@@ -231,6 +279,7 @@ export const ServerMessage = z.discriminatedUnion('kind', [
   ServerSayTake,
   ServerTurnDone,
   ServerReaction,
+  ServerChat,
   ServerError,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;

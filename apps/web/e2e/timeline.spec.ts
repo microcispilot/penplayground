@@ -1,14 +1,15 @@
 import { expect, type Page, test } from '@playwright/test';
+import { askByVoice, installFakeSpeech } from './speech.js';
 
 /**
  * The owner's in-session timeline, end to end against fake providers
  * (playwright.config.ts: scripted model, silent voice, `PEN_ADS_EVERY_SEGMENTS=1`,
  * free plan):
  *
- *   lesson → a question typed into the panel → the lesson pauses and holds its
- *   own position → the answer arrives on its own thread → the lesson resumes
- *   from where it stopped → an ad takes the board → voice and chat are off for
- *   its duration → it is skipped → the lesson carries on past the boundary.
+ *   lesson → a question asked out loud → the lesson pauses and holds its own
+ *   position → the answer arrives on its own thread → the lesson resumes from
+ *   where it stopped → an ad takes the board → voice and chat are off for its
+ *   duration → it is skipped → the lesson carries on past the boundary.
  *
  * The positions are asserted from the room's own frames, not from pixels: the
  * `resume` the room records at the interrupt, the thread the answer's cues
@@ -75,10 +76,35 @@ const cues = (f: Frames) =>
     m.kind === 'cue' ? [m.cue as { seq: number; thread: string; event: { type: string } }] : [],
   );
 
+/**
+ * Take whatever ad is on the board off it, the way the learner would.
+ *
+ * The ad half below owns what an ad *does*; the interrupt half needs the board
+ * back, because a question asked into an ad's window is dropped on purpose
+ * (`ad-input.ts`). The creative is Google's sample tag over http on a loopback
+ * origin, which frequently never renders (playwright.config.ts records the
+ * measurement and the reason); the player's own ceiling ends it either way, so
+ * this skips when it can and waits when it cannot.
+ */
+async function clearAnyAd(page: Page): Promise<void> {
+  const overlay = page.getByTestId('video-ad');
+  const skip = overlay.getByTestId('skip-ad');
+  const by = Date.now() + 45_000;
+  while (Date.now() < by) {
+    if (!(await overlay.isVisible().catch(() => false))) return;
+    if (await skip.isEnabled().catch(() => false))
+      await skip.click({ timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(250);
+  }
+}
+
 /** This spec's own pair from playwright.config.ts: ads on, a pipeline of its own. */
 const TIMELINE_WEB = process.env.PEN_E2E_TIMELINE_WEB ?? 'http://localhost:5185';
 
 async function openLesson(page: Page): Promise<void> {
+  // Before the first navigation: the app reads the recognizer constructor off
+  // `window` when the room turns the microphone on (`e2e/speech.ts`).
+  await installFakeSpeech(page);
   await page.goto(`${TIMELINE_WEB}/`);
   await page.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
@@ -124,19 +150,20 @@ test.describe("the owner's in-session timeline", () => {
     expect(ad, 'the room scheduled an ad at a segment boundary').toBeTruthy();
 
     // ── the gap this change closes ───────────────────────────────────────────
-    // The microphone stops capturing and the composer is off, calmly: one
-    // short line, no warning colour, nothing to dismiss.
+    // The microphone stops capturing, calmly: no warning colour, nothing to
+    // dismiss, and a label that says why.
+    //
+    // This is a solo session, so the microphone is the *whole* of the input
+    // the learner has — there is no panel, no composer and no reaction
+    // control (ADR-0033), which is why none of them is asserted here. That
+    // the same gate closes those three when there *are* guests is pinned by
+    // `packages/app/test/session-panel.test.tsx` and `ui-panel.spec.ts`,
+    // which build a room with people in it.
     const mic = page.getByTestId('mic-toggle');
     await expect(mic).toBeDisabled();
     await expect(mic).toHaveAttribute('aria-label', 'Microphone is off while the ad plays');
-    const composer = page.getByTestId('composer-input');
-    await expect(composer).toBeDisabled();
-    await expect(page.getByTestId('composer-send')).toBeDisabled();
-    await expect(page.getByTestId('composer-note')).toHaveText(
-      'Voice and typing are back the moment the ad ends.',
-    );
-    // Reactions go with them: the same gate, the same reason.
-    await expect(page.getByTestId('reaction-toggle')).toBeDisabled();
+    await expect(page.getByTestId('composer-input')).toHaveCount(0);
+    await expect(page.getByTestId('reaction-toggle')).toHaveCount(0);
     // And nothing the learner does under the overlay reaches the room. The
     // window is what matters, so it is measured: from the moment the overlay
     // was up to the moment it went away.
@@ -168,18 +195,16 @@ test.describe("the owner's in-session timeline", () => {
     );
     expect(behindTheAd, 'nothing was asked from behind the ad').toEqual([]);
 
-    // Everything is the learner's again on the same line.
+    // The microphone is the learner's again on the same line.
     await expect(mic).toBeEnabled();
-    await expect(composer).toBeEnabled();
-    await expect(page.getByTestId('reaction-toggle')).toBeEnabled();
-    await expect(page.getByTestId('composer-note')).toHaveCount(0);
+    await expect(mic).not.toHaveAttribute('aria-label', 'Microphone is off while the ad plays');
 
     // And the lesson carries on past the boundary the ad sat on.
     await expect
       .poll(() => progressSeq(frames), { timeout: 120_000 })
       .toBeGreaterThan(ad?.afterSeq ?? Number.POSITIVE_INFINITY);
   });
-  test('a question interrupts the lesson, is answered, and the lesson resumes from its own position', async ({
+  test('a spoken question interrupts the lesson, is answered, and the lesson resumes from its own position', async ({
     page,
   }) => {
     const frames = watchFrames(page);
@@ -194,15 +219,32 @@ test.describe("the owner's in-session timeline", () => {
       await page.waitForTimeout(500);
     }
 
-    // Typed, into the panel's composer — the same path a spoken question takes
-    // (`Conductor.onTranscript` → `transcript`, final).
-    await page.getByTestId('composer-input').fill('Why do we divide by the square root of d?');
-    await page.getByTestId('composer-send').click();
-
-    // The learner's question is in the conversation, as their own line.
-    await expect(page.getByTestId('conversation').locator('[data-role="learner"]')).toContainText(
-      'square root of d',
-    );
+    /*
+     * Out loud, which is now the only way to ask the expert anything: the
+     * panel's composer is a chat between the people in the room and never
+     * reaches them. The recognizer is the fake one from `e2e/speech.ts`; from
+     * its `onresult` inwards this is the product's own path —
+     * `WebSpeechRecognizer` → `RoomSession` → `Conductor.onTranscript(…, final)`
+     * → a final `transcript` frame.
+     */
+    const question = 'Why do we divide by the square root of d?';
+    const heard = () => frames.sent.some((m) => m.kind === 'transcript' && m.final === true);
+    /*
+     * Said again if it was not heard. This pair runs with an ad after every
+     * segment, and a question asked into that window is dropped in silence on
+     * purpose — the test above is what proves it — so the board is cleared
+     * first and the sentence repeated, the way a person talked over by an
+     * advert repeats themselves.
+     */
+    for (let attempt = 0; attempt < 5 && !heard(); attempt += 1) {
+      await clearAnyAd(page);
+      await askByVoice(page, question);
+      const by = Date.now() + 10_000;
+      while (Date.now() < by && !heard()) await page.waitForTimeout(250);
+    }
+    expect(heard(), 'the room heard it as speech').toBe(true);
+    // And it did not arrive as chat, which would have reached nobody but the room.
+    expect(frames.sent.filter((m) => m.kind === 'chat')).toEqual([]);
 
     // The room gave them the floor and wrote down where the lesson stopped.
     await expect
@@ -223,10 +265,9 @@ test.describe("the owner's in-session timeline", () => {
       answer.some((c) => c.event.type === 'say'),
       'the answer is spoken',
     ).toBe(true);
-    // (That an answer's cues become their own lines in the panel is pinned by
-    // packages/app/test/conversation.test.ts and session-panel.test.tsx: it
-    // depends on the sentence being *played*, which is the browser's business,
-    // not the room's turn logic this test is about.)
+    // (Nothing the expert says is written into the panel any more: the chat
+    // is between the people in the room, and the words reach whoever wants
+    // them as captions. packages/app/test/captions.test.tsx holds that.)
 
     // Coming *back* to that position is the last step of the timeline, and it
     // is asserted where it can be asserted exactly rather than waited for:

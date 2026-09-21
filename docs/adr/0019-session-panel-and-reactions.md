@@ -1,6 +1,13 @@
 # ADR-0019: The session panel — the AI human, the call, the conversation, and reactions
 
-Status: accepted · 2026-09-18
+Status: accepted · 2026-09-18 · **amended by ADR-0032**
+
+ADR-0032 replaces what the panel *holds*: the conversation list and the typed
+question are gone, the column is a chat between the people in the room, and the
+board's captions carry no speaker name and are off until the CC control turns
+them on. The panel itself — the roster, the sizing rule, the reactions, the
+collapse and the drawer below 1024 px — is unchanged. Section 4 below is
+superseded.
 
 ## Context
 
@@ -72,12 +79,16 @@ bars only while that person is actually talking. `packages/app/src/room/presence
 rule, and `room-presence.test.ts` pins it, including "our own level says nothing about somebody
 else".
 
-### 4. Captions follow the panel
+### 4. Captions follow the panel — *superseded by ADR-0032*
 
 The conversation is the record — scrollable, readable back, announced in order as a `log`. While
 it is on screen the board carries no caption, because the same sentence over the paper *and* in
 a live region says everything twice and costs the board its space. Fold the panel away and the
 caption comes back. Either way the learner can always read what was said.
+
+> ADR-0032: there is no conversation in the panel any more, so nothing repeats a caption and
+> nothing has to follow anything. Captions are off until the CC control turns them on, and then
+> they are drawn whatever the panel is doing.
 
 ### 5. Collapsing
 

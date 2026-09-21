@@ -142,9 +142,13 @@ test.describe('free plan video ads', () => {
     // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByText("Let's start with a sentence", { exact: false })).toBeVisible({
-      timeout: 20_000,
-    });
+    // The lesson has started when the expert has written something. Not when a
+    // caption says so: captions are off until the CC control turns them on, and
+    // the expert's words are written nowhere else (apps/web/e2e/session.spec.ts
+    // is where that rule itself is asserted).
+    await expect
+      .poll(async () => page.locator('.pen-board .tl-shape').count(), { timeout: 45_000 })
+      .toBeGreaterThan(0);
     // Headless Chromium keeps the AudioContext suspended until a gesture on the page; the lesson
     // clock is the audio clock, so tap once like a learner would ("Tap anywhere to enable sound").
     await page.mouse.click(40, 40);

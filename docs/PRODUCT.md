@@ -69,13 +69,16 @@ In the room the board *is* the screen: no shell, nothing else to look at.
    miss; a prepared topic skips straight to the room.
 6. **Live session** — the board takes most of the screen, with the session
    panel beside it (ADR-0019): everyone on the call with the AI human first and
-   whoever is talking ringed, the conversation — the lesson's sentences, your
-   questions, the answers, check-ins, and quiet lines when the room speaks about
-   itself — and a composer. It folds away from a chevron on its own edge and the
-   board takes the width, and then the captions come back over the paper.
-   Pinned "You asked" notes and check-in questions stay on the board. A bottom
-   bar carries progress dots, clock, pause (host), captions, mic, reactions, the
-   panel, fullscreen and Leave.
+   whoever is talking ringed, and the chat between the people in the room. The
+   expert is on the call and not in the chat — it never reaches them, never
+   interrupts, and nothing they say is written into it; you ask them something
+   by saying it, the way you interrupt a person. The panel folds away from a
+   chevron on its own edge and the board takes the width. The board carries no
+   transcript and no names: captions are off until the CC control turns them
+   on, and then they are subtitles — the words, with nobody's name in front of
+   them. Pinned "You asked" notes and check-in questions stay on the board. A
+   bottom bar carries progress dots, clock, pause (host), captions, mic,
+   reactions, the panel, fullscreen and Leave.
 7. **Recap** — what was covered, your questions, save / learn something else.
 8. **Terms of Use · Privacy Policy** — reachable from the bottom of the sidebar
    and from Home's footer. Plain, current, and true to what the product does:

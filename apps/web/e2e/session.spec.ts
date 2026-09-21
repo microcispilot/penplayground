@@ -1,14 +1,18 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { askByVoice, installFakeSpeech } from './speech.js';
 
 /** Git-ignored: `.pen-data*` holds runtime data and, here, the screenshots the report describes. */
 const SCREENS_DIR = join(process.cwd(), '..', '..', '.pen-data', 'screens');
 
 test.describe('a learner starts a session', () => {
-  test('home → live room → captions → typed question → end → saved session → insights', async ({
+  test('home → live room → captions → a spoken question → end → saved session → insights', async ({
     page,
   }) => {
+    // The room is asked things out loud now; the panel's composer is a chat
+    // between the people in the room and never reaches the expert.
+    await installFakeSpeech(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /What do you want to/ })).toBeVisible();
     await page.getByLabel('What do you want to learn?').fill('How Transformers work in LLMs');
@@ -21,9 +25,21 @@ test.describe('a learner starts a session', () => {
     // (2 MB of tldraw), so it gets the budget ui-helpers.ts gives it.
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId('mic-toggle')).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByText("Let's start with a sentence", { exact: false })).toBeVisible({
-      timeout: 20_000,
+
+    /*
+     * The expert's words are written nowhere by default — a real expert does
+     * not keep a transcript of themselves beside the board, and the panel is a
+     * chat between the people in the room. CC is how you read them, and it is
+     * off until it is asked for. Both halves of that are the assertion.
+     */
+    const captions = page.getByRole('button', { name: 'Captions', exact: true });
+    await expect(page.getByTestId('caption')).toHaveCount(0);
+    await captions.click();
+    await expect(page.getByTestId('caption')).toContainText("Let's start with a sentence", {
+      timeout: 30_000,
     });
+    await captions.click();
+    await expect(page.getByTestId('caption')).toHaveCount(0);
 
     // The host opens the pace menu and picks 1.3×: the room broadcasts the new pace and the pill follows.
     const pill = page.getByTestId('pace-pill');
@@ -47,15 +63,11 @@ test.describe('a learner starts a session', () => {
     // The choice is remembered for the next hosted session.
     expect(await page.evaluate(() => localStorage.getItem('pen.pace'))).toBe('1.3');
 
-    // A typed question interrupts; the acknowledgement and answer arrive; the lesson resumes.
-    await page.getByLabel('Ask a question').fill('Why do we divide by the square root of d?');
-    await page.getByTestId('composer-send').click();
+    // A spoken question interrupts; the acknowledgement and answer arrive; the lesson resumes.
+    await askByVoice(page, 'Why do we divide by the square root of d?');
     await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
       timeout: 20_000,
     });
-    // A couple of interactions the ledger must carry.
-    await page.getByRole('button', { name: 'Captions' }).click();
-    await page.getByRole('button', { name: 'Captions' }).click();
 
     // Host ends the session → recap panel → saved session page.
     await page.getByRole('button', { name: 'End', exact: true }).click();
@@ -87,7 +99,7 @@ test.describe('a learner starts a session', () => {
     await expect(insights.getByText('Model', { exact: true }).first()).toBeVisible();
     await expect(insights.getByText('Voice', { exact: true }).first()).toBeVisible();
     await expect(page.getByTestId('insights-reuse')).toContainText('Knowledge pack reused');
-    await expect(insights.getByText('Typed a question')).toBeVisible();
+    await expect(insights.getByText('Asked out loud')).toBeVisible();
     await expect(insights.getByText('Captions off')).toBeVisible();
     await expect(insights.getByText('First audio heard')).toBeVisible();
     await expect(insights.getByText('Nothing went wrong.')).toBeVisible();

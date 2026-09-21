@@ -376,14 +376,13 @@
   --color-ring-pulse-out: oklch(0.592 0.228 29.3 / 0%);
 
   /*
-   * Captions sit on the board, and the board is always paper. These three are
-   * measured, not chosen by eye: composited over --color-paper they give white
-   * body text 11.3:1 and each speaker name better than 7:1.
-   * packages/design/test/design-system.test.ts holds the measurement.
+   * Captions sit on the board, and the board is always paper. The scrim is
+   * measured, not chosen by eye: composited over --color-paper it gives white
+   * body text 11.3:1. packages/design/test/design-system.test.ts holds the
+   * measurement. There is no speaker colour here any more — a subtitle is the
+   * words, and the two name tokens went with the name.
    */
   --color-caption-scrim: oklch(0.12 0 0 / 78%);
-  --color-caption-expert: oklch(0.88 0.07 214);
-  --color-caption-learner: oklch(0.86 0.13 160);
 
   /*
    * Controls that float on the board. A session card's thumbnail is paper too,

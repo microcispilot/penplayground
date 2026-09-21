@@ -1,35 +1,27 @@
 import { cn } from '../cn.js';
 
 export interface CaptionProps {
-  speaker: string;
   text: string;
-  /** 'expert' (accent name) or 'learner' (presence-green name). */
-  who: 'expert' | 'learner';
   /** Show a blinking caret (live transcript). */
   live?: boolean;
   hint?: string;
   className?: string;
   /** BCP-47 language of the line; drives hyphenation and the screen reader's voice. */
   lang?: string;
-  /**
-   * Reading direction of the line. Explicit rather than `auto`, because the
-   * speaker's name comes first and would otherwise decide the direction for a
-   * Persian sentence.
-   */
+  /** Reading direction of the line. */
   dir?: 'ltr' | 'rtl';
 }
 
-/** Subtitle-style caption drawn over the board (YouTube feel, cloned box-decoration). */
-export function Caption({
-  speaker,
-  text,
-  who,
-  live = false,
-  hint,
-  className,
-  lang,
-  dir,
-}: CaptionProps) {
+/**
+ * Subtitle-style caption drawn over the board (YouTube feel, cloned box-decoration).
+ *
+ * A subtitle is the words. It used to put the speaker's name in front of them,
+ * and it does not any more: a real expert does not write their own name and
+ * transcript on the board, and nobody watching a film needs to be told which
+ * of the two people on screen is talking. Who is speaking is visible — the
+ * roster rings them, the orb moves — so the line carries only what was said.
+ */
+export function Caption({ text, live = false, hint, className, lang, dir }: CaptionProps) {
   return (
     <div
       className={cn('pointer-events-none text-center', className)}
@@ -41,16 +33,6 @@ export function Caption({
         className="inline rounded-xs px-[0.4em] py-[0.18em] text-body-medium text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone]"
         style={{ background: 'var(--color-caption-scrim)', textWrap: 'pretty' }}
       >
-        <span
-          // The name is ours, in our script: it keeps its own direction inside an RTL line.
-          dir="auto"
-          style={{
-            color:
-              who === 'expert' ? 'var(--color-caption-expert)' : 'var(--color-caption-learner)',
-          }}
-        >
-          {speaker}:
-        </span>{' '}
         {text}
         {live ? <span className="animate-caret">|</span> : null}
       </span>

@@ -9,13 +9,17 @@ import type {
 } from '@pen/contracts';
 import { create } from 'zustand';
 import type { RoomAudioUi } from './audio/RoomAudio.js';
-import type { ConversationMessage } from './conversation.js';
+import type { ChatLine } from './chat.js';
 import type { RoomConnectionStatus } from './RoomClient.js';
 import type { LiveReaction } from './reactions.js';
 
+/**
+ * One subtitle over the board. `who` drives the reveal (the expert's line is
+ * typed out in time with their voice, the learner's appears at once), not a
+ * label: a caption carries the words and no name.
+ */
 export interface CaptionLine {
   who: 'expert' | 'learner';
-  speaker: string;
   text: string;
   /** ms to reveal the whole line (expert) */
   revealMs: number;
@@ -55,14 +59,19 @@ export interface RoomUiState {
   preparation: PreparationProgress | null;
   micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';
   micLevel: number;
+  /**
+   * Subtitles over the board. **Off until the learner asks for them** (the CC
+   * control in the bottom bar): a real expert does not write their own
+   * transcript on the board, and the words are there for whoever wants them
+   * rather than for everyone by default.
+   */
   captionsOn: boolean;
   /**
-   * Everything said in this room, in order: the lesson's sentences, the
-   * learner's questions, the expert's answers, check answers, and the room's
-   * own system lines. The session panel reads it; the caption over the board
-   * shows only the last line of it.
+   * What the *people* in the room have said to each other (`chat.ts`). The
+   * expert is not in this list and never sees it; nothing here interrupts the
+   * lesson.
    */
-  conversation: ConversationMessage[];
+  chat: ChatLine[];
   /**
    * Reactions still on screen (`room/reactions.ts`): expression from the
    * people in the room that never takes the floor from the expert.
@@ -99,8 +108,8 @@ const initial: RoomUiState = {
   preparation: null,
   micState: 'idle',
   micLevel: 0,
-  captionsOn: true,
-  conversation: [],
+  captionsOn: false,
+  chat: [],
   reactions: [],
   learnerHeard: '',
   notes: [],

@@ -1,4 +1,4 @@
-import type { Expert } from '@pen/contracts';
+import type { Expert, Reaction } from '@pen/contracts';
 import { Button, Pill, useToast } from '@pen/design';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -12,6 +12,7 @@ import {
   RoomStatus,
 } from '../components/RoomChrome.js';
 import { SessionPanel, useSessionPanel } from '../components/SessionPanel.js';
+import { SoloExpert } from '../components/SoloExpert.js';
 import { VideoAd } from '../components/VideoAd.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
@@ -41,9 +42,9 @@ function useDocked(): boolean {
  * conductor; this component renders the store and forwards intents.
  *
  * The board is the content and takes the room; everything the learner says and
- * hears — the AI human, everyone else on the call, the conversation and the
- * composer — lives in the session panel on the right, which folds away from
- * its own edge when the board wants the whole width.
+ * hears — the AI human, everyone else on the call, and the chat between the
+ * people in the room — lives in the session panel on the right, which folds
+ * away from its own edge when the board wants the whole width.
  */
 export function Room() {
   const { id = '' } = useParams();
@@ -126,7 +127,7 @@ export function Room() {
     () => ui.notes.map((n) => ({ q: n.question, a: `${n.headline} — ${n.detail}` })),
     [ui.notes],
   );
-  /** The conversation is on screen, so the board does not repeat it as a caption. */
+  /** Whether the panel is on screen: docked beside the board, or drawn over it. */
   const panelShowing = docked ? panelOpen : drawerOpen;
   const adShowing = ui.ad !== null;
 
@@ -209,6 +210,14 @@ export function Room() {
   }
 
   const state = ui.state;
+  /**
+   * One learner and an expert is the ordinary session, and it does not need a
+   * panel: a roster of two and a chat nobody else can read are furniture
+   * pretending to be features (ADR-0033). The panel appears when there is
+   * somebody to see and somebody to talk to, and `SoloExpert` carries the
+   * only part of it that still means something alone.
+   */
+  const solo = state.participants.length <= 1;
   const panel = (
     <SessionPanel
       mode={docked ? 'docked' : 'drawer'}
@@ -241,10 +250,10 @@ export function Room() {
           )
           .catch(() => toast('Could not mute — try again', 'danger'))
       }
-      conversation={ui.conversation}
+      chat={ui.chat}
       reactions={ui.reactions}
       adPaused={adShowing}
-      onAsk={(text) => session?.ask(text)}
+      onSend={(text) => session?.sendChat(text)}
     />
   );
 
@@ -262,9 +271,8 @@ export function Room() {
           {/*
             A named landmark so the skip link lands somewhere a screen reader can
             announce. What is written on the paper reaches assistive technology
-            through the conversation (or, with the panel folded away, the
-            captions) — announcing the board's own strokes as well would say
-            everything twice.
+            through the captions, which are a live region — announcing the
+            board's own strokes as well would say everything twice.
           */}
           <section
             id="room-board"
@@ -284,20 +292,17 @@ export function Room() {
               onRetry={() => session?.retryConnection()}
             />
             {/*
-              The conversation is the record the learner can read back; the
-              caption is the glance. With the panel up the caption would say the
-              same sentence twice — once over the paper, once in the log a
-              screen reader is already announcing — so the board keeps its space
-              and gets the caption back the moment the panel folds away.
+              Captions, when they are asked for — and never twice. Nothing in
+              the panel repeats what was said any more, so this is the only
+              place the words appear, whether the panel is up or folded away.
+              It is off until the CC control turns it on (`store.ts`).
             */}
-            {panelShowing ? null : (
-              <CaptionOverlay
-                line={ui.caption}
-                hint={ui.hint}
-                on={ui.captionsOn}
-                language={state.language}
-              />
-            )}
+            <CaptionOverlay
+              line={ui.caption}
+              hint={ui.hint}
+              on={ui.captionsOn}
+              language={state.language}
+            />
             {ui.check && session ? (
               <CheckCard
                 check={ui.check}
@@ -323,6 +328,15 @@ export function Room() {
                 </Pill>
               </div>
             ) : null}
+            {solo && state.phase !== 'ended' ? (
+              <SoloExpert
+                expert={expert}
+                presence={presence}
+                portraitUrl={portrait}
+                soundBlocked={ui.soundBlocked || needsGesture}
+                onEnableSound={enableSound}
+              />
+            ) : null}
             {state.phase === 'ended' ? (
               <RecapPanel
                 state={state}
@@ -334,7 +348,7 @@ export function Room() {
             ) : null}
           </section>
         </div>
-        {panel}
+        {solo ? null : panel}
       </div>
       <BottomBar
         state={state}
@@ -348,10 +362,14 @@ export function Room() {
         onSetPace={(pace) => session?.setPace(pace)}
         onToggleCaptions={() => session?.toggleCaptions()}
         onToggleMic={toggleMic}
-        panelOpen={panelShowing}
-        onTogglePanel={togglePanel}
+        {...(solo
+          ? {}
+          : {
+              panelOpen: panelShowing,
+              onTogglePanel: togglePanel,
+              onReact: (emoji: Reaction) => session?.react(emoji),
+            })}
         inputsPaused={adShowing}
-        onReact={(emoji) => session?.react(emoji)}
         onFullscreen={() => {
           trackInteraction('fullscreen');
           void shellRef.current?.requestFullscreen?.();

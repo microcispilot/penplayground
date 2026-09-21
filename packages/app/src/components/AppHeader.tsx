@@ -1,3 +1,4 @@
+import { avatarHue } from '@pen/contracts';
 import { Avatar, cn } from '@pen/design';
 import { Menu, Moon, PanelLeft, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -194,8 +195,13 @@ export function firstLetterOf(name: string): string {
   return (firstNameOf(name)[0] ?? '?').toUpperCase();
 }
 
-function hueOf(id: string): number {
-  let h = 0;
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return h;
-}
+/**
+ * The same hash the room uses, not a second one that looks like it.
+ *
+ * This took the modulus on every step; `hueFor` coerces to uint32 and takes
+ * it once. For most ids the two disagree, so the very same person was one
+ * colour on the header chip and a different colour on their tile in the
+ * room — the one place a person sees both at once. An avatar's colour is an
+ * identity, and there can only be one of it.
+ */
+const hueOf = avatarHue;
