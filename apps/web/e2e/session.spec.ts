@@ -115,8 +115,14 @@ test.describe('a learner starts a session', () => {
       { timeout: 20_000 },
     );
     await expect(thumb).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
-    await page.getByRole('tab', { name: 'Transcript' }).click();
-    await expect(page.getByText('square root of d', { exact: false })).toBeVisible();
+    // The transcript has no tab any more — the owner shelved it for a later
+    // version — but the panel is still built and still rendered for its own
+    // query, so what the saved lines contain is still asserted here.
+    await page.goto(`${new URL(page.url()).pathname}?tab=transcript`);
+    await expect(page.getByText('square root of d', { exact: false })).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.goto(new URL(page.url()).pathname);
 
     // Insights (host only): latency cards, cost, reuse, the stage timeline, interactions, errors.
     await page.getByRole('tab', { name: 'Insights' }).click();

@@ -115,19 +115,15 @@ function SessionRow({
           <SaveButton session={session} size="sm" />
         </div>
       </div>
-      <div className="flex shrink-0 flex-row gap-2 sm:flex-col sm:justify-center">
+      {/* One control now that Transcript has gone; it stays centred rather than
+          stacking, because there is nothing left to stack it against. */}
+      <div className="flex shrink-0 items-center">
         <Button
           variant="primary"
           leading={<Play size={14} />}
           onClick={() => navigate(live ? `/room/${session.id}` : `/sessions/${session.id}`)}
         >
           {live ? 'Rejoin' : 'Replay'}
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => navigate(`/sessions/${session.id}?tab=transcript`)}
-        >
-          Transcript
         </Button>
       </div>
       {expert ? <span className="sr-only">{expert.displayName}</span> : null}

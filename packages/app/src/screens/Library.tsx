@@ -86,7 +86,8 @@ export function Library() {
                     <SaveButton session={s} size="sm" />
                   </div>
                 </div>
-                <div className="flex shrink-0 flex-col justify-center gap-2">
+                {/* One control now that Transcript has gone. */}
+                <div className="flex shrink-0 items-center">
                   {live ? (
                     <Button
                       variant="primary"
@@ -104,12 +105,6 @@ export function Library() {
                       Replay
                     </Button>
                   )}
-                  <Button
-                    variant="secondary"
-                    onClick={() => navigate(`/sessions/${s.id}?tab=transcript`)}
-                  >
-                    Transcript
-                  </Button>
                 </div>
               </div>
             );

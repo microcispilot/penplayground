@@ -425,9 +425,23 @@ export function Home() {
             ) : null}
           </SectionBand>
 
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(272px,1fr))] gap-x-5 gap-y-9">
+          {/*
+            Three across, and never four. This used to auto-fill at a 272 px
+            minimum, which fits four inside the 1232 px content column and made
+            the catalogue read as a dense grid of small pictures rather than a
+            shelf of lessons.
+
+            The breakpoints are the sidebar's, not the page's: `xl` rather than
+            `lg` because at a 1024 px viewport the 240 px rail leaves ~736 px,
+            and three cards there would be 232 px each — narrower than the
+            272 px the card was drawn for. So two until 1280, three after.
+          */}
+          <div
+            data-testid="catalogue"
+            className="grid grid-cols-1 gap-x-5 gap-y-9 sm:grid-cols-2 xl:grid-cols-3"
+          >
             {sessions === null
-              ? Array.from({ length: 8 }, (_, i) => `sk-${i}`).map((k) => (
+              ? Array.from({ length: 6 }, (_, i) => `sk-${i}`).map((k) => (
                   <div key={k} className="flex flex-col gap-3">
                     <Skeleton className="aspect-video rounded-lg" />
                     <Skeleton className="h-4 w-3/4" />

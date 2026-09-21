@@ -66,16 +66,21 @@ test.describe('a session taught in Persian', () => {
     expect(await boardTitle.textContent()).toMatch(PERSIAN);
     await page.screenshot({ path: join(SCREENS_DIR, 'persian-room.png') });
 
-    // A Persian question, asked out loud, pins a Persian note card on the board.
+    /*
+     * A Persian question, asked out loud. It used to be asserted here as a
+     * `.pen-note` card pinned to the board, and that assertion outlived the
+     * thing it described: b3282da took the question card off the board ("the
+     * questions should not be shown on the board. it's not necessary") in the
+     * *conductor*, so a replay draws what the live room drew — and this spec
+     * kept waiting 30 s for a shape nothing emits any more. It has been failing
+     * at that line ever since, which meant every assertion below it stopped
+     * running: the recap, the saved page and the right-to-left transcript were
+     * all unreached.
+     *
+     * Where the question goes now is the recap's "your questions" list, and
+     * that is where its direction is read, below.
+     */
     await askByVoice(page, QUESTION);
-    const note = page.locator('.pen-note').first();
-    await expect(note).toBeVisible({ timeout: 30_000 });
-    await expect(note).toHaveAttribute('dir', 'rtl');
-    await expect(note).toHaveAttribute('lang', 'fa-IR');
-    expect(await note.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
-    expect(await note.locator('.pen-note__question').innerText()).toMatch(PERSIAN);
-
-    await page.screenshot({ path: join(SCREENS_DIR, 'persian-note.png') });
 
     // The recap panel, which is the lesson's own words, reads right to left too.
     await page.getByRole('button', { name: 'End', exact: true }).click();
@@ -94,12 +99,18 @@ test.describe('a session taught in Persian', () => {
     const recapList = page.locator('ul[dir="rtl"]').first();
     await expect(recapList).toBeVisible({ timeout: 20_000 });
     expect(await recapList.innerText()).toMatch(PERSIAN);
-    // The transcript decides direction per line: the expert's Persian lines read right to left.
-    await page.getByRole('tab', { name: 'Transcript' }).click();
+    // The transcript decides direction per line: the expert's Persian lines read
+    // right to left. It has no tab any more — the owner shelved it for a later
+    // version — but the panel still answers its own query, and this is the only
+    // place per-line direction is proven, so it is reached by URL rather than
+    // dropped along with the button.
+    const saved = new URL(page.url()).pathname;
+    await page.goto(`${saved}?tab=transcript`);
     const line = page.locator('span[dir="auto"]').filter({ hasText: PERSIAN }).first();
     await expect(line).toBeVisible({ timeout: 20_000 });
     expect(await line.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
-    await page.getByRole('tab', { name: 'Recap' }).click();
+    await page.goto(saved);
+    await expect(page.getByRole('heading', { level: 2 })).toBeVisible({ timeout: 20_000 });
     await page.screenshot({ path: join(SCREENS_DIR, 'persian-session.png'), fullPage: true });
 
     // Back in English, the document says so again.

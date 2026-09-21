@@ -240,6 +240,15 @@ function ExportControl({
  * from the recording ledger. Deterministic audio+board replay lands in the
  * replay package; this page is the durable, shareable record.
  */
+
+/**
+ * The tabs this page offers. `transcript` is deliberately absent: the owner
+ * shelved it for a later version, and nothing in the product links to it any
+ * more. The panel still renders for `?tab=transcript`, so the saved lines are
+ * still built and still tested; bringing it back is adding the word here.
+ */
+const VISIBLE_TABS = (isHost: boolean) =>
+  isHost ? (['recap', 'insights'] as const) : (['recap'] as const);
 /**
  * What the host, and only the host, may do with a saved session: decide who can
  * see it, and take it away entirely. Stated plainly — a private session is a
@@ -529,30 +538,41 @@ export function SessionPage() {
                 onDeleted={() => navigate('/sessions')}
               />
             ) : null}
-            <div className="mt-6 flex gap-1 border-b border-outline-variant" role="tablist">
-              {(isHost
-                ? (['recap', 'transcript', 'insights'] as const)
-                : (['recap', 'transcript'] as const)
-              ).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === t}
-                  className={cn(
-                    // M3 primary tab: `label-large`, a 3 px `primary`
-                    // indicator, `on-surface-variant` when it is not the one.
-                    'state-layer rounded-t-sm px-4 py-2.5 text-label-large',
-                    tab === t
-                      ? 'border-b-[3px] border-primary text-primary'
-                      : 'border-b-[3px] border-transparent text-on-surface-variant',
-                  )}
-                  onClick={() => setParams(t === 'recap' ? {} : { tab: t })}
-                >
-                  {t === 'recap' ? 'Recap' : t === 'transcript' ? 'Transcript' : 'Insights'}
-                </button>
-              ))}
-            </div>
+            {/*
+              Transcript is not offered anywhere in the product for now — the
+              owner has shelved it for a later version, and the rows in History
+              and the lists lost their Transcript button in the same change.
+              The panel below is left intact and still answers `?tab=transcript`
+              so the saved lines keep being rendered and asserted (the Persian
+              spec reads its per-line direction there, and it is the only place
+              that is proven). Putting it back is this one list.
+
+              A lone tab is not a tab bar, so a reader who is not the host —
+              who only ever had Recap and Transcript — now sees no rule at all.
+            */}
+            {VISIBLE_TABS(isHost).length > 1 ? (
+              <div className="mt-6 flex gap-1 border-b border-outline-variant" role="tablist">
+                {VISIBLE_TABS(isHost).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === t}
+                    className={cn(
+                      // M3 primary tab: `label-large`, a 3 px `primary`
+                      // indicator, `on-surface-variant` when it is not the one.
+                      'state-layer rounded-t-sm px-4 py-2.5 text-label-large',
+                      tab === t
+                        ? 'border-b-[3px] border-primary text-primary'
+                        : 'border-b-[3px] border-transparent text-on-surface-variant',
+                    )}
+                    onClick={() => setParams(t === 'recap' ? {} : { tab: t })}
+                  >
+                    {t === 'recap' ? 'Recap' : 'Insights'}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {tab === 'insights' ? (
               telemetry ? (
                 <Insights telemetry={telemetry} />
