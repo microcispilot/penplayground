@@ -299,22 +299,28 @@ export function Home() {
               ref={inputRef}
               className="h-12 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface outline-none placeholder:text-on-surface-dim caret-primary"
               /*
-               * The example is the thing itself, typed the way a person
-               * would type it: no "Try", no quotation marks around it. A
-               * placeholder that quotes an example is a placeholder holding
-               * an example at arm's length — the field should look like it
-               * already has the answer's question in it.
+               * The example is the thing itself, written the way a person
+               * would write it: no "Try", no quotation marks around it. A
+               * placeholder that quotes its example is holding it at arm's
+               * length — the field should read as though the topic is
+               * already in it.
                *
-               * And it has to be a topic *most* people recognise. It was
-               * "how Transformers work in LLMs", which is the product's own
-               * seeded demo and reads, to almost everybody, as jargon they
-               * are not the audience for. Pi is the opposite: everyone met
-               * it at school, nobody was told why it does not stop, and it
-               * is four words — which matters, because at phone width this
-               * field truncates past roughly twenty characters and an
-               * example that is cut in half is not an example.
+               * And it is a *subject*, not a trivia question. This product
+               * teaches a lesson with an expert and a board; "why pi never
+               * ends" invited a single answer, which set the wrong
+               * expectation about what is on the other side of Start. A
+               * noun phrase — capitalised, no question mark, because it is
+               * not a question — says "teach me this" instead.
+               *
+               * It also has to be a subject *most* people recognise. It was
+               * "how Transformers work in LLMs", the product's own seeded
+               * demo, which reads to almost everybody as jargon they are
+               * not the audience for. Music theory is the opposite: nearly
+               * everyone has wanted it at some point, it is unmistakably
+               * something you learn rather than look up, and it draws well
+               * on a board.
                */
-              placeholder="why pi never ends"
+              placeholder="Fundamentals of music theory"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="What do you want to learn?"

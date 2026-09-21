@@ -67,11 +67,17 @@ The script refuses to run unless the remote hostname is `prod-app-01`
 - Every web release gets a branch `release/web/<semver>` cut from `main`
   (`release/web/0.0.1` is the first, deployed 2026-09-17; `0.0.2` and `0.0.3`
   on 2026-09-19). Each also gets an annotated tag `web/<semver>` at its tip.
-- **A shipped branch never moves.** A fix after a release is the next release,
-  not a commit on the last one — the branch is what `PEN_IMAGE_TAG=<previous>`
-  rolls back to, and a branch that moved is a rollback to something that was
-  never live. (0.0.2 was fast-forwarded once by mistake and put back within
-  the minute; the rule is written here now rather than assumed.)
+- **The current release branch stays open; every earlier one is frozen.**
+  Small corrections while a release is still being reviewed land on its own
+  branch and it is redeployed — cutting a new semver for a placeholder string
+  buries the ones that matter. The `web/<semver>` tag moves with the branch
+  for the same reason: the tag names the release, and the release is whatever
+  that branch is when it settles.
+- **Once the next branch is cut, the previous one never moves again.** It is
+  what `PEN_IMAGE_TAG=<previous> deploy/deploy.sh --skip-build --skip-ship`
+  rolls back to, and a branch that moved after being superseded is a rollback
+  to something that was never live. (0.0.2 was fast-forwarded once after
+  0.0.3 existed and was put back within the minute.)
 - Deploy from the release branch so the image tag is that branch's commit:
 
   ```sh

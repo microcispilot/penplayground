@@ -79,7 +79,7 @@ export function NotFound() {
           <Search size={18} className="shrink-0 text-on-surface-dim" aria-hidden />
           <input
             className="h-11 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface caret-primary outline-none placeholder:text-on-surface-dim"
-            placeholder="why pi never ends"
+            placeholder="Fundamentals of music theory"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             aria-label="What do you want to learn?"
