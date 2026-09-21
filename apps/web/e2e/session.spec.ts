@@ -76,15 +76,31 @@ test.describe('a learner starts a session', () => {
     // The choice is remembered for the next hosted session.
     expect(await page.evaluate(() => localStorage.getItem('pen.pace'))).toBe('1.3');
 
-    // A spoken question interrupts; the acknowledgement and answer arrive; the lesson resumes.
+    /*
+     * A spoken question interrupts; the acknowledgement and answer arrive;
+     * the lesson resumes.
+     *
+     * Read off the recap, not off the board. The answer used to be pinned to
+     * the board as a note card carrying the question and a line of the
+     * reply, and that card is gone — a real expert answers you rather than
+     * writing your question up beside the diagram.
+     *
+     * Not off the captions either, and the reason is the captions being
+     * right: they hold **one sentence at a time**, so a phrase from the
+     * middle of an answer is on screen only while its own sentence is. What
+     * keeps the whole answer is "Your questions" in the recap, which is
+     * where it belongs and where it is asserted below.
+     */
     await askByVoice(page, 'Why do we divide by the square root of d?');
-    await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
-      timeout: 20_000,
-    });
 
     // Host ends the session → recap panel → saved session page.
     await page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(page.getByText('Session saved')).toBeVisible({ timeout: 20_000 });
+    // The question was asked, answered, and kept: "Your questions" carries
+    // both halves once the lesson is over.
+    await expect(page.getByText('keeps the dot products', { exact: false })).toBeVisible({
+      timeout: 20_000,
+    });
     await page.getByRole('button', { name: 'Open the saved session' }).click();
     await expect(page.getByRole('heading', { name: /Transformers/ })).toBeVisible();
     // The sketch drawn in the background (ADR-0013) replaces the placeholder without a reload.
