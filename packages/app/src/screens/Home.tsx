@@ -298,7 +298,23 @@ export function Home() {
             <input
               ref={inputRef}
               className="h-12 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface outline-none placeholder:text-on-surface-dim caret-primary"
-              placeholder="Try “how Transformers work in LLMs”"
+              /*
+               * The example is the thing itself, typed the way a person
+               * would type it: no "Try", no quotation marks around it. A
+               * placeholder that quotes an example is a placeholder holding
+               * an example at arm's length — the field should look like it
+               * already has the answer's question in it.
+               *
+               * And it has to be a topic *most* people recognise. It was
+               * "how Transformers work in LLMs", which is the product's own
+               * seeded demo and reads, to almost everybody, as jargon they
+               * are not the audience for. Pi is the opposite: everyone met
+               * it at school, nobody was told why it does not stop, and it
+               * is four words — which matters, because at phone width this
+               * field truncates past roughly twenty characters and an
+               * example that is cut in half is not an example.
+               */
+              placeholder="why pi never ends"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="What do you want to learn?"

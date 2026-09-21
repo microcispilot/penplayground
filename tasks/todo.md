@@ -63,6 +63,18 @@
 - [ ] Ads: Ad Manager reporting API replaces the eCPM estimate
 - [x] Ads: non-personalised everywhere (`npa=1`, server-side) and limited ads in Europe (`ltd=1`, from the viewer's timezone) — so no CMP is needed (ADR-0018, docs/ADS.md)
 - [ ] Ads: child-directed tagging (`tfcd=1`) for topics aimed at children
+- [ ] **The full Playwright suite is contention-flaky, and it is no longer
+      only `persian.spec.ts`.** Across four full runs on 2026-09-20 the
+      failing set moved every time — once `ui-a11y`, once `ads`, once
+      `ui-panel` + `ads` + `timeline:182` — and **every one of them passed
+      when run alone**, usually in a third of the time it had taken to fail.
+      One worker drives four server pairs through real lessons with real
+      clocks; a spec that waits 8 s for something that usually takes 2 is
+      fine alone and not fine behind three other lessons. The specs are not
+      wrong about the product, and re-running until green is not a fix: the
+      suite needs either its own API pair per group or budgets that scale
+      with what else is running. Until then a full-run failure is only a
+      finding once it reproduces alone.
 - [ ] `e2e/persian.spec.ts` fails in a *full-suite* run and passes alone (18 s): the first Persian caption never appears within 30 s. Not caused by the lesson voice store — an untouched checkout of the same base commit produces the identical tally (22 passed, 3 skipped, 1 failed, the same spec), so it is the suite's own contention: one worker, four server pairs, and a Persian lesson that has to be planned and spoken before its first caption lands. Worth either its own budget or its own API pair.
 - [ ] Ads: a local VAST fixture for CI needs the e2e page on **https** first. The API already serves one (`/api/dev/ad/vast.xml` + a 14 KB MP4, dev-only, `PEN_E2E_AD_FIXTURE=1`), and it is refused for a reason that is the browser's, not ours: the IMA SDK requests the tag from inside its own frame, that frame mirrors the page's scheme, and Chrome blocks an insecure public origin from reaching a loopback address — "the request client is not a secure context and the resource is in more-private address space `loopback`", surfacing as IMA error 1005 (FAILED_TO_REQUEST_ADS, confirmed against the SDK's own code table). Serving the ad pair's web server over https (its own `use.baseURL` on the `chrome` project, `ignoreHTTPSErrors`, and `Access-Control-Allow-Private-Network: true` on the fixture route) is the way to finish it. Changing the ad player to fetch the VAST itself and pass `adsResponse` would also work, and was deliberately not done: it makes a synchronous revenue path asynchronous for a test's benefit.
 - [ ] Ads: `apps/web/e2e/ads.spec.ts` depends on Google's public sample tag returning a creative within 8 s; it fails on a slow or unlucky network. Consider a recorded VAST fixture for CI and keep the live tag as a manual check.
