@@ -422,7 +422,8 @@ describe('M3 roles carry text that can be read', () => {
    * WCAG 1.4.11, the non-text half of the sweep above. Two things in this
    * product are graphics that have to be seen rather than read, and both are
    * painted from a brand role:
-   *   · the mark — `PenMark` draws its drop in `primary` (AppHeader.tsx:30);
+   *   · the mark — `PenMark` draws its triangle in `primary-fixed`
+   *     (components/PenLogo.tsx), which is `primary`'s own seed;
    *   · the focus ring — 3 px of `secondary` (styles/index.css :focus-visible).
    * A family that passed the text sweep can still lose either of these, so
    * they are measured on their own, on every surface, under every family.

@@ -1,9 +1,8 @@
-import { Button, cn, useToast } from '@pen/design';
+import { Button, cn, PenMark, useToast } from '@pen/design';
 import { ArrowRight, Search } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError } from '../api/client.js';
-import { PenMark } from '../components/AppHeader.js';
 import { markStartClicked } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useSeo } from '../lib/seo.js';

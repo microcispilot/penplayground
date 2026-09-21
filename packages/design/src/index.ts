@@ -9,6 +9,7 @@ export * from './components/Dialog.js';
 export * from './components/ExpertOrb.js';
 export * from './components/IconButton.js';
 export * from './components/Kbd.js';
+export * from './components/PenLogo.js';
 export * from './components/Pill.js';
 export * from './components/Progress.js';
 export * from './components/Sheet.js';

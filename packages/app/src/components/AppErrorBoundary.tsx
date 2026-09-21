@@ -1,9 +1,8 @@
-import { Button } from '@pen/design';
+import { Button, PenMark } from '@pen/design';
 import { RotateCcw } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { reportClientError } from '../lib/analytics.js';
 import { applySeo } from '../lib/seo.js';
-import { PenMark } from './AppHeader.js';
 
 /**
  * The last screen between a render crash and a white page. It captures the

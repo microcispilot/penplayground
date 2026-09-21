@@ -1,5 +1,5 @@
 import type { Expert } from '@pen/contracts';
-import { cn, useModalFocus } from '@pen/design';
+import { cn, PenLogo, useModalFocus } from '@pen/design';
 import {
   Bookmark,
   ChevronDown,
@@ -16,7 +16,6 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useLists } from '../lib/lists.js';
-import { PenMark } from './AppHeader.js';
 
 /** The domains the catalog teaches, in the order the sidebar lists them. */
 export const TOPIC_DOMAINS: { id: Expert['domain']; label: string }[] = [
@@ -378,8 +377,9 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         className="animate-rise absolute inset-y-0 left-0 w-[268px] rounded-e-lg bg-surface-container-low shadow-level1 outline-none"
       >
         <div className="flex h-16 items-center gap-2 px-5">
-          <PenMark />
-          <span className="font-display text-title-large font-medium tracking-[-0.03em]">Pen</span>
+          {/* The drawer has no header above it, so this is the one place the
+              lockup carries the product's name rather than repeating it. */}
+          <PenLogo size={26} title="Pen Playground" />
         </div>
         <Sidebar className="h-[calc(100%-4rem)]" onNavigate={onClose} />
       </div>

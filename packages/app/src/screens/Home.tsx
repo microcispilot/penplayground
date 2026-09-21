@@ -1,11 +1,10 @@
 import type { Expert, PlanUsage } from '@pen/contracts';
 import { planIncludes } from '@pen/contracts';
-import { Chip, cn, Skeleton, useToast } from '@pen/design';
+import { Chip, cn, PenMark, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, Mic, Search, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
-import { PenMark } from '../components/AppHeader.js';
 import { PrivacyDialog } from '../components/PrivacyDialog.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';

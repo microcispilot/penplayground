@@ -1,37 +1,11 @@
 import { avatarHue } from '@pen/contracts';
-import { Avatar, cn } from '@pen/design';
+import { Avatar, cn, PenLogo } from '@pen/design';
 import { Menu, Moon, PanelLeft, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useApp } from '../lib/context.js';
 import { isDarkTheme, useTheme } from '../lib/theme.js';
 import { NameDialog } from './NameDialog.js';
-
-/** The nib: Pen's mark. Ink on the left, a drop of the brand where the stroke lands. */
-export function PenMark({ size = 22, className }: { size?: number; className?: string }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-      className={className}
-    >
-      <path
-        d="M5.5 18.5 15.2 8.8a2.2 2.2 0 0 1 3.1 0l.4.4a2.2 2.2 0 0 1 0 3.1L9 22l-4.3 1 1-4.5Z"
-        fill="currentColor"
-      />
-      <path
-        d="M6.2 17.8 8.4 20"
-        stroke="var(--color-surface)"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-      <circle cx="17.5" cy="5" r="2.6" fill="var(--color-primary-fixed)" />
-    </svg>
-  );
-}
 
 /**
  * The header's primary links, as M3 navigation items: a filled pill when the
@@ -146,11 +120,13 @@ export function AppHeader({
           onClick={() => navigate('/')}
           aria-label="Pen Playground home"
         >
-          <PenMark />
-          {/* A logotype, not a heading: it keeps its own tracking. */}
-          <span className="font-display text-title-large font-semibold tracking-[-0.045em]">
-            Pen
-          </span>
+          {/*
+            The lockup, as drawn. This used to be the mark beside "Pen" set in
+            the UI face, which made the logotype SF Pro on a Mac, Segoe on
+            Windows and Inter on everything else — three logos. The word is
+            outlines now, so it is one.
+          */}
+          <PenLogo size={26} />
         </button>
         {/* Inside the shell the sidebar is the navigation; a standalone header keeps its own. */}
         <nav
