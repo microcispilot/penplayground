@@ -80,12 +80,29 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        // Opaque rather than a blurred wash of the page, and no rule under
-        // it: the header is one of the three pieces of furniture, and now
-        // that the page is the brighter surface the colour marks the edge on
-        // its own. A translucent header over a white page was a smear with a
-        // line drawn under it to make up for being one.
-        'z-20 bg-surface-container-low',
+        /*
+         * Three planes, in order, and the bar is the middle one.
+         *
+         * It used to share `surface-container-low` with the sidebar and the
+         * footer, which made the chrome one undifferentiated slab against a
+         * page of a different value — the sidebar's top edge simply
+         * disappeared into the bar, and the whole thing read as a smudge
+         * rather than as a structure. The owner: *"the top bar should have a
+         * different color than other panels."*
+         *
+         * So the values run content → bar → rails, brightest to deepest:
+         * `surface-container-lowest` for the page, `surface` here, and
+         * `surface-container-low` for the sidebar and the footer. Nearest the
+         * content is nearest its colour, which is also the order of how much
+         * you look at them. That is M3's own elevation-by-value, applied to
+         * the shell rather than only to cards, and it is why no rule is
+         * needed to say where one plane stops.
+         *
+         * Opaque, not a blurred wash: a translucent bar over a white page is
+         * a smear, and the line that used to sit under it was there to make
+         * up for being one.
+         */
+        'z-20 bg-surface',
         sticky && 'sticky top-0',
       )}
     >

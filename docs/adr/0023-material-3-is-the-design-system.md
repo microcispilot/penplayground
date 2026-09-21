@@ -279,6 +279,21 @@ product: the furniture and the content have to be two surfaces, and making
 the content the brighter one means a thumbnail is the brightest thing on the
 screen, which is what a catalogue is for.
 
+**The shell is three planes, in order.** Content is
+`surface-container-lowest`, the top bar is `surface`, and the sidebar and the
+footer are `surface-container-low` — brightest to deepest, which is also the
+order of how much a person looks at them.
+
+The bar first shared `surface-container-low` with the rails, and the failure
+is easy to miss until it is pointed at: the sidebar's top edge disappeared
+into the bar, so the whole of the chrome read as one undifferentiated slab
+against a page of a different value. The owner: *"the top bar should have a
+different color than other panels. this design doesn't really look like
+something a legit and well founded platform like google would do."* Fair on
+both counts — a slab is not a structure. Giving the bar its own step is M3's
+elevation-by-value applied to the shell rather than only to cards, and it is
+why none of the three needs a rule drawn along it to say where it stops.
+
 **Every separator came out with it.** `border-b` under the header, `border-r`
 beside the sidebar, `border-t` above the catalogue band and above the footer
 — each of those existed to mark an edge that two surfaces now mark by
