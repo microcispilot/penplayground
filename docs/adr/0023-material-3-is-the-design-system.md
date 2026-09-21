@@ -279,10 +279,21 @@ product: the furniture and the content have to be two surfaces, and making
 the content the brighter one means a thumbnail is the brightest thing on the
 screen, which is what a catalogue is for.
 
-**The shell is three planes, in order.** Content is
-`surface-container-lowest`, the top bar is `surface`, and the sidebar and the
-footer are `surface-container-low` — brightest to deepest, which is also the
-order of how much a person looks at them.
+**The shell climbs the container ladder.** Content is
+`surface-container-lowest`, the sidebar and the footer are
+`surface-container-low`, and the top bar is `surface-container` — one rung
+above the rails.
+
+The rung is the whole trick, and it is why this is a *shade* rather than a
+pair of colours. M3's container ladder is built from tone, so one step up is
+**darker in light and lighter in dark** — `#eeeeee` against the sidebar's
+`#f3f3f3`, `#1f1f1f` against its `#1b1b1b`. That is precisely what the owner
+asked for (*"a bit lighter than the color of the side bar background in dark
+mode and vice versa in the light mode"*), and the design system already
+answers it: two hand-picked values would have had to be kept in step by hand
+for ever. A first attempt used `surface`, which sits *below* the rails on the
+ladder, so in dark it went the wrong way and the bar came out darker than the
+sidebar instead of lifted off it.
 
 The bar first shared `surface-container-low` with the rails, and the failure
 is easy to miss until it is pointed at: the sidebar's top edge disappeared

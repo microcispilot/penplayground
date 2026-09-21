@@ -474,7 +474,19 @@ export class Conductor {
         this.checksByAsker.set(ev.askedBy, ev);
         return;
       case 'note':
-        this.o.board.pinNote(ev, `note-${cue.seq}`);
+        /*
+         * Nothing is drawn. A note carries the learner's question as the
+         * expert understood it, and it used to be pinned on the board as a
+         * card — *"the questions should not be shown on the board. it's not
+         * necessary"*, and that is right for the same reason the expert's
+         * name and transcript came off it: a real expert answers your
+         * question, they do not write it up beside the diagram.
+         *
+         * The cue itself stays and is still the only thing that carries it:
+         * the room reads its `language` to follow a learner who switched
+         * (`SessionRoom`), and the client keeps the list for the recap at the
+         * end, which is where "what you asked" belongs.
+         */
         return;
       case 'done':
         return;

@@ -285,7 +285,12 @@ describe('Conductor', () => {
     });
     c.handleServer({ kind: 'cue', cue: say(6, 't1.s1', 'Good question.', 't1') });
     c.handleServer({ kind: 'cue', cue: say(7, 't1.s2', 'Okay, back to it.', 't1') });
-    expect(board.notes).toEqual(['keeps scores']);
+    // Nothing is drawn for it. A note carries the learner's question as the
+    // expert understood it, and a real expert does not write your question up
+    // beside the diagram — the cue is still delivered (the room reads its
+    // language, the client keeps it for the recap), the board just stays the
+    // lesson.
+    expect(board.notes).toEqual([]);
     c.audioEvents.onSayStart('t1.s1@0');
     expect(board.dimmed).toBe(false);
     c.audioEvents.onSayEnd('t1.s1@0', 1000);

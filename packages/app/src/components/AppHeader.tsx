@@ -90,19 +90,28 @@ export function AppHeader({
          * rather than as a structure. The owner: *"the top bar should have a
          * different color than other panels."*
          *
-         * So the values run content → bar → rails, brightest to deepest:
-         * `surface-container-lowest` for the page, `surface` here, and
-         * `surface-container-low` for the sidebar and the footer. Nearest the
-         * content is nearest its colour, which is also the order of how much
-         * you look at them. That is M3's own elevation-by-value, applied to
-         * the shell rather than only to cards, and it is why no rule is
-         * needed to say where one plane stops.
+         * So the shell climbs M3's container ladder: `surface-container-lowest`
+         * for the page, `surface-container-low` for the sidebar and the
+         * footer, and `surface-container` here — one rung above the rails.
+         *
+         * The rung is the whole trick, and it is why this is a shade rather
+         * than a colour. The ladder is built from *tone*, so one step up is
+         * **darker in light and lighter in dark**, which is what the owner
+         * asked for — *"it should be a bit lighter than the color of the side
+         * bar background in dark mode and vice versa in the light mode"* —
+         * and it is what the design system already answers, rather than two
+         * hand-picked values that would have to be kept in step by hand.
+         * #eeeeee against the sidebar's #f3f3f3; #1f1f1f against its #1b1b1b.
+         *
+         * A first attempt used `surface`, which sits *below* the rails in the
+         * ladder and so went the wrong way in dark: the bar came out darker
+         * than the sidebar rather than lifted off it.
          *
          * Opaque, not a blurred wash: a translucent bar over a white page is
          * a smear, and the line that used to sit under it was there to make
          * up for being one.
          */
-        'z-20 bg-surface',
+        'z-20 bg-surface-container',
         sticky && 'sticky top-0',
       )}
     >
