@@ -5,19 +5,45 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useApp } from '../lib/context.js';
 
+/**
+ * What each plan says for itself.
+ *
+ * One rule, and it is the owner’s: a line earns its place only if it names
+ * something this plan has that the plan below it does not. Voice is not a
+ * feature of Professional — the whole product is voice, on every plan, and a
+ * bullet reading “Guests ask questions by voice” made the most expensive tier
+ * sound like it was selling the thing everybody already has. What is actually
+ * new up there is that the expert hears a *room*: several people, by name,
+ * taking turns. That is what the line says now.
+ *
+ * The same edit went through the rest. “Solo sessions with every modern
+ * expert” described the product, not the tier; “Share to YouTube and social”
+ * named the destinations without saying what leaves the building. Every line
+ * below is a difference, and none of them is a restatement of what Pen is.
+ *
+ * Free is the exception, because it is the baseline and has nothing beneath it
+ * to differ from. Its lines say plainly what a free session is, both limits
+ * included and neither softened — a limit a learner meets for the first time
+ * on the third session is worse than one printed on the card.
+ *
+ * Nothing here claims a capability the product does not already ship. The
+ * legend counts are read from `LEGENDS_BY_PLAN` rather than written down, so
+ * the card cannot drift from the catalogue.
+ */
 const PLANS = [
   {
     code: 'free',
     name: 'Free',
     monthly: 0,
     annual: 0,
-    blurb: 'Learn anything, with a short ad between segments.',
+    blurb: 'Real sessions, not a trial — three a day, with a short ad between segments.',
     features: [
-      'Solo sessions with every modern expert',
-      'Replay your own sessions',
-      '3 sessions a day',
+      'Any topic you can name, taught one to one',
+      'Three sessions a day',
+      'Every modern expert',
+      'Replay anything you have learned',
       'Standard voices',
-      'Skippable ad cards between segments',
+      'One short, skippable ad between segments',
     ],
   },
   {
@@ -25,15 +51,15 @@ const PLANS = [
     name: 'Standard',
     monthly: 19,
     annual: 190,
-    blurb: 'No ads. Unlimited sessions. Share what you learned.',
+    blurb: 'No ads, no daily count, and what you learn is yours to keep and to send on.',
     features: [
-      'Everything in Free, no ads',
-      'Unlimited sessions',
-      'Export sessions as video',
-      'Share to YouTube and social',
-      `${LEGENDS_BY_PLAN.standard} legendary teachers, including Socrates and Ada Lovelace`,
-      'Premium voices',
-      'Priority preparation on new topics',
+      'Everything in Free, with the ads gone',
+      'Unlimited sessions — no daily count',
+      `${LEGENDS_BY_PLAN.standard} legendary teachers, Socrates and Ada Lovelace among them`,
+      'Premium voices, with the range to carry a long explanation',
+      'Any session exported as video, yours to keep',
+      'Publish straight to YouTube, or share a link',
+      'Your topic prepared first when nobody has taught it yet',
     ],
     highlight: true,
   },
@@ -42,14 +68,14 @@ const PLANS = [
     name: 'Professional',
     monthly: 38,
     annual: 380,
-    blurb: 'Host rooms with up to 12 people, like a class over a call.',
+    blurb: 'Turn a session into a room: one expert, your whole group, at the same time.',
     features: [
       'Everything in Standard',
-      `All ${LEGENDS_BY_PLAN.professional} legendary teachers, Newton and Shakespeare among them`,
-      'Rooms with up to 12 participants',
-      'Guests ask questions by voice',
-      'Shared replays and transcripts',
-      'Questions pinned by name',
+      `All ${LEGENDS_BY_PLAN.professional} legendary teachers — Newton and Shakespeare among them`,
+      'Rooms for up to 12 people, taught live',
+      'The expert hears the whole room and takes each question by name',
+      'Questions pinned as they arrive, so nobody is talked over',
+      'One shared replay and transcript for everyone who was there',
       'Host controls: pause, resume, end',
     ],
   },

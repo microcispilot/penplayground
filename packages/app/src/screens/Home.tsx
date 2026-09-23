@@ -365,24 +365,45 @@ export function Home() {
             </button>
           </form>
 
-          {/* The allowance only speaks when it is in the way; the running count is gone. */}
+          {/*
+            The allowance only speaks when it is in the way; the running count
+            is gone.
+
+            What it offers is an action, not a sentence with a link buried in
+            it. It used to end "…Standard makes them unlimited", underlined,
+            inline — which names the product rather than the next step, and
+            asks the learner to recognise a plan before they can tell it is the
+            way forward. The owner: *"it should say something like upgrade to
+            continue. And the upgrade should have a link to the subscriptions
+            page."*
+
+            So the fact stays in the ordinary voice, and the way out is a
+            button under it. It is `primary-fixed` — the brand, the same fill
+            as Start and Sign in — because this is the one thing to do here and
+            the brand belongs in the ordinary confident places. It is not an
+            alarm: nothing has gone wrong, and no `error` role appears anywhere
+            near it.
+          */}
           {waiting ? (
-            <p
-              className="animate-rise mt-5 max-w-[560px] text-body-medium text-on-surface-variant text-pretty"
+            <div
+              className="animate-rise mt-5 flex max-w-[560px] flex-col items-start gap-3.5"
               style={{ animationDelay: '220ms' }}
               data-testid="home-allowance"
             >
-              {usage?.reason === 'capacity'
-                ? 'Free sessions are all booked for today — they open again at midnight UTC. '
-                : `That is your ${usage?.sessionsPerDay ?? 3} sessions for today. They are back at midnight UTC. `}
+              <p className="text-body-medium text-on-surface-variant text-pretty">
+                {usage?.reason === 'capacity'
+                  ? 'Free sessions are all booked for today — they open again at midnight UTC.'
+                  : `That is your ${usage?.sessionsPerDay ?? 3} sessions for today. They are back at midnight UTC.`}
+              </p>
               <Link
                 to="/pricing"
-                className="text-primary underline decoration-outline underline-offset-4 hover:decoration-primary"
+                data-testid="home-upgrade"
+                className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
               >
-                Standard makes them unlimited
+                Upgrade to continue
+                <ArrowRight size={16} />
               </Link>
-              .
-            </p>
+            </div>
           ) : null}
         </div>
       </section>

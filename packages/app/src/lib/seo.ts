@@ -134,7 +134,7 @@ export function seoForPath(pathname: string): Seo {
     return {
       title: 'Pricing',
       description:
-        'Three sessions a day are free. Standard adds unlimited sessions and video downloads; Professional adds rooms with voice.',
+        'Three sessions a day are free. Standard adds unlimited sessions and video downloads; Professional adds rooms for up to 12 people.',
     };
   if (pathname === '/sessions')
     return {

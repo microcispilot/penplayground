@@ -153,12 +153,12 @@ describe('the plans say what they include', () => {
     renderWithApp(<Pricing />, {
       routes: { '/api/billing/status': { enabled: false } },
     });
+    // The count is what is pinned, not the sentence around it: the copy is the
+    // owner’s to reword, the number is the catalogue’s to decide.
     expect(
-      await screen.findByText(/6 legendary teachers, including Socrates and Ada Lovelace/),
+      await screen.findByText(/\b6 legendary teachers\b.*Socrates and Ada Lovelace/),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/All 10 legendary teachers, Newton and Shakespeare among them/),
-    ).toBeTruthy();
+    expect(screen.getByText(/\bAll 10 legendary teachers\b.*Newton and Shakespeare/)).toBeTruthy();
     // Calm: what a plan gives, never what the learner is missing.
     expect(screen.queryByText(/\blocked\b|upgrade required/i)).toBeNull();
   });

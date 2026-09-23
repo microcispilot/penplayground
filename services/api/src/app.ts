@@ -650,7 +650,10 @@ export function buildApp(services: Services): App {
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
-          message: `That is your ${usage.sessionsPerDay ?? 0} sessions for today. Standard makes them unlimited.`,
+          // The same voice as the banner on Home, which is where the learner
+          // already is and which carries the button. This one names the way
+          // out without naming a plan it has no room to link to.
+          message: `That is your ${usage.sessionsPerDay ?? 0} sessions for today. They are back at midnight UTC — or upgrade to continue.`,
           usage,
           upgrade: 'Pricing',
         },

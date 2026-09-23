@@ -95,6 +95,36 @@ describe('Sidebar rows', () => {
     expect(screen.queryByTestId('sidebar-theme')).toBeNull();
   });
 
+  /**
+   * The selected row says "here" two different ways, and which one depends on
+   * the width it is drawn at.
+   *
+   * Expanded, it is M3's navigation-drawer indicator: a filled
+   * `secondary-container` pill behind icon and label. On the 72 px rail the
+   * same pill is a heavy tinted block with an icon floating in it, so there
+   * the state is carried by the ink alone, at `primary`. The owner asked for
+   * exactly that, and it is the kind of rule a later refactor of `rowClass`
+   * would quietly collapse back into one branch.
+   */
+  it('the rail marks the current row in ink, never with a filled pill', async () => {
+    renderWithApp(<Sidebar rail />, { participant: ANONYMOUS, route: '/' });
+    const current = (await screen.findByText('Home')).closest('a');
+    expect(current?.getAttribute('aria-current')).toBe('page');
+    const cls = current?.className ?? '';
+    expect(cls).toContain('text-primary');
+    expect(cls).not.toContain('bg-secondary-container');
+    // And an unselected row is neither.
+    const other = screen.getByText('Experts').closest('a')?.className ?? '';
+    expect(other).toContain('text-on-surface-variant');
+    expect(other).not.toContain('bg-secondary-container');
+  });
+
+  it('expanded, the current row keeps the filled indicator', async () => {
+    renderWithApp(<Sidebar />, { participant: ANONYMOUS, route: '/' });
+    const current = (await screen.findByText('Home')).closest('a');
+    expect(current?.className).toContain('bg-secondary-container');
+  });
+
   it('ends with the legal links and the copyright, and no AI line', async () => {
     renderWithApp(<Sidebar />);
     const footer = await screen.findByTestId('sidebar-footer');

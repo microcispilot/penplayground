@@ -66,6 +66,44 @@ async function signIn(
 }
 
 test.describe('the app shell', () => {
+  /**
+   * No label on the rail may be clipped.
+   *
+   * `Downloads` is the longest one that has no shorter form, and it lost by a
+   * single pixel: at 80 px with the labels set semibold its box was 64 and the
+   * word laid out at 65, so the rail read `Downloa…`. One pixel is invisible
+   * in a diff, invisible in a unit test — the DOM is correct, the CSS is valid
+   * — and obvious the moment anyone looks at the product.
+   *
+   * So it is measured, against the resolved layout, for every row at once: a
+   * later change to the font, the weight, the tracking, the rail's width or a
+   * row's margin is caught by whichever label is nearest the edge rather than
+   * by the one that happened to be checked.
+   */
+  test('no label on the collapsed rail is truncated', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await page.getByTestId('sidebar-toggle').click();
+    const sidebar = page.getByTestId('sidebar');
+    await expect(sidebar).toHaveAttribute('data-rail', 'true');
+
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="sidebar"] span.truncate')].map((el) => ({
+        text: el.textContent ?? '',
+        client: (el as HTMLElement).clientWidth,
+        scroll: (el as HTMLElement).scrollWidth,
+      })),
+    );
+    expect(labels.length).toBeGreaterThan(5);
+    const clipped = labels.filter((l) => l.scroll > l.client);
+    expect(
+      clipped,
+      `these rail labels are cut off: ${clipped
+        .map((l) => `${l.text} needs ${l.scroll}px, has ${l.client}px`)
+        .join('; ')}`,
+    ).toEqual([]);
+  });
+
   test('the sidebar is on every shell screen, remembers the rail, and carries the legal links', async ({
     page,
   }) => {

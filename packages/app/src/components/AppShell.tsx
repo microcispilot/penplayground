@@ -9,8 +9,8 @@ import { Sidebar, SidebarDrawer } from './Sidebar.js';
 
 /**
  * The app shell (ADR-0015): header, the persistent left sidebar, and the
- * screen itself. Wide screens keep the sidebar in the layout — 240 px, or the
- * 72 px icon rail the learner chose, remembered across visits; under 1024 px
+ * screen itself. Wide screens keep the sidebar in the layout — 256 px, or the
+ * 80 px icon rail the learner chose, remembered across visits; under 1024 px
  * it becomes a drawer opened from the header's menu button. The room and the
  * replay are not shells: there the board is the whole screen.
  */
@@ -45,13 +45,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <AppHeader onMenu={() => setDrawer(true)} onToggleSidebar={toggleRail} sidebarRail={rail} />
       <div className="flex w-full flex-1 items-stretch">
-        {/* The sidebar is furniture, not page: its own surface says so, and
-            since the page went white there is nothing left for a border to add. */}
+        {/* One surface with the bar and the page (see `AppHeader`): the
+            sidebar is told apart by where it sits and by the gap to the
+            content, not by a grey of its own. No border either — the
+            reference does without one, and a hairline would be the same
+            distinction in a thinner form. */}
         <aside
           data-testid="sidebar-aside"
           className={cn(
-            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 bg-surface-container-low lg:block',
-            rail ? 'w-[72px]' : 'w-[240px]',
+            'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 bg-surface-container-lowest lg:block',
+            rail ? 'w-[80px]' : 'w-[256px]',
           )}
         >
           <Sidebar rail={rail} />

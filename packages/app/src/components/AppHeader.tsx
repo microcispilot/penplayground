@@ -1,6 +1,6 @@
 import { avatarHue } from '@pen/contracts';
 import { Avatar, cn, PenLogo } from '@pen/design';
-import { Menu, Moon, PanelLeft, Sun } from 'lucide-react';
+import { Menu, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useApp } from '../lib/context.js';
@@ -55,37 +55,28 @@ export function AppHeader({
     <header
       className={cn(
         /*
-         * Three planes, in order, and the bar is the middle one.
+         * One plane. The bar, the sidebar and the page are the same surface —
+         * `surface-container-lowest`, #ffffff in light and #0e0e0e in dark.
          *
-         * It used to share `surface-container-low` with the sidebar and the
-         * footer, which made the chrome one undifferentiated slab against a
-         * page of a different value — the sidebar's top edge simply
-         * disappeared into the bar, and the whole thing read as a smudge
-         * rather than as a structure. The owner: *"the top bar should have a
-         * different color than other panels."*
+         * This reverses an earlier arrangement, deliberately and on the
+         * owner's instruction: *"Remove the top and left side bar backgrounds
+         * and they should have the same background of the main background, all
+         * same (like YouTube)."* The shell used to climb M3's container ladder
+         * — page lowest, rails low, this bar one rung above them — to answer
+         * an earlier note that the bar should differ from the other panels.
+         * It no longer should. YouTube is the reference and YouTube's masthead,
+         * guide and page are one colour; the structure comes from spacing and
+         * from where the content starts, not from three greys.
          *
-         * So the shell climbs M3's container ladder: `surface-container-lowest`
-         * for the page, `surface-container-low` for the sidebar and the
-         * footer, and `surface-container` here — one rung above the rails.
+         * Nothing replaces the old contrast. There is no border under the bar
+         * and none down the sidebar's edge: adding one would be the same
+         * mistake in a thinner form, and the reference does without.
          *
-         * The rung is the whole trick, and it is why this is a shade rather
-         * than a colour. The ladder is built from *tone*, so one step up is
-         * **darker in light and lighter in dark**, which is what the owner
-         * asked for — *"it should be a bit lighter than the color of the side
-         * bar background in dark mode and vice versa in the light mode"* —
-         * and it is what the design system already answers, rather than two
-         * hand-picked values that would have to be kept in step by hand.
-         * #eeeeee against the sidebar's #f3f3f3; #1f1f1f against its #1b1b1b.
-         *
-         * A first attempt used `surface`, which sits *below* the rails in the
-         * ladder and so went the wrong way in dark: the bar came out darker
-         * than the sidebar rather than lifted off it.
-         *
-         * Opaque, not a blurred wash: a translucent bar over a white page is
-         * a smear, and the line that used to sit under it was there to make
-         * up for being one.
+         * Still opaque, and that part is not cosmetic — the bar is sticky, so
+         * content scrolls underneath it. `bg-transparent` here would let the
+         * page show through rather than inherit anything.
          */
-        'z-20 bg-surface-container',
+        'z-20 bg-surface-container-lowest',
         sticky && 'sticky top-0',
       )}
     >
@@ -102,6 +93,16 @@ export function AppHeader({
           </button>
         ) : null}
         {onToggleSidebar ? (
+          /*
+           * The hamburger, not a panel glyph. `PanelLeft` draws a little
+           * diagram of the layout — a box with a bar down one side — which the
+           * owner did not like the look of, and which asks the reader to match
+           * a picture of the UI to the UI. The three lines are what every
+           * learner already reads as "the navigation", they are what the
+           * reference uses for exactly this control, and they are the same
+           * mark the drawer button carries below 1024 px. One icon, one
+           * meaning, at every width.
+           */
           <button
             type="button"
             aria-label={sidebarRail ? 'Expand the sidebar' : 'Collapse the sidebar'}
@@ -111,7 +112,7 @@ export function AppHeader({
             className="state-layer hidden size-9 shrink-0 place-items-center rounded-full text-on-surface-variant lg:grid"
             onClick={onToggleSidebar}
           >
-            <PanelLeft size={19} />
+            <Menu size={19} />
           </button>
         ) : null}
         <button

@@ -30,7 +30,7 @@ export const TOPIC_DOMAINS: { id: Expert['domain']; label: string }[] = [
 ];
 
 export interface SidebarProps {
-  /** 72 px icon rail instead of the 240 px list. */
+  /** 80 px icon rail instead of the 256 px list. */
   rail?: boolean;
   /** Inside the small-screen drawer: always the full list, and every link closes it. */
   onNavigate?: () => void;
@@ -42,7 +42,7 @@ interface RowProps {
   icon: ReactNode;
   label: string;
   rail: boolean;
-  /** A shorter word for the 72 px rail; the full label is the tooltip. */
+  /** A shorter word for the rail; the full label is the tooltip. */
   railLabel?: string;
   /** Only when the route is exactly this one (Home). */
   end?: boolean;
@@ -64,21 +64,46 @@ interface RowProps {
  *
  * The filled pill *is* the indicator, which is why the tinted bar that used to
  * run down the left edge is gone: two marks for one state is one too many.
+ *
+ * The rail is the exception, on the owner's instruction: *"when the side bar
+ * is collapsed the selected item should not have a background different from
+ * others, only the foreground should be different and probably the primary
+ * color."* And it is the better shape there for a reason the expanded list
+ * does not have — an 80 px rail row is nearly square and its pill lands as a
+ * heavy tinted block with an icon floating in it, where the same pill beside
+ * a 256 px label reads as an underline would. So the rail says "here" in the
+ * ink alone, at `primary`, which is the brand red the rest of the product
+ * uses for the ordinary confident places.
  */
 function rowClass(rail: boolean, active: boolean): string {
   return cn(
-    'state-layer group relative flex items-center gap-3.5 rounded-full transition-colors duration-[var(--duration-fast)]',
-    rail ? 'mx-1 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 px-4',
-    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant',
+    'state-layer group relative flex items-center rounded-full transition-colors duration-[var(--duration-fast)]',
+    // gap-3: a step in from the 3.5 this carried, so the label sits with its
+    // icon rather than across a gutter from it.
+    rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
+    active
+      ? rail
+        ? 'text-primary'
+        : 'bg-secondary-container text-on-secondary-container'
+      : 'text-on-surface-variant',
   );
 }
 
-/** The label: full width on the rail so a long one truncates instead of bleeding out. */
+/**
+ * The label: full width on the rail so a long one truncates instead of
+ * bleeding out.
+ *
+ * `font-semibold` over the role's own 500 — the owner asked for it, and a
+ * navigation label is a destination rather than prose, so it can carry the
+ * extra weight without shouting. It costs a little width, which is part of
+ * why the expanded sidebar went to 256 px: "Downloads" was reaching the
+ * ellipsis beside its plan tag at 240.
+ */
 function RowLabel({ rail, children }: { rail: boolean; children: ReactNode }) {
   return (
     <span
       className={cn(
-        'min-w-0 truncate',
+        'min-w-0 truncate font-semibold',
         rail ? 'w-full text-label-small leading-tight' : 'flex-1 text-label-large',
       )}
     >
@@ -140,6 +165,23 @@ function Divider() {
 }
 
 /**
+ * The rail is 80 px, not the 72 it was, and its rows sit on `mx-0.5`.
+ *
+ * `Downloads` is the longest label in the list that has no shorter form —
+ * `Learn later` becomes `Later` and `Your sessions` becomes `Sessions`, but a
+ * download is not called anything else — and at 72 px with the labels now
+ * semibold it truncated to `Downlo…`, which is what the owner saw. The ways
+ * out were to invent a second name for a destination or to make the box fit
+ * the word. The second does not teach a learner two words for one place.
+ *
+ * Both numbers are measured rather than judged. At 80 px with `mx-1` the label
+ * box is 64 px and `Downloads` lays out at 65 — clipped by a single pixel,
+ * which is all an ellipsis needs. 80 is what M3 specifies for a navigation
+ * rail, so the last four came off the row's own margin instead, leaving 68
+ * against the 65 the longest label wants. `tmp` measurement, Chromium, 11 px
+ * at weight 600 with 0.5 px tracking: every other label lays out at 64 or
+ * less, so nothing else was near the edge.
+ *
  * The shell's left sidebar (ADR-0015): what the platform has, in the order a
  * learner reaches for it. Learn is for everyone; You is the learner's own
  * shelf — the same rows whether or not they have signed in, because an
@@ -168,7 +210,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
       data-rail={rail || undefined}
       className={cn(
         'flex h-full flex-col overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:thin]',
-        rail ? 'w-[72px] px-0.5' : 'w-[240px] px-3',
+        rail ? 'w-[80px] px-0.5' : 'w-[256px] px-3',
         className,
       )}
     >
@@ -214,7 +256,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
               className={rowClass(false, false)}
             >
               <Tag size={19} className="shrink-0" />
-              <span className="flex-1 text-left text-label-large">Topics</span>
+              <span className="flex-1 text-left text-label-large font-semibold">Topics</span>
               <ChevronDown
                 size={15}
                 className={cn(
@@ -372,9 +414,13 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         role="dialog"
         aria-modal="true"
         aria-label="Sections"
-        // M3 modal navigation drawer: `surface-container-low`, `corner-large` on
-        // the trailing edge only, elevation level 1 over the scrim.
-        className="animate-rise absolute inset-y-0 left-0 w-[268px] rounded-e-lg bg-surface-container-low shadow-level1 outline-none"
+        // The same surface as the shell's sidebar, which below 1024 px this
+        // *is* — so it follows the same instruction. M3 would put a modal
+        // drawer on `surface-container-low`; here the scrim and level-1
+        // elevation already separate it from the page, and a second grey would
+        // make the drawer a different sidebar from the one at desktop width.
+        // `corner-large` on the trailing edge only.
+        className="animate-rise absolute inset-y-0 left-0 w-[268px] rounded-e-lg bg-surface-container-lowest shadow-level1 outline-none"
       >
         <div className="flex h-16 items-center gap-2 px-5">
           {/* The drawer has no header above it, so this is the one place the
