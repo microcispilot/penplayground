@@ -24,6 +24,8 @@
 # GOOGLE_CLIENT_ID (written into the host's api.env; sign-in needs both halves — see below),
 # PEN_TYPESAFE_API_KEY (likewise; with it intent goes straight to TypeSafe, without it the
 #                       room falls back to the session model and only a log line says so),
+# PEN_SMTP_HOST / _PORT / _USERNAME / _PASSWORD / _FROM (likewise; without them sign-up
+#                       answers 503 and no account can be created),
 #
 # Serving the app under a path prefix instead of the root of its host — the test deployment:
 #   PEN_VHOST=test                               which vhost to render: "prod" (default) or "test"
@@ -351,6 +353,12 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # return URLs). Set either variable and its line is rewritten in place; leave them unset — the
 # default — and api.env is not touched at all.
 #
+# The `PEN_SMTP_*` set rides along because sign-up cannot work without it: with
+# no relay configured the API still boots and everything else works, but
+# `POST /api/auth/register/start` answers 503 and no account can ever be
+# created. A deploy that forgot these would look completely healthy and quietly
+# have no way to register a user.
+#
 # `PEN_TYPESAFE_API_KEY` rides along because intent classification is the one
 # provider whose key decides *which endpoint* is called, not just whether it
 # works: with it the room talks to TypeSafe directly (one hop fewer, ~29 % off
@@ -365,7 +373,8 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # the other not is the one combination that looks deployed and is not, which is
 # exactly what happened here on 2026-09-18 (`/api/health` said `google:false`
 # beside a rendered button). They are set together or the deploy says so.
-for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY; do
+for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY \
+  PEN_SMTP_HOST PEN_SMTP_PORT PEN_SMTP_USERNAME PEN_SMTP_PASSWORD PEN_SMTP_FROM; do
   value="${!var:-}"
   [ -n "$value" ] || continue
   case "$var" in
@@ -384,7 +393,7 @@ for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY; do
     mv api.env.next api.env"
   # A client id is a credential, not a URL: say that it was set, never what it is.
   case "$var" in
-    GOOGLE_CLIENT_ID | PEN_TYPESAFE_API_KEY) echo "  $var=<set>" ;;
+    GOOGLE_CLIENT_ID | PEN_TYPESAFE_API_KEY | PEN_SMTP_PASSWORD) echo "  $var=<set>" ;;
     *) echo "  $var=$value" ;;
   esac
 done
