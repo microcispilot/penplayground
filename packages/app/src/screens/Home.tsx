@@ -7,7 +7,7 @@ import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-
 import { ApiError, PreparationRequired, type SessionRecord } from '../api/client.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
-import { markStartClicked } from '../lib/analytics.js';
+import { markStartClicked, trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { pickTopicExample } from '../lib/topic-examples.js';
 
@@ -165,6 +165,7 @@ export function Home() {
       },
       { language: navigator.language || 'en-US' },
     );
+    trackAction('say_it_clicked', { available: recognizer.available });
     if (!recognizer.available) {
       toast('Speech recognition is not available in this browser.', 'danger');
       return;
@@ -193,10 +194,13 @@ export function Home() {
    * renders, and a second click in the same frame would read the stale
    * value. The ref is written in the same tick as the check.
    */
-  const start = async (topic: string, expertId?: string) => {
-    markStartClicked();
+  const start = async (topic: string, expertId?: string, source: 'box' | 'starter' = 'box') => {
     const t = topic.trim();
     if (!t || startingRef.current) return;
+    // Only now is it a request: an empty box or a second press mid-start is
+    // not a conversion, and used to be counted as one.
+    markStartClicked();
+    trackAction('start_clicked', { source, withExpert: expertId !== undefined });
     startingRef.current = true;
     setStarting(true);
     setUnprepared(null);
@@ -208,6 +212,11 @@ export function Home() {
         error instanceof ApiError && error.code === 'PREPARATION_REQUIRED'
           ? PreparationRequired.safeParse(error.detail)
           : null;
+      trackAction('start_refused', {
+        code: error instanceof ApiError ? error.code : 'NETWORK',
+        status: error instanceof ApiError ? error.status : 0,
+        source,
+      });
       if (refused?.success) {
         // Said on the page, under the box the learner typed into, with the
         // lessons that are ready — not a toast that vanishes.
@@ -228,6 +237,16 @@ export function Home() {
 
   /** True only while today's allowance or the day's capacity is used up. */
   const waiting = usage !== null && !usage.canStart;
+  // What the page put in the learner's way, once per appearance: the
+  // conversion that did not happen has a reason, and this is where it is said.
+  const limitReason = waiting ? (usage?.reason ?? 'daily_limit') : null;
+  useEffect(() => {
+    if (limitReason) trackAction('limit_shown', { reason: limitReason });
+  }, [limitReason]);
+  const unpreparedReady = unprepared ? unprepared.ready.length : null;
+  useEffect(() => {
+    if (unpreparedReady !== null) trackAction('unprepared_shown', { ready: unpreparedReady });
+  }, [unpreparedReady]);
 
   // Arriving from the Experts screen: that expert is already in the command bar.
   const requestedExpert = (location.state as { expertId?: string } | null)?.expertId ?? null;
@@ -323,7 +342,10 @@ export function Home() {
                   type="button"
                   aria-label="Any expert"
                   className="state-layer grid size-5 place-items-center rounded-full"
-                  onClick={() => setWithExpert(null)}
+                  onClick={() => {
+                    trackAction('expert_cleared');
+                    setWithExpert(null);
+                  }}
                 >
                   <X size={12} />
                 </button>
@@ -421,6 +443,7 @@ export function Home() {
               <Link
                 to="/pricing"
                 data-testid="home-upgrade"
+                onClick={() => trackAction('upgrade_clicked', { source: 'home_unprepared' })}
                 className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
               >
                 Upgrade to continue
@@ -438,7 +461,10 @@ export function Home() {
                           session={r}
                           expertName={expert?.displayName ?? 'AI expert'}
                           portraitUrl={api.portraitUrl(expert?.portrait?.src, 192)}
-                          onOpen={() => navigate(`/sessions/${r.id}`)}
+                          onOpen={() => {
+                            trackAction('session_opened', { sessionId: r.id, source: 'ready' });
+                            navigate(`/sessions/${r.id}`);
+                          }}
                         />
                       );
                     })}
@@ -461,6 +487,7 @@ export function Home() {
               <Link
                 to="/pricing"
                 data-testid="home-upgrade"
+                onClick={() => trackAction('upgrade_clicked', { source: 'home_limit' })}
                 className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
               >
                 Upgrade to continue
@@ -485,7 +512,14 @@ export function Home() {
               <>
                 <div className="flex min-w-0 flex-1 gap-1.5 overflow-auto py-1">
                   {categories.map((c) => (
-                    <Chip key={c.id} selected={category === c.id} onClick={() => setCategory(c.id)}>
+                    <Chip
+                      key={c.id}
+                      selected={category === c.id}
+                      onClick={() => {
+                        trackAction('topic_chosen', { topic: c.id, source: 'home' });
+                        setCategory(c.id);
+                      }}
+                    >
                       {c.label}
                     </Chip>
                   ))}
@@ -534,7 +568,11 @@ export function Home() {
                 ))
               : sessions.length === 0
                 ? STARTERS.map((s) => (
-                    <StarterCard key={s.topic} {...s} onStart={() => start(s.topic)} />
+                    <StarterCard
+                      key={s.topic}
+                      {...s}
+                      onStart={() => start(s.topic, undefined, 'starter')}
+                    />
                   ))
                 : visible.map((s) => {
                     const expert = expertById.get(s.expertId);
@@ -544,7 +582,10 @@ export function Home() {
                         session={s}
                         expertName={expert?.displayName ?? 'AI expert'}
                         portraitUrl={api.portraitUrl(expert?.portrait?.src, 192)}
-                        onOpen={() => navigate(`/sessions/${s.id}`)}
+                        onOpen={() => {
+                          trackAction('session_opened', { sessionId: s.id, source: 'catalogue' });
+                          navigate(`/sessions/${s.id}`);
+                        }}
                       />
                     );
                   })}

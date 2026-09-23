@@ -2,7 +2,7 @@ import { useToast } from '@pen/design';
 import { useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError } from '../api/client.js';
-import { markStartClicked, trackInteraction } from './analytics.js';
+import { markStartClicked, trackAction, trackInteraction } from './analytics.js';
 import { useApp } from './context.js';
 
 /**
@@ -40,6 +40,11 @@ export function useQuickStart(): {
         const { session } = await api.createSession({ replayOf: sessionId });
         navigate(`/room/${session.id}`, { state: { fresh: true } });
       } catch (error) {
+        trackAction('start_refused', {
+          code: error instanceof ApiError ? error.code : 'NETWORK',
+          status: error instanceof ApiError ? error.status : 0,
+          source: 'quick_start',
+        });
         const calm = error instanceof ApiError && (error.status === 402 || error.status === 403);
         toast(
           error instanceof ApiError ? error.message : 'Could not start the session',

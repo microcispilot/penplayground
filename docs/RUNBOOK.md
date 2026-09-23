@@ -281,6 +281,54 @@ with another product, and an unfiltered average silently mixes them. Rows with
 `plan = null` are sessions from before `plan` was added to the event; they age
 out of the 30-day window.
 
+### Following one visitor (ADR-0038)
+
+Everything a person does is under one distinct id: their participant id, the
+same one the bearer carries, signed in or not. To read one visit back:
+
+1. **Find the id.** In the browser: DevTools → Application → Local Storage →
+   `pen.token`; the id is the JWT's `sub`. Or from the API: the `participant.id`
+   in the answer to `POST /api/auth/anonymous`. In PostHog: Persons → search
+   the id.
+2. **The person's timeline** is the whole story, in order:
+   - `participant_issued` — arrived, with `platform` (`web`, `desktop-mac`…).
+   - `$pageview` for every route, and `screen_shown` in the product's own
+     words (`home`, `pricing`, `room`, `replay`, `session`…).
+   - **Actions** (`kind = action`): every CTA — `start_clicked` (`source`:
+     `box` / `starter` / `not_found`; `withExpert`), `say_it_clicked`,
+     `expert_chosen`, `topic_chosen`, `session_opened`, `upgrade_clicked`
+     (`source` says which button), `plan_selected`, `sign_in_opened`,
+     `sign_in_submitted`, `signed_in` (`method`), `liked`, `saved`,
+     `share_clicked`, `theme_changed`, `nav_clicked`, `privacy_opened`,
+     `analytics_toggled`…
+   - **What the page put in the way**: `limit_shown` (`reason`),
+     `unprepared_shown` (`ready`), `start_refused` (`code`, `status`).
+   - **From the server, the same refusal with its reason**: `session_refused`
+     — `daily_limit`, `capacity`, `ip_daily_limit`, `preparation_required`,
+     `expert_plan`, `rate_limited`, `feature_off`, `replay_*`, `ip_live_cap`.
+   - **The session**: `session_started`, every `stage` (timed, priced), every
+     `interaction` (the ledger's copy: `event` = `question_spoken`,
+     `interrupt`, `pause`, `pace_changed`, `hand_called`,
+     `question_out_of_scope`, `ad_completed`…), `session_error`, and
+     `session_ended` with the whole bill (`cost.totalUsd`, `latency.*`,
+     `reuse.*`).
+   - The client's own view of the same session: `first_audio`,
+     `answer_started`, `interrupt`, `error_shown`… under their own names.
+   Every event carries `anonymous` and `plan`, so "what do signed-out free
+   visitors do" is one filter.
+3. **What it cost** is on `session_ended` (`cost.*`), and per call on each
+   `stage` (`meta.usd`). The day's total is `GET /api/health`'s `spendCap`
+   and the Statistics console.
+4. **Engaged time, the screens, the country, the device** are the visit row
+   (ADR-0027): Statistics → Visits, or `GET /api/admin/stats/visits`.
+5. **If something broke**: Sentry, filtered by tag `sessionId` or the
+   `ref` on the client's `error_shown` / the API's `session_error`. Every
+   issue is tagged `anonymous`, `plan`, `screen`, `role`, and its breadcrumbs
+   are the actions above in order — the clicks before the failure.
+
+Nothing in any of this is a word the visitor typed or heard: codes, ids,
+counts, timings.
+
 ---
 
 ## 5. Backups
@@ -389,7 +437,7 @@ cd /srv/pen-playground && docker compose up -d api && curl -s http://127.0.0.1:4
 | --- | --- | --- | --- |
 | `FISH_AUDIO_API_KEY` | fish.audio console | create the new key, paste it, `up -d api`, delete the old one | the expert goes silent (`health.tts`) |
 | `OPENAI_API_KEY_FREE/STANDARD/PROFESSIONAL` | OpenAI dashboard, one key per plan | same; keys are independent, so rotate one plan at a time | lessons for that plan stop being generated |
-| `OPENROUTER_API_KEY` | openrouter.ai console (a separate account from OpenAI) | create the new key, paste it, `up -d api`, delete the old one | only while `PEN_INTENT_PROVIDER=jev`: intent falls back to the session model, so turns get slower, never wrong (ADR-0024) |
+| `OPENROUTER_API_KEY` | openrouter.ai console (a separate account from OpenAI) | create the new key, paste it, `up -d api`, delete the old one | only while `PEN_INTENT_PROVIDER=jev` or `PEN_GRADE_PROVIDER=jev`: intent and check-in grading fall back to the session model, so those turns get slower, never wrong (ADR-0024, ADR-0039) |
 | `PEN_JWT_SECRET` | `openssl rand -base64 48` | **logs every learner out** — every bearer is invalidated. Do it only for a suspected leak, and at a quiet hour | anonymous learners lose their session history unless they signed in |
 | `STRIPE_SECRET_KEY` | Stripe dashboard (roll the restricted key) | paste, `up -d api`, then re-register the webhook if the account changed | checkout and the portal answer 502 |
 | `STRIPE_WEBHOOK_SECRET` | `pnpm --filter @pen/api stripe:webhook -- --rotate` (writes it into the repo `.env`) | copy the new value into `api.env`, `up -d api` | plan changes stop applying until fixed |

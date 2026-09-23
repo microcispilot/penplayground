@@ -1,4 +1,4 @@
-import type { InteractionName, InteractionProps, VisitAction } from '@pen/contracts';
+import type { ActionName, InteractionName, InteractionProps, VisitAction } from '@pen/contracts';
 import type { PostHog } from 'posthog-js';
 import type { Monitor, Platform } from '../platform/types.js';
 import { noteLessonPlaying, noteVisitAction } from './visits.js';
@@ -26,12 +26,14 @@ let startClickedAt: number | null = null;
 /**
  * Start analytics, cookieless (ADR-0018) and off the critical path (ADR-0011).
  *
- * `persistence: 'memory'` is the whole privacy argument in one option: nothing
- * identifying is written to the device, so there is no cookie or cross-visit
- * identifier to ask permission for, and therefore no banner in front of a
- * lesson. The cost is that a returning learner is a new anonymous id each
- * visit — acceptable, because every question this product asks of its
- * analytics is about sessions, latencies and cost, not about people.
+ * `persistence: 'memory'` is the whole privacy argument in one option: the
+ * SDK writes nothing to the device, so there is no cookie or cross-visit
+ * identifier of its own to ask permission for, and therefore no banner in
+ * front of a lesson. Who an event belongs to is the participant id the app
+ * already keeps (`identify`, below): a returning visitor with the same bearer
+ * is the same person in PostHog, an anonymous one included, and a bearer
+ * cleared is a stranger again. That is exactly the identity the product
+ * already has, and no more.
  *
  * A learner who has turned analytics off under Privacy choices is not
  * initialised at all: the SDK is never even fetched, rather than fetched and
@@ -63,11 +65,55 @@ function withClient(fn: (ph: PostHog) => void): void {
   if (pending.length < PENDING_LIMIT) pending.push(fn);
 }
 
-export function initAnalytics(platform: Platform, choice: { analytics: boolean }): void {
+/**
+ * Install the error monitor (Sentry) the moment the provider renders, before
+ * any effect. `initAnalytics` used to do this, and it runs in an effect — so a
+ * crash during the very first render, or on the headless export render where
+ * analytics never starts, reached the error boundary with no monitor and was
+ * lost. The monitor is not analytics: it needs no consent, carries no content,
+ * and must be there for the first thing that goes wrong.
+ */
+export function installMonitor(platform: Platform): void {
   monitor = platform.monitor ?? null;
+}
+
+/**
+ * The participant id inside a bearer, read without a network call. The token
+ * is a JWT and its `sub` is the id every event is filed under; decoding it
+ * here, synchronously, is what lets the SDK start *as* that person rather
+ * than as a stranger who is merged into them a moment later. Anything that
+ * is not a JWT with a string `sub` is null, never a throw: this runs before
+ * the first screen paints.
+ */
+export function distinctIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  try {
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === 'string' && sub.length > 0 ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One SDK per page. React StrictMode runs the mounting effect twice in development; the second is a no-op here rather than a warning there. */
+let started = false;
+
+export function initAnalytics(platform: Platform, choice: { analytics: boolean }): void {
+  installMonitor(platform);
   const analytics = platform.analytics;
-  if (!analytics || !choice.analytics) return;
+  if (!analytics || !choice.analytics || started) return;
+  started = true;
   optedOut = false;
+  // Who this is, before the SDK exists. With `persistence: 'memory'` the SDK
+  // would otherwise mint a fresh anonymous id on every page load and
+  // `identify()` would merge each one into the person — and PostHog stops
+  // showing a person's events once too many ids have been merged into them.
+  // The bearer already says who is here; a first visit has none and is the
+  // one merge a person ever gets.
+  const distinctID = distinctIdFromToken(platform.storage.get('pen.token'));
   void import('posthog-js')
     .then(({ default: posthog }) => {
       // Answered "no" while this was in flight: never initialise, so no network
@@ -78,8 +124,13 @@ export function initAnalytics(platform: Platform, choice: { analytics: boolean }
       }
       posthog.init(analytics.token, {
         api_host: analytics.host,
+        ...(distinctID ? { bootstrap: { distinctID, isIdentifiedID: true } } : {}),
         autocapture: false,
-        capture_pageview: true,
+        // `true` captures the first load only; this is a single-page app, and
+        // every route change is a page. (`screen_shown` says the same in the
+        // product's own words; `$pageview` is what PostHog's own paths and
+        // funnels read.)
+        capture_pageview: 'history_change',
         capture_pageleave: true,
         disable_session_recording: true,
         // No cookies, no localStorage identifier, nothing left behind.
@@ -87,7 +138,8 @@ export function initAnalytics(platform: Platform, choice: { analytics: boolean }
         cross_subdomain_cookie: false,
         person_profiles: 'identified_only',
       });
-      posthog.register({ app: `pen-academy-${platform.name}` });
+      base = { app: `pen-academy-${platform.name}`, platform: platform.id };
+      posthog.register({ ...base, ...person });
       client = posthog;
       for (const fn of pending.splice(0)) fn(posthog);
     })
@@ -129,6 +181,68 @@ export function track(
   withClient((ph) => ph.capture(event, properties));
 }
 
+/**
+ * Who this visitor is, in the two words every event should carry: whether
+ * they are signed in and which plan they are on. Registered as PostHog
+ * super-properties so a dashboard can split any event — a Start, a refusal,
+ * a pageview — by `anonymous` and `plan` without each call site remembering
+ * to say so; and tagged on Sentry so an issue says the same.
+ */
+let person: { anonymous?: boolean; plan?: string } = {};
+/**
+ * What every event carries whoever the visitor is. Kept here because
+ * `reset()` — sign-out, delete, analytics off — clears every registered
+ * property, and the next `setAnalyticsPerson` is what puts them back.
+ */
+let base: { app?: string; platform?: string } = {};
+export function setAnalyticsPerson(next: { anonymous: boolean; plan: string }): void {
+  person = { ...next };
+  monitor?.setTag('anonymous', String(next.anonymous));
+  monitor?.setTag('plan', next.plan);
+  withClient((ph) => ph.register({ ...base, ...next }));
+}
+
+/**
+ * The actions that are also visit counters (ADR-0027), in one place for the
+ * same reason as `VISIT_COUNTERS` below: a new screen cannot forget one.
+ */
+const ACTION_COUNTERS: Partial<Record<ActionName, VisitAction>> = {
+  join_clicked: 'session_joined',
+  plan_selected: 'checkout_started',
+  signed_in: 'signed_in',
+  liked: 'liked',
+  saved: 'saved',
+  share_clicked: 'share_copied',
+  privacy_opened: 'privacy_opened',
+};
+
+/**
+ * One decision made outside a live session (ADR-0038): to PostHog with the
+ * screen it happened on, to the visit's counters when it is one of those,
+ * and as a Sentry breadcrumb so an error report shows the clicks before it.
+ * Never to a room: a room is not where these happen, and the ledger is a
+ * session's record, not a visit's.
+ */
+export function trackAction(event: ActionName, props: InteractionProps = {}): void {
+  // The session an action is *about* (a card, a share) beats the one the
+  // visitor happens to be in or last left; the room's context is only the
+  // answer when the action names none.
+  const sessionId =
+    typeof props.sessionId === 'string' && props.sessionId
+      ? props.sessionId
+      : (context.sessionId ?? undefined);
+  const counter = ACTION_COUNTERS[event];
+  if (counter) noteVisitAction(counter, sessionId);
+  const enriched: Record<string, string | number | boolean> = {
+    ...props,
+    screen: context.screen,
+    kind: 'action',
+  };
+  if (sessionId) enriched.sessionId = sessionId;
+  track(event, enriched);
+  monitor?.breadcrumb(event, props);
+}
+
 export function identify(id: string): void {
   withClient((ph) => ph.identify(id));
 }
@@ -162,6 +276,9 @@ export function markStartClicked(): void {
   startClickedAt = Date.now();
   // The one action that is a decision rather than a screen: it is what turns
   // a visit into a lesson, and the visit conversion rate is built on it.
+  // Callers mark it only once the click is a request — a topic in the box
+  // and nothing already starting — so an empty or repeated press is not a
+  // conversion that never happened.
   noteVisitAction('session_started');
 }
 
@@ -268,5 +385,8 @@ export function resetAnalyticsForTests(): void {
   startClickedAt = null;
   client = null;
   optedOut = false;
+  person = {};
+  base = {};
+  started = false;
   pending.length = 0;
 }

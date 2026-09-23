@@ -7,7 +7,7 @@ import { BoardSurface } from '../components/BoardSurface.js';
 import { describeReplayRate, PaceMenu } from '../components/PaceMenu.js';
 import { ARROW_STEP_MS, JL_STEP_MS, ReplayScrubber } from '../components/ReplayScrubber.js';
 import { CaptionOverlay, ReplayNotice } from '../components/RoomChrome.js';
-import { setAnalyticsContext, trackInteraction } from '../lib/analytics.js';
+import { setAnalyticsContext, trackAction, trackInteraction } from '../lib/analytics.js';
 import { formatClock, useApp } from '../lib/context.js';
 import {
   REPLAY_RATE_PREFERENCE_KEY,
@@ -101,12 +101,16 @@ export function Replay() {
       })
       .catch((e: unknown) => {
         if (s.isDisposed) return;
-        if (e instanceof ReplayRefused) setRefused(e.message);
-        else setError(e instanceof Error ? e.message : 'Could not load the session.');
+        if (e instanceof ReplayRefused) {
+          trackAction('replay_refused', { sessionId: id ?? '' });
+          setRefused(e.message);
+        } else setError(e instanceof Error ? e.message : 'Could not load the session.');
       });
     return () => {
       s.dispose();
       setSession(null);
+      // Leaving the replay: what the visitor does next is not about this session.
+      setAnalyticsContext({ sessionId: null, phase: null });
     };
   }, [api, id, exportMode, lessonOnly, token]);
 
@@ -207,6 +211,7 @@ export function Replay() {
   }, [started, exportMode, session]);
 
   const changeRate = (next: number) => {
+    trackAction('replay_rate_changed', { rate: next });
     setRate(next);
     writePacePreference(platform.storage, next, REPLAY_RATE_PREFERENCE_KEY);
     session?.setPlaybackRate(next);
@@ -387,7 +392,13 @@ export function Replay() {
           className="mb-1"
         />
         <div className="flex items-center gap-2 sm:gap-3">
-          <IconButton label="Back" onClick={() => navigate(`/sessions/${id}`)}>
+          <IconButton
+            label="Back"
+            onClick={() => {
+              trackAction('replay_back_clicked');
+              navigate(`/sessions/${id}`);
+            }}
+          >
             <ArrowLeft size={15} />
           </IconButton>
           <IconButton

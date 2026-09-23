@@ -1,7 +1,7 @@
 import { EMPTY_LIST_SUMMARY, type ListSummary } from '@pen/contracts';
 import { create } from 'zustand';
 import type { ApiClient } from '../api/client.js';
-import { track } from './analytics.js';
+import { trackAction } from './analytics.js';
 
 /**
  * The learner's lists (ADR-0015), kept client-side as sets so every card can
@@ -72,7 +72,7 @@ export const useLists = create<ListsState>((set, get) => ({
     });
     try {
       const result = await api.setSaved(sessionId, next);
-      track(next ? 'session_saved' : 'session_unsaved');
+      trackAction(next ? 'saved' : 'unsaved', { sessionId });
       return result.saved;
     } catch (error) {
       set({ savedIds: before.savedIds, counts: before.counts });
@@ -92,7 +92,7 @@ export const useLists = create<ListsState>((set, get) => ({
     try {
       const result = await api.setLiked(sessionId, next);
       set((s) => ({ likesOf: { ...s.likesOf, [sessionId]: result.likes } }));
-      track(next ? 'session_liked' : 'session_unliked');
+      trackAction(next ? 'liked' : 'unliked', { sessionId });
       return result.liked;
     } catch (error) {
       set({ likedIds: before.likedIds, counts: before.counts, likesOf: before.likesOf });

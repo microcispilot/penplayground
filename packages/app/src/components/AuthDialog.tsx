@@ -2,6 +2,8 @@ import { CHALLENGE_RESEND_COOLDOWN_SECONDS, passwordProblem } from '@pen/contrac
 import { Button, Dialog, TextField, useToast } from '@pen/design';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { ApiError } from '../api/client.js';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useGoogleButton } from '../lib/google-button.js';
 
@@ -99,7 +101,15 @@ function Divider() {
 }
 
 export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { api, platform, signInWithGoogle, features } = useApp();
+  const {
+    api,
+    platform,
+    signInWithGoogle,
+    signInWithEmail,
+    completeRegistration,
+    resetPassword,
+    features,
+  } = useApp();
   const toast = useToast();
   /** Google is offered where the client is configured for it and the flag says so here (ADR-0036). */
   const googleClientId = features.google_sign_in ? platform.googleClientId : null;
@@ -116,12 +126,17 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [cooldown, setCooldown] = useState(0);
 
   // Reopening should not resume a half-finished sign-up from last time.
+  // Read through a ref: the served flags can arrive while the dialog is open,
+  // and a re-run here would wipe a half-typed form and say "opened" twice.
+  const offered = useRef({ google: googleClientId !== null, email: emailOffered });
+  offered.current = { google: googleClientId !== null, email: emailOffered };
   useEffect(() => {
     if (!open) return;
     setMode('signIn');
     setProblem(null);
     setCode('');
     setPassword('');
+    trackAction('sign_in_opened', offered.current);
   }, [open]);
 
   // The resend countdown. Cleared on unmount so a closed dialog stops ticking.
@@ -152,6 +167,8 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
       await what();
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+      // Which step, and the server's code — never the address or the password.
+      trackAction('sign_in_failed', { mode, code: errorCode(error) });
     } finally {
       setBusy(false);
     }
@@ -160,10 +177,11 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
+    trackAction('sign_in_submitted', { mode });
     void run(async () => {
       switch (mode) {
         case 'signIn': {
-          await api.signInWithPassword(email, password);
+          await signInWithEmail(email, password);
           toast('Signed in', 'success');
           onClose();
           return;
@@ -179,7 +197,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
           return;
         }
         case 'code': {
-          await api.completeRegistration({ challengeId, code, name, password });
+          await completeRegistration({ challengeId, code, name, password });
           toast('Welcome to Pen Playground', 'success');
           onClose();
           return;
@@ -192,7 +210,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
           return;
         }
         case 'reset': {
-          await api.resetPassword({ challengeId, code, password });
+          await resetPassword({ challengeId, code, password });
           toast('Password changed', 'success');
           onClose();
           return;
@@ -421,4 +439,10 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
       </div>
     </Dialog>
   );
+}
+
+/** The API's error code when there is one, else the error's class: a code, never its message. */
+function errorCode(error: unknown): string {
+  if (error instanceof ApiError) return error.code;
+  return error instanceof Error ? error.name : 'unknown';
 }

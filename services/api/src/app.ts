@@ -33,6 +33,7 @@ import {
 import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import type { WSContext } from 'hono/ws';
 import type { WebSocket } from 'ws';
@@ -259,6 +260,58 @@ export function buildApp(services: Services): App {
   });
   /** Live sessions hosted from each address, so one machine cannot open rooms without bound. */
   const liveByIp = new Map<string, Set<string>>();
+  /**
+   * Free sessions started from each address today (`PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY`).
+   * In memory on purpose: it is a ceiling against a script, not a ledger, and a
+   * restart forgiving it is the right failure. The map is swept when the day turns.
+   */
+  const freeStartsByIp = new Map<string, { day: number; count: number }>();
+  const freeStartsToday = (ip: string): number => {
+    const day = utcDayStart(Date.now());
+    const row = freeStartsByIp.get(ip);
+    if (!row || row.day !== day) return 0;
+    return row.count;
+  };
+  const countFreeStart = (ip: string): void => {
+    const day = utcDayStart(Date.now());
+    const row = freeStartsByIp.get(ip);
+    if (row && row.day === day) row.count += 1;
+    else {
+      // The day turned: everything older is forgotten in one pass.
+      for (const [key, r] of freeStartsByIp) if (r.day !== day) freeStartsByIp.delete(key);
+      freeStartsByIp.set(ip, { day, count: 1 });
+    }
+  };
+  /**
+   * Every way a start is turned away, as one event with a reason, so the
+   * conversion that did not happen is on the same dashboard as the ones that
+   * did. Content-free like everything else here.
+   */
+  const refusalNoted = new Map<string, number>();
+  const REFUSAL_EVENT_INTERVAL_MS = 60_000;
+  const refuseSession = (
+    claims: Claims,
+    reason: string,
+    extra: Record<string, string | number | boolean | null> = {},
+  ): void => {
+    // One event per participant, per reason, per minute. A refusal is a
+    // fact about a person, not about a request: a script hammering the route
+    // is refused every time and recorded once, so analytics volume cannot be
+    // made to grow with the hammering.
+    const key = `${claims.sub}:${reason}`;
+    const now = Date.now();
+    const last = refusalNoted.get(key);
+    if (last !== undefined && now - last < REFUSAL_EVENT_INTERVAL_MS) return;
+    if (refusalNoted.size > 10_000)
+      for (const [k, at] of refusalNoted)
+        if (now - at >= REFUSAL_EVENT_INTERVAL_MS) refusalNoted.delete(k);
+    refusalNoted.set(key, now);
+    services.analytics.capture(claims.sub, 'session_refused', {
+      reason,
+      plan: claims.plan,
+      ...extra,
+    });
+  };
   /** Sessions admitted but not yet built: see `admissions.ts` for why both ceilings need it. */
   const admissions = new Admissions();
   const dev = services.cfg.NODE_ENV !== 'production';
@@ -330,6 +383,25 @@ export function buildApp(services: Services): App {
         ctx.json({ error: 'TOO_LARGE', message: 'That request was too large.' }, 413),
     })(c, next),
   );
+
+  /**
+   * The last net. A route that throws used to become Hono's own plain-text
+   * 500 and nothing else: no Sentry event, no log line with the path, and a
+   * client reading JSON got a parse error instead of a code. Now it is one
+   * captured error per throw, tagged with the route so the issue groups by
+   * where, and a JSON answer the client already knows how to read.
+   */
+  app.onError((error, c) => {
+    if (error instanceof HTTPException) return error.getResponse();
+    const ref = observer.error('http.unhandled', error, {
+      route: c.req.routePath,
+      method: c.req.method,
+    });
+    return c.json(
+      { error: 'INTERNAL', message: 'Something went wrong on our side.', ref: ref ?? null },
+      500,
+    );
+  });
 
   /** Verify the token, then take the plan from the participant row so billing changes apply at once. */
   const bearer = async (header: string | undefined): Promise<Claims | null> => {
@@ -406,6 +478,7 @@ export function buildApp(services: Services): App {
       // What a room being built right now would actually classify with — not
       // what the setting asks for, which can be `jev` with no key behind it.
       intent: services.intentFor() ? 'jev' : 'model',
+      grade: services.graderFor() ? 'jev' : 'model',
       configRevision: services.config.revision,
       featuresRevision: services.features.revision,
       acquirer: services.acquirer !== null,
@@ -443,6 +516,12 @@ export function buildApp(services: Services): App {
       name,
       plan,
       anonymous: true,
+    });
+    // The first thing known about a visitor: that they arrived, and on what.
+    // Everything they do afterwards hangs off this id.
+    services.analytics.capture(issued.claims.sub, 'participant_issued', {
+      plan,
+      platform: platformOf(c),
     });
     return c.json({
       token: issued.token,
@@ -791,7 +870,10 @@ export function buildApp(services: Services): App {
   app.post('/api/sessions', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    if (!allowSession(claims.sub)) return c.json({ error: 'RATE_LIMITED' }, 429);
+    if (!allowSession(claims.sub)) {
+      refuseSession(claims, 'rate_limited');
+      return c.json({ error: 'RATE_LIMITED' }, 429);
+    }
     const body = CreateSession.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
     // Every read this decision needs, taken before the decision: from the
@@ -804,7 +886,11 @@ export function buildApp(services: Services): App {
 
     // ── no await past here until the hold is taken ──────────────────────
     const inFlight = admissions.pendingForHost(claims.sub);
-    if (usage.reason === 'daily_limit' || (usage.remaining !== null && usage.remaining <= inFlight))
+    if (
+      usage.reason === 'daily_limit' ||
+      (usage.remaining !== null && usage.remaining <= inFlight)
+    ) {
+      refuseSession(claims, 'daily_limit', { sessionsToday: usage.sessionsToday });
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
@@ -817,9 +903,11 @@ export function buildApp(services: Services): App {
         },
         402,
       );
+    }
     if (usage.reason === 'capacity') {
       // Honest, not alarming: the lights are on, the day's budget is simply spent.
       observer.event('spend.capacity', { plan: claims.plan, ...services.spend.snapshot() });
+      refuseSession(claims, 'capacity');
       return c.json(
         {
           error: 'CAPACITY',
@@ -829,6 +917,31 @@ export function buildApp(services: Services): App {
           upgrade: 'Pricing',
         },
         503,
+      );
+    }
+    // The floor under the three-a-day promise: however many participants
+    // one address mints, its free sessions for the day are bounded. Said in
+    // the allowance's own voice, because to the learner it is the same fact.
+    // Counted with what this address is starting right now, for the same
+    // reason the live cap below is: a burst that arrives together must not
+    // all pass a check that only sees what has already finished.
+    const ipDayCap = services.config.get('PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY');
+    if (
+      claims.plan === 'free' &&
+      ipDayCap > 0 &&
+      freeStartsToday(ip) + admissions.pendingForAddress(ip) >= ipDayCap
+    ) {
+      observer.event('rooms.ip_day_cap', { started: freeStartsToday(ip), cap: ipDayCap });
+      refuseSession(claims, 'ip_daily_limit', { started: freeStartsToday(ip) });
+      return c.json(
+        {
+          error: 'ENTITLEMENT_REQUIRED',
+          message:
+            'That is all the free sessions for today from this connection. They are back at midnight UTC — or upgrade to continue.',
+          usage: { ...usage, canStart: false, reason: 'daily_limit' },
+          upgrade: 'Pricing',
+        },
+        402,
       );
     }
     const platform = platformOf(c);
@@ -848,7 +961,8 @@ export function buildApp(services: Services): App {
       origin: 'search' | 'replay';
     };
     if ('replayOf' in body.data) {
-      if (!services.features.enabled('quick_start', { plan: claims.plan, platform }))
+      if (!services.features.enabled('quick_start', { plan: claims.plan, platform })) {
+        refuseSession(claims, 'feature_off', { feature: 'quick_start', platform });
         return c.json(
           {
             error: 'FEATURE_OFF',
@@ -856,17 +970,24 @@ export function buildApp(services: Services): App {
           },
           403,
         );
+      }
       const source = await services.sessions.resolve(body.data.replayOf);
-      if (!source) return c.json({ error: 'NOT_FOUND', message: 'That lesson is gone.' }, 404);
+      if (!source) {
+        refuseSession(claims, 'replay_not_found');
+        return c.json({ error: 'NOT_FOUND', message: 'That lesson is gone.' }, 404);
+      }
       // A private session is its host's: nobody else may start from its card,
       // because nobody else was ever shown it.
-      if (source.visibility !== 'public' && source.hostId !== claims.sub)
+      if (source.visibility !== 'public' && source.hostId !== claims.sub) {
+        refuseSession(claims, 'replay_private', { sessionId: source.id });
         return c.json({ error: 'NOT_FOUND', message: 'That lesson is gone.' }, 404);
+      }
       // A room — a session with guests — is a recording, not a lesson to
       // replay (ADR-0035). The lesson it taught is still one search away,
       // through the memo, for anyone who asks for the topic.
       const [room] = await withGuests([source]);
-      if (room && room.guests > 0)
+      if (room && room.guests > 0) {
+        refuseSession(claims, 'not_replayable', { sessionId: source.id });
         return c.json(
           {
             error: 'NOT_REPLAYABLE',
@@ -875,6 +996,7 @@ export function buildApp(services: Services): App {
           },
           409,
         );
+      }
       create = {
         topic: source.topic,
         band: source.band,
@@ -900,6 +1022,7 @@ export function buildApp(services: Services): App {
     if (asked && !planAllowsExpert(claims.plan, asked)) {
       const needed = requiredPlanFor(asked);
       const who = services.experts.get(asked);
+      refuseSession(claims, 'expert_plan', { expertId: asked, needed: needed ?? 'standard' });
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
@@ -927,6 +1050,7 @@ export function buildApp(services: Services): App {
     const starting = admissions.pendingForAddress(ip);
     if ((hosted?.size ?? 0) + starting >= services.config.get('PEN_MAX_SESSIONS_PER_IP')) {
       observer.event('rooms.ip_cap', { live: hosted?.size ?? 0, starting });
+      refuseSession(claims, 'ip_live_cap', { live: hosted?.size ?? 0, starting });
       return c.json(
         {
           error: 'RATE_LIMITED',
@@ -964,11 +1088,7 @@ export function buildApp(services: Services): App {
          * ready — the same catalogue Home draws — so the learner has
          * somewhere to go from here rather than a closed door.
          */
-        services.analytics.capture(claims.sub, 'preparation_refused', {
-          plan: claims.plan,
-          platform,
-          origin: create.origin,
-        });
+        refuseSession(claims, 'preparation_required', { platform, origin: create.origin });
         return c.json(
           {
             error: 'PREPARATION_REQUIRED',
@@ -983,6 +1103,7 @@ export function buildApp(services: Services): App {
       const hostedByIp = liveByIp.get(ip) ?? new Set<string>();
       hostedByIp.add(live.record.id);
       liveByIp.set(ip, hostedByIp);
+      if (claims.plan === 'free') countFreeStart(ip);
       return c.json({ session: live.record, state: live.room.getState() }, 201);
     } finally {
       // After the await, so by the time the place is free the row this
@@ -1026,7 +1147,14 @@ export function buildApp(services: Services): App {
     // A view is somebody else opening the saved page (ADR-0035): the host
     // looking at their own is not an audience, and the recording route that
     // used to count views is now the host's alone.
-    if (claims?.sub !== record.hostId) await services.sessions.recordView(record.id);
+    if (claims?.sub !== record.hostId) {
+      await services.sessions.recordView(record.id);
+      if (claims)
+        services.analytics.capture(claims.sub, 'session_viewed', {
+          sessionId: record.id,
+          live: live !== null,
+        });
+    }
     const [guested] = await withGuests([record]);
     const shown = guested ?? { ...record, guests: 0 };
     return c.json({

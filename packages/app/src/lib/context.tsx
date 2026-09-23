@@ -12,13 +12,21 @@ import {
 } from 'react';
 import { ApiClient, type GoogleSignInOutcome, type Participant } from '../api/client.js';
 import type { Platform } from '../platform/types.js';
-import { applyPrivacyChoice, identify, initAnalytics, resetAnalytics, track } from './analytics.js';
+import {
+  applyPrivacyChoice,
+  identify,
+  initAnalytics,
+  installMonitor,
+  resetAnalytics,
+  setAnalyticsPerson,
+  trackAction,
+} from './analytics.js';
 import { bootMode } from './boot.js';
 import { forgetGoogleSelection } from './google.js';
 import { formatDurationMinutes, formatRelativeDay } from './locale.js';
 import { writePacePreference } from './pace-preference.js';
 import { type PrivacyChoice, readPrivacy, writePrivacy } from './privacy.js';
-import { noteVisitAction, startVisitTracking } from './visits.js';
+import { startVisitTracking } from './visits.js';
 
 interface AppContextValue {
   platform: Platform;
@@ -37,6 +45,20 @@ interface AppContextValue {
   setName(name: string): Promise<void>;
   /** Attach a Google account (the ID token comes from Google's button). */
   signInWithGoogle(idToken: string): Promise<GoogleSignInOutcome>;
+  /**
+   * The email flows land here too, so a sign-in by any door is the same
+   * event: the participant in this context, the analytics identity, the
+   * visit's counter. The dialog used to call the client directly for these,
+   * which signed the bearer in and left the header saying "Sign in".
+   */
+  signInWithEmail(email: string, password: string): Promise<void>;
+  completeRegistration(body: {
+    challengeId: string;
+    code: string;
+    name: string;
+    password: string;
+  }): Promise<void>;
+  resetPassword(body: { challengeId: string; code: string; password: string }): Promise<void>;
   /** Back to a fresh anonymous participant. */
   signOut(): Promise<void>;
   /**
@@ -56,6 +78,9 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     () => new ApiClient(platform.apiUrl, platform.storage, platform.id),
     [platform],
   );
+  // Synchronous and idempotent: the first render can already fail, and the
+  // boundary that catches it must have somewhere to send it.
+  installMonitor(platform);
   /**
    * A signed-in learner's pace belongs to them, not to the browser they are
    * in: the account's value replaces whatever this device remembered, so the
@@ -70,6 +95,20 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     [platform.storage],
   );
   const [participant, setParticipant] = useState<Participant | null>(null);
+  /** Every door in lands here: the account in this context, its pace, its analytics identity. */
+  const adoptSignedIn = useCallback(
+    (p: Participant, how: { method: 'google' | 'email'; outcome?: string }) => {
+      setParticipant(p);
+      adoptAccountPace(p);
+      identify(p.id);
+      setAnalyticsPerson({ anonymous: p.anonymous, plan: p.plan });
+      trackAction('signed_in', {
+        method: how.method,
+        ...(how.outcome ? { outcome: how.outcome } : {}),
+      });
+    },
+    [adoptAccountPace],
+  );
   const [served, setServed] = useState<FeatureSet | null>(null);
   const features = useMemo(
     () => served ?? defaultFeaturesFor(participant?.plan ?? 'free', platform.id),
@@ -124,6 +163,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
           setParticipant(p);
           adoptAccountPace(p);
           identify(p.id);
+          setAnalyticsPerson({ anonymous: p.anonymous, plan: p.plan });
         }
       })
       .catch((error: unknown) => {
@@ -166,18 +206,31 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       authError,
       setName: async (name: string) => {
         setParticipant(await api.rename(name));
+        trackAction('name_changed');
       },
       signInWithGoogle: async (idToken: string) => {
         const { participant: p, outcome } = await api.signInWithGoogle(idToken);
-        setParticipant(p);
-        adoptAccountPace(p);
-        identify(p.id);
-        track('sign_in', { provider: 'google', outcome });
-        noteVisitAction('signed_in');
+        adoptSignedIn(p, { method: 'google', outcome });
         return outcome;
+      },
+      signInWithEmail: async (email, password) => {
+        adoptSignedIn(await api.signInWithPassword(email, password), { method: 'email' });
+      },
+      completeRegistration: async (body) => {
+        adoptSignedIn(await api.completeRegistration(body), {
+          method: 'email',
+          outcome: 'created',
+        });
+      },
+      resetPassword: async (body) => {
+        adoptSignedIn(await api.resetPassword(body), { method: 'email', outcome: 'reset' });
       },
       privacy,
       setPrivacy: async (choice: PrivacyChoice) => {
+        // Said before the switch is thrown: turning analytics off is the last
+        // event that goes out, and turning it on is the first.
+        if (choice.analytics) applyPrivacyChoice(choice);
+        trackAction('analytics_toggled', { on: choice.analytics });
         writePrivacy(platform.storage, choice);
         setPrivacyState(choice);
         applyPrivacyChoice(choice);
@@ -190,22 +243,27 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       },
       deleteAccount: async () => {
         const sessionsDeleted = await api.deleteAccount();
+        trackAction('account_deleted', { sessions: sessionsDeleted });
         forgetGoogleSelection();
         resetAnalytics();
-        setParticipant(await api.ensureParticipant());
-        return sessionsDeleted;
-      },
-      signOut: async () => {
-        api.signOut();
-        forgetGoogleSelection();
-        resetAnalytics();
-        track('sign_out');
         const p = await api.ensureParticipant();
         setParticipant(p);
         identify(p.id);
+        setAnalyticsPerson({ anonymous: p.anonymous, plan: p.plan });
+        return sessionsDeleted;
+      },
+      signOut: async () => {
+        trackAction('signed_out');
+        api.signOut();
+        forgetGoogleSelection();
+        resetAnalytics();
+        const p = await api.ensureParticipant();
+        setParticipant(p);
+        identify(p.id);
+        setAnalyticsPerson({ anonymous: p.anonymous, plan: p.plan });
       },
     }),
-    [platform, api, participant, features, authError, privacy, adoptAccountPace],
+    [platform, api, participant, features, authError, privacy, adoptSignedIn],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

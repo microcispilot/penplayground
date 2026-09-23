@@ -11,6 +11,7 @@ import {
   hasUserActivation,
 } from '../ads/ad-player.js';
 import { loadIma } from '../ads/ima.js';
+import { trackInteraction } from '../lib/analytics.js';
 
 export interface VideoAdProps {
   ad: {
@@ -126,7 +127,10 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
           {muted && status === 'playing' ? (
             <button
               type="button"
-              onClick={() => playerRef.current?.unmute()}
+              onClick={() => {
+                trackInteraction('sound_enabled', { ad: true });
+                playerRef.current?.unmute();
+              }}
               className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-body-small font-medium text-white hover:bg-black/75"
             >
               <VolumeX size={14} /> Tap to unmute

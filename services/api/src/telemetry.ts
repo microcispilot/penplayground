@@ -405,6 +405,21 @@ export function sessionEndedProperties(
 }
 
 /** A `stage` PostHog event's properties: the sample flattened, meta prefixed so keys never collide. */
+/** One ledger interaction as a PostHog row: the name in `event`, its props flattened under `props.`. */
+export function interactionProperties(
+  sessionId: string,
+  interaction: InteractionEvent,
+): Record<string, string | number | boolean | null> {
+  const props: Record<string, string | number | boolean | null> = {
+    sessionId,
+    event: interaction.event,
+    participantId: interaction.participantId,
+    t: interaction.t,
+  };
+  for (const [k, v] of Object.entries(interaction.props)) props[`props.${k}`] = v;
+  return props;
+}
+
 export function stageProperties(
   sessionId: string,
   sample: StageSample,

@@ -3,6 +3,8 @@ import { Button, cn, Pill, SegmentedButtons, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { ApiError } from '../api/client.js';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 
 /**
@@ -102,17 +104,23 @@ export function Pricing() {
     if (r === 'cancelled') toast('Checkout cancelled.');
   }, [params, toast]);
   const buy = async (plan: 'standard' | 'professional') => {
+    trackAction('plan_selected', { plan, interval, from: participant?.plan ?? 'free' });
     setBusy(plan);
     try {
       const url = await api.checkout(plan, interval);
       platform.openExternal(url);
     } catch (error) {
+      trackAction('checkout_failed', {
+        plan,
+        code: error instanceof ApiError ? error.code : 'NETWORK',
+      });
       toast(error instanceof Error ? error.message : 'Could not start checkout', 'danger');
     } finally {
       setBusy(null);
     }
   };
   const manage = async () => {
+    trackAction('manage_subscription_clicked');
     try {
       platform.openExternal(await api.billingPortal());
     } catch {
@@ -134,7 +142,10 @@ export function Pricing() {
             label="Billing period"
             className="mt-7"
             value={interval}
-            onChange={setInterval}
+            onChange={(next) => {
+              trackAction('billing_interval_changed', { interval: next });
+              setInterval(next);
+            }}
             options={[
               { value: 'month', label: 'Monthly' },
               { value: 'year', label: 'Yearly · 2 months free' },

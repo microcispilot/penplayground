@@ -3,6 +3,7 @@ import { Avatar, cn, PenLogo } from '@pen/design';
 import { Menu, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { isDarkTheme, useTheme } from '../lib/theme.js';
 import { AuthDialog } from './AuthDialog.js';
@@ -87,7 +88,10 @@ export function AppHeader({
             aria-label="Open the sidebar"
             data-testid="sidebar-menu"
             className="state-layer grid size-9 shrink-0 place-items-center rounded-full text-on-surface-variant lg:hidden"
-            onClick={onMenu}
+            onClick={() => {
+              trackAction('menu_opened');
+              onMenu();
+            }}
           >
             <Menu size={19} />
           </button>
@@ -110,7 +114,10 @@ export function AppHeader({
             title={sidebarRail ? 'Expand the sidebar' : 'Collapse the sidebar'}
             data-testid="sidebar-toggle"
             className="state-layer hidden size-9 shrink-0 place-items-center rounded-full text-on-surface-variant lg:grid"
-            onClick={onToggleSidebar}
+            onClick={() => {
+              trackAction('sidebar_toggled', { rail: !sidebarRail });
+              onToggleSidebar();
+            }}
           >
             <Menu size={19} />
           </button>
@@ -118,7 +125,10 @@ export function AppHeader({
         <button
           type="button"
           className="mr-3 flex items-center gap-2 rounded-full py-1 pr-2 pl-1 text-on-surface transition-opacity hover:opacity-80"
-          onClick={() => navigate('/')}
+          onClick={() => {
+            trackAction('home_clicked');
+            navigate('/');
+          }}
           aria-label="Pen Playground home"
         >
           {/*
@@ -150,7 +160,10 @@ export function AppHeader({
           aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
           title={dark ? 'Light theme' : 'Dark theme'}
           className="state-layer grid size-9 place-items-center rounded-full text-on-surface-variant"
-          onClick={() => setTheme(dark ? 'light' : 'dark')}
+          onClick={() => {
+            trackAction('theme_changed', { theme: dark ? 'light' : 'dark', source: 'header' });
+            setTheme(dark ? 'light' : 'dark');
+          }}
         >
           {dark ? <Sun size={17} /> : <Moon size={17} />}
         </button>
@@ -161,7 +174,10 @@ export function AppHeader({
             // Signed in, this is a way to your account, not a dialog: the
             // things it used to open — your name, your plan, privacy, delete —
             // are a page now.
-            onClick={() => navigate('/account')}
+            onClick={() => {
+              trackAction('nav_clicked', { to: '/account', rail: false });
+              navigate('/account');
+            }}
             aria-label={`Your account, ${participant.name}`}
             data-testid="account-chip"
           >

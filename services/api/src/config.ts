@@ -64,6 +64,14 @@ export const Env = z.object({
    */
   PEN_INTENT_PROVIDER: z.enum(['model', 'jev']).default('jev'),
   /**
+   * Who grades a check-in answer (ADR-0039). `jev` asks the hosted decisions
+   * model for the verdict and the expert says a line it already had around
+   * the explanation the lesson wrote; `model` is the one structured-output
+   * call that decided and composed the feedback until now, and stays the
+   * floor under `jev` either way. Same key and route as intent.
+   */
+  PEN_GRADE_PROVIDER: z.enum(['model', 'jev']).default('jev'),
+  /**
    * Pinned: TypeSafe's own console also lists `typesafe/jev-latest`, but
    * OpenRouter rejects that id.
    */
@@ -240,6 +248,20 @@ export const Env = z.object({
 
   /** Live sessions one IP may host at once; a script cannot open rooms without bound. */
   PEN_MAX_SESSIONS_PER_IP: z.coerce.number().int().positive().max(1_000).default(5),
+  /**
+   * Free sessions one address may start in a UTC day, whoever they are. The
+   * three-a-day promise is per participant, and an anonymous participant is
+   * one rate-limited call away: clear the bearer, mint another, three more.
+   * This is the ceiling under that — a whole household of learners still
+   * fits, a script minting identities does not. Paid plans are never counted
+   * here; their spend is theirs. 0 turns it off.
+   */
+  PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .max(10_000)
+    .default(12),
   /**
    * Statistics and reports (ADR-0027). `PEN_ADMIN_EMAILS` above is the same
    * list the operations console uses (ADR-0026) — one set of people who may

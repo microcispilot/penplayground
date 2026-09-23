@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ShellPage } from '../components/AppShell.js';
 import { PrivacyDialog } from '../components/PrivacyDialog.js';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useSeo } from '../lib/seo.js';
 
@@ -166,6 +167,7 @@ export function Account() {
             </span>
             <Link
               to="/pricing"
+              onClick={() => trackAction('upgrade_clicked', { source: 'account' })}
               className="text-body-medium text-primary underline decoration-outline underline-offset-4 hover:decoration-primary"
             >
               {plan === 'free' ? 'See what the paid plans add' : 'Change or cancel'}
@@ -239,7 +241,10 @@ export function Account() {
               variant="secondary"
               size="sm"
               data-testid="delete-account"
-              onClick={() => setConfirmingDelete(true)}
+              onClick={() => {
+                trackAction('account_delete_opened');
+                setConfirmingDelete(true);
+              }}
             >
               Delete account
             </Button>

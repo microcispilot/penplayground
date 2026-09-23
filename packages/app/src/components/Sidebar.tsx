@@ -16,6 +16,7 @@ import {
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
+import { trackAction } from '../lib/analytics.js';
 import { useLists } from '../lib/lists.js';
 
 /** The domains the catalog teaches, in the order the sidebar lists them. */
@@ -124,7 +125,10 @@ function Row({ to, icon, label, rail, railLabel, end = false, count, tag, onNavi
       to={to}
       end={end}
       title={rail ? label : undefined}
-      onClick={onNavigate}
+      onClick={() => {
+        trackAction('nav_clicked', { to, rail });
+        onNavigate?.();
+      }}
       className={({ isActive }) => rowClass(rail, isActive)}
     >
       {() => (
@@ -239,7 +243,9 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
             aria-current={activeTopic ? 'page' : undefined}
             className={rowClass(true, activeTopic !== null)}
             onClick={() => {
-              navigate(`/?topic=${activeTopic ?? TOPIC_DOMAINS[0]?.id ?? 'computing-data'}`);
+              const topic = activeTopic ?? TOPIC_DOMAINS[0]?.id ?? 'computing-data';
+              trackAction('topic_chosen', { topic, source: 'rail' });
+              navigate(`/?topic=${topic}`);
               onNavigate?.();
             }}
           >
@@ -273,6 +279,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     key={d.id}
                     type="button"
                     onClick={() => {
+                      trackAction('topic_chosen', { topic: d.id, source: 'sidebar' });
                       navigate(`/?topic=${d.id}`);
                       onNavigate?.();
                     }}

@@ -256,6 +256,15 @@ describe('session telemetry (integration)', () => {
     );
     expect(events).not.toContain('question_typed');
     expect(t.interactions.every((i) => i.participantId === h.id)).toBe(true);
+    // The ledger's copy of every interaction also went to PostHog, under the
+    // participant who did it, with the name in `event` (ADR-0038).
+    const forwarded = captured.filter(
+      (c) => c.event === 'interaction' && c.properties.sessionId === sessionId,
+    );
+    expect(forwarded.map((c) => c.properties.event)).toEqual(events);
+    expect(forwarded.every((c) => c.distinctId === h.id)).toBe(true);
+    const boardDone = forwarded.find((c) => c.properties.event === 'board_done');
+    expect(boardDone?.properties['props.ms']).toBe(640);
     expect(t.errors).toEqual([]);
     expect(t.totals.questions).toBe(1);
     expect(t.totals.interrupts).toBe(1);

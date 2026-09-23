@@ -97,6 +97,8 @@ export class RoomSession {
   private currentUtterance: string | null = null;
   private disposed = false;
   private gestureArmed = false;
+  /** A blocked-sound episode the learner has not yet ended; `sound_enabled` is said once per episode. */
+  private soundEpisode = false;
   private clockTimer: ReturnType<typeof setInterval> | null = null;
   private clockBase = 0;
   private clockAt = 0;
@@ -428,7 +430,14 @@ export class RoomSession {
         // itself, and it says so where every other honest status does:
         // `RoomStatus` reads this connection directly and shows
         // "Reconnecting…" then "Back." (apps/web/e2e/ui-states.spec.ts).
-        onStatus: (connection) => set({ connection }),
+        onStatus: (connection) => {
+          // Said once per drop: the moment an open room starts trying again.
+          // A retry the learner asked for also passes through `reconnecting`,
+          // and that is their `reconnect_requested`, not a second drop.
+          if (connection === 'reconnecting' && useRoomStore.getState().connection === 'open')
+            trackInteraction('connection_lost');
+          set({ connection });
+        },
       },
       o.displayName,
     );
@@ -527,6 +536,7 @@ export class RoomSession {
 
   /** Browsers may suspend audio until a gesture on this page: the next tap primes the context and clears the notice. */
   private armSoundGesture(): void {
+    this.soundEpisode = true;
     if (typeof document === 'undefined' || this.gestureArmed) return;
     this.gestureArmed = true;
     const onTap = () => {
@@ -548,6 +558,12 @@ export class RoomSession {
    * learner pressed one control and everything they should hear is audible.
    */
   async enableSound(): Promise<void> {
+    // Once per blocked episode, decided before the first await: the armed
+    // gesture and the button both land here on the same press.
+    if (this.soundEpisode) {
+      this.soundEpisode = false;
+      trackInteraction('sound_enabled');
+    }
     this.gestureArmed = false;
     await this.player.prime(AUDIO.ttsSampleRate);
     if (useRoomStore.getState().audio.playbackBlocked)
@@ -557,6 +573,7 @@ export class RoomSession {
 
   /** The learner asked to reconnect after the automatic attempts gave up. */
   retryConnection(): void {
+    trackInteraction('reconnect_requested');
     this.client.retry();
   }
 
@@ -813,6 +830,7 @@ export class RoomSession {
 
   /** Host: mute one guest's voice to the room, or everyone's. Rejects when the API refuses. */
   muteParticipant(participantId?: string): Promise<string[]> {
+    trackInteraction('participant_muted', { all: participantId === undefined });
     return this.audio.muteParticipant(participantId);
   }
 
@@ -871,6 +889,7 @@ export class RoomSession {
    */
   setPace(pace: number): void {
     const clean = clampPace(pace);
+    trackInteraction('pace_changed', { pace: clean });
     this.keepPace(clean);
     this.client.send({ kind: 'set_pace', pace: clean });
   }

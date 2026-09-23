@@ -1,7 +1,7 @@
 import { Button, PenMark } from '@pen/design';
 import { RotateCcw } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { reportClientError } from '../lib/analytics.js';
+import { reportClientError, trackAction } from '../lib/analytics.js';
 import { applySeo } from '../lib/seo.js';
 
 /**
@@ -56,6 +56,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, State> {
   }
 
   private retry = (): void => {
+    trackAction('retry_clicked', { attempt: this.state.attempt + 1 });
     this.setState((s) => ({ failed: false, ref: null, attempt: s.attempt + 1 }));
   };
 

@@ -12,12 +12,11 @@ import {
 import { Insights } from '../components/Insights.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
-import { trackInteraction } from '../lib/analytics.js';
+import { trackAction, trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 import { dirOf, useDocumentLanguage } from '../lib/locale.js';
 import { useQuickStart } from '../lib/quick-start.js';
 import { useSeo } from '../lib/seo.js';
-import { noteVisitAction } from '../lib/visits.js';
 
 const EXPORT_POLL_MS = 2000;
 /** Download links carry a short-lived token; refresh one older than this before using it. */
@@ -111,6 +110,7 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
     try {
       const head = await fetch(url, { headers: { range: 'bytes=0-0' } });
       if (!head.ok) {
+        trackAction('download_failed', { step: 'link', status: head.status, variant });
         setProblem(
           head.status === 401
             ? 'The download link expired. Try again.'
@@ -119,6 +119,7 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
         return false;
       }
     } catch {
+      trackAction('download_failed', { step: 'link', status: 0, variant });
       setProblem('Could not reach the server.');
       return false;
     }
@@ -139,6 +140,7 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
       variant,
     });
     if (!entitled) {
+      trackAction('upgrade_clicked', { source: 'download' });
       navigate('/pricing');
       return;
     }
@@ -150,11 +152,17 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
           const fresh = await api.exportStatus(sessionId, variant);
           setStatus({ ...fresh, at: Date.now() });
           if (fresh.status !== 'ready' || !fresh.downloadUrl) {
+            trackAction('download_failed', { step: 'refresh', status: fresh.status, variant });
             setProblem('The video needs to be rendered again.');
             return;
           }
           url = fresh.downloadUrl;
         } catch (error) {
+          trackAction('download_failed', {
+            step: 'refresh',
+            code: error instanceof ApiError ? error.code : 'NETWORK',
+            variant,
+          });
           setProblem(error instanceof Error ? error.message : 'Could not refresh the link.');
           return;
         }
@@ -174,6 +182,11 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
         timer.current = setTimeout(() => void poll(), EXPORT_POLL_MS);
     } catch (error) {
       if (gen !== generation.current) return;
+      trackAction('download_failed', {
+        step: 'request',
+        code: error instanceof ApiError ? error.code : 'NETWORK',
+        variant,
+      });
       const message =
         error instanceof ApiError
           ? error.code === 'ENTITLEMENT_REQUIRED'
@@ -229,6 +242,7 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
         checkmark={false}
         onChange={(next) => {
           if (busy || rendering) return;
+          trackAction('download_variant_changed', { variant: next });
           setVariant(next);
         }}
         className="h-9"
@@ -317,6 +331,10 @@ function OwnerControls({
           setBusy(true);
           try {
             const next = await api.setVisibility(session.id, isPublic ? 'private' : 'public');
+            trackAction('visibility_changed', {
+              sessionId: session.id,
+              visibility: next.visibility,
+            });
             onChanged(next);
             toast(isPublic ? 'Now private' : 'Now public', 'success');
           } catch (error) {
@@ -342,6 +360,7 @@ function OwnerControls({
               setBusy(true);
               try {
                 await api.deleteSession(session.id);
+                trackAction('session_deleted', { sessionId: session.id });
                 toast('Session deleted', 'success');
                 onDeleted();
               } catch (error) {
@@ -569,7 +588,10 @@ export function SessionPage() {
                   <Button
                     variant="primary"
                     leading={<Play size={14} />}
-                    onClick={() => navigate(`/room/${id}`)}
+                    onClick={() => {
+                      trackAction('join_clicked', { sessionId: id });
+                      navigate(`/room/${id}`);
+                    }}
                   >
                     Join
                   </Button>
@@ -588,7 +610,10 @@ export function SessionPage() {
                   <Button
                     variant="secondary"
                     leading={<Clapperboard size={14} />}
-                    onClick={() => navigate(`/replay/${id}`)}
+                    onClick={() => {
+                      trackAction('watch_recording_clicked', { sessionId: id });
+                      navigate(`/replay/${id}`);
+                    }}
                     data-testid="session-watch-recording"
                   >
                     Watch my recording
@@ -602,8 +627,9 @@ export function SessionPage() {
                   onClick={() => {
                     // Counted against the session, so "how often was this
                     // shared" is answerable (ADR-0027); no URL is sent, only
-                    // that it happened and for which session.
-                    noteVisitAction('share_copied', id);
+                    // that it happened, for which session, and by which means.
+                    const method = typeof navigator.share === 'function' ? 'share' : 'clipboard';
+                    trackAction('share_clicked', { sessionId: id, method });
                     if (navigator.share)
                       void navigator.share({ title: s?.title ?? 'Pen Playground', url: shareUrl });
                     else void navigator.clipboard?.writeText(shareUrl);
@@ -651,7 +677,10 @@ export function SessionPage() {
                         ? 'border-b-[3px] border-primary text-primary'
                         : 'border-b-[3px] border-transparent text-on-surface-variant',
                     )}
-                    onClick={() => setParams(t === 'recap' ? {} : { tab: t })}
+                    onClick={() => {
+                      trackAction('session_tab_shown', { tab: t });
+                      setParams(t === 'recap' ? {} : { tab: t });
+                    }}
                   >
                     {t === 'recap' ? 'Recap' : 'Insights'}
                   </button>
@@ -789,7 +818,10 @@ export function SessionPage() {
                   variant="ghost"
                   size="sm"
                   className="mt-2"
-                  onClick={() => platform.openExternal(shareUrl)}
+                  onClick={() => {
+                    trackAction('share_page_opened', { sessionId: id });
+                    platform.openExternal(shareUrl);
+                  }}
                 >
                   Open share page
                 </Button>

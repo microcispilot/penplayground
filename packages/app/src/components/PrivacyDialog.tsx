@@ -1,6 +1,7 @@
 import { Button, cn, Dialog, useToast } from '@pen/design';
 import { Check, Download } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { WHAT_IS_COLLECTED, WHAT_IS_NEVER_COLLECTED } from '../lib/privacy.js';
 
@@ -19,6 +20,9 @@ export function PrivacyDialog({ open, onClose }: { open: boolean; onClose: () =>
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  useEffect(() => {
+    if (open) trackAction('privacy_opened');
+  }, [open]);
 
   const toggle = async () => {
     setBusy(true);
@@ -32,6 +36,7 @@ export function PrivacyDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   /** The learner's own copy of everything this deployment holds about them. */
   const download = async () => {
+    trackAction('data_download_clicked');
     setDownloading(true);
     try {
       const data = await api.myData();

@@ -3,7 +3,7 @@ import { ArrowRight, Search } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError } from '../api/client.js';
-import { markStartClicked } from '../lib/analytics.js';
+import { markStartClicked, trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useSeo } from '../lib/seo.js';
 import { pickTopicExample } from '../lib/topic-examples.js';
@@ -40,12 +40,24 @@ export function NotFound() {
       return;
     }
     markStartClicked();
+    trackAction('start_clicked', { source: 'not_found', withExpert: false });
     setStarting(true);
     try {
       const { session } = await api.createSession({ topic: t });
       navigate(`/room/${session.id}`, { state: { fresh: true } });
     } catch (error) {
-      toast(error instanceof ApiError ? error.message : 'Could not start the session', 'danger');
+      trackAction('start_refused', {
+        code: error instanceof ApiError ? error.code : 'NETWORK',
+        status: error instanceof ApiError ? error.status : 0,
+        source: 'not_found',
+      });
+      // A plan or a daily limit is a fact about an account, not a fault (the
+      // same voice Home uses); only a real failure is a danger.
+      const calm = error instanceof ApiError && error.status === 402;
+      toast(
+        error instanceof ApiError ? error.message : 'Could not start the session',
+        calm ? 'neutral' : 'danger',
+      );
       setStarting(false);
     }
   };

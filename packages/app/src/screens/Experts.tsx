@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { ShellPage } from '../components/AppShell.js';
 import { ExpertCard } from '../components/ExpertCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 
 const DOMAIN_LABEL = new Map(TOPIC_DOMAINS.map((d) => [d.id, d.label]));
@@ -53,6 +54,7 @@ export function Experts() {
   }, [experts, domain, filter]);
 
   const choose = (expert: Expert) => {
+    trackAction('expert_chosen', { expertId: expert.id, source: 'experts_page' });
     // Home owns the command bar; it reads this and fills the chip in.
     navigate('/', { state: { expertId: expert.id } });
   };
@@ -80,11 +82,24 @@ export function Experts() {
     >
       <fieldset className="mb-7 flex flex-wrap gap-1.5 border-0 p-0">
         <legend className="sr-only">Filter by domain</legend>
-        <Chip selected={domain === 'all'} onClick={() => setDomain('all')}>
+        <Chip
+          selected={domain === 'all'}
+          onClick={() => {
+            trackAction('topic_chosen', { topic: 'all', source: 'experts' });
+            setDomain('all');
+          }}
+        >
           All
         </Chip>
         {domains.map((d) => (
-          <Chip key={d.id} selected={domain === d.id} onClick={() => setDomain(d.id)}>
+          <Chip
+            key={d.id}
+            selected={domain === d.id}
+            onClick={() => {
+              trackAction('topic_chosen', { topic: d.id, source: 'experts' });
+              setDomain(d.id);
+            }}
+          >
             {d.label}
           </Chip>
         ))}

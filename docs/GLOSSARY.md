@@ -7,6 +7,7 @@ Use these words exactly, in code, docs and UI copy.
 - **AnswerContext** — what Onten hands the model for one question: status (`sufficient | partial | conflict | stale | missing`), one primary unit, 3–5 evidence spans, typed/derived facts, constraints, `modelContext`. Never an answer.
 - **Selection band** — bounded, non-sensitive learner level (`beginner | intermediate | advanced`) that may change which units Onten selects while still sharing the memo. The only personalisation allowed in a shared key.
 - **Expert** — an AI human persona from the catalog: name, role, biography, interaction style, portrait, `voice_id`, mandatory AI disclosure. Persona shapes manner, never capability.
+- **Action** — one decision a visitor makes outside a live session — Start, a card, Upgrade, a plan, Sign in, like, save, share (`ActionName`, ADR-0038). A closed list of codes sent to PostHog with the screen; never a word the visitor typed. Distinct from an **interaction**, which is a session's own record and travels to its ledger.
 - **Session** — one classroom instance: a topic, an expert, a host, 0–11 guests, a lesson, a timeline, a transcript, a recording.
 - **Host** — the participant who started the session. Only the host can pause, resume, end, or invite.
 - **Guest** — any other participant. Listens, watches, talks to the other people, and asks the expert by **raising a hand**; is heard by the expert only while holding the floor the expert gave them (ADR-0037).

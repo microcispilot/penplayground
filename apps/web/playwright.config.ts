@@ -180,6 +180,8 @@ export default defineConfig({
         // room live on purpose; the production per-IP cap (5) would refuse the
         // later ones. The cap itself is covered by services/api/test/limits.test.ts.
         PEN_MAX_SESSIONS_PER_IP: '50',
+        // Every request here is from 'local'; the whole suite is one address (ADR-0038).
+        PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
       },
       timeout: 60_000,
     },
@@ -205,6 +207,8 @@ export default defineConfig({
         PEN_LOG_LEVEL: 'warn',
         PEN_DEV_PLAN: 'professional',
         PEN_MAX_SESSIONS_PER_IP: '50',
+        // Every request here is from 'local'; the whole suite is one address (ADR-0038).
+        PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
         LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
         LIVEKIT_API_KEY: process.env.PEN_E2E_LIVEKIT_API_KEY ?? 'devkey',
         // `livekit-server --dev` uses "secret"; deploy/livekit/livekit.dev.yaml (the TURN
@@ -239,6 +243,8 @@ export default defineConfig({
         // later spec gets `RATE_LIMITED` instead of a board. The cap itself is
         // covered by services/api/test/limits.test.ts.
         PEN_MAX_SESSIONS_PER_IP: '50',
+        // Every request here is from 'local'; the whole suite is one address (ADR-0038).
+        PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
       },
       timeout: 60_000,
     },
@@ -265,6 +271,8 @@ export default defineConfig({
         PEN_AD_TEST_TAGS: '1',
         PEN_ADS_EVERY_SEGMENTS: '1',
         PEN_MAX_SESSIONS_PER_IP: '50',
+        // Every request here is from 'local'; the whole suite is one address (ADR-0038).
+        PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
       },
       timeout: 60_000,
     },

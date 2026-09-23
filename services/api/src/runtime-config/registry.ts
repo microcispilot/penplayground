@@ -45,6 +45,13 @@ export const SETTINGS = {
     group: 'Thinking',
     scope: 'session',
   },
+  PEN_GRADE_PROVIDER: {
+    label: 'Check-in grader',
+    description:
+      'Who decides whether a check-in answer was right. `jev` asks the hosted decisions model for the verdict and the expert says its own line around the explanation the lesson wrote; `model` is the session model deciding and composing the feedback in one call, and stays the fallback under `jev`. Read once when a room is built.',
+    group: 'Thinking',
+    scope: 'session',
+  },
   PEN_INTENT_MODEL: {
     label: 'Intent model',
     description:
@@ -175,6 +182,15 @@ export const SETTINGS = {
     scope: 'request',
     min: 1,
     max: 1_000,
+  },
+  PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: {
+    label: 'Free sessions per address per day',
+    description:
+      'How many free-plan sessions one address may start in a UTC day, across every participant it mints. The floor under the three-a-day promise; 0 turns it off. Read on every session-creation request.',
+    group: 'Limits',
+    scope: 'request',
+    min: 0,
+    max: 10_000,
   },
   PEN_MAX_BODY_BYTES: {
     label: 'Largest JSON body (bytes)',

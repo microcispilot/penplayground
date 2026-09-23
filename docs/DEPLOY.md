@@ -538,6 +538,7 @@ Everything here has a default that is safe to deploy unchanged.
 | `PEN_DAILY_SPEND_CAP_USD` | `25` | Provider spend one UTC day may cost before new **free** sessions wait (503 `CAPACITY`). Summed from the same cost lines the Insights tab shows, rebuilt from today's ledgers on boot. `0` disables the breaker, and the boot log says so. |
 | `PEN_DAILY_SPEND_PAID_MULTIPLE` | `3` | Paid plans keep going to `cap × this` before anyone is held back. |
 | `PEN_MAX_SESSIONS_PER_IP` | `5` | Live rooms one address may host at once. |
+| `PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY` | `12` | Free-plan sessions one address may start in a UTC day, across every participant it mints — the floor under the three-a-day promise (ADR-0038). Paid plans are not counted. `0` turns it off. |
 | `PEN_MAX_BODY_BYTES` | `65536` | Largest JSON body any route accepts (Stripe's signed webhook gets 256 KB). |
 | `PEN_VISIT_STATS` | `1` | Count visits, including from people who never sign in (ADR-0027). `0` leaves `POST /api/visits` answering and writing nothing. |
 | `PEN_VISIT_IDENTIFIER_DAYS` | `30` | How long a visit keeps the client address and the raw `User-Agent` (ADR-0028). An hourly sweep nulls both on older rows and leaves every derived column and every count standing. `0` stores neither and erases the ones already stored. |

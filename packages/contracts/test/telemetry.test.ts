@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ActionName,
   ClientMessage,
   CostLine,
   InteractionEvent,
+  InteractionName,
   LedgerEntry,
   llmCostLines,
   priceUsd,
@@ -206,5 +208,23 @@ describe('pricing', () => {
     expect(searchUsd('tavily')).toBe(0.008);
     expect(searchUsd('searxng', 10)).toBe(0);
     expect(searchUsd('exa', 2)).toBeCloseTo(0.01, 12);
+  });
+});
+
+/**
+ * Two closed lists (ADR-0038): what happened in a session, and what a visitor
+ * decided outside one. A name in both would be counted twice on a dashboard
+ * that sums them, and a name that is not a code would be a sentence in waiting.
+ */
+describe('interaction and action names', () => {
+  it('are snake_case codes', () => {
+    for (const name of [...InteractionName.options, ...ActionName.options])
+      expect(name, name).toMatch(/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/);
+  });
+
+  it('never share a name', () => {
+    const interactions = new Set<string>(InteractionName.options);
+    const shared = ActionName.options.filter((a) => interactions.has(a));
+    expect(shared).toEqual([]);
   });
 });

@@ -28,13 +28,27 @@ import { detectSpokenLanguage } from './language.js';
 import { observer, scopedObserver } from './observability.js';
 import type { Services } from './services.js';
 import type { EndReason } from './stats/derive.js';
-import { computeTelemetry, sessionEndedProperties, stageProperties } from './telemetry.js';
+import {
+  computeTelemetry,
+  interactionProperties,
+  sessionEndedProperties,
+  stageProperties,
+} from './telemetry.js';
 
 /**
  * Stage samples streamed to PostHog per session. The ledger keeps every
  * sample regardless; this only bounds analytics volume for long sessions.
  */
 export const MAX_STAGE_EVENTS_PER_SESSION = 500;
+/**
+ * Ledger interactions streamed to PostHog per session, as `interaction`
+ * events with the interaction's own name in `event`. The client already sends
+ * the ones it saw under their own names; this is the ledger's copy, which is
+ * the only copy for the ones the room itself decided — a hand called, a
+ * question the material had nothing on, a validated ad step — and the one
+ * that says what the *server* accepted rather than what a browser reported.
+ */
+export const MAX_INTERACTION_EVENTS_PER_SESSION = 2_000;
 
 /**
  * How long an ended room is kept in the registry, so a client's last "state"
@@ -123,7 +137,7 @@ export class RoomRegistry {
     const sessionId = newSessionId();
     const startedAt = Date.now();
     // Every stage of this session lands in its ledger and, bounded, in PostHog (ADR-0011).
-    const counter = { stageEvents: 0 };
+    const counter = { stageEvents: 0, interactionEvents: 0 };
     const metrics = new SessionMetrics({
       sessionId,
       startedAt,
@@ -132,6 +146,25 @@ export class RoomRegistry {
         if (counter.stageEvents >= MAX_STAGE_EVENTS_PER_SESSION) return;
         counter.stageEvents += 1;
         services.analytics.capture(args.host.id, 'stage', stageProperties(sessionId, sample));
+      },
+      onInteraction: (interaction) => {
+        if (counter.interactionEvents >= MAX_INTERACTION_EVENTS_PER_SESSION) return;
+        counter.interactionEvents += 1;
+        // Under the participant who did it, so a guest's hand is theirs, not the host's.
+        services.analytics.capture(
+          interaction.participantId,
+          'interaction',
+          interactionProperties(sessionId, interaction),
+        );
+      },
+      onError: (error) => {
+        services.analytics.capture(args.host.id, 'session_error', {
+          sessionId,
+          t: error.t,
+          code: error.code,
+          stage: error.stage,
+          ref: error.ref,
+        });
       },
       // The breaker counts the very lines the ledger records, so the cap and
       // the Insights tab can never disagree about what today cost (ADR-0016).
@@ -287,6 +320,7 @@ export class RoomRegistry {
       memo: services.memo,
       model: services.modelFor(args.host.plan),
       intent: services.intentFor(),
+      grader: services.graderFor(),
       synthesizer: services.synthesizer,
       voice: services.voices.voiceFor(expert, locale),
       voiceFor: (lang) => services.voices.voiceFor(expert, lang),

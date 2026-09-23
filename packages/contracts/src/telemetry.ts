@@ -167,8 +167,98 @@ export const InteractionName = z.enum([
   'answer_started',
   'board_done',
   'error_shown',
+  // the room's own controls, as the learner reached for them
+  /** The host muted one guest's voice to the room, or everyone's. */
+  'participant_muted',
+  /** The learner pressed "Enable sound" after the browser held the audio back. */
+  'sound_enabled',
+  /** The socket dropped and the client is reconnecting on its own. */
+  'connection_lost',
+  /** The learner asked to reconnect after the automatic attempts gave up. */
+  'reconnect_requested',
 ]);
 export type InteractionName = z.infer<typeof InteractionName>;
+
+// ── actions outside a room ───────────────────────────────────────────────────
+/**
+ * What a visitor decided anywhere that is not a live session: every CTA on
+ * Home, the catalogue, a saved page, Pricing, the sign-in dialog, Settings
+ * and the account page (ADR-0038). Interactions above are a *session's*
+ * record and travel to its ledger; these are the *visit's* and travel to
+ * PostHog only, with the same rule — codes, ids, counts and booleans, never
+ * a word the visitor typed. The list is closed so a new button cannot invent
+ * a name nobody will find in a dashboard.
+ *
+ * The one deliberate overlap is `screen_shown`, which stays an interaction
+ * because a room and a replay are screens too.
+ */
+export const ActionName = z.enum([
+  // deciding to learn
+  /** Start on Home or the not-found page; `source`, `withExpert`, `spoken` (typed by voice). */
+  'start_clicked',
+  /** The server said no: `code` is the API error (ENTITLEMENT_REQUIRED, CAPACITY, PREPARATION_REQUIRED, RATE_LIMITED…). */
+  'start_refused',
+  /** "Say it instead" on Home; `available` says whether the device could listen. */
+  'say_it_clicked',
+  'expert_chosen',
+  'expert_cleared',
+  'topic_chosen',
+  'session_opened',
+  'join_clicked',
+  'watch_recording_clicked',
+  // what the page put in the way
+  /** The allowance or capacity line appeared on Home; `reason`. */
+  'limit_shown',
+  /** The "needs preparing" line appeared on Home; `ready` is how many lessons it offered. */
+  'unprepared_shown',
+  'upgrade_clicked',
+  // money
+  'billing_interval_changed',
+  'plan_selected',
+  'checkout_failed',
+  'manage_subscription_clicked',
+  // identity
+  'sign_in_opened',
+  /** A step of the email flow was submitted; `mode`. */
+  'sign_in_submitted',
+  'sign_in_failed',
+  'signed_in',
+  'signed_out',
+  'name_changed',
+  'account_delete_opened',
+  'account_deleted',
+  // keeping and sharing
+  'liked',
+  'unliked',
+  'saved',
+  'unsaved',
+  'share_clicked',
+  'share_page_opened',
+  'visibility_changed',
+  'session_deleted',
+  'download_variant_changed',
+  'download_failed',
+  'session_tab_shown',
+  // replay controls that are not the session's own record
+  'replay_rate_changed',
+  'replay_back_clicked',
+  'replay_refused',
+  // the shell
+  'theme_changed',
+  'board_chosen',
+  'ink_chosen',
+  'sidebar_toggled',
+  'menu_opened',
+  'nav_clicked',
+  'home_clicked',
+  // privacy
+  'privacy_opened',
+  'analytics_toggled',
+  'data_download_clicked',
+  // recovering
+  'retry_clicked',
+]);
+export type ActionName = z.infer<typeof ActionName>;
 
 /** Interaction props are bounded so the ledger and PostHog never carry a sentence. */
 export const InteractionProps = z

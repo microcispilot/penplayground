@@ -7,6 +7,7 @@ import type { DownloadRecord, HistoryRecord, SessionRecord } from '../api/client
 import { ShellPage } from '../components/AppShell.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
+import { trackAction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 import { mountGoogleButton } from '../lib/google.js';
 import { useLists } from '../lib/lists.js';
@@ -28,7 +29,10 @@ export function StartAgain({ session, live }: { session: SessionRecord; live: bo
       <Button
         variant="primary"
         leading={<Play size={14} />}
-        onClick={() => navigate(`/room/${session.id}`)}
+        onClick={() => {
+          trackAction('join_clicked', { sessionId: session.id, source: 'shelf' });
+          navigate(`/room/${session.id}`);
+        }}
       >
         Rejoin
       </Button>
@@ -36,7 +40,13 @@ export function StartAgain({ session, live }: { session: SessionRecord; live: bo
   // A room is a recording, not a lesson to replay (ADR-0035): its page is the way in.
   if (!quickStart.enabled || session.guests > 0)
     return (
-      <Button variant="primary" onClick={() => navigate(`/sessions/${session.id}`)}>
+      <Button
+        variant="primary"
+        onClick={() => {
+          trackAction('session_opened', { sessionId: session.id, source: 'shelf' });
+          navigate(`/sessions/${session.id}`);
+        }}
+      >
         Open
       </Button>
     );
@@ -345,7 +355,13 @@ export function DownloadsScreen() {
             Your sessions
           </Button>
         ) : (
-          <Button variant="primary" onClick={() => navigate('/pricing')}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              trackAction('upgrade_clicked', { source: 'downloads' });
+              navigate('/pricing');
+            }}
+          >
             See the plans
           </Button>
         ),
@@ -375,7 +391,13 @@ export function RoomsScreen() {
         action: entitled ? (
           <StartLearningButton label="Start a session" />
         ) : (
-          <Button variant="primary" onClick={() => navigate('/pricing')}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              trackAction('upgrade_clicked', { source: 'rooms' });
+              navigate('/pricing');
+            }}
+          >
             See the plans
           </Button>
         ),
