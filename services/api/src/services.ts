@@ -28,6 +28,7 @@ import { createOnten, type Onten } from '@pen/onten';
 import {
   ExpertCatalog,
   FileLessonMemo,
+  type Grader,
   type IntentClassifier,
   type KnowledgeAcquirer,
   type LessonMemo,
@@ -50,7 +51,7 @@ import { demoScripts } from './demo-scripts.js';
 import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
 import { FeatureFlagsService, FeatureStore, featureFlagsCachePath } from './features/index.js';
 import { GoogleLibraryVerifier, GoogleSignIn, type GoogleTokenVerifier } from './google.js';
-import { createIntentClassifier } from './intent.js';
+import { createGrader, createIntentClassifier } from './intent.js';
 import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
 import { LiveKitRooms } from './livekit.js';
@@ -116,6 +117,8 @@ export interface Services {
    * in the dashboard never moves under a lesson in progress.
    */
   intentFor(): IntentClassifier | null;
+  /** The hosted check-in grader for a room being built now (ADR-0039), or null for the model path. */
+  graderFor(): Grader | null;
   voices: ExpertVoices;
   ledger: FileLedger;
   db: Connection;
@@ -402,6 +405,7 @@ export async function buildServices(
   // own ledger gets its `intent` stage and cost line from the room's wrapper.
   // Memoised per (provider, model), so a room being built pays a map lookup.
   const intentFor = createIntentClassifier(cfg, config, costs);
+  const graderFor = createGrader(cfg, config, costs);
   const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
   /** Which of the four keys a call runs on (`KeyOwner` in contracts says why they never fall back). */
   const keyFor = (owner: KeyOwner): string | undefined =>
@@ -638,6 +642,7 @@ export async function buildServices(
     ttsCache,
     recognizer,
     intentFor,
+    graderFor,
     voices,
     ledger,
     db,

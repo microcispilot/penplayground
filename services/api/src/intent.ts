@@ -4,7 +4,13 @@ import {
   TYPESAFE_DIRECT_BASE_URL,
   TYPESAFE_DIRECT_MODEL,
 } from '@pen/llm';
-import { INTENT_TIMEOUT_MS, type IntentClassifier, JevIntentClassifier } from '@pen/session-engine';
+import {
+  type Grader,
+  INTENT_TIMEOUT_MS,
+  type IntentClassifier,
+  JevGrader,
+  JevIntentClassifier,
+} from '@pen/session-engine';
 import type { Config } from './config.js';
 import { logger } from './logger.js';
 import type { RuntimeConfigStore } from './runtime-config/index.js';
@@ -34,11 +40,56 @@ export function createIntentClassifier(
   config: RuntimeConfigStore,
   meter?: CostMeter,
 ): () => IntentClassifier | null {
-  const built = new Map<string, IntentClassifier | null>();
-  let warnedAboutKey = false;
+  const decisions = createDecisionsModel(cfg, meter);
+  const built = new Map<string, IntentClassifier>();
   return () => {
-    const provider = config.get('PEN_INTENT_PROVIDER');
-    if (provider === 'model') return null;
+    if (config.get('PEN_INTENT_PROVIDER') === 'model') return null;
+    const model = decisions(config);
+    if (!model) return null;
+    const cached = built.get(model.id);
+    if (cached) return cached;
+    const classifier = new JevIntentClassifier({ decisions: model });
+    built.set(model.id, classifier);
+    return classifier;
+  };
+}
+
+/**
+ * The hosted grader for check-in answers (ADR-0039): the same decisions
+ * model, the same key and route, its own switch. `PEN_GRADE_PROVIDER=model`
+ * — or no key — and the room grades with the session model as it always did.
+ */
+export function createGrader(
+  cfg: Config,
+  config: RuntimeConfigStore,
+  meter?: CostMeter,
+): () => Grader | null {
+  const decisions = createDecisionsModel(cfg, meter);
+  const built = new Map<string, Grader>();
+  return () => {
+    if (config.get('PEN_GRADE_PROVIDER') === 'model') return null;
+    const model = decisions(config);
+    if (!model) return null;
+    const cached = built.get(model.id);
+    if (cached) return cached;
+    const grader = new JevGrader({ decisions: model });
+    built.set(model.id, grader);
+    return grader;
+  };
+}
+
+/**
+ * The decisions model behind both, memoised per route and id, so a room
+ * being built costs a map lookup. `id` is `route:model`, which is also what
+ * the classifiers and graders are cached by.
+ */
+function createDecisionsModel(
+  cfg: Config,
+  meter?: CostMeter,
+): (config: RuntimeConfigStore) => JevDecisionsModel | null {
+  const built = new Map<string, JevDecisionsModel>();
+  let warnedAboutKey = false;
+  return (config) => {
     /*
      * TypeSafe's own endpoint when we have TypeSafe's own key, the gateway
      * otherwise. Direct wins when both are set: OpenRouter only ever existed
@@ -58,30 +109,28 @@ export function createIntentClassifier(
         warnedAboutKey = true;
         logger.warn(
           { evt: 'intent.no_key' },
-          'PEN_INTENT_PROVIDER=jev has no PEN_TYPESAFE_API_KEY or OPENROUTER_API_KEY; rooms classify with the session model',
+          'the hosted decisions model has no PEN_TYPESAFE_API_KEY or OPENROUTER_API_KEY; rooms classify and grade with the session model',
         );
       }
       return null;
     }
     const model = direct ? TYPESAFE_DIRECT_MODEL : config.get('PEN_INTENT_MODEL');
     const route = direct ? 'typesafe' : 'openrouter';
-    const cacheId = `${provider}:${route}:${model}`;
+    const cacheId = `${route}:${model}`;
     const cached = built.get(cacheId);
-    if (cached !== undefined) return cached;
+    if (cached) return cached;
     logger.info(
       { evt: 'intent.provider', model, route, timeoutMs: INTENT_TIMEOUT_MS },
-      'intent classified by a hosted decisions model; the session model stays as the fallback',
+      'decisions by a hosted decisions model; the session model stays as the fallback',
     );
-    const classifier = new JevIntentClassifier({
-      decisions: new JevDecisionsModel({
-        apiKey,
-        model,
-        timeoutMs: INTENT_TIMEOUT_MS,
-        ...(direct ? { baseUrl: TYPESAFE_DIRECT_BASE_URL } : {}),
-        ...(meter ? { meter } : {}),
-      }),
+    const decisions = new JevDecisionsModel({
+      apiKey,
+      model,
+      timeoutMs: INTENT_TIMEOUT_MS,
+      ...(direct ? { baseUrl: TYPESAFE_DIRECT_BASE_URL } : {}),
+      ...(meter ? { meter } : {}),
     });
-    built.set(cacheId, classifier);
-    return classifier;
+    built.set(cacheId, decisions);
+    return decisions;
   };
 }

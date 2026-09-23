@@ -51,11 +51,18 @@ import {
   acknowledgement,
   bridgeBack,
   callOnHand,
+  checkFeedback,
   classifyLocally,
   handUnanswered,
   handWithdrawn,
   outOfScope,
 } from './brain.js';
+import {
+  GRADE_MIN_CONFIDENCE,
+  type GradeDecision,
+  type Grader,
+  withGradeTelemetry,
+} from './grading.js';
 import {
   INTENT_MIN_CONFIDENCE,
   type IntentClassifier,
@@ -191,6 +198,13 @@ export interface SessionRoomDeps {
    * goes straight to the model, exactly as it always has.
    */
   intent?: IntentClassifier | null;
+  /**
+   * Hosted grader for check-in answers (`PEN_GRADE_PROVIDER`, ADR-0039). Null
+   * or absent and the model grades and writes the feedback in one call, as it
+   * always has; that call stays the floor under a grader that is unsure or
+   * unavailable.
+   */
+  grader?: Grader | null;
   synthesizer: SpeechSynthesizer;
   /** Engine voice for this expert (resolved from the catalog voice id). */
   voice: string;
@@ -273,6 +287,7 @@ export class SessionRoom {
   private readonly model: LanguageModel;
   /** The hosted classifier, metered; null when this deployment has none. */
   private readonly hostedIntent: IntentClassifier | null;
+  private readonly hostedGrader: Grader | null;
   /** The floor under it: today's model call, and the only classifier a room always has. */
   private readonly modelIntent: IntentClassifier;
   private state: RoomState;
@@ -376,6 +391,7 @@ export class SessionRoom {
     // The hosted classifier is per process and shared; its telemetry is per
     // session, so the wrap happens here, exactly as it does for the model.
     this.hostedIntent = deps.intent ? withIntentTelemetry(deps.intent, this.metrics) : null;
+    this.hostedGrader = deps.grader ? withGradeTelemetry(deps.grader, this.metrics) : null;
     this.modelIntent = new ModelIntentClassifier({
       model: this.model,
       cacheKey: `${roomCacheKey(deps.expert.id, deps.band)}:intent`,
@@ -2139,6 +2155,35 @@ export class SessionRoom {
     }
   }
 
+  /** The hosted grade, or null when there is none, it is unsure, or it failed — every one falls to the model. */
+  private async gradeHosted(request: {
+    question: string;
+    expected: string;
+    options: string[];
+    answer: string;
+    explain: string;
+  }): Promise<GradeDecision | null> {
+    const grader = this.hostedGrader;
+    if (!grader) return null;
+    try {
+      const decision = await grader.grade({ ...request, signal: this.abort.signal });
+      if (decision.confidence !== null && decision.confidence < GRADE_MIN_CONFIDENCE) {
+        this.observer.event('room.grade_unsure', {
+          via: grader.id,
+          confidence: decision.confidence,
+          threshold: GRADE_MIN_CONFIDENCE,
+        });
+        return null;
+      }
+      return decision;
+    } catch (error) {
+      if (this.abort.signal.aborted) return null;
+      // Recorded, never fatal: the model call underneath grades.
+      this.fail('room.grade', error, 'intent');
+      return null;
+    }
+  }
+
   private command(p: Participant, command: IntentOutput['command']): void {
     const isHost = p.role === 'host';
     switch (command) {
@@ -2404,29 +2449,56 @@ export class SessionRoom {
     this.setMode('thinking', p.id);
     let verdict: 'correct' | 'partial' | 'incorrect' | 'ungraded' = 'ungraded';
     let feedback = entry.check.explain;
-    try {
-      const { value } = await this.model.complete({
-        messages: gradeMessages({
-          system: this.system,
-          question: entry.question,
-          expected: entry.check.expected,
-          options: entry.check.options,
-          answer: answerText,
-          explain: entry.check.explain,
-          language: this.language,
-        }),
-        schema: GradeOutput,
-        schemaName: 'grade',
-        cacheKey: this.cacheKey(),
-        maxOutputTokens: 120,
-        purpose: 'grade',
-      });
-      // Provisional evidence never grades (mayAuthorizeConsequentialDecision=false): feedback is spoken, the verdict is withheld.
-      verdict = this.state.evidenceTier === 'unverified_live_source' ? 'ungraded' : value.verdict;
-      feedback = value.feedback;
-    } catch (error) {
-      this.fail('room.grade', error, 'llm');
+    // Two steps down, as with intent (ADR-0039): the hosted grader decides
+    // the verdict in a breath and the expert says a line it already had
+    // around the explanation the lesson already wrote; the model, which
+    // decides and composes in one slower call, is the floor under it.
+    let via = 'model';
+    let confidence: number | null = null;
+    const hosted = await this.gradeHosted({
+      question: entry.question,
+      expected: entry.check.expected,
+      options: entry.check.options,
+      answer: answerText,
+      explain: entry.check.explain,
+    });
+    // The room can end inside that await; a verdict for nobody buys nothing.
+    if (this.abort.signal.aborted) return;
+    const line = hosted
+      ? checkFeedback(hosted.verdict, entry.check.explain, this.turnCounter, this.language)
+      : null;
+    if (hosted && line !== null) {
+      verdict = hosted.verdict;
+      feedback = line;
+      via = this.hostedGrader?.id ?? 'jev';
+      confidence = hosted.confidence;
+    } else {
+      try {
+        const { value } = await this.model.complete({
+          messages: gradeMessages({
+            system: this.system,
+            question: entry.question,
+            expected: entry.check.expected,
+            options: entry.check.options,
+            answer: answerText,
+            explain: entry.check.explain,
+            language: this.language,
+          }),
+          schema: GradeOutput,
+          schemaName: 'grade',
+          cacheKey: this.cacheKey(),
+          maxOutputTokens: 120,
+          purpose: 'grade',
+        });
+        verdict = value.verdict;
+        feedback = value.feedback;
+      } catch (error) {
+        this.fail('room.grade', error, 'llm');
+      }
     }
+    // Provisional evidence never grades (mayAuthorizeConsequentialDecision=false): feedback is spoken, the verdict is withheld.
+    if (this.state.evidenceTier === 'unverified_live_source') verdict = 'ungraded';
+    this.observer.event('room.grade', { verdict, via, confidence });
     this.d.transport.broadcast({ kind: 'check_result', checkId, participantId: p.id, verdict });
     this.setMode('answering', p.id);
     this.emitTurnEvent(turn, {

@@ -250,6 +250,122 @@ export function handWithdrawn(name: string, seed: number, language = 'en'): stri
   return forName(HAND_WITHDRAWN, name, seed, language);
 }
 
+/**
+ * What the expert says after grading a check-in (ADR-0039): a verdict in a
+ * breath, the explanation the lesson already wrote, and on we go. The model
+ * used to compose this sentence on every check; a real teacher does not
+ * compose "that's it" — they say it. Languages without a table get null,
+ * and the room lets the model write the feedback for them as before, rather
+ * than an English line in a Spanish lesson.
+ *
+ * `{explain}` is the check-in's own `explain`, written in the lesson's
+ * language when the lesson was; each opener leads into it as a sentence.
+ */
+type Verdict = 'correct' | 'partial' | 'incorrect';
+const CHECK_FEEDBACK: Record<string, Record<Verdict, string[]> & { on: string[] }> = {
+  en: {
+    correct: ['That’s it.', 'Exactly.', 'Yes — well done.'],
+    partial: ['Close — you’re nearly there.', 'Partly, yes.'],
+    incorrect: ['Not quite.', 'Not this time.'],
+    on: ['Let’s keep going.', 'Moving on.'],
+  },
+  es: {
+    correct: ['Eso es.', 'Exacto.', 'Sí, muy bien.'],
+    partial: ['Casi — te falta poco.', 'En parte, sí.'],
+    incorrect: ['No exactamente.', 'Esta vez no.'],
+    on: ['Sigamos.', 'Continuemos.'],
+  },
+  fr: {
+    correct: ['C’est ça.', 'Exactement.', 'Oui, bravo.'],
+    partial: ['Presque — tu y es presque.', 'En partie, oui.'],
+    incorrect: ['Pas tout à fait.', 'Pas cette fois.'],
+    on: ['Continuons.', 'On avance.'],
+  },
+  de: {
+    correct: ['Genau.', 'Richtig.', 'Ja, sehr gut.'],
+    partial: ['Fast — du bist nah dran.', 'Zum Teil, ja.'],
+    incorrect: ['Nicht ganz.', 'Diesmal nicht.'],
+    on: ['Machen wir weiter.', 'Weiter geht’s.'],
+  },
+  it: {
+    correct: ['Esatto.', 'Proprio così.', 'Sì, bravo.'],
+    partial: ['Quasi — ci sei quasi.', 'In parte, sì.'],
+    incorrect: ['Non proprio.', 'Non questa volta.'],
+    on: ['Andiamo avanti.', 'Continuiamo.'],
+  },
+  pt: {
+    correct: ['Isso mesmo.', 'Exato.', 'Sim, muito bem.'],
+    partial: ['Quase — está perto.', 'Em parte, sim.'],
+    incorrect: ['Não exatamente.', 'Desta vez não.'],
+    on: ['Vamos continuar.', 'Seguimos.'],
+  },
+  nl: {
+    correct: ['Precies.', 'Klopt.', 'Ja, goed gedaan.'],
+    partial: ['Bijna — je bent er bijna.', 'Deels, ja.'],
+    incorrect: ['Niet helemaal.', 'Deze keer niet.'],
+    on: ['We gaan verder.', 'Door.'],
+  },
+  tr: {
+    correct: ['İşte bu.', 'Aynen.', 'Evet, çok iyi.'],
+    partial: ['Yaklaştın — az kaldı.', 'Kısmen, evet.'],
+    incorrect: ['Tam değil.', 'Bu sefer değil.'],
+    on: ['Devam edelim.'],
+  },
+  ru: {
+    correct: ['Именно так.', 'Верно.', 'Да, отлично.'],
+    partial: ['Почти — ты близко.', 'Отчасти да.'],
+    incorrect: ['Не совсем.', 'В этот раз нет.'],
+    on: ['Идём дальше.', 'Продолжим.'],
+  },
+  fa: {
+    correct: ['همین است.', 'دقیقاً.', 'بله، آفرین.'],
+    partial: ['نزدیک بود — چیزی نمانده.', 'تا حدی، بله.'],
+    incorrect: ['نه دقیقاً.', 'این بار نه.'],
+    on: ['ادامه بدهیم.'],
+  },
+  ar: {
+    correct: ['هذا هو.', 'بالضبط.', 'نعم، أحسنت.'],
+    partial: ['قريب — كدت تصل.', 'جزئياً، نعم.'],
+    incorrect: ['ليس تماماً.', 'ليس هذه المرة.'],
+    on: ['لنكمل.'],
+  },
+  hi: {
+    correct: ['बिल्कुल यही।', 'सही।', 'हाँ, बहुत अच्छे।'],
+    partial: ['करीब — बस थोड़ा और।', 'कुछ हद तक, हाँ।'],
+    incorrect: ['पूरी तरह नहीं।', 'इस बार नहीं।'],
+    on: ['आगे बढ़ते हैं।'],
+  },
+  ja: {
+    correct: ['その通りです。', '正解です。', 'はい、よくできました。'],
+    partial: ['惜しい — あと少しです。', '部分的には合っています。'],
+    incorrect: ['少し違います。', '今回は違いますね。'],
+    on: ['続けましょう。'],
+  },
+  ko: {
+    correct: ['바로 그거예요.', '정확해요.', '네, 잘했어요.'],
+    partial: ['거의 다 왔어요.', '부분적으로 맞아요.'],
+    incorrect: ['조금 달라요.', '이번엔 아니에요.'],
+    on: ['계속 가볼게요.'],
+  },
+  zh: {
+    correct: ['就是这样。', '完全正确。', '对，很好。'],
+    partial: ['接近了——就差一点。', '部分正确。'],
+    incorrect: ['不太对。', '这次不对。'],
+    on: ['我们继续。'],
+  },
+};
+export function checkFeedback(
+  verdict: Verdict,
+  explain: string,
+  seed: number,
+  language = 'en',
+): string | null {
+  const table = CHECK_FEEDBACK[language.split('-')[0]?.toLowerCase() ?? 'en'];
+  if (!table) return null;
+  const pick = (list: string[]) => list[Math.abs(seed) % list.length] ?? list[0] ?? '';
+  return [pick(table[verdict]), explain.trim(), pick(table.on)].filter(Boolean).join(' ');
+}
+
 export function bridgeBack(seed: number, language = 'en'): string {
   const list = BRIDGES[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? BRIDGES.en ?? [];
   return list[Math.abs(seed) % list.length] ?? list[0] ?? 'Back to it.';

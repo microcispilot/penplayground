@@ -1,5 +1,16 @@
-export { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
+export { acknowledgement, bridgeBack, checkFeedback, classifyLocally } from './brain.js';
 export { ExpertCatalog } from './experts.js';
+export {
+  GRADE_CRITERIA,
+  GRADE_MIN_CONFIDENCE,
+  GRADE_PURPOSE,
+  type GradeDecision,
+  type GradeRequest,
+  type Grader,
+  gradeState,
+  JevGrader,
+  withGradeTelemetry,
+} from './grading.js';
 export {
   INTENT_COMMAND_CRITERIA,
   INTENT_CRITERIA,
