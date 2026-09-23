@@ -279,7 +279,7 @@ export function Room() {
             ref={boardRef}
             tabIndex={-1}
             aria-label={`${firstName}'s board`}
-            className="relative min-h-0 flex-1 overflow-hidden rounded-sm shadow-board outline-none"
+            className="pen-board-frame relative min-h-0 flex-1 overflow-hidden outline-none"
           >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
             <RoomStatus

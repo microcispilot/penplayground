@@ -353,3 +353,62 @@
   font-style: normal;
   color: var(--color-ink-accent);
 }
+
+/*
+ * The board as an object on a wall (ADR-0034).
+ *
+ * The owner asked for it to "look a bit in a 3d space like the board with a
+ * frame etc." — so the surface is framed, bevelled and lifted off the page
+ * rather than being a rounded rectangle with a hairline.
+ *
+ * ── why a border and not padding ───────────────────────────────────────────
+ *
+ * This class goes on the element that *already* holds the board and every
+ * overlay on it — the status line, the captions, the check card, the ad. All
+ * of those are `position: absolute; inset: 0`, which resolves against the
+ * **padding box**, so a border leaves them exactly where they were while
+ * padding would have pushed them out over the frame. That is the whole reason
+ * the frame is a border: it needed no JSX moved, and no overlay can end up
+ * floating on the woodwork.
+ *
+ * ── the bevel ──────────────────────────────────────────────────────────────
+ *
+ * Three stops, lit from above: the top and left edges take the light stop, the
+ * bottom and right take the dark one. That is what makes it read as a frame
+ * with depth rather than as a thick coloured outline.
+ *
+ * The bottom edge is deliberately heavier than the other three. A real board
+ * has a ledge along the bottom that the chalk and the eraser sit in, and
+ * thickening the border is a ledge that costs no layout and no element —
+ * where an actual tray would have eaten vertical space on the one screen where
+ * the board *is* the content.
+ *
+ * The frame's colours are the board's own (`--board-frame-*`), so a green
+ * board arrives in warm wood and a whiteboard in aluminium without anything
+ * here knowing which board it is drawing.
+ */
+.pen-board-frame {
+  border-style: solid;
+  border-width: 11px;
+  border-bottom-width: 17px;
+  border-top-color: var(--board-frame-a);
+  border-left-color: var(--board-frame-a);
+  border-right-color: var(--board-frame-c);
+  border-bottom-color: var(--board-frame-c);
+  border-radius: 11px;
+  background: var(--color-paper);
+  box-shadow:
+    /* the lip where the frame meets the surface */
+    inset 0 0 0 1px rgb(0 0 0 / 28%),
+    /* the board standing off the wall */ 0 14px 30px rgb(0 0 0 / 20%),
+    0 2px 6px rgb(0 0 0 / 14%);
+}
+
+/* Tight screens give the board every pixel: the frame thins rather than going. */
+@media (max-width: 640px) {
+  .pen-board-frame {
+    border-width: 6px;
+    border-bottom-width: 10px;
+    border-radius: 8px;
+  }
+}

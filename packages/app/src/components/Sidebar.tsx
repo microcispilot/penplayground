@@ -8,6 +8,7 @@ import {
   Heart,
   History,
   PlaySquare,
+  Settings2,
   Sparkles,
   Tag,
   Users,
@@ -347,6 +348,22 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
           label="Rooms"
           rail={rail}
           tag="Professional"
+          onNavigate={onNavigate}
+        />
+
+        <Divider />
+        {/*
+          Settings is its own section of one, not a row under "You".
+          "You" is the learner's shelf — the sessions, saves and likes that are
+          *theirs*. Settings is about the app, which is a different kind of
+          thing, and burying it among the shelves is how a preference screen
+          ends up unfindable.
+        */}
+        <Row
+          to="/settings"
+          icon={<Settings2 size={19} />}
+          label="Settings"
+          rail={rail}
           onNavigate={onNavigate}
         />
       </div>

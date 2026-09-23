@@ -1,4 +1,4 @@
-import { LEGENDS_BY_PLAN } from '@pen/contracts';
+import { BOARDS_BY_PLAN, LEGENDS_BY_PLAN } from '@pen/contracts';
 import { Button, cn, Pill, SegmentedButtons, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -57,6 +57,7 @@ const PLANS = [
       'Unlimited sessions — no daily count',
       `${LEGENDS_BY_PLAN.standard} legendary teachers, Socrates and Ada Lovelace among them`,
       'Premium voices, with the range to carry a long explanation',
+      `${BOARDS_BY_PLAN.standard} boards to be taught on \u2014 whiteboard, blackboard, green board \u2014 and the chalk or marker to match`,
       'Any session exported as video, yours to keep',
       'Publish straight to YouTube, or share a link',
       'Your topic prepared first when nobody has taught it yet',
@@ -72,6 +73,7 @@ const PLANS = [
     features: [
       'Everything in Standard',
       `All ${LEGENDS_BY_PLAN.professional} legendary teachers — Newton and Shakespeare among them`,
+      'Every board, smoked glass and the full chalk set included',
       'Rooms for up to 12 people, taught live',
       'The expert hears the whole room and takes each question by name',
       'Questions pinned as they arrive, so nobody is talked over',

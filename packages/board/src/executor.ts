@@ -50,7 +50,13 @@ import {
   type StrokeRole,
   TYPE,
 } from './shapes/props.js';
-import { connectNearestSides, layoutSketch, parseSketch, type SketchLayout } from './sketch.js';
+import {
+  connectNearestSides,
+  HAND_ADVANCE_RATIO,
+  layoutSketch,
+  parseSketch,
+  type SketchLayout,
+} from './sketch.js';
 import { fadeTrack, progressTrack, Timeline } from './timeline.js';
 
 /**
@@ -248,7 +254,8 @@ export class BoardExecutor implements BoardPort {
     const inner = w - NOTE_PADDING * 2;
     const questionLines = Math.max(
       1,
-      Math.ceil((note.question.length * TYPE.labelFont * 0.42) / inner),
+      // The hand's own advance ratio, not a Caveat-shaped 0.42 (see sketch.ts).
+      Math.ceil((note.question.length * TYPE.labelFont * HAND_ADVANCE_RATIO) / inner),
     );
     const detailLines = note.detail
       ? Math.max(1, Math.ceil((note.detail.length * 14 * 0.5) / inner))

@@ -59,6 +59,10 @@ const BOARD_TOKENS = [
   '--board-note',
   '--board-marker-blend',
   '--board-code-theme',
+  // The frame's three bevel stops, lit from above (ADR-0034).
+  '--board-frame-a',
+  '--board-frame-b',
+  '--board-frame-c',
 ];
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -109,7 +113,15 @@ describe('the board tokens that are not colours', () => {
   it('every --board-* the sources use is one this test knows about', () => {
     const used = new Set<string>();
     for (const file of walk(join(import.meta.dirname, '..', 'src'))) {
-      for (const [, name] of readFileSync(file, 'utf8').matchAll(/(--board-[a-z-]+)/g)) {
+      // Matched where a token is *used* or *declared*, not merely mentioned.
+      // A bare `--board-[a-z-]+` scan also caught `--board-frame-*` out of the
+      // prose in this very file's neighbours, which fails on a glob that is
+      // not a token at all.
+      const text = readFileSync(file, 'utf8');
+      for (const [, name] of text.matchAll(/var\((--board-[a-z0-9-]+?)[,)]/g)) {
+        if (name) used.add(name);
+      }
+      for (const [, name] of text.matchAll(/(--board-[a-z0-9-]+?)\s*:/g)) {
         if (name) used.add(name);
       }
     }

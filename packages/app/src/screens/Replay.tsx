@@ -279,7 +279,7 @@ export function Replay() {
 
   const presence = !started ? 'idle' : paused ? 'paused' : ui.speaking ? 'speaking' : 'idle';
   const stage = (
-    <div className="relative min-h-0 flex-1 overflow-hidden rounded-sm shadow-board">
+    <div className="pen-board-frame relative min-h-0 flex-1 overflow-hidden">
       <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
       <div className="absolute right-3 bottom-3 z-[6]">
         <ExpertOrb

@@ -121,18 +121,56 @@ export interface SketchLayoutOptions {
   noteHeight: number;
   minWidth: number;
   maxWidth: number;
-  /** Approximate hand-font advance per label character at the sketch label size. */
+  /**
+   * Approximate hand-font advance per label character at the sketch label
+   * size — what a node's box is sized from before anything is drawn.
+   *
+   * It is a property of the *font*, so it moved when the board's hand did.
+   * Measured with opentype.js over a set of real sketch labels, Eraser's mean
+   * advance is 1.78x Caveat's at every size (the ratio is scale-invariant:
+   * 9.21 vs 16.41 at 26 px, 10.62 vs 18.93 at 30 px). The old 13 was Caveat's
+   * number, and left at 13 it undersizes every box by nearly half — labels
+   * spill out of the shapes drawn around them, which looks like broken layout
+   * rather than like a font change.
+   */
   charWidth: number;
   padding: number;
 }
+
+/**
+ * Mean glyph advance as a fraction of font size, for the board's hand.
+ *
+ * Measured with opentype.js over real sketch labels rather than eyeballed:
+ * Eraser is 16.41 units at 26 px, so 0.631. It is scale-invariant, which is
+ * why it is a ratio and not a width — 9.21/26 and 10.62/30 give Caveat the
+ * same 0.354 at every size.
+ *
+ * It lives here, exported, because two different places used to carry their
+ * own Caveat-shaped magic number for the same fact: this file sized sketch
+ * node boxes and `executor.ts` wrapped note-card questions. Swapping the hand
+ * font moved both, and one of them would have been missed.
+ */
+export const HAND_ADVANCE_RATIO = 0.63;
 
 export const DEFAULT_SKETCH_LAYOUT: SketchLayoutOptions = {
   gap: 36,
   nodeHeight: 64,
   noteHeight: 48,
   minWidth: 120,
-  maxWidth: 320,
-  charWidth: 13,
+  /*
+   * Scaled with the hand. At 23 px a character, the old 320 clamped every
+   * label past 12 characters — "Self-attention" is 14 — so boxes would have
+   * been capped and their labels would have spilled out of them. 520 keeps the
+   * same *character* capacity the 320/13 pair had (about 21), which is what
+   * the number was really expressing.
+   */
+  maxWidth: 520,
+  /*
+   * 26 px label x 0.63 = 16.4 px of mean advance, then the same ~1.4x headroom
+   * the old pair carried (13 against Caveat's 9.2) so a word of wide letters
+   * still fits its box.
+   */
+  charWidth: 23,
   padding: 44,
 };
 

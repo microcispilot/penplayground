@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { connectNearestSides, layoutSketch, nodeWidth, parseSketch } from '../src/sketch.js';
+import {
+  connectNearestSides,
+  DEFAULT_SKETCH_LAYOUT,
+  layoutSketch,
+  nodeWidth,
+  parseSketch,
+} from '../src/sketch.js';
 
 const EXAMPLE = `
   box q "Query"
@@ -72,11 +78,24 @@ describe('layoutSketch', () => {
     expect(s.x + s.w / 2).toBeCloseTo(l.width / 2, 5);
   });
 
-  it('node width tracks label length within [120, 320]', () => {
+  /**
+   * The bounds moved with the board's hand (ADR-0034). Eraser's mean advance
+   * is 1.78x Caveat's, so a box sized for Caveat holds barely half the label
+   * — and a clamped box does not shrink its text, it lets it spill out.
+   * `charWidth` and `maxWidth` were re-derived together; this checks they
+   * still agree with each other rather than re-stating either number.
+   */
+  it('node width tracks label length within [120, 520]', () => {
     expect(nodeWidth('')).toBe(120);
     expect(nodeWidth('Key')).toBe(120);
-    expect(nodeWidth('Score = q·k / √d')).toBe(16 * 13 + 44);
-    expect(nodeWidth('x'.repeat(80))).toBe(320);
+    const { charWidth, padding, maxWidth, minWidth } = DEFAULT_SKETCH_LAYOUT;
+    expect(nodeWidth('Score = q·k / √d')).toBe(16 * charWidth + padding);
+    expect(nodeWidth('x'.repeat(80))).toBe(maxWidth);
+    expect(minWidth).toBe(120);
+    // The cap has to hold a realistic label, or every longer one overflows.
+    // "Self-attention" is 14 characters and is the kind of node label the
+    // model actually emits.
+    expect(14 * charWidth + padding).toBeLessThanOrEqual(maxWidth);
   });
 
   it('arrows connect nearest sides', () => {

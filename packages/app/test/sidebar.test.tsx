@@ -41,14 +41,29 @@ describe('Sidebar rows', () => {
     }
   });
 
-  it('carries no settings of its own: theme is in the header, pace is in the session', async () => {
-    // Both were here once. Pace moved into the session, where it is a property
-    // of the lesson being taught rather than of the app; theme is the header's
-    // one control, and a second copy in the sidebar was a second place to look.
+  /**
+   * Settings is a route now, and the sidebar is how you reach it.
+   *
+   * This test used to assert the opposite — that the sidebar carried no
+   * settings at all — and that was right while there were none: pace had moved
+   * into the session where it belongs to the lesson, and theme was the
+   * header's single control, so a "Settings" row would have led nowhere worth
+   * going.
+   *
+   * ADR-0034 gave the learner a board to choose, which is a real preference
+   * about the app rather than about a lesson, and it needed a home. What the
+   * original test was protecting still holds and is still checked below: the
+   * sidebar does not *duplicate* a control that lives somewhere else. It links
+   * to the screen; it does not grow a theme toggle or a pace slider of its own.
+   */
+  it('links to Settings, and still carries no controls of its own', async () => {
     renderWithApp(<Sidebar />, { participant: SIGNED_IN });
     await screen.findByText('History');
+    const settings = (await screen.findByText('Settings')).closest('a');
+    expect(settings?.getAttribute('href')).toContain('/settings');
+    // The controls themselves live on that screen, not here. A second copy in
+    // the sidebar would be a second place to look.
     expect(screen.queryByTestId('sidebar-theme')).toBeNull();
-    expect(screen.queryByText('Settings')).toBeNull();
     expect(screen.queryByTestId('sidebar-pace')).toBeNull();
     expect(screen.queryByText('Pace')).toBeNull();
   });

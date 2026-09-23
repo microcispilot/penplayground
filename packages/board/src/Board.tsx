@@ -1,8 +1,8 @@
 import 'tldraw/tldraw.css';
 import './styles/board.css';
-import caveatUrl from '@fontsource/caveat/files/caveat-latin-400-normal.woff?url';
 import type { BoardExecuteOptions, BoardExecution, BoardPort } from '@pen/conductor';
 import type { BoardEvent, NoteEvent } from '@pen/contracts';
+import handUrl from '@pen/design/fonts/eraser-regular.woff?url';
 import {
   type ReactNode,
   type Ref,
@@ -40,7 +40,15 @@ export interface BoardProps {
   /** Allow viewer pan/zoom. Off for the expert layer; reserved for pinch-zoom later. */
   interactive?: boolean;
   className?: string;
-  /** Font bytes URL; defaults to the bundled Caveat WOFF. */
+  /**
+   * Font bytes URL; defaults to the bundled Eraser WOFF.
+   *
+   * WOFF and not WOFF2, and that is not an oversight: these bytes are parsed
+   * by opentype.js, which reads TTF, OTF and WOFF and has no brotli decoder,
+   * so a WOFF2 here fails to parse and the board silently falls back to CSS
+   * text. The woff2 in the design package is for the CSS `@font-face`; this is
+   * the copy the outlines come from.
+   */
   fontUrl?: string;
   onReady?: (controller: BoardController) => void;
   /** Non-fatal problems (unknown refs, sketch parse issues). Wire to Sentry. */
@@ -129,9 +137,19 @@ export function Board({
     controller,
   ]);
 
-  // Load the hand font as early as possible; ink-text upgrades from CSS text once it lands.
+  /*
+   * Load the hand font as early as possible; ink-text upgrades from CSS text
+   * once it lands.
+   *
+   * This — not `--font-hand` — is what the handwriting is actually drawn from.
+   * The board does not set text in a font: it takes glyph *outlines* out of
+   * these bytes and reveals them stroke by stroke, which is why the CSS
+   * variable alone changed nothing when Eraser was first wired up. The
+   * variable governs the fallback text that shows before the bytes arrive, and
+   * the markdown block; this governs the handwriting.
+   */
   useEffect(() => {
-    const url = fontUrl ?? caveatUrl;
+    const url = fontUrl ?? handUrl;
     loadHandFont(() =>
       fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`)))),
     ).catch((err: unknown) => {

@@ -8,6 +8,7 @@ import { setAnalyticsContext, trackInteraction } from './lib/analytics.js';
 import { routerBasename, withBasePath } from './lib/base-path.js';
 import { AppProvider } from './lib/context.js';
 import { RouteHead, setSeoBasePath } from './lib/seo.js';
+import { BoardAttributes } from './lib/use-board.js';
 import { noteScreen } from './lib/visits.js';
 import type { Platform } from './platform/types.js';
 import { Experts } from './screens/Experts.js';
@@ -22,6 +23,7 @@ import {
 } from './screens/Lists.js';
 import { NotFound } from './screens/NotFound.js';
 import { Pricing } from './screens/Pricing.js';
+import { Settings } from './screens/Settings.js';
 
 /*
  * Route-level splitting. Home is the screen every visit starts on, so it — and
@@ -65,6 +67,7 @@ function screenOf(pathname: string): string {
   if (pathname.startsWith('/sessions/')) return 'session';
   if (pathname === '/sessions') return 'library';
   if (pathname === '/pricing') return 'pricing';
+  if (pathname === '/settings') return 'settings';
   if (pathname === '/experts') return 'experts';
   if (pathname === '/history') return 'history';
   if (pathname === '/saved') return 'saved';
@@ -156,6 +159,10 @@ export function PenApp({ platform }: { platform: Platform }) {
       <AppProvider platform={platform}>
         <ToastProvider>
           <BrowserRouter basename={routerBasename(platform.basePath)}>
+            {/* Stamps data-board / data-ink on <html> for every route, the
+                room and the replay included — those are outside the shell and
+                are the two screens that are entirely board. */}
+            <BoardAttributes />
             <ScreenTracker />
             <ScrollToTop />
             <RouteHead />
@@ -171,6 +178,7 @@ export function PenApp({ platform }: { platform: Platform }) {
                 <Route path="/downloads" element={<DownloadsScreen />} />
                 <Route path="/rooms" element={<RoomsScreen />} />
                 <Route path="/pricing" element={<Pricing />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="*" element={<NotFound />} />
