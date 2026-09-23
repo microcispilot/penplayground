@@ -205,6 +205,8 @@ export const NOT_SETTINGS = {
   OPENAI_API_KEY_PLATFORM: 'secret',
   OPENROUTER_API_KEY: 'secret',
   PEN_TYPESAFE_API_KEY: 'secret',
+  PEN_SMTP_PASSWORD: 'secret',
+  PEN_AUTH_HMAC_SECRET: 'secret',
   FISH_AUDIO_API_KEY: 'secret',
   DEEPGRAM_API_KEY: 'secret',
   ASSEMBLYAI_API_KEY: 'secret',
@@ -231,6 +233,13 @@ export const NOT_SETTINGS = {
   PEN_DATA_DIR: 'data-loss',
 
   // Where this box is, not what the product does.
+  // Where the mail goes out through, not what the product does. A console that
+  // could repoint the relay is a console that could redirect every
+  // verification code to a mailbox of its own choosing.
+  PEN_SMTP_HOST: 'address',
+  PEN_SMTP_PORT: 'address',
+  PEN_SMTP_USERNAME: 'address',
+  PEN_SMTP_FROM: 'address',
   PEN_PORT: 'address',
   PEN_PUBLIC_URL: 'address',
   PEN_API_URL: 'address',

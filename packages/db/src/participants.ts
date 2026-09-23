@@ -105,6 +105,54 @@ export class ParticipantRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Turn an existing row into a password account, keeping its id.
+   *
+   * An anonymous learner who signs up keeps everything they already started —
+   * that is the whole reason this is an UPDATE and not an INSERT. Their
+   * sessions are keyed to this id, and creating a second row would silently
+   * orphan them.
+   *
+   * `emailVerifiedAt` is set here rather than left for later because
+   * registration *is* the proof: the row only reaches this method once a code
+   * sent to that mailbox came back.
+   */
+  async attachPassword(
+    id: string,
+    account: { email: string; name: string; passwordHash: string; verifiedAt: Date },
+  ): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({
+        email: account.email,
+        name: account.name,
+        passwordHash: account.passwordHash,
+        emailVerifiedAt: account.verifiedAt,
+        provider: 'password',
+        anonymous: false,
+        lastSeenAt: new Date(),
+      })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Replace the password on an account.
+   *
+   * Also stamps `emailVerifiedAt`: completing a reset proves the mailbox just
+   * as registration does, and an account that arrived through Google and then
+   * set a password by reset has genuinely proved it twice.
+   */
+  async setPassword(id: string, passwordHash: string, at: Date): Promise<boolean> {
+    const rows = await this.db
+      .update(participants)
+      .set({ passwordHash, emailVerifiedAt: at, lastSeenAt: new Date() })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows.length > 0;
+  }
+
   /** A brand-new account for a Google identity nobody here has used before. */
   async createGoogle(
     id: string,

@@ -91,6 +91,35 @@ export const Env = z.object({
    */
   PEN_TYPESAFE_API_KEY: z.string().optional(),
 
+  /*
+   * Email and password sign-in.
+   *
+   * The relay is Simurgh's — the owner adds penplayground.com as a domain
+   * there and Pen sends through the same account, which is why these are plain
+   * SMTP settings and not a provider SDK.
+   *
+   * With no host configured the mailer writes verification codes to the log
+   * instead of sending them, so the flow can be walked without credentials.
+   * That is refused outright in production (`createMailer`): a deployment that
+   * fell back to it would answer every sign-up with a cheerful 202, deliver
+   * nothing, and print every code into a log aggregator.
+   */
+  PEN_SMTP_HOST: z.string().optional(),
+  PEN_SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+  PEN_SMTP_USERNAME: z.string().optional(),
+  PEN_SMTP_PASSWORD: z.string().optional(),
+  /** The From: address. Must be one the relay is allowed to send as. */
+  PEN_SMTP_FROM: z.string().optional(),
+  /**
+   * Keys the HMAC that verification codes are stored under.
+   *
+   * Separate from `PEN_JWT_SECRET` so that compromising one does not hand over
+   * the other: the JWT secret mints sessions, this one makes stored code
+   * digests unforgeable. Optional, and falls back to the JWT secret outside
+   * production so a dev checkout needs no extra setup.
+   */
+  PEN_AUTH_HMAC_SECRET: z.string().min(32).optional(),
+
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),
   FISH_AUDIO_MODEL: z.string().trim().min(1).max(120).default('s2.1-pro'),

@@ -80,6 +80,26 @@ export const participants = pgTable(
      * throwing.
      */
     board: jsonb('board'),
+    /**
+     * Argon2id hash, or null.
+     *
+     * Null is the normal state for most rows and means "this account has no
+     * password", not "the password is empty": every anonymous learner and
+     * every Google-only account lives here. `verifyPassword` is given the null
+     * and still does the work, so an address without a password takes exactly
+     * as long to refuse as a wrong password does.
+     */
+    passwordHash: text('password_hash'),
+    /**
+     * When the address was proved to belong to whoever holds this account.
+     *
+     * Set at the moment of registration, because registration *is* the proof —
+     * the account only exists once a code sent to that mailbox came back. It
+     * is a timestamp rather than a boolean so "when" is answerable later, and
+     * null for accounts that never proved an address (anonymous rows, and
+     * Google rows where Google did the proving instead).
+     */
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -281,3 +301,47 @@ export type ParticipantRow = typeof participants.$inferSelect;
 export type SessionVisitRow = typeof sessionVisits.$inferSelect;
 export type SessionRedirectRow = typeof sessionRedirects.$inferSelect;
 export type RuntimeConfigAuditRow = typeof runtimeConfigAudits.$inferSelect;
+
+/**
+ * A one-time code sent to an address, and the only thing standing between a
+ * stranger and an account.
+ *
+ * Ported from Simurgh's `auth_email_challenges`, with one deliberate addition:
+ * `purpose`. Simurgh has registration challenges only — it has no
+ * password-reset flow at all — and a reset needs exactly the same machinery
+ * with different consequences, so the discriminator lives on the row rather
+ * than in a second table nobody would keep in step.
+ *
+ * ── what is stored, and what is not ────────────────────────────────────────
+ *
+ * Never the code. `codeDigest` is an HMAC over the code *bound to the
+ * challenge id and the address*, so a stolen table is not a set of usable
+ * codes, and a digest lifted from one row cannot be replayed into another.
+ *
+ * The counters are the whole defence against guessing eight digits:
+ * `failedAttempts` locks the row at five, `sendCount` caps how many codes one
+ * request can generate, and `resendNotBefore` is the cooldown. A resend does
+ * not update this row — it locks it and inserts a new one, so a code that was
+ * already sent can never be revived.
+ */
+export const authChallenges = pgTable(
+  'auth_challenges',
+  {
+    id: text('id').primaryKey(),
+    /** 'register' | 'reset'. Text, not an enum: adding a purpose should not be a migration. */
+    purpose: text('purpose').notNull(),
+    /** Lowercased and trimmed by the contract before it ever reaches here. */
+    email: text('email').notNull(),
+    codeDigest: text('code_digest').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    sendCount: integer('send_count').notNull().default(1),
+    resendNotBefore: timestamp('resend_not_before', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('auth_challenges_email_idx').on(t.email, t.purpose)],
+);
+
+export type AuthChallengeRow = typeof authChallenges.$inferSelect;

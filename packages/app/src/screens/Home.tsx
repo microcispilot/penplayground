@@ -1,11 +1,10 @@
 import type { Expert, PlanUsage } from '@pen/contracts';
 import { planIncludes } from '@pen/contracts';
-import { Chip, cn, PenMark, Skeleton, useToast } from '@pen/design';
+import { Chip, cn, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, Mic, Search, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
-import { PrivacyDialog } from '../components/PrivacyDialog.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
 import { markStartClicked } from '../lib/analytics.js';
@@ -86,7 +85,6 @@ export function Home() {
   const [usage, setUsage] = useState<PlanUsage | null>(null);
   // Once per mount. See the placeholder below for why this is not a plain call.
   const [example] = useState(pickTopicExample);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -507,43 +505,6 @@ export function Home() {
           </div>
         </div>
       </section>
-
-      {/* The bottom pane is furniture too: the same surface the sidebar sits on. */}
-      <footer className="bg-surface-container-low">
-        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-8 text-body-medium text-on-surface-dim">
-          <span className="flex items-center gap-1.5 text-on-surface-variant">
-            <PenMark size={16} /> Pen Playground
-          </span>
-          <NavLink to="/pricing" className="hover:text-on-surface">
-            Pricing
-          </NavLink>
-          <NavLink to="/sessions" className="hover:text-on-surface">
-            Your sessions
-          </NavLink>
-          {/*
-            Terms, Privacy and the copyright also sit in the sidebar's own
-            footer, which is in the layout from 1024 px up (AppShell). One copy
-            is enough: below that the sidebar is a drawer, so Home carries them.
-          */}
-          <NavLink to="/terms" className="hover:text-on-surface lg:hidden">
-            Terms
-          </NavLink>
-          <NavLink to="/privacy" className="hover:text-on-surface lg:hidden">
-            Privacy
-          </NavLink>
-          <button
-            type="button"
-            className="hover:text-on-surface"
-            onClick={() => setPrivacyOpen(true)}
-          >
-            Privacy choices
-          </button>
-          <span className="flex-1" />
-          {/* The AI disclosure is stated in full on Terms, which is one link away. */}
-          <span className="lg:hidden">© 2026 Microcis</span>
-        </div>
-      </footer>
-      <PrivacyDialog open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </div>
   );
 }

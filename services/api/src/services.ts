@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyOwner, PlanCode } from '@pen/contracts';
 import {
+  AuthChallengeRepository,
   type Connection,
   connect,
   ListRepository,
@@ -41,6 +42,7 @@ import {
 } from '@pen/voice';
 import { AdEconomics } from './ads.js';
 import { Analytics } from './analytics.js';
+import { createMailer, type Mailer } from './auth/mailer.js';
 import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
@@ -108,6 +110,14 @@ export interface Services {
   db: Connection;
   sessions: SessionRepository;
   participants: ParticipantRepository;
+  authChallenges: AuthChallengeRepository;
+  /**
+   * How mail leaves. Built here rather than in `buildApp` so the production
+   * refusal — no SMTP configured — happens at boot instead of on the first
+   * person who tries to sign up, and so a test can put a capturing one in its
+   * place without reaching into the route.
+   */
+  mailer: Mailer;
   /** Saved / liked / history per participant (ADR-0015). */
   lists: ListRepository;
   /** Writing the statistics: derived session rows, visits, plan history (ADR-0027). */
@@ -234,6 +244,17 @@ export async function buildServices(
   });
   const sessions = new SessionRepository(db.db);
   const participants = new ParticipantRepository(db.db);
+  const authChallenges = new AuthChallengeRepository(db.db);
+  const mailer = createMailer({
+    production: cfg.NODE_ENV === 'production',
+    smtp: {
+      host: cfg.PEN_SMTP_HOST,
+      port: cfg.PEN_SMTP_PORT,
+      username: cfg.PEN_SMTP_USERNAME,
+      password: cfg.PEN_SMTP_PASSWORD,
+      from: cfg.PEN_SMTP_FROM,
+    },
+  });
   const lists = new ListRepository(db.db);
   /** Statistics and reports (ADR-0027): one repository writes, the other reads. */
   const stats = new StatsRepository(db.db);
@@ -571,6 +592,8 @@ export async function buildServices(
     db,
     sessions,
     participants,
+    authChallenges,
+    mailer,
     lists,
     stats,
     reports,

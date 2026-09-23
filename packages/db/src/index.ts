@@ -1,3 +1,4 @@
+export { AuthChallengeRepository } from './auth-challenges.js';
 export {
   applyMigrations,
   type Connection,
@@ -43,8 +44,13 @@ export {
   type RuntimeConfigSnapshot,
   type RuntimeConfigWrite,
 } from './runtime-config.js';
-export type { RuntimeConfigAuditRow, SessionRedirectRow } from './schema.js';
+export type {
+  AuthChallengeRow,
+  RuntimeConfigAuditRow,
+  SessionRedirectRow,
+} from './schema.js';
 export * as schema from './schema.js';
+export { authChallenges } from './schema.js';
 export {
   type DuplicateGroup,
   type DuplicateMember,

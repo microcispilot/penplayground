@@ -33,6 +33,9 @@ import type { WSContext } from 'hono/ws';
 import type { WebSocket } from 'ws';
 import { z } from 'zod';
 import { Admissions } from './admissions.js';
+import { createChallengeStore } from './auth/challenges.js';
+import { createAuthRateLimiter } from './auth/rate-limit.js';
+import { registerAuthRoutes } from './auth/routes.js';
 import { ExportRefused, exportFilename } from './export/index.js';
 import { GoogleTokenError } from './google.js';
 import type { Claims } from './identity.js';
@@ -403,6 +406,69 @@ export function buildApp(services: Services): App {
       token: issued.token,
       participant: participantView({ ...row, plan: issued.claims.plan }),
     });
+  });
+
+  /*
+   * Email and password (ADR-pending; the flow is Simurgh's, see auth/routes.ts).
+   *
+   * Everything the routes need is passed in rather than reached for, so the
+   * whole surface can be exercised against fakes — which matters more here
+   * than anywhere else in this file, because the interesting cases are the
+   * ones that must NOT be distinguishable from outside.
+   */
+  registerAuthRoutes(app, {
+    challenges: createChallengeStore(
+      services.authChallenges,
+      // A secret of its own where one is configured, so a leaked JWT secret
+      // does not also make stored verification codes forgeable.
+      services.cfg.PEN_AUTH_HMAC_SECRET ?? services.cfg.PEN_JWT_SECRET,
+    ),
+    mailer: services.mailer,
+    limiter: createAuthRateLimiter(
+      services.cfg.PEN_AUTH_HMAC_SECRET ?? services.cfg.PEN_JWT_SECRET,
+    ),
+    signInUrl: `${services.cfg.PEN_PUBLIC_URL.replace(/\/$/, '')}/`,
+    clientIp: (c) => clientKey(c.req),
+    findByEmail: (email) => services.participants.findByEmail(email),
+    callerId: async (authorization) => {
+      const claims = await bearer(authorization);
+      // Only an anonymous caller is upgraded in place. A signed-in one
+      // registering a second address must not silently overwrite the account
+      // they are already holding.
+      if (!claims) return null;
+      const row = await services.participants.get(claims.sub);
+      return row && row.anonymous ? row.id : null;
+    },
+    attachPassword: (id, account) => services.participants.attachPassword(id, account),
+    createBlank: async (name) => {
+      const issued = await identity.issue({ name, plan: 'free', anonymous: true });
+      const row = await services.participants.ensure({
+        id: issued.claims.sub,
+        name,
+        plan: 'free',
+        anonymous: true,
+      });
+      return { id: row.id };
+    },
+    setPassword: (id, hash, at) => services.participants.setPassword(id, hash, at),
+    issue: async (account) => {
+      const plan = services.cfg.PEN_DEV_PLAN ?? account.plan;
+      const issued = await identity.issue({
+        sub: account.id,
+        name: account.name,
+        plan,
+        anonymous: false,
+      });
+      const row = await services.participants.get(account.id);
+      return {
+        token: issued.token,
+        // The row is the source; `account` is only the fallback for the
+        // vanishingly rare case where it was removed between the write and
+        // here, and it has to carry `anonymous` because a password account
+        // never is one.
+        participant: participantView({ ...account, anonymous: false, ...(row ?? {}), plan }),
+      };
+    },
   });
 
   /**

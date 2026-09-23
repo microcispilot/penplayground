@@ -92,6 +92,13 @@
       "when": 1790139116637,
       "tag": "0012_participant_board",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790142202049,
+      "tag": "0013_email_password_auth",
+      "breakpoints": true
     }
   ]
 }
