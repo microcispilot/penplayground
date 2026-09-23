@@ -4,7 +4,7 @@ import { Chip, cn, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, Mic, Search, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ApiError, type SessionRecord } from '../api/client.js';
+import { ApiError, PreparationRequired, type SessionRecord } from '../api/client.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
 import { markStartClicked } from '../lib/analytics.js';
@@ -83,6 +83,12 @@ export function Home() {
   const setCategory = (next: string) => setParams(next === 'all' ? {} : { topic: next });
   /** Today's allowance, so the page can say what is left before anyone clicks Start. */
   const [usage, setUsage] = useState<PlanUsage | null>(null);
+  /**
+   * The server said nobody has prepared that topic and this plan may not
+   * have it prepared (ADR-0036): the sentence it sent, the way to upgrade,
+   * and the lessons that are ready right now — an answer, not a closed door.
+   */
+  const [unprepared, setUnprepared] = useState<PreparationRequired | null>(null);
   // Once per mount. See the placeholder below for why this is not a plain call.
   const [example] = useState(pickTopicExample);
 
@@ -193,17 +199,28 @@ export function Home() {
     if (!t || startingRef.current) return;
     startingRef.current = true;
     setStarting(true);
+    setUnprepared(null);
     try {
       const { session } = await api.createSession(expertId ? { topic: t, expertId } : { topic: t });
       navigate(`/room/${session.id}`, { state: { fresh: true } });
     } catch (error) {
-      // A plan or a daily limit is a fact about an account, not a fault: it is
-      // said in the ordinary voice. Only a real failure is a danger.
-      const calm = error instanceof ApiError && error.status === 402;
-      toast(
-        error instanceof ApiError ? error.message : 'Could not start the session',
-        calm ? 'neutral' : 'danger',
-      );
+      const refused =
+        error instanceof ApiError && error.code === 'PREPARATION_REQUIRED'
+          ? PreparationRequired.safeParse(error.detail)
+          : null;
+      if (refused?.success) {
+        // Said on the page, under the box the learner typed into, with the
+        // lessons that are ready — not a toast that vanishes.
+        setUnprepared(refused.data);
+      } else {
+        // A plan or a daily limit is a fact about an account, not a fault: it is
+        // said in the ordinary voice. Only a real failure is a danger.
+        const calm = error instanceof ApiError && error.status === 402;
+        toast(
+          error instanceof ApiError ? error.message : 'Could not start the session',
+          calm ? 'neutral' : 'danger',
+        );
+      }
       startingRef.current = false;
       setStarting(false);
     }
@@ -393,7 +410,44 @@ export function Home() {
             alarm: nothing has gone wrong, and no `error` role appears anywhere
             near it.
           */}
-          {waiting ? (
+          {unprepared ? (
+            <div
+              className="animate-rise mt-5 flex w-full max-w-[720px] flex-col items-start gap-3.5"
+              data-testid="home-unprepared"
+            >
+              <p className="text-body-medium text-on-surface-variant text-pretty">
+                {unprepared.message}
+              </p>
+              <Link
+                to="/pricing"
+                data-testid="home-upgrade"
+                className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
+              >
+                Upgrade to continue
+                <ArrowRight size={16} />
+              </Link>
+              {unprepared.ready.length > 0 ? (
+                <div className="mt-2 flex w-full flex-col gap-3 text-left">
+                  <p className="text-title-small text-on-surface">Ready now</p>
+                  <div className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2 xl:grid-cols-3">
+                    {unprepared.ready.slice(0, 6).map((r) => {
+                      const expert = expertById.get(r.expertId);
+                      return (
+                        <SessionCard
+                          key={r.id}
+                          session={r}
+                          expertName={expert?.displayName ?? 'AI expert'}
+                          portraitUrl={api.portraitUrl(expert?.portrait?.src, 192)}
+                          onOpen={() => navigate(`/sessions/${r.id}`)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {waiting && !unprepared ? (
             <div
               className="animate-rise mt-5 flex max-w-[560px] flex-col items-start gap-3.5"
               style={{ animationDelay: '220ms' }}

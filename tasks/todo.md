@@ -417,6 +417,68 @@ afterwards, each with a test that fails on an unchanged checkout.
       curve the product is judged by. It ranks above every `left_*` answer,
       because the learner did not leave: we stopped.
 
+## Replay, recordings and the flags (2026-09-23)
+
+- [x] **A recording is its host's alone (ADR-0035).** `GET /api/sessions/:id/ledger`
+      and `/audio/:file` served the whole ledger — the learner's verbatim
+      `caption`s, the `note` questions, every answer — to anyone with the id,
+      private sessions included; the saved page listed the notes to every
+      visitor. Now: the host by bearer or by the render token, 401 to nobody,
+      403 to everyone else, `FEATURE_OFF` when `recording_playback` is off.
+      The record stays public with the host stripped. Tests:
+      `features.test.ts`, `anonymise.test.ts`, `dedupe.test.ts`.
+- [x] **"Replay" is a fresh live session of your own.** `POST /api/sessions`
+      takes `{ replayOf }`; the saved page, every shelf row and the refused
+      replay screen start the lesson again with the same expert, band and
+      language, reusing the memo and the voice store. The host's playback is
+      "Watch my recording". The e2e that clicked *Replay* to reach
+      `/replay/:id` clicks that instead (`base-path.spec.ts`).
+- [x] **The recording plays in the order it was heard.** By cue `seq` an
+      answer came after the whole segment it interrupted; `recordingOrder`
+      (contracts) orders by the audio's clock, last take of each sentence,
+      and the replay and the export plan both use it. The learner's words
+      are shown as the caption that opened each turn.
+      `packages/contracts/test/recording-order.test.ts`.
+- [x] **Two downloads.** `?interactions=1` (the session as lived) and
+      `?interactions=0` (the lesson alone, every turn out) are two jobs and
+      two files (`export-lesson.mp4`); the status names its `variant`, the
+      saved page offers the choice, the Downloads shelf lists the newest.
+- [x] **Feature flags by plan and platform (ADR-0036).** `FeatureRule`
+      (default, per plan, per platform — AND when both — per cell) in
+      contracts with the compiled-in rules; `feature_flags_state` /
+      `_audits` (migration `0014_feature_flags`); `FeatureStore` (polled,
+      last known good on disk) and `FeatureFlagsService`;
+      `/api/admin/features` (+ history, rollback), `/api/me/features`; the
+      `x-pen-platform` header from the app's `Platform.id`; the console's
+      Features page (a matrix per feature, click to cycle, save with a
+      reason, history, restore). A room is built with its flags and keeps
+      them (`RoomState.features` for the chat, reactions and captions).
+- [x] **Free learners no longer trigger topic preparation.** `RoomRegistry.create`
+      throws `PreparationRefused` on a miss when `prepare_new_topics` is off
+      (compiled-in: off; Standard and Professional on) before a row, an ad or
+      a room exists; the route answers `402 PREPARATION_REQUIRED` with the way
+      to Pricing and the lessons that are ready, and Home shows them under
+      the box. Tests that start sessions for free hosts on unprepared topics
+      say so with `flags: PREPARE_FOR_EVERYONE` (`services/api/test/flags.ts`).
+- [x] Every flag is read on the server: `ads` (`AdEconomics.policyFor` now
+      takes the resolved features), `rooms` (join, LiveKit token,
+      participant audio), `session_download`, `recording_playback`,
+      `quick_start`, `chat` / `reactions` / `captions` (the room refuses
+      silently, the client hides), `google_sign_in` / `email_sign_in` (503
+      per platform).
+- [ ] `shared_replays` on Professional is still declared and unenforced: a
+      room's guests may or may not watch its recording. A decision, not a bug.
+- [ ] Pause and resume speak the interrupted sentence again from its start
+      (`resumeLesson`); `resume.offsetMs` is recorded and never used.
+      `docs/PRODUCT.md` lists "a pause that restarts the sentence" as a
+      launch-review flag, and a human does restart a sentence they were cut
+      off in — the two disagree, and neither this change nor its tests
+      decide it.
+- [ ] `answer()` does not branch on the AnswerContext status: `missing`,
+      `partial`, `conflict` and `stale` all get the same "evidence is only
+      partial" line in the prompt. A `missing` deserves its own honest
+      sentence, and possibly no model call at all.
+
 ## The room is a room again (2026-09-20)
 
 - [x] **Chat is between the people in the room; the expert is not in it

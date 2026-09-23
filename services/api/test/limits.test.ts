@@ -9,6 +9,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { Identity } from '../src/identity.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * What stands between a learner and a new session: the plan's daily allowance,
@@ -95,7 +96,7 @@ beforeAll(async () => {
     PEN_DAILY_SPEND_PAID_MULTIPLE: '3',
     PEN_MAX_SESSIONS_PER_IP: '2',
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   identity = new Identity(cfg.PEN_JWT_SECRET);
   ({ app } = buildApp(services));
 }, 60_000);

@@ -296,11 +296,54 @@ export const runtimeConfigAudits = pgTable(
   ],
 );
 
+/**
+ * Feature flags (ADR-0036): the same shape as the runtime configuration —
+ * one singleton document with a revision, and an append-only history — for
+ * the same reasons. `rules` is a `FeatureRulesDocument` (contracts): only
+ * the features the owner has overridden, each as a whole rule.
+ */
+export const featureFlagsState = pgTable(
+  'feature_flags_state',
+  {
+    id: integer('id').primaryKey(),
+    revision: bigint('revision', { mode: 'number' }).notNull().default(0),
+    rules: jsonb('rules').$type<Record<string, unknown>>().notNull().default({}),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+    updatedBy: text('updated_by'),
+  },
+  (t) => [
+    check('feature_flags_state_singleton', sql`${t.id} = 1`),
+    check('feature_flags_state_revision', sql`${t.revision} >= 0`),
+  ],
+);
+
+export const featureFlagsAudits = pgTable(
+  'feature_flags_audits',
+  {
+    revision: bigint('revision', { mode: 'number' }).primaryKey(),
+    rules: jsonb('rules').$type<Record<string, unknown>>().notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+    updatedBy: text('updated_by').notNull(),
+    updatedByName: text('updated_by_name').notNull(),
+    reason: text('reason').notNull(),
+    restoredFromRevision: bigint('restored_from_revision', { mode: 'number' }),
+  },
+  (t) => [
+    index('feature_flags_audits_updated_idx').on(t.updatedAt),
+    check('feature_flags_audits_revision', sql`${t.revision} > 0`),
+    check(
+      'feature_flags_audits_restored',
+      sql`${t.restoredFromRevision} is null or ${t.restoredFromRevision} < ${t.revision}`,
+    ),
+  ],
+);
+
 export type SessionRow = typeof sessions.$inferSelect;
 export type ParticipantRow = typeof participants.$inferSelect;
 export type SessionVisitRow = typeof sessionVisits.$inferSelect;
 export type SessionRedirectRow = typeof sessionRedirects.$inferSelect;
 export type RuntimeConfigAuditRow = typeof runtimeConfigAudits.$inferSelect;
+export type FeatureFlagsAuditRow = typeof featureFlagsAudits.$inferSelect;
 
 /**
  * A one-time code sent to an address, and the only thing standing between a

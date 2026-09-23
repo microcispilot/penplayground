@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { estimateSpeechMs } from '@pen/conductor';
 import type { LedgerEntry } from '@pen/contracts';
+import { recordingOrder } from '@pen/contracts';
 import { safeId } from '../ledger.js';
 
 /** One spoken sentence of the export, in the order the replay plays it. */
@@ -24,11 +25,18 @@ export interface ExportPlan {
 
 /**
  * The audio side of a replay, derived from the ledger exactly the way
- * `ReplaySession` derives it: say cues in order, the last take of each say,
- * duration = end of its last chunk. Keeping this in one pure function is what
- * lets the mux be tested without a browser.
+ * `ReplaySession` derives it: the sentences in the order they were heard
+ * (`recordingOrder` — by the audio's clock, so an answer sits where the
+ * question was asked), the last take of each, duration = end of its last
+ * chunk. `lessonOnly` is the download without the learner's own questions
+ * (ADR-0035). Keeping this in one pure function is what lets the mux be
+ * tested without a browser.
  */
-export function planExport(entries: LedgerEntry[], audioDir: string): ExportPlan {
+export function planExport(
+  entries: LedgerEntry[],
+  audioDir: string,
+  opts: { lessonOnly?: boolean } = {},
+): ExportPlan {
   const takes = new Map<
     string,
     { take: number; endMs: number; sampleRate: ExportSay['sampleRate'] }
@@ -41,10 +49,12 @@ export function planExport(entries: LedgerEntry[], audioDir: string): ExportPlan
       takes.set(e.header.sayId, { take: e.header.take, endMs, sampleRate: e.header.sampleRate });
     else if (e.header.take === current.take) current.endMs = Math.max(current.endMs, endMs);
   }
+  const text = new Map<string, string>();
+  for (const e of entries)
+    if (e.kind === 'cue' && e.cue.event.type === 'say') text.set(e.cue.event.id, e.cue.event.text);
   const says: ExportSay[] = [];
-  for (const e of entries) {
-    if (e.kind !== 'cue' || e.cue.event.type !== 'say') continue;
-    const id = e.cue.event.id;
+  for (const heard of recordingOrder(entries, { lessonOnly: opts.lessonOnly ?? false }).says) {
+    const id = heard.sayId;
     const audio = takes.get(id);
     if (audio && audio.endMs > 0) {
       says.push({
@@ -61,7 +71,7 @@ export function planExport(entries: LedgerEntry[], audioDir: string): ExportPlan
         take: audio?.take ?? 0,
         pcmPath: null,
         sampleRate: 44100,
-        durationMs: estimateSpeechMs(e.cue.event.text),
+        durationMs: estimateSpeechMs(text.get(id) ?? ''),
         estimated: true,
       });
     }

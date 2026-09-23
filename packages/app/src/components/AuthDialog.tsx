@@ -99,8 +99,11 @@ function Divider() {
 }
 
 export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { api, platform, signInWithGoogle } = useApp();
+  const { api, platform, signInWithGoogle, features } = useApp();
   const toast = useToast();
+  /** Google is offered where the client is configured for it and the flag says so here (ADR-0036). */
+  const googleClientId = features.google_sign_in ? platform.googleClientId : null;
+  const emailOffered = features.email_sign_in;
 
   const [mode, setMode] = useState<Mode>('signIn');
   const [email, setEmail] = useState('');
@@ -132,7 +135,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const googleProblem = useGoogleButton({
     open,
     slot: googleSlot,
-    clientId: platform.googleClientId,
+    clientId: googleClientId,
     onToken: async (idToken) => {
       await signInWithGoogle(idToken);
       toast('Signed in', 'success');
@@ -199,6 +202,36 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   };
 
   const codeStep = mode === 'code' || mode === 'reset';
+
+  if (!emailOffered) {
+    // Email sign-in is off here (ADR-0036): Google alone, or an honest line
+    // when there is no way in at all — never a form the server would refuse.
+    return (
+      <Dialog open={open} onClose={onClose} title="Sign in">
+        {googleClientId ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-body-medium text-on-surface-variant">
+              Continue with your Google account to keep your sessions everywhere.
+            </p>
+            <div
+              ref={googleSlot}
+              className="flex min-h-[44px] justify-center"
+              data-testid="google-signin"
+            />
+            {googleProblem ? (
+              <p className="text-center text-body-medium text-error" role="alert">
+                {googleProblem}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-body-medium text-on-surface-variant" data-testid="auth-unavailable">
+            Signing in is not available here yet. Everything you do on this device stays on it.
+          </p>
+        )}
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onClose={onClose} title={TITLES[mode]}>
@@ -329,7 +362,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
       {/* Google only where the form is, not on the code step: by then the
           person is halfway through making a different kind of account. */}
-      {!codeStep && platform.googleClientId ? (
+      {!codeStep && googleClientId ? (
         <div className="mt-5 flex flex-col gap-4">
           <Divider />
           <div

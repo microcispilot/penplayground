@@ -66,6 +66,7 @@ const BASE_PATH = import.meta.env.BASE_URL;
 
 export const webPlatform: Platform = {
   name: 'web',
+  id: 'web',
   basePath: BASE_PATH,
   /**
    * No `VITE_API_URL` means the API is on this origin, and under a path prefix

@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { KeyOwner, PlanCode } from '@pen/contracts';
+import type { FeatureRulesDocument, KeyOwner, PlanCode } from '@pen/contracts';
 import {
   AuthChallengeRepository,
   type Connection,
   connect,
+  FeatureFlagsRepository,
   ListRepository,
   ParticipantRepository,
   ReportRepository,
@@ -47,6 +48,7 @@ import { Billing } from './billing.js';
 import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
 import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
+import { FeatureFlagsService, FeatureStore, featureFlagsCachePath } from './features/index.js';
 import { GoogleLibraryVerifier, GoogleSignIn, type GoogleTokenVerifier } from './google.js';
 import { createIntentClassifier } from './intent.js';
 import { loadLanguageId, TopicIntake } from './language.js';
@@ -75,6 +77,15 @@ export interface Services {
   config: RuntimeConfigStore;
   /** Reading and changing that document, for the Settings screen. */
   runtimeConfig: RuntimeConfigService;
+  /**
+   * Which parts of the product each plan gets on each platform (ADR-0036).
+   * Read as a session is admitted and as a room is built; a synchronous
+   * lookup like `config`, and the last known good document when the store
+   * cannot be read.
+   */
+  features: FeatureStore;
+  /** Reading and changing that document, for the Features screen. */
+  featureFlags: FeatureFlagsService;
   /**
    * The language-model provider the adapters were actually built with. A
    * `restart` setting, so this — not the store — is what `/api/health` and
@@ -225,6 +236,13 @@ export async function buildServices(
     acquirerFactory?: (s: Omit<Services, 'acquirer'>) => KnowledgeAcquirer | null;
     /** Google ID-token verification seam (tests inject a fake; production uses Google's library). */
     googleVerifier?: GoogleTokenVerifier;
+    /**
+     * Feature rules this process starts on, over whatever the store holds
+     * (ADR-0036). A seam for tests and scripts that need a deployment whose
+     * flags differ from the compiled-in ones — a free learner allowed to
+     * have a topic prepared, say — without a database row to put them in.
+     */
+    flags?: FeatureRulesDocument;
   } = {},
 ): Promise<Services> {
   const onten = createOnten({ dataDir: join(cfg.PEN_DATA_DIR, 'onten') });
@@ -286,6 +304,30 @@ export async function buildServices(
       ...config.snapshot(),
     },
     'runtime configuration resolved',
+  );
+
+  /**
+   * The feature flags, right behind the settings and for the same reasons:
+   * the first session admitted must be judged by the document in force, not
+   * by the compiled-in rules with a change arriving a poll later.
+   */
+  const featureFlagsRepo = new FeatureFlagsRepository(db.db);
+  const features = new FeatureStore({
+    source: featureFlagsRepo,
+    path: featureFlagsCachePath(cfg.PEN_DATA_DIR),
+    pollMs: cfg.PEN_RUNTIME_CONFIG_POLL_MS,
+    ...(opts.flags ? { overlay: opts.flags } : {}),
+  });
+  await features.start();
+  const featureFlags = new FeatureFlagsService(
+    featureFlagsRepo,
+    features,
+    async (id) => (await participants.get(id))?.name ?? null,
+    (area, error) => observer.error(area, error),
+  );
+  logger.info(
+    { evt: 'features.ready', revision: features.revision, stale: features.stale },
+    'feature flags resolved',
   );
 
   const ads = new AdEconomics(cfg, config, costs);
@@ -508,8 +550,16 @@ export async function buildServices(
   );
   await loadLanguageId();
   const intake = new TopicIntake(() => modelFor('free'), join(cfg.PEN_DATA_DIR, 'onten'));
+  const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
   const renderer = new PlaywrightRenderer({
     baseUrl: cfg.PEN_RENDER_BASE_URL ?? cfg.PEN_PUBLIC_URL,
+    // The page plays the recording as its host: the same token a download
+    // link carries, minted for the host of the session being rendered.
+    tokenFor: async (sessionId) => {
+      const record = await sessions.get(sessionId);
+      if (!record) throw new Error(`no session ${sessionId} to render`);
+      return downloadTokens.issue(record.hostId, sessionId);
+    },
     allowedOrigins: [cfg.PEN_API_URL, cfg.PEN_PUBLIC_URL],
     ffmpegPath: cfg.PEN_FFMPEG_PATH,
     chromiumPath: cfg.PEN_CHROMIUM_PATH,
@@ -531,7 +581,6 @@ export async function buildServices(
   // Jobs that were waiting when the previous process stopped render now instead of reading "interrupted".
   const resumed = exports.resume();
   if (resumed.length > 0) logger.info({ count: resumed.length }, 'export jobs resumed');
-  const downloadTokens = new DownloadTokens(cfg.PEN_JWT_SECRET);
   const livekit =
     cfg.LIVEKIT_URL && cfg.LIVEKIT_API_KEY && cfg.LIVEKIT_API_SECRET
       ? new LiveKitRooms({
@@ -579,6 +628,8 @@ export async function buildServices(
     config,
     llmProvider,
     runtimeConfig,
+    features,
+    featureFlags,
     onten,
     memo,
     searchProvider,

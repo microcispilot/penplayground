@@ -1,15 +1,13 @@
-import type { LedgerEntry, SessionTelemetry } from '@pen/contracts';
-import { Expert, hasEntitlement, LedgerEntry as LedgerEntrySchema } from '@pen/contracts';
-import { Avatar, Button, cn, Pill, Skeleton, useToast } from '@pen/design';
-import { Download, Lock, Play, Share2 } from 'lucide-react';
+import type { Expert, LedgerEntry, SessionTelemetry } from '@pen/contracts';
+import { Avatar, Button, cn, Pill, SegmentedButtons, Skeleton, useToast } from '@pen/design';
+import { Clapperboard, Download, Lock, Play, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { z } from 'zod';
 import {
   ApiError,
   type ExportStatus,
+  type ExportVariant,
   type SessionRecord,
-  SessionRecord as SessionRecordSchema,
 } from '../api/client.js';
 import { Insights } from '../components/Insights.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
@@ -17,14 +15,9 @@ import { SessionThumb } from '../components/SessionCard.js';
 import { trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 import { dirOf, useDocumentLanguage } from '../lib/locale.js';
+import { useQuickStart } from '../lib/quick-start.js';
 import { useSeo } from '../lib/seo.js';
 import { noteVisitAction } from '../lib/visits.js';
-
-const LedgerResponse = z.object({
-  session: SessionRecordSchema,
-  entries: z.array(LedgerEntrySchema),
-  expert: Expert.nullable(),
-});
 
 const EXPORT_POLL_MS = 2000;
 /** Download links carry a short-lived token; refresh one older than this before using it. */
@@ -36,29 +29,35 @@ function formatBytes(n: number): string {
   return `${Math.max(1, Math.round(n / 1000))} KB`;
 }
 
+/** The two recordings a host may download (ADR-0035), in the learner's words. */
+const VARIANTS: readonly { value: ExportVariant; label: string; title: string }[] = [
+  {
+    value: 'full',
+    label: 'With my questions',
+    title: 'The session as it happened, your questions included',
+  },
+  { value: 'lesson', label: 'Lesson only', title: 'The lesson alone, without your questions' },
+];
+
 /**
- * "Download" for the host of an ended session. Paid plans render the MP4 on
- * the server (progress polled every 2 s) and then save it through a
- * header-free tokenised link; the free plan sees the locked button that
- * leads to pricing. Anything the server says goes wrong is shown in place.
+ * "Download" for the host of an ended session. Where the flag allows it the
+ * MP4 is rendered on the server (progress polled every 2 s) and then saved
+ * through a header-free tokenised link; otherwise the locked button leads
+ * to pricing. The host chooses whether their own questions are in it — a
+ * recording is theirs either way, and so is the choice (ADR-0035). Anything
+ * the server says goes wrong is shown in place.
  */
-function ExportControl({
-  sessionId,
-  plan,
-}: {
-  sessionId: string;
-  plan: 'free' | 'standard' | 'professional';
-}) {
+function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: boolean }) {
   const { api } = useApp();
   const navigate = useNavigate();
   const toast = useToast();
+  const [variant, setVariant] = useState<ExportVariant>('full');
   const [status, setStatus] = useState<(ExportStatus & { at: number }) | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Bumped on unmount / re-run so an in-flight poll never reschedules or sets state afterwards. */
   const generation = useRef(0);
-  const entitled = hasEntitlement(plan, 'export');
 
   const stopPolling = useCallback(() => {
     generation.current += 1;
@@ -69,7 +68,7 @@ function ExportControl({
   const poll = useCallback(async () => {
     const gen = generation.current;
     try {
-      const next = await api.exportStatus(sessionId);
+      const next = await api.exportStatus(sessionId, variant);
       if (gen !== generation.current) return;
       setStatus({ ...next, at: Date.now() });
       setProblem(null);
@@ -79,13 +78,29 @@ function ExportControl({
       if (gen !== generation.current) return;
       setProblem(error instanceof Error ? error.message : 'Could not check the export.');
     }
-  }, [api, sessionId]);
+  }, [api, sessionId, variant]);
 
   useEffect(() => {
     if (!entitled) return;
+    // A new choice is a different file: forget the old one's state and ask again.
+    setStatus(null);
+    setProblem(null);
     void poll();
     return stopPolling;
   }, [entitled, poll, stopPolling]);
+
+  // Open on the recording that already exists: a host who rendered the
+  // lesson alone is offered that file, not a fresh render of the other.
+  const discovered = useRef(false);
+  useEffect(() => {
+    if (!entitled || discovered.current) return;
+    discovered.current = true;
+    void Promise.all([api.exportStatus(sessionId, 'full'), api.exportStatus(sessionId, 'lesson')])
+      .then(([full, lesson]) => {
+        if (full.status !== 'ready' && lesson.status === 'ready') setVariant('lesson');
+      })
+      .catch(() => undefined);
+  }, [entitled, api, sessionId]);
 
   /**
    * Save through a hidden anchor. `Content-Disposition: attachment` makes the browser save
@@ -118,7 +133,11 @@ function ExportControl({
   };
 
   const onClick = async () => {
-    trackInteraction('download_requested', { entitled, status: status?.status ?? 'none' });
+    trackInteraction('download_requested', {
+      entitled,
+      status: status?.status ?? 'none',
+      variant,
+    });
     if (!entitled) {
       navigate('/pricing');
       return;
@@ -128,7 +147,7 @@ function ExportControl({
       let url = status.downloadUrl;
       if (Date.now() - status.at > EXPORT_LINK_MAX_AGE_MS) {
         try {
-          const fresh = await api.exportStatus(sessionId);
+          const fresh = await api.exportStatus(sessionId, variant);
           setStatus({ ...fresh, at: Date.now() });
           if (fresh.status !== 'ready' || !fresh.downloadUrl) {
             setProblem('The video needs to be rendered again.');
@@ -147,7 +166,7 @@ function ExportControl({
     stopPolling();
     const gen = generation.current;
     try {
-      const job = await api.requestExport(sessionId);
+      const job = await api.requestExport(sessionId, variant);
       if (gen !== generation.current) return;
       setStatus({ ...job, at: Date.now() });
       if (job.status === 'ready' && job.downloadUrl) await save(job.downloadUrl);
@@ -202,7 +221,19 @@ function ExportControl({
       ? 'Your video is ready to download'
       : '';
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-end gap-2" data-testid="export-control">
+      <SegmentedButtons
+        label="What to download"
+        options={VARIANTS}
+        value={variant}
+        checkmark={false}
+        onChange={(next) => {
+          if (busy || rendering) return;
+          setVariant(next);
+        }}
+        className="h-9"
+        data-testid="export-variant"
+      />
       <Button
         variant="secondary"
         leading={rendering ? undefined : <Download size={14} />}
@@ -340,10 +371,12 @@ function OwnerControls({
 export function SessionPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const { api, platform, participant } = useApp();
+  const { api, platform, participant, features } = useApp();
   const navigate = useNavigate();
+  const quickStart = useQuickStart();
   const [data, setData] = useState<{
     session: SessionRecord;
+    /** The recording, which only its host is ever given (ADR-0035). */
     entries: LedgerEntry[];
     expert: Expert | null;
   } | null>(null);
@@ -354,29 +387,42 @@ export function SessionPage() {
   const tab =
     requested === 'transcript' ? 'transcript' : requested === 'insights' ? 'insights' : 'recap';
 
+  /**
+   * The record first, for everyone; the recording only for its host. The
+   * record says who the host is (the API strips it for everyone else), so
+   * one read decides whether the second is even asked for — and a page that
+   * is somebody else's lesson never requests what it would be refused.
+   */
   useEffect(() => {
     let cancelled = false;
-    // With the bearer the host gets their own record (hostId, names); everyone else the anonymised one.
-    fetch(`${api.baseUrl}/api/sessions/${encodeURIComponent(id)}/ledger`, {
-      headers: api.authToken ? { authorization: `Bearer ${api.authToken}` } : {},
-    })
-      .then(async (r) => {
-        if (!r.ok)
-          throw new Error(
-            r.status === 404 ? 'This session is not available.' : 'Could not load the session.',
-          );
-        return LedgerResponse.parse(await r.json());
-      })
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load the session.');
-      });
+    setError(null);
+    (async () => {
+      const meta = await api.getSession(id);
+      if (cancelled) return;
+      const host = participant !== null && meta.session.hostId === participant.id;
+      if (!host) {
+        setData({ session: meta.session, entries: [], expert: meta.expert });
+        return;
+      }
+      try {
+        const own = await api.ledger(id);
+        if (!cancelled) setData({ session: own.session, entries: own.entries, expert: own.expert });
+      } catch {
+        // The recording is a bonus on this page; the page stands without it.
+        if (!cancelled) setData({ session: meta.session, entries: [], expert: meta.expert });
+      }
+    })().catch((e: unknown) => {
+      if (cancelled) return;
+      setError(
+        e instanceof ApiError && e.status === 404
+          ? 'This session is not available.'
+          : 'Could not load the session.',
+      );
+    });
     return () => {
       cancelled = true;
     };
-  }, [api, id]);
+  }, [api, id, participant]);
 
   const transcript = useMemo(() => {
     if (!data) return [];
@@ -423,8 +469,14 @@ export function SessionPage() {
     ...(s ? { language: s.language } : {}),
   });
   const shareUrl = `${api.baseUrl}/s/${id}`;
-  // Only the host sees the export control (the API strips hostId for everyone else).
+  // Only the host sees the recording controls (the API strips hostId for everyone else).
   const isHost = Boolean(s && participant && s.hostId === participant.id);
+  /**
+   * The host's own recording: to watch here, to download here. Everyone
+   * else, and the host too, has "Replay" — the lesson again as a fresh
+   * session of their own (ADR-0035).
+   */
+  const canWatch = isHost && !live && features.recording_playback;
 
   // Insights are the host's: loaded on demand, refreshed while the session is still live.
   useEffect(() => {
@@ -490,6 +542,18 @@ export function SessionPage() {
                     ? `${relativeDay(s.startedAt)} · ${live ? 'live now' : formatDuration(s.durationMs)} · ${s.views} view${s.views === 1 ? '' : 's'}`
                     : ''}
                 </p>
+                {s && !live && quickStart.enabled ? (
+                  // What "Replay" is here: not a recording of somebody else's
+                  // hour, but the lesson again, live, for you (ADR-0035).
+                  <p
+                    className="mt-1 text-body-medium text-on-surface-dim"
+                    data-testid="replay-note"
+                  >
+                    Replay starts this lesson again, live, with{' '}
+                    {data?.expert?.displayName.split(' ')[0] ?? 'the expert'} — ask anything along
+                    the way.
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-start gap-2">
                 {live ? (
@@ -500,15 +564,27 @@ export function SessionPage() {
                   >
                     Join
                   </Button>
-                ) : (
+                ) : quickStart.enabled ? (
                   <Button
                     variant="primary"
                     leading={<Play size={14} />}
-                    onClick={() => navigate(`/replay/${id}`)}
+                    loading={quickStart.starting === id}
+                    onClick={() => void quickStart.start(id)}
+                    data-testid="session-replay"
                   >
                     Replay
                   </Button>
-                )}
+                ) : null}
+                {canWatch ? (
+                  <Button
+                    variant="secondary"
+                    leading={<Clapperboard size={14} />}
+                    onClick={() => navigate(`/replay/${id}`)}
+                    data-testid="session-watch-recording"
+                  >
+                    Watch my recording
+                  </Button>
+                ) : null}
                 {s ? <LikeButton session={s} /> : null}
                 {s ? <SaveButton session={s} withLabel /> : null}
                 <Button
@@ -527,7 +603,7 @@ export function SessionPage() {
                   Share
                 </Button>
                 {s && participant && isHost && !live ? (
-                  <ExportControl sessionId={s.id} plan={participant.plan} />
+                  <ExportControl sessionId={s.id} entitled={features.session_download} />
                 ) : null}
               </div>
             </div>
@@ -612,29 +688,31 @@ export function SessionPage() {
                     </p>
                   )}
                 </section>
-                <section>
-                  <h6 className="mb-2.5 text-on-surface-variant">Questions asked</h6>
-                  {questions.length === 0 ? (
-                    <p className="text-body-medium text-on-surface-dim">No questions were asked.</p>
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      {questions.map((q) => (
-                        <div
-                          key={`${q.question}-${q.headline}`}
-                          className="border-primary border-s-2 ps-[11px]"
-                          // A note carries the language the learner asked in.
-                          lang={q.language}
-                          dir={dirOf(q.language)}
-                        >
-                          <p className="text-body-medium text-on-surface">{q.question}</p>
-                          <p className="text-body-medium text-on-surface-variant">
-                            {q.headline} — {q.detail}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
+                {isHost ? (
+                  <section>
+                    <h6 className="mb-2.5 text-on-surface-variant">Questions you asked</h6>
+                    {questions.length === 0 ? (
+                      <p className="text-body-medium text-on-surface-dim">You did not ask any.</p>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {questions.map((q) => (
+                          <div
+                            key={`${q.question}-${q.headline}`}
+                            className="border-primary border-s-2 ps-[11px]"
+                            // A note carries the language the learner asked in.
+                            lang={q.language}
+                            dir={dirOf(q.language)}
+                          >
+                            <p className="text-body-medium text-on-surface">{q.question}</p>
+                            <p className="text-body-medium text-on-surface-variant">
+                              {q.headline} — {q.detail}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                ) : null}
               </div>
             ) : (
               <div className="mt-5 flex flex-col gap-3">

@@ -1,6 +1,5 @@
 import type { Expert } from '@pen/contracts';
 import { Button, Skeleton } from '@pen/design';
-import { Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { SessionRecord } from '../api/client.js';
@@ -8,6 +7,7 @@ import { ShellPage } from '../components/AppShell.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
+import { StartAgain } from './Lists.js';
 
 export function Library() {
   const { api, participant } = useApp();
@@ -86,25 +86,9 @@ export function Library() {
                     <SaveButton session={s} size="sm" />
                   </div>
                 </div>
-                {/* One control now that Transcript has gone. */}
+                {/* One control: rejoin, or the lesson again as a fresh session (ADR-0035). */}
                 <div className="flex shrink-0 items-center">
-                  {live ? (
-                    <Button
-                      variant="primary"
-                      leading={<Play size={14} />}
-                      onClick={() => navigate(`/room/${s.id}`)}
-                    >
-                      Rejoin
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      leading={<Play size={14} />}
-                      onClick={() => navigate(`/sessions/${s.id}`)}
-                    >
-                      Replay
-                    </Button>
-                  )}
+                  <StartAgain session={s} live={live} />
                 </div>
               </div>
             );

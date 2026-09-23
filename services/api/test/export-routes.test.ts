@@ -197,8 +197,9 @@ describe('POST /api/sessions/:id/export', () => {
     expect(ready.durationMs).toBe(9_000);
     expect(ready.error).toBeNull();
     expect(ready.downloadUrl).toMatch(
-      new RegExp(`^http://api\\.test/api/sessions/${s.id}/export\\.mp4\\?token=`),
+      new RegExp(`^http://api\\.test/api/sessions/${s.id}/export\\.mp4\\?interactions=1&token=`),
     );
+    expect(ready.variant).toBe('full');
     // Never the server's file system path.
     expect(JSON.stringify(ready)).not.toContain(dataDir);
 

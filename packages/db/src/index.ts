@@ -9,6 +9,12 @@ export {
   reconcileMigrationTimestamps,
 } from './client.js';
 export {
+  type FeatureFlagsHistoryPage,
+  FeatureFlagsRepository,
+  type FeatureFlagsSnapshot,
+  type FeatureFlagsWrite,
+} from './feature-flags.js';
+export {
   type HistoryEntry,
   ListRepository,
   type ListSummary,
@@ -46,6 +52,7 @@ export {
 } from './runtime-config.js';
 export type {
   AuthChallengeRow,
+  FeatureFlagsAuditRow,
   RuntimeConfigAuditRow,
   SessionRedirectRow,
 } from './schema.js';

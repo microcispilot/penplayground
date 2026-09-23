@@ -58,14 +58,20 @@ export function buildReplayTimeline({
   durationOf,
   plan,
 }: ReplayTimelineInput): ReplayTimeline {
-  const sayCues = cues.filter((c) => c.event.type === 'say');
+  // By say id, never by position: the play order is the audio's (an answer
+  // sits where it was asked, the sentences re-taken after it come after it —
+  // ADR-0035), while cues sit in the order they were generated, one segment
+  // ahead. Pairing the two by index put an answer's seek point on a lesson
+  // sentence and the lesson's on the answer.
+  const cueOfSay = new Map<string, Cue>();
+  for (const c of cues) if (c.event.type === 'say') cueOfSay.set(c.event.id, c);
   const says: ReplaySayEntry[] = [];
   let at = 0;
-  for (const [i, key] of sayOrder.entries()) {
-    const cue = sayCues[i];
-    if (!cue) continue;
+  for (const key of sayOrder) {
     const sep = key.lastIndexOf('@');
     const sayId = sep === -1 ? key : key.slice(0, sep);
+    const cue = cueOfSay.get(sayId);
+    if (!cue) continue;
     const take = sep === -1 ? 0 : Number(key.slice(sep + 1));
     const durationMs = Math.max(0, durationOf(key, sayId));
     says.push({

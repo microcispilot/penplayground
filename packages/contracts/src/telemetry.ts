@@ -122,6 +122,8 @@ export const InteractionName = z.enum([
   'leave',
   'end',
   'download_requested',
+  /** A saved lesson started again as a fresh session of the learner's own (ADR-0035). */
+  'quick_start',
   'replay_started',
   'replay_seeked',
   // what was shown

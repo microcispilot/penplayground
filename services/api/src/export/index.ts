@@ -15,6 +15,8 @@ export {
   ExportJobs,
   ExportRefused,
   ExportStatus,
+  ExportVariant,
+  exportKey,
   RenderError,
   type Renderer,
   type RenderResult,

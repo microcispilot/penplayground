@@ -23,6 +23,7 @@ import {
 } from '../src/export/index.js';
 import { seedPacks } from '../src/seed-packs.js';
 import { buildServices, DATA_DIR, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * End-to-end proof of the MP4 export: a real API (fake model, silent
@@ -111,7 +112,7 @@ async function boot(): Promise<Harness> {
     // The host must own the `export` entitlement.
     PEN_DEV_PLAN: 'standard',
   });
-  const services = await buildServices(cfg);
+  const services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   await seedPacks(services.onten, join(DATA_DIR, 'packs'));
   // The real renderer, wrapped so the test can read what the page reported.
   const harness: Harness = {
@@ -126,6 +127,12 @@ async function boot(): Promise<Harness> {
     baseUrl: webUrl,
     ffmpegPath: FFMPEG,
     ledger: services.ledger,
+    // The page plays the recording as its host (ADR-0035).
+    tokenFor: async (sessionId) => {
+      const record = await services.sessions.get(sessionId);
+      if (!record) throw new Error(`no session ${sessionId}`);
+      return services.downloadTokens.issue(record.hostId, sessionId);
+    },
     onEvent: () => undefined,
   });
   const renderer: Renderer = {
@@ -281,6 +288,8 @@ interface Probe {
 describe.skipIf(!enabled)('MP4 export (integration)', () => {
   let h: Harness;
   let exportedSessionId = '';
+  /** The host's bearer: a recording opens for its host and nobody else (ADR-0035). */
+  let exportedHostToken = '';
   beforeAll(async () => {
     h = await boot();
   }, 120_000);
@@ -291,6 +300,7 @@ describe.skipIf(!enabled)('MP4 export (integration)', () => {
   it('renders a scripted session into an H.264/AAC MP4 whose audio lines up with the recording', async () => {
     const { sessionId, token, completed } = await scriptedSession(h, 2);
     exportedSessionId = sessionId;
+    exportedHostToken = token;
     expect(completed.length).toBeGreaterThanOrEqual(2);
     const auth = { authorization: `Bearer ${token}` };
 
@@ -396,7 +406,7 @@ describe.skipIf(!enabled)('MP4 export (integration)', () => {
     expect(black).toBeLessThan(durationSec * 0.05);
 
     // The download link the status handed out works without a header.
-    expect(status.downloadUrl).toMatch(/\/export\.mp4\?token=/);
+    expect(status.downloadUrl).toMatch(/\/export\.mp4\?interactions=1&token=/);
     const dl = await fetch(status.downloadUrl ?? '');
     expect(dl.status).toBe(200);
     expect(dl.headers.get('content-type')).toBe('video/mp4');
@@ -432,6 +442,11 @@ describe.skipIf(!enabled)('MP4 export (integration)', () => {
       const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(e.message));
+      // As the host: the app reads its bearer from storage before the first request.
+      await page.addInitScript(
+        (token: string) => localStorage.setItem('pen.token', token),
+        exportedHostToken,
+      );
       await page.goto(`${h.webUrl}/replay/${exportedSessionId}`, { waitUntil: 'domcontentloaded' });
       // No export bridge, no curtain, and nothing plays until the learner asks.
       expect(

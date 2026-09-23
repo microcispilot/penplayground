@@ -15,7 +15,7 @@ import {
   parseFfmpegVersion,
   runFfmpeg,
 } from './ffmpeg.js';
-import { RenderError, type Renderer, type RenderResult } from './jobs.js';
+import { type ExportVariant, RenderError, type Renderer, type RenderResult } from './jobs.js';
 import { bytesFromPcm, type MixTake, mixTakes, pcmFromBytes } from './mix.js';
 import { alignToTape, planExport } from './plan.js';
 
@@ -30,6 +30,12 @@ export interface PlaywrightRendererOptions {
   /** Extra Chromium flags (e.g. `--disable-dev-shm-usage` in Docker). */
   chromiumArgs?: string[] | undefined;
   ledger: FileLedger;
+  /**
+   * A short-lived credential the page presents for the recording it plays
+   * (ADR-0035): a recording is served to its host and to nobody else, and
+   * the headless renderer is nobody. Issued per render, in the host's name.
+   */
+  tokenFor: (sessionId: string) => Promise<string>;
   /** Scratch space for the WebM; defaults to the OS temp dir. */
   tmpDir?: string | undefined;
   /** Seam for tests. */
@@ -135,17 +141,20 @@ export class PlaywrightRenderer implements Renderer {
 
   async render(input: {
     sessionId: string;
+    variant: ExportVariant;
     sessionDir: string;
     outputPath: string;
     onProgress: (fraction: number) => void;
     signal: AbortSignal;
   }): Promise<RenderResult> {
-    const { sessionId, sessionDir, outputPath, onProgress, signal } = input;
+    const { sessionId, variant, sessionDir, outputPath, onProgress, signal } = input;
     signal.throwIfAborted();
     const entries = this.o.ledger.read(sessionId);
     if (entries.length === 0)
       throw new RenderError('This session has nothing to export.', 'no ledger for this session');
-    const plan = planExport(entries, join(sessionDir, 'audio'));
+    const plan = planExport(entries, join(sessionDir, 'audio'), {
+      lessonOnly: variant === 'lesson',
+    });
     const scratch = mkdtempSync(join(this.o.tmpDir ?? tmpdir(), 'pen-export-'));
     // Written next to the final file so the last step is an atomic same-filesystem rename
     // (the scratch dir may be a tmpfs on another mount).
@@ -154,6 +163,7 @@ export class PlaywrightRenderer implements Renderer {
     try {
       const capture = await this.record(
         sessionId,
+        variant,
         plan.says.length,
         plan.spokenMs,
         scratch,
@@ -227,6 +237,7 @@ export class PlaywrightRenderer implements Renderer {
   /** Drive the page to completion; resolves with the WebM path and the page-reported timeline. */
   private async record(
     sessionId: string,
+    variant: ExportVariant,
     total: number,
     spokenMs: number,
     scratch: string,
@@ -307,9 +318,19 @@ export class PlaywrightRenderer implements Renderer {
       budgetMs,
     );
     try {
-      const url = `${this.o.baseUrl.replace(/\/$/, '')}/replay/${encodeURIComponent(sessionId)}?export=1`;
+      const token = await this.o.tokenFor(sessionId);
+      const url = `${this.o.baseUrl.replace(/\/$/, '')}/replay/${encodeURIComponent(sessionId)}?export=1&interactions=${variant === 'full' ? '1' : '0'}&token=${encodeURIComponent(token)}`;
       await Promise.race([
-        page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }),
+        page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch((error) => {
+          // Playwright puts the URL in a navigation error, and the URL carries
+          // the host's recording token: it must never reach a log or Sentry.
+          throw new Error(
+            String(error instanceof Error ? error.message : error).replace(
+              /token=[^&\s'"]+/g,
+              'token=…',
+            ),
+          );
+        }),
         finished,
       ]);
       onProgress(0.05);

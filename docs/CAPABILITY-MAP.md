@@ -17,10 +17,11 @@ module's spec (`docs/spec/SPEC-<module>.md` where written).
 | `db` | Drizzle schema + migrations (Postgres 18 / PGlite in dev), repositories. | contracts | `packages/db` |
 | `identity` | Accounts, Google OAuth + email/password, JWT sessions, guest identities. | db | `services/api` |
 | `billing` | Plans (Free/Plus/Classroom), Stripe checkout/portal/webhooks, entitlements, usage ledger, ads policy. | identity, db | `services/api` |
+| `features` | Feature flags by plan and platform (ADR-0036): the store (polled, last known good on disk), the service the console edits, the per-request and per-room resolution every gate reads. Rules and resolution live in `contracts`. | contracts, db | `services/api/src/features` |
 | `api` | Hono HTTP + WebSocket server: rooms, cue broadcast, STT relay, TTS relay, Onten/LLM orchestration, Sentry. | session-engine, identity, billing, db | `services/api` |
 | `app` | The product UI, shared by every client: screens (Home, My sessions, Preparing, Live room, Recap, Pricing, Share), room client, conductor wiring, state. Platform-specific behaviour enters through a `Platform` seam. | design, conductor, board, voice, contracts | `packages/app` |
 | `web` | Thin browser host: Vite entry, web `Platform` adapter (Web Speech API STT, browser mic), routing shell. | app | `apps/web` |
-| `replay-export` | Deterministic replay from the recording ledger; MP4 export via WebCodecs (mediabunny); YouTube upload. | conductor, board, voice | `packages/replay` + `apps/web` |
+| `replay-export` | The host's recording: deterministic playback from the ledger in the order it was heard, and the MP4 export (Playwright + ffmpeg), with or without the learner's questions (ADR-0035). "Replay" itself is `api` starting a fresh session from a saved one. | conductor, board, voice | `packages/app` (ReplaySession) + `services/api/src/export` |
 | `desktop` | Thin Electron host for macOS/Windows/Linux: desktop `Platform` adapter (native mic permission, window, auto-update, file export), packaging. | app | `apps/desktop` |
 | `rooms-audio` | Human-to-human voice for Classroom rooms via LiveKit SFU (phase 2). | api, identity | later |
 

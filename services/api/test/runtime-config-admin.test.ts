@@ -10,6 +10,7 @@ import { loadConfig } from '../src/config.js';
 import { type GoogleProfile, GoogleTokenError, type GoogleTokenVerifier } from '../src/google.js';
 import type { RoomRegistry } from '../src/rooms.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * The Settings console's own routes (ADR-0025): who may open them, what a
@@ -63,6 +64,7 @@ beforeAll(async () => {
     PEN_ADMIN_EMAILS: ' owner@pen.test , second@pen.test ',
   });
   services = await buildServices(cfg, {
+    flags: PREPARE_FOR_EVERYONE,
     googleVerifier: new FakeVerifier({
       'tok:owner-0123456789abcdef': owner,
       'tok:bystander-0123456789abcdef': bystander,

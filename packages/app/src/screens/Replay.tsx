@@ -14,7 +14,8 @@ import {
   readPacePreference,
   writePacePreference,
 } from '../lib/pace-preference.js';
-import { ReplaySession } from '../room/ReplaySession.js';
+import { useQuickStart } from '../lib/quick-start.js';
+import { ReplayRefused, ReplaySession } from '../room/ReplaySession.js';
 import { useRoomStore } from '../room/store.js';
 
 /**
@@ -48,8 +49,15 @@ export function Replay() {
   const { id = '' } = useParams();
   const [params] = useSearchParams();
   const exportMode = params.get('export') === '1';
+  /** The render token a headless export presents; the app itself has a bearer (ADR-0035). */
+  const token = exportMode ? (params.get('token') ?? undefined) : undefined;
+  /** `interactions=0` is the lesson alone: what the lesson-only download renders. */
+  const lessonOnly = params.get('interactions') === '0';
   const { api, platform } = useApp();
   const navigate = useNavigate();
+  const quickStart = useQuickStart();
+  /** The recording is somebody else's: the way in is a session of their own. */
+  const [refused, setRefused] = useState<string | null>(null);
   const [session, setSession] = useState<ReplaySession | null>(null);
   const [state, setState] = useState<RoomState | null>(null);
   const [expert, setExpert] = useState<Expert | null>(null);
@@ -76,7 +84,11 @@ export function Replay() {
   const ui = useRoomStore();
 
   useEffect(() => {
-    const s = new ReplaySession(api, id, { mode: exportMode ? 'export' : 'play' });
+    const s = new ReplaySession(api, id, {
+      mode: exportMode ? 'export' : 'play',
+      lessonOnly,
+      ...(token ? { token } : {}),
+    });
     if (!exportMode) s.setPlaybackRate(rateRef.current);
     setSession(s);
     Promise.all([s.load(), api.getSession(id)])
@@ -89,13 +101,14 @@ export function Replay() {
       })
       .catch((e: unknown) => {
         if (s.isDisposed) return;
-        setError(e instanceof Error ? e.message : 'Could not load the session.');
+        if (e instanceof ReplayRefused) setRefused(e.message);
+        else setError(e instanceof Error ? e.message : 'Could not load the session.');
       });
     return () => {
       s.dispose();
       setSession(null);
     };
-  }, [api, id, exportMode]);
+  }, [api, id, exportMode, lessonOnly, token]);
 
   const begin = async () => {
     if (!session || !state) return;
@@ -264,6 +277,33 @@ export function Replay() {
     return () => window.removeEventListener('keydown', onKey);
   }, [exportMode, started, session, seekTo, togglePlay]);
 
+  if (refused) {
+    // Not an error: a recording is its host's, and this lesson is one click
+    // away as a session of the viewer's own (ADR-0035).
+    return (
+      <div className="grid min-h-screen place-items-center px-7">
+        <div className="flex max-w-[36rem] flex-col items-center gap-4 text-center">
+          <p className="text-body-large text-on-surface">{refused}</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {quickStart.enabled ? (
+              <Button
+                variant="primary"
+                leading={<Play size={14} />}
+                loading={quickStart.starting === id}
+                onClick={() => void quickStart.start(id)}
+                data-testid="replay-start-own"
+              >
+                Start this lesson
+              </Button>
+            ) : null}
+            <Button variant="secondary" onClick={() => navigate(`/sessions/${id}`)}>
+              About this lesson
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (error) {
     return (
       <div className="grid min-h-screen place-items-center px-7">
@@ -367,7 +407,7 @@ export function Replay() {
           <span className="hidden min-w-0 flex-1 truncate text-body-medium sm:block">{title}</span>
           <span className="flex-1 sm:hidden" />
           <Pill tone="accent" className="hidden sm:inline-flex">
-            Replay
+            {lessonOnly ? 'Recording · lesson only' : 'Recording'}
           </Pill>
           <PaceMenu
             value={rate}

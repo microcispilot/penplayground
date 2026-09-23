@@ -3,10 +3,14 @@ import {
   ChallengeAccepted,
   clampPace,
   Expert,
+  LedgerEntry,
   LikeResult,
   ListSummary,
+  MyFeatures,
   PACE_DEFAULT,
+  PLATFORM_HEADER,
   PlanUsage,
+  type Platform,
   RoomState,
   SaveResult,
   SessionTelemetry,
@@ -81,15 +85,24 @@ export type SessionRecord = z.infer<typeof SessionRecord>;
 export const HistoryRecord = SessionRecord.extend({ visit: Visit });
 export type HistoryRecord = z.infer<typeof HistoryRecord>;
 
+/** Which recording a download is (ADR-0035): the session as lived, or the lesson alone. */
+export const ExportVariant = z.enum(['full', 'lesson']);
+export type ExportVariant = z.infer<typeof ExportVariant>;
+
 /** A hosted session with its rendered MP4 (the Downloads screen). */
 export const DownloadRecord = SessionRecord.extend({
-  export: z.object({ bytes: z.number().nullable(), renderedAt: z.number().nullable() }),
+  export: z.object({
+    bytes: z.number().nullable(),
+    renderedAt: z.number().nullable(),
+    variant: ExportVariant.default('full'),
+  }),
 });
 export type DownloadRecord = z.infer<typeof DownloadRecord>;
 
 /** Server-side MP4 render of a session (paid plans). `none` = never requested. */
 export const ExportStatus = z.object({
   status: z.enum(['none', 'queued', 'rendering', 'ready', 'failed']),
+  variant: ExportVariant.default('full'),
   /** 0–1 while rendering. */
   progress: z.number(),
   error: z.string().nullable(),
@@ -114,12 +127,30 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** The rest of what the server said, for the errors that carry more than a sentence. */
+    readonly detail: unknown = null,
   ) {
     super(message);
   }
 }
 
+/**
+ * The lessons that are ready when a topic cannot be prepared for this plan
+ * (`PREPARATION_REQUIRED`, ADR-0036): what Home shows instead of a closed door.
+ */
+export const PreparationRequired = z.object({
+  error: z.literal('PREPARATION_REQUIRED'),
+  message: z.string(),
+  ready: z.array(SessionRecord),
+});
+export type PreparationRequired = z.infer<typeof PreparationRequired>;
+
 /** Typed REST client; every response is validated with Zod before it reaches the UI. */
+/** `?interactions=0` names the lesson-only recording; the full one is the default. */
+function exportQuery(variant: ExportVariant): string {
+  return variant === 'lesson' ? '?interactions=0' : '';
+}
+
 export class ApiClient {
   private token: string | null;
   /**
@@ -155,6 +186,8 @@ export class ApiClient {
   constructor(
     readonly baseUrl: string,
     private readonly storage: KeyValueStorage,
+    /** Sent on every request, so the server answers with this platform's features (ADR-0036). */
+    readonly platformId: Platform = 'web',
   ) {
     this.token = storage.get(TOKEN_KEY);
   }
@@ -197,6 +230,7 @@ export class ApiClient {
     };
     if (init.body) headers['content-type'] = 'application/json';
     if (this.token) headers.authorization = `Bearer ${this.token}`;
+    headers[PLATFORM_HEADER] = this.platformId;
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
@@ -210,6 +244,7 @@ export class ApiClient {
         res.status,
         err.success ? err.data.error : 'HTTP',
         err.success ? (err.data.message ?? err.data.error) : `HTTP ${res.status}`,
+        body,
       );
     }
     return schema.parse(body);
@@ -544,16 +579,59 @@ export class ApiClient {
       (r) => r.experts,
     );
   }
-  createSession(input: {
-    topic: string;
-    band?: 'beginner' | 'intermediate' | 'advanced';
-    expertId?: string;
-    visibility?: 'public' | 'private';
-  }) {
+  createSession(
+    input:
+      | {
+          topic: string;
+          band?: 'beginner' | 'intermediate' | 'advanced';
+          expertId?: string;
+          visibility?: 'public' | 'private';
+        }
+      /** Start a saved lesson again as a fresh session of your own (ADR-0035). */
+      | { replayOf: string; visibility?: 'public' | 'private' },
+  ) {
     return this.request('/api/sessions', z.object({ session: SessionRecord, state: RoomState }), {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  }
+  /**
+   * The recording of a session: its ledger, its record and its expert. Only
+   * the host is answered (ADR-0035); a headless render presents `token`
+   * instead of a bearer.
+   */
+  ledger(id: string, opts: { token?: string } = {}) {
+    const query = opts.token ? `?token=${encodeURIComponent(opts.token)}` : '';
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}/ledger${query}`,
+      z.object({
+        session: SessionRecord,
+        entries: z.array(LedgerEntry),
+        expert: Expert.nullable(),
+      }),
+      {},
+      opts.token ? 'none' : 'required',
+    );
+  }
+  /** One audio file of a recording, on the same terms as the ledger. */
+  async recordingAudio(
+    id: string,
+    file: string,
+    opts: { token?: string } = {},
+  ): Promise<ArrayBuffer> {
+    const query = opts.token ? `?token=${encodeURIComponent(opts.token)}` : '';
+    const headers: Record<string, string> = { [PLATFORM_HEADER]: this.platformId };
+    if (!opts.token && this.token) headers.authorization = `Bearer ${this.token}`;
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(id)}/audio/${encodeURIComponent(file)}${query}`,
+      { headers },
+    );
+    if (!res.ok) throw new ApiError(res.status, 'HTTP', `audio ${file}: ${res.status}`);
+    return res.arrayBuffer();
+  }
+  /** This learner's own cell of the feature matrix (ADR-0036). */
+  features() {
+    return this.request('/api/me/features', MyFeatures);
   }
   getSession(id: string) {
     return this.request(
@@ -574,14 +652,21 @@ export class ApiClient {
     );
   }
   /** Ask for the MP4 (idempotent: returns the current job when one exists). */
-  requestExport(id: string) {
-    return this.request(`/api/sessions/${encodeURIComponent(id)}/export`, ExportStatus, {
-      method: 'POST',
-      body: '{}',
-    });
+  requestExport(id: string, variant: ExportVariant = 'full') {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}/export${exportQuery(variant)}`,
+      ExportStatus,
+      {
+        method: 'POST',
+        body: '{}',
+      },
+    );
   }
-  exportStatus(id: string) {
-    return this.request(`/api/sessions/${encodeURIComponent(id)}/export`, ExportStatus);
+  exportStatus(id: string, variant: ExportVariant = 'full') {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}/export${exportQuery(variant)}`,
+      ExportStatus,
+    );
   }
   /** Human-to-human audio: mint a media-server token for a session this participant has joined. */
   roomAudioToken(sessionId: string) {

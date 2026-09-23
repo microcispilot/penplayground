@@ -99,6 +99,16 @@ export const RoomState = z.object({
    * older ledgers and replays validate unchanged.
    */
   participantAudio: z.boolean().optional(),
+  /**
+   * The room's furniture, decided by the host's plan and platform when the
+   * room was built (ADR-0036): whether the chat, the reactions and the CC
+   * control exist here at all. Every client draws from this rather than from
+   * its own answer, so a guest on a phone sees the same room as the host.
+   * Absent = all on, so older ledgers and replays validate unchanged.
+   */
+  features: z
+    .object({ chat: z.boolean(), reactions: z.boolean(), captions: z.boolean() })
+    .optional(),
   plan: LessonPlan.nullable(),
   /** Index of the segment currently being taught. */
   segment: z.number().int().nonnegative(),

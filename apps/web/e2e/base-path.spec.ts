@@ -119,8 +119,9 @@ test.describe('served under a base path', () => {
     expect(share.status()).toBe(200);
     expect(await share.text()).toContain(`${origin}${BASE}/sessions/${id}`);
 
-    // The replay.
-    await page.getByRole('button', { name: 'Replay' }).click();
+    // The host's own recording (ADR-0035): "Replay" on this page starts the
+    // lesson again as a fresh session, so the recording is its own control.
+    await page.getByRole('button', { name: 'Watch my recording' }).click();
     await expect(page).toHaveURL(new RegExp(`^${origin}${BASE}/replay/${id}$`));
     await page.getByRole('button', { name: 'Play the session' }).click();
     await expect(page.locator('.pen-board')).toBeVisible({ timeout: 45_000 });

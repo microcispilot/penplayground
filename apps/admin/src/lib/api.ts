@@ -1,4 +1,8 @@
 import {
+  FeatureFlagsDocument,
+  FeatureFlagsHistory,
+  type FeatureFlagsMutation,
+  type FeatureFlagsRollback,
   RuntimeConfigDocument,
   RuntimeConfigHistory,
   type RuntimeConfigMutation,
@@ -215,6 +219,43 @@ export class AdminApi {
     return this.request(
       `/api/admin/stats/${path}${qs ? `?${qs}` : ''}`,
       schema,
+      ...(signal ? [{ signal }] : []),
+    );
+  }
+
+  // ── feature flags (ADR-0036): the same four calls as the settings ──────
+  features(signal?: AbortSignal): Promise<FeatureFlagsDocument> {
+    return this.request(
+      '/api/admin/features',
+      FeatureFlagsDocument,
+      ...(signal ? [{ signal }] : []),
+    );
+  }
+
+  saveFeatures(body: FeatureFlagsMutation, signal?: AbortSignal): Promise<FeatureFlagsDocument> {
+    return this.request('/api/admin/features', FeatureFlagsDocument, {
+      method: 'PUT',
+      body,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  rollbackFeatures(
+    body: FeatureFlagsRollback,
+    signal?: AbortSignal,
+  ): Promise<FeatureFlagsDocument> {
+    return this.request('/api/admin/features/rollback', FeatureFlagsDocument, {
+      method: 'POST',
+      body,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  featuresHistory(beforeRevision?: number, signal?: AbortSignal): Promise<FeatureFlagsHistory> {
+    const query = beforeRevision === undefined ? '' : `?beforeRevision=${beforeRevision}`;
+    return this.request(
+      `/api/admin/features/history${query}`,
+      FeatureFlagsHistory,
       ...(signal ? [{ signal }] : []),
     );
   }

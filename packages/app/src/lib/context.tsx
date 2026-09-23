@@ -1,3 +1,5 @@
+import type { FeatureSet } from '@pen/contracts';
+import { defaultFeaturesFor } from '@pen/contracts';
 import {
   createContext,
   type ReactNode,
@@ -22,6 +24,13 @@ interface AppContextValue {
   platform: Platform;
   api: ApiClient;
   participant: Participant | null;
+  /**
+   * What this learner gets here (ADR-0036): their plan, on this platform, as
+   * the server resolved it. Until the server has answered it is the
+   * compiled-in rule for the plan we know of, so nothing flickers and nothing
+   * that needs a decision waits. The server checks every one of these again.
+   */
+  features: FeatureSet;
   /** Null while the anonymous participant is being issued; a string when it failed. */
   authError: string | null;
   /** Rename in place; the participant keeps its id and its sessions. */
@@ -43,7 +52,10 @@ interface AppContextValue {
 const Ctx = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ platform, children }: { platform: Platform; children: ReactNode }) {
-  const api = useMemo(() => new ApiClient(platform.apiUrl, platform.storage), [platform]);
+  const api = useMemo(
+    () => new ApiClient(platform.apiUrl, platform.storage, platform.id),
+    [platform],
+  );
   /**
    * A signed-in learner's pace belongs to them, not to the browser they are
    * in: the account's value replaces whatever this device remembered, so the
@@ -58,6 +70,11 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     [platform.storage],
   );
   const [participant, setParticipant] = useState<Participant | null>(null);
+  const [served, setServed] = useState<FeatureSet | null>(null);
+  const features = useMemo(
+    () => served ?? defaultFeaturesFor(participant?.plan ?? 'free', platform.id),
+    [served, participant?.plan, platform.id],
+  );
   const [authError, setAuthError] = useState<string | null>(null);
   // Read before anything starts: the choice has to apply to the first network
   // call of the visit, not the second.
@@ -118,11 +135,34 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     };
   }, [api, headless, adoptAccountPace]);
 
+  /**
+   * The server's answer follows the participant: a sign-in, a sign-out or a
+   * plan change is a new participant object, and each one is a new cell of
+   * the matrix. A failed read keeps the compiled-in rule rather than an
+   * error, because a flag is never a reason for the page to stop.
+   */
+  useEffect(() => {
+    if (headless || !participant) return;
+    let cancelled = false;
+    api
+      .features()
+      .then((f) => {
+        if (!cancelled) setServed(f.features);
+      })
+      .catch(() => {
+        if (!cancelled) setServed(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, headless, participant]);
+
   const value = useMemo<AppContextValue>(
     () => ({
       platform,
       api,
       participant,
+      features,
       authError,
       setName: async (name: string) => {
         setParticipant(await api.rename(name));
@@ -165,7 +205,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         identify(p.id);
       },
     }),
-    [platform, api, participant, authError, privacy, adoptAccountPace],
+    [platform, api, participant, features, authError, privacy, adoptAccountPace],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -49,8 +49,13 @@ const sentryMonitor: Monitor = {
     }),
 };
 
+/** The desktop app on the operating system the preload reported. */
+const desktopId = (os: string | undefined): Platform['id'] =>
+  os === 'darwin' ? 'desktop-mac' : os === 'win32' ? 'desktop-windows' : 'desktop-linux';
+
 export const desktopPlatform: Platform = {
   name: 'desktop',
+  id: desktopId(window.pen?.os),
   // The renderer loads from the packaged root; there is no prefix to serve under.
   basePath: '/',
   apiUrl: window.pen?.apiUrl ?? 'http://localhost:4000',

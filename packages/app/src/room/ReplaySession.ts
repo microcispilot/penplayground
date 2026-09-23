@@ -6,16 +6,22 @@ import {
   type PresencePort,
 } from '@pen/conductor';
 import type { Cue, DownstreamAudioHeader, LedgerEntry, RoomState } from '@pen/contracts';
-import { LedgerEntry as LedgerEntrySchema } from '@pen/contracts';
+import { recordingOrder } from '@pen/contracts';
 import { MediaSayPlayer } from '@pen/voice/client';
-import { z } from 'zod';
-import type { ApiClient } from '../api/client.js';
+import { type ApiClient, ApiError } from '../api/client.js';
+
+/** The recording is somebody else's (ADR-0035): the viewer is offered the lesson instead. */
+export class ReplayRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReplayRefused';
+  }
+}
+
 import { LazyBoard } from './LazyBoard.js';
 import { type PaceTimeline, paceTimeline } from './pace-timeline.js';
 import { buildReplayTimeline, type ReplayTimeline } from './replay-timeline.js';
 import { useRoomStore } from './store.js';
-
-const LedgerResponse = z.object({ entries: z.array(LedgerEntrySchema) });
 
 interface AudioRef {
   header: DownstreamAudioHeader;
@@ -24,6 +30,20 @@ interface AudioRef {
 }
 
 export type ReplayMode = 'play' | 'export';
+
+export interface ReplaySessionOptions {
+  mode?: ReplayMode;
+  /**
+   * The render token a headless export presents instead of a bearer
+   * (ADR-0035); a viewer in the app has a bearer and passes nothing.
+   */
+  token?: string;
+  /**
+   * Play the lesson alone: every turn — the learner's own words, the
+   * answers, the notes — left out. What the lesson-only download renders.
+   */
+  lessonOnly?: boolean;
+}
 
 /** Hooks the export renderer listens to (see services/api export/render.ts). */
 export interface ExportHooks {
@@ -185,14 +205,23 @@ export class ReplaySession {
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
   /** The sentence at `cursor` has been heard to the end. */
   private playedThrough = false;
+  private readonly token: string | undefined;
+  private readonly lessonOnly: boolean;
+  /** The words that opened each turn, by the key of the sentence that answered them. */
+  private asked = new Map<string, { text: string; by: string | null }>();
+  /** Who was in the room, so a guest's question carries their name and the host's says "You". */
+  private names = new Map<string, string>();
+  private hostId = '';
 
   constructor(
     private readonly api: ApiClient,
     private readonly sessionId: string,
-    opts: { mode?: ReplayMode } = {},
+    opts: ReplaySessionOptions = {},
   ) {
     useRoomStore.getState().reset();
     this.mode = opts.mode ?? 'play';
+    this.token = opts.token;
+    this.lessonOnly = opts.lessonOnly ?? false;
     // Export mode never touches browser media: headless Chromium has no output device.
     this.player =
       this.mode === 'play'
@@ -222,6 +251,7 @@ export class ReplaySession {
               if (at >= 0) this.cursor = at;
               this.playedThrough = false;
               this.followRecordedPace(id);
+              this.showAsked(id);
               this.conductor?.audioEvents.onSayStart(id);
               // A seek asked for a position inside this sentence; the element exists now.
               if (this.pendingSeekMs !== null && this.player?.seekCurrent(this.pendingSeekMs))
@@ -285,15 +315,36 @@ export class ReplaySession {
   }
 
   async load(): Promise<RoomState> {
-    const res = await fetch(
-      `${this.api.baseUrl}/api/sessions/${encodeURIComponent(this.sessionId)}/ledger`,
-    );
-    if (!res.ok)
-      throw new Error(
-        res.status === 404 ? 'This session is not available.' : 'Could not load the session.',
-      );
-    const { entries } = LedgerResponse.parse(await res.json());
+    let entries: LedgerEntry[];
+    try {
+      ({ entries } = await this.api.ledger(
+        this.sessionId,
+        this.token ? { token: this.token } : {},
+      ));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 403) throw new ReplayRefused(error.message);
+        if (error.status === 404) throw new Error('This session is not available.');
+      }
+      throw new Error('Could not load the session.');
+    }
     return this.prepare(entries);
+  }
+
+  /**
+   * The learner's own words, over the sentence that answers them. They were
+   * never recorded as sound — only the expert's voice is — so the honest
+   * replay shows them as a caption at the moment they were spoken, the way
+   * the room captioned them live.
+   */
+  private showAsked(key: string): void {
+    const words = this.asked.get(key);
+    if (!words) return;
+    const name =
+      words.by === null || words.by === this.hostId
+        ? 'You'
+        : (this.names.get(words.by) ?? 'Learner');
+    this.ports?.captions.showLearner(name, words.text, true);
   }
 
   /** Split the ledger into cues and per-say audio references; build the initial room state. */
@@ -303,6 +354,9 @@ export class ReplaySession {
     this.paces = paceTimeline(entries);
     for (const e of entries) {
       if (e.kind === 'cue') {
+        // The lesson-only replay never sees a turn: not its cues, not its
+        // board work, not its notes.
+        if (this.lessonOnly && e.cue.thread !== 'lesson') continue;
         this.cues.push(e.cue);
         if (e.cue.event.type === 'say') this.cueOfSay.set(e.cue.event.id, e.cue);
       }
@@ -315,6 +369,7 @@ export class ReplaySession {
       }
       if (e.kind === 'join') {
         if (!hostId) hostId = e.participantId;
+        this.names.set(e.participantId, e.name);
         participants.push({
           id: e.participantId,
           name: e.name,
@@ -325,15 +380,18 @@ export class ReplaySession {
         });
       }
     }
-    // Only the last take of each say was actually heard; earlier takes were interrupted.
-    const lastTake = new Map<string, number>();
-    for (const key of this.audio.keys()) {
-      const [sayId, take] = key.split('@');
-      if (sayId) lastTake.set(sayId, Math.max(lastTake.get(sayId) ?? 0, Number(take ?? 0)));
-    }
-    this.sayOrder = this.cues
-      .filter((c) => c.event.type === 'say')
-      .map((c) => (c.event.type === 'say' ? `${c.event.id}@${lastTake.get(c.event.id) ?? 0}` : ''));
+    // The order the recording was heard in — by the audio's clock, so an
+    // answer plays where it was asked and the sentences spoken again after it
+    // play after it — with the last take of each sentence, the one that was
+    // actually heard (`recordingOrder`, contracts).
+    const heard = recordingOrder(entries, { lessonOnly: this.lessonOnly });
+    this.sayOrder = heard.keys;
+    this.hostId = hostId;
+    this.asked = new Map(
+      heard.says.flatMap((s) =>
+        s.asked === null ? [] : [[s.key, { text: s.asked, by: s.askedBy }] as const],
+      ),
+    );
     // Everything the timeline needs is known now; anything read before this was
     // an empty recording, so drop the memo rather than serve it.
     this.timelineCache = null;
@@ -374,6 +432,7 @@ export class ReplaySession {
       const clock = new ExportClock(plan, {
         onSayStart: (key, index) => {
           this.followRecordedPace(key);
+          this.showAsked(key);
           this.conductor?.audioEvents.onSayStart(key);
           const say = plan[index];
           if (say) this.exportHooks?.onSayStart(say.sayId, say.take, index, plan.length);
@@ -619,12 +678,7 @@ export class ReplaySession {
   private file(name: string): Promise<ArrayBuffer> {
     let p = this.fileCache.get(name);
     if (!p) {
-      p = fetch(
-        `${this.api.baseUrl}/api/sessions/${encodeURIComponent(this.sessionId)}/audio/${encodeURIComponent(name)}`,
-      ).then((r) => {
-        if (!r.ok) throw new Error(`audio ${name}: ${r.status}`);
-        return r.arrayBuffer();
-      });
+      p = this.api.recordingAudio(this.sessionId, name, this.token ? { token: this.token } : {});
       this.fileCache.set(name, p);
     }
     return p;

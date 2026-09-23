@@ -1,7 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AD_RULES, GOOGLE_IMA_SAMPLE_TAG, nonPersonalisedTag } from '@pen/contracts';
+import {
+  AD_RULES,
+  defaultFeaturesFor,
+  GOOGLE_IMA_SAMPLE_TAG,
+  nonPersonalisedTag,
+} from '@pen/contracts';
 import type { AdOutcome } from '@pen/session-engine';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AdEconomics, type RevenueSink, resolveAdDemand } from '../src/ads.js';
@@ -86,7 +91,7 @@ describe('ad demand resolution', () => {
 describe('AdEconomics', () => {
   it('gives the free plan a video policy with the product rules, and paid plans none', () => {
     const ads = economics({ ...base, PEN_AD_TEST_TAGS: '1' });
-    const policy = ads.policyFor('free', 's1', 3);
+    const policy = ads.policyFor(defaultFeaturesFor('free'), 's1', 3);
     expect(policy).toMatchObject({
       everySegments: 3,
       durationMs: AD_RULES.maxDurationMs,
@@ -98,20 +103,20 @@ describe('AdEconomics', () => {
     // Every request leaves here non-personalised, so there is never one that
     // would have needed a consent banner in front of the lesson (ADR-0018).
     expect(policy?.tagUrl).toContain('npa=1');
-    expect(ads.policyFor('standard', 's1', 3)).toBeNull();
-    expect(ads.policyFor('professional', 's1', 3)).toBeNull();
+    expect(ads.policyFor(defaultFeaturesFor('standard'), 's1', 3)).toBeNull();
+    expect(ads.policyFor(defaultFeaturesFor('professional'), 's1', 3)).toBeNull();
   });
 
   it('gives nobody a policy when no demand is configured (and says why in the log)', () => {
     const ads = economics(base);
     expect(ads.demand.source).toBe('off');
-    expect(ads.policyFor('free', 's1', 3)).toBeNull();
+    expect(ads.policyFor(defaultFeaturesFor('free'), 's1', 3)).toBeNull();
   });
 
   it('records an estimated revenue line per completed ad as a negative cost under `ads`', () => {
     const costs = new CostLedger();
     const ads = economics({ ...base, PEN_AD_TEST_TAGS: '1', PEN_AD_ECPM_USD: '12' }, costs);
-    const policy = ads.policyFor('free', 's1', 3);
+    const policy = ads.policyFor(defaultFeaturesFor('free'), 's1', 3);
     if (!policy?.onEvent) throw new Error('policy');
     policy.onEvent(outcome('ad_requested'));
     policy.onEvent(outcome('ad_started'));
@@ -147,7 +152,7 @@ describe('the eCPM a session is priced at', () => {
     const costs = new CostLedger();
     const ads = new AdEconomics(cfg, settings, costs);
 
-    const first = ads.policyFor('free', 'early', 3);
+    const first = ads.policyFor(defaultFeaturesFor('free'), 'early', 3);
     expect(first?.revenuePerCompletionUsd).toBeCloseTo(0.008, 6);
 
     // Somebody saves a new rate while that session is still running.
@@ -155,7 +160,7 @@ describe('the eCPM a session is priced at', () => {
       { revision: 1, settings: { PEN_AD_ECPM_USD: 20 }, updatedAt: 1, updatedBy: 'p' },
       'database',
     );
-    const later = ads.policyFor('free', 'late', 3);
+    const later = ads.policyFor(defaultFeaturesFor('free'), 'late', 3);
     expect(later?.revenuePerCompletionUsd).toBeCloseTo(0.02, 6);
 
     // Each session's completions are priced at its own rate, not today's.

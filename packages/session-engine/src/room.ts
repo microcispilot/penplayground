@@ -6,6 +6,7 @@ import type {
   ClientReport,
   Cue,
   Expert,
+  FeatureSet,
   GapKind,
   LedgerEntry,
   LessonEvent,
@@ -32,8 +33,8 @@ import {
   CHAT_MAX_CHARS,
   CHAT_MIN_INTERVAL_MS,
   clampPace,
+  defaultFeaturesFor,
   freshEstimateUsd,
-  hasEntitlement,
   MAX_PARTICIPANTS,
   PACE_DEFAULT,
   PLAN_LIMITS,
@@ -193,6 +194,13 @@ export interface SessionRoomDeps {
   pace?: number;
   /** The API has a media server for human-to-human audio; the host's plan still decides. */
   participantAudio?: boolean;
+  /**
+   * What this room may offer, resolved once for the host's plan and platform
+   * as the room is built (ADR-0036). Absent — tests, scripts — means the
+   * compiled-in rules for the host's plan on the web, which is exactly what
+   * the entitlement table used to say.
+   */
+  features?: FeatureSet;
   now?: () => number;
   /** Stage timings, costs, interactions and errors for this session (ADR-0011); NullMetrics when absent. */
   metrics?: Metrics;
@@ -224,6 +232,8 @@ interface Turn {
 export class SessionRoom {
   readonly sessionId: string;
   private readonly d: SessionRoomDeps;
+  /** The flags this room was built with; never re-read during its life. */
+  readonly features: FeatureSet;
   private readonly observer: RoomObserver;
   private readonly now: () => number;
   /** Public so the API can add what it measures itself (STT finals). */
@@ -315,6 +325,7 @@ export class SessionRoom {
       this.markFirstAudio = resolve;
     });
     this.d = deps;
+    this.features = deps.features ?? defaultFeaturesFor(deps.host.plan);
     this.sessionId = deps.sessionId;
     this.observer = deps.observer ?? SILENT_OBSERVER;
     this.now = deps.now ?? (() => Date.now());
@@ -358,7 +369,12 @@ export class SessionRoom {
       floor: null,
       hostId: host.id,
       participants: [host],
-      participantAudio: Boolean(deps.participantAudio) && hasEntitlement(deps.host.plan, 'rooms'),
+      participantAudio: Boolean(deps.participantAudio) && this.features.rooms,
+      features: {
+        chat: this.features.chat,
+        reactions: this.features.reactions,
+        captions: this.features.captions,
+      },
       plan: null,
       segment: 0,
       clockMs: 0,
@@ -479,8 +495,7 @@ export class SessionRoom {
     if (existing) return { ok: true, participant: existing };
     // Entitlement first: on a solo plan the honest answer is "rooms are a
     // Professional feature", not "this room is full" — one seat is not a crowd.
-    if (!hasEntitlement(this.d.host.plan, 'rooms'))
-      return { ok: false, code: 'ENTITLEMENT_REQUIRED' };
+    if (!this.features.rooms) return { ok: false, code: 'ENTITLEMENT_REQUIRED' };
     if (this.participants.size >= this.seats) return { ok: false, code: 'ROOM_FULL' };
     const p: Participant = {
       id: participant.id,
@@ -750,7 +765,7 @@ export class SessionRoom {
       if (!this.d.acquirer) throw new Error('KNOWLEDGE_ACQUIRER_MISSING');
       // A topic miss means the learner waits while sources are gathered: on the free plan that wait
       // carries one ad card, and it is taken out of the session's ad budget (never an extra ad).
-      if (this.d.ads && !hasEntitlement(this.d.host.plan, 'no_ads')) {
+      if (this.d.ads && this.features.ads) {
         this.adsShown += 1;
         this.broadcastAd(`ad-${this.sessionId}-prep`, -1, 'preparation');
       }
@@ -1057,12 +1072,7 @@ export class SessionRoom {
     const adSlot =
       every > 0 && index > 0 && index % every === 0 && index < plan.segments.length - 1;
     const slotIndex = every > 0 ? index / every : 0;
-    if (
-      this.d.ads &&
-      !hasEntitlement(this.d.host.plan, 'no_ads') &&
-      adSlot &&
-      this.adsShown < slotIndex
-    ) {
+    if (this.d.ads && this.features.ads && adSlot && this.adsShown < slotIndex) {
       this.adsShown += 1;
       this.broadcastAd(`ad-${this.sessionId}-${this.adsShown}`, this.seq - 1, 'boundary');
     }
@@ -1109,6 +1119,9 @@ export class SessionRoom {
    */
   private reaction(p: Participant, emoji: Reaction): void {
     if (this.state.phase === 'ended') return;
+    // Off by the flags this room was built with: silent, like the flood rule,
+    // because a client that shows no picker cannot have sent one on purpose.
+    if (!this.features.reactions) return;
     if (this.adShowing()) return;
     const now = this.now();
     const last = this.lastReactionAt.get(p.id) ?? Number.NEGATIVE_INFINITY;
@@ -1136,6 +1149,7 @@ export class SessionRoom {
    */
   private chat(p: Participant, text: string): void {
     if (this.state.phase === 'ended') return;
+    if (!this.features.chat) return;
     if (this.adShowing()) return;
     const line = text.trim().slice(0, CHAT_MAX_CHARS);
     if (line.length === 0) return;

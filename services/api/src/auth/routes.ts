@@ -43,6 +43,8 @@ export interface AuthDeps {
   /** Where "sign in instead" points in the already-registered email. */
   signInUrl: string;
   clientIp: (c: Context) => string;
+  /** Whether email sign-in is on for this caller and platform; absent means always. */
+  enabled?: (c: Context) => Promise<boolean> | boolean;
   /** Find an account by address. A list, because an address is not a key. */
   findByEmail: (email: string) => Promise<
     Array<{
@@ -103,6 +105,20 @@ function decoyId(): string {
 export function registerAuthRoutes(app: Hono, deps: AuthDeps): void {
   const guard = (action: AuthAction, ip: string, email: string | null) =>
     deps.limiter.check(action, ip, email);
+
+  /**
+   * Every route here is behind one flag (`email_sign_in`, ADR-0036), decided
+   * by the caller's platform: a client that hides the form still cannot use
+   * it. 503 with the same body the Google route gives when it is off, so a
+   * client has one thing to say.
+   */
+  app.use('/api/auth/*', async (c, next) => {
+    if (c.req.path === '/api/auth/anonymous' || (await (deps.enabled?.(c) ?? true))) return next();
+    return c.json(
+      { error: 'EMAIL_SIGN_IN_DISABLED', message: 'Email sign-in is not available here.' },
+      503,
+    );
+  });
 
   /**
    * Step one of signing up: name an address, get a code.

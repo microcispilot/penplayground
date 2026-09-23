@@ -1,5 +1,4 @@
 import type { Expert } from '@pen/contracts';
-import { hasEntitlement } from '@pen/contracts';
 import { Button, Pill, Skeleton } from '@pen/design';
 import { Play } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -11,7 +10,47 @@ import { SessionThumb } from '../components/SessionCard.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 import { mountGoogleButton } from '../lib/google.js';
 import { useLists } from '../lib/lists.js';
+import { useQuickStart } from '../lib/quick-start.js';
 import { isDarkTheme, useTheme } from '../lib/theme.js';
+
+/**
+ * The one action a shelf row carries: back into a session that is still
+ * live, or the lesson again as a fresh session of your own (ADR-0035). The
+ * word is "Replay" because that is what the learner is doing — having the
+ * lesson again — even though what starts is new: their questions, their
+ * recording. When the flag is off the row opens the saved page instead.
+ */
+export function StartAgain({ session, live }: { session: SessionRecord; live: boolean }) {
+  const navigate = useNavigate();
+  const quickStart = useQuickStart();
+  if (live)
+    return (
+      <Button
+        variant="primary"
+        leading={<Play size={14} />}
+        onClick={() => navigate(`/room/${session.id}`)}
+      >
+        Rejoin
+      </Button>
+    );
+  if (!quickStart.enabled)
+    return (
+      <Button variant="primary" onClick={() => navigate(`/sessions/${session.id}`)}>
+        Open
+      </Button>
+    );
+  return (
+    <Button
+      variant="primary"
+      leading={<Play size={14} />}
+      loading={quickStart.starting === session.id}
+      onClick={() => void quickStart.start(session.id)}
+      data-testid={`replay-${session.id}`}
+    >
+      Replay
+    </Button>
+  );
+}
 
 /**
  * The invitation an empty personal list ends with — one calm line and Google's
@@ -19,11 +58,12 @@ import { isDarkTheme, useTheme } from '../lib/theme.js';
  * device, and signing in only makes them follow along.
  */
 export function SignInInvite({ line }: { line: string }) {
-  const { platform, signInWithGoogle, participant } = useApp();
+  const { platform, signInWithGoogle, participant, features } = useApp();
   const [theme] = useTheme();
   const slot = useRef<HTMLDivElement>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const offered = platform.googleClientId !== null && participant?.anonymous !== false;
+  const offered =
+    features.google_sign_in && platform.googleClientId !== null && participant?.anonymous !== false;
 
   useEffect(() => {
     const el = slot.current;
@@ -94,7 +134,6 @@ function SessionRow({
   detail: string;
   extra?: ReactNode;
 }) {
-  const navigate = useNavigate();
   const live = session.endedAt === null;
   return (
     <div className="group flex flex-col gap-3.5 rounded-lg bg-surface-container-low p-3.5 hairline transition-shadow hover:shadow-[0_0_0_1px_var(--color-outline)] sm:flex-row sm:gap-[18px]">
@@ -115,16 +154,10 @@ function SessionRow({
           <SaveButton session={session} size="sm" />
         </div>
       </div>
-      {/* One control now that Transcript has gone; it stays centred rather than
-          stacking, because there is nothing left to stack it against. */}
+      {/* One control: back into a live session, or this lesson again as a
+          fresh one (ADR-0035). The saved page is a click on the title. */}
       <div className="flex shrink-0 items-center">
-        <Button
-          variant="primary"
-          leading={<Play size={14} />}
-          onClick={() => navigate(live ? `/room/${session.id}` : `/sessions/${session.id}`)}
-        >
-          {live ? 'Rejoin' : 'Replay'}
-        </Button>
+        <StartAgain session={session} live={live} />
       </div>
       {expert ? <span className="sr-only">{expert.displayName}</span> : null}
     </div>
@@ -284,9 +317,9 @@ export function LikedScreen() {
 }
 
 export function DownloadsScreen() {
-  const { api, participant } = useApp();
+  const { api, features } = useApp();
   const navigate = useNavigate();
-  const entitled = participant ? hasEntitlement(participant.plan, 'export') : false;
+  const entitled = features.session_download;
   return (
     <ListScreen
       title="Downloads"
@@ -321,9 +354,9 @@ export function DownloadsScreen() {
 }
 
 export function RoomsScreen() {
-  const { api, participant } = useApp();
+  const { api, features } = useApp();
   const navigate = useNavigate();
-  const entitled = participant ? hasEntitlement(participant.plan, 'rooms') : false;
+  const entitled = features.rooms;
   return (
     <ListScreen
       title="Rooms"

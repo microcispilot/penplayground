@@ -7,6 +7,7 @@ import { loadConfig } from '../src/config.js';
 import { TopicIntake } from '../src/language.js';
 import { type LiveRoom, RoomRegistry } from '../src/rooms.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /** Records every purpose the room registry (and its intake) asks the model for. */
 class SpyModel implements LanguageModel {
@@ -42,7 +43,7 @@ beforeAll(async () => {
     PEN_TTS_PROVIDER: 'silent',
     PEN_STT_PROVIDER: 'browser',
   });
-  const base = await buildServices(cfg);
+  const base = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   // `Services` is a plain record, so the registry can be composed with an observed model and intake
   // without any change to buildServices.
   spy = new SpyModel(base.modelFor('free'));

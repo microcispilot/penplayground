@@ -11,6 +11,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { seedPacks } from '../src/seed-packs.js';
 import { buildServices, DATA_DIR, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * End-to-end proof of the telemetry pipeline (ADR-0011): a real API (fake
@@ -58,7 +59,7 @@ beforeAll(async () => {
     PEN_STT_PROVIDER: 'browser',
     PEN_API_URL: apiUrl,
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   await seedPacks(services.onten, join(DATA_DIR, 'packs'));
   // Observe what would go to PostHog without a token.
   const optedOut = new Set<string>();

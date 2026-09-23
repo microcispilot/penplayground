@@ -6,6 +6,7 @@ import { loadConfig } from '../src/config.js';
 import { observer } from '../src/observability.js';
 import { RoomRegistry } from '../src/rooms.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * The seam itself: a real room, ended through `RoomRegistry`, and the row
@@ -34,7 +35,7 @@ beforeAll(async () => {
     PEN_TTS_PROVIDER: 'silent',
     PEN_STT_PROVIDER: 'browser',
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   rooms = new RoomRegistry(services);
 }, 120_000);
 

@@ -7,9 +7,25 @@ import { safeId } from '../ledger.js';
 export const ExportStatus = z.enum(['queued', 'rendering', 'ready', 'failed', 'stale']);
 export type ExportStatus = z.infer<typeof ExportStatus>;
 
+/**
+ * Which recording is rendered (ADR-0035): `full` is the session as the host
+ * lived it, their questions and the answers included; `lesson` is the taught
+ * lesson alone, for a learner who would rather not be in their own video.
+ * Two files, two jobs, one queue.
+ */
+export const ExportVariant = z.enum(['full', 'lesson']);
+export type ExportVariant = z.infer<typeof ExportVariant>;
+
+/** `sessionId` for the full recording (the files older deployments wrote), `sessionId#lesson` otherwise. */
+export function exportKey(sessionId: string, variant: ExportVariant): string {
+  return variant === 'full' ? sessionId : `${sessionId}#${variant}`;
+}
+
 /** Persisted as `<data>/sessions/<id>/export.json`; the in-memory copy is the source of truth while the process lives. */
 export const ExportJobRecord = z.object({
   sessionId: z.string(),
+  /** Absent in records written before variants existed: those are the full recording. */
+  variant: ExportVariant.default('full'),
   status: ExportStatus,
   /** 0–1. */
   progress: z.number().min(0).max(1),
@@ -48,6 +64,7 @@ export interface RenderResult {
 export interface Renderer {
   render(input: {
     sessionId: string;
+    variant: ExportVariant;
     sessionDir: string;
     outputPath: string;
     onProgress: (fraction: number) => void;
@@ -101,8 +118,8 @@ export interface ExportJobsOptions {
   ) => void;
 }
 
-const FILE = 'export.json';
-const OUTPUT = 'export.mp4';
+const FILE: Record<ExportVariant, string> = { full: 'export.json', lesson: 'export-lesson.json' };
+const OUTPUT: Record<ExportVariant, string> = { full: 'export.mp4', lesson: 'export-lesson.mp4' };
 const DEFAULT_MAX_QUEUE = 16;
 const DEFAULT_MAX_SPOKEN_MS = 45 * 60_000;
 const DEFAULT_STALE_HEARTBEAT_MS = 10 * 60_000;
@@ -120,7 +137,7 @@ const DEFAULT_STALE_HEARTBEAT_MS = 10 * 60_000;
 export class ExportJobs {
   private readonly jobs = new Map<string, ExportJobRecord>();
   private readonly queue: string[] = [];
-  private active: { sessionId: string; abort: AbortController } | null = null;
+  private active: { key: string; abort: AbortController } | null = null;
   private readonly now: () => number;
   private readonly pid: number;
   private readonly fingerprints = new Map<
@@ -139,8 +156,8 @@ export class ExportJobs {
    * or the file is fresh. Throws `ExportRefused` when the queue is full, the
    * session has too much speech to render, or has no ledger.
    */
-  request(sessionId: string): ExportJobRecord {
-    const current = this.status(sessionId);
+  request(sessionId: string, variant: ExportVariant = 'full'): ExportJobRecord {
+    const current = this.status(sessionId, variant);
     if (current && (current.status === 'queued' || current.status === 'rendering')) return current;
     if (current?.status === 'ready') return current;
     const ledger = this.ledger(sessionId);
@@ -159,6 +176,7 @@ export class ExportJobs {
     return this.enqueue(
       {
         sessionId,
+        variant,
         status: 'queued',
         progress: 0,
         error: null,
@@ -180,9 +198,10 @@ export class ExportJobs {
   /** Persist as ours, queue, and start the pump. */
   private enqueue(job: ExportJobRecord, resumed: boolean): ExportJobRecord {
     const saved = this.save({ ...job, status: 'queued', pid: this.pid, heartbeatAt: this.now() });
-    this.queue.push(job.sessionId);
+    this.queue.push(exportKey(job.sessionId, job.variant));
     this.o.onEvent?.('export.queued', {
       sessionId: job.sessionId,
+      variant: job.variant,
       depth: this.queue.length,
       resumed,
     });
@@ -198,12 +217,12 @@ export class ExportJobs {
    * again (nothing was lost); a `rendering` one is reported as failed so the
    * client can ask again.
    */
-  status(sessionId: string): ExportJobRecord | null {
-    const mem = this.jobs.get(sessionId);
+  status(sessionId: string, variant: ExportVariant = 'full'): ExportJobRecord | null {
+    const mem = this.jobs.get(exportKey(sessionId, variant));
     if (mem) return this.validate(mem);
-    const persisted = this.load(sessionId);
+    const persisted = this.load(sessionId, variant);
     if (!persisted) {
-      const fresh = this.freshOutput(sessionId);
+      const fresh = this.freshOutput(sessionId, variant);
       return fresh ? this.save(fresh) : null;
     }
     if (persisted.status === 'queued' || persisted.status === 'rendering') {
@@ -227,23 +246,30 @@ export class ExportJobs {
 
   /**
    * Pick up every persisted `queued` job on disk (oldest first) — what a
-   * restart would otherwise leave "interrupted". Returns their session ids.
+   * restart would otherwise leave "interrupted". Returns their job keys
+   * (`exportKey`).
    */
   resume(): string[] {
     if (this.closed || !(this.o.resumeQueued ?? true) || !existsSync(this.o.sessionsDir)) return [];
-    const candidates: Array<{ sessionId: string; createdAt: number }> = [];
+    const candidates: Array<{ sessionId: string; variant: ExportVariant; createdAt: number }> = [];
     for (const entry of readdirSync(this.o.sessionsDir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || this.jobs.has(entry.name)) continue;
-      const persisted = this.load(entry.name);
-      if (persisted?.status === 'queued' && persisted.sessionId === entry.name)
-        candidates.push({ sessionId: entry.name, createdAt: persisted.createdAt });
+      if (!entry.isDirectory()) continue;
+      for (const variant of ExportVariant.options) {
+        if (this.jobs.has(exportKey(entry.name, variant))) continue;
+        const persisted = this.load(entry.name, variant);
+        if (persisted?.status === 'queued' && persisted.sessionId === entry.name)
+          candidates.push({ sessionId: entry.name, variant, createdAt: persisted.createdAt });
+      }
     }
     candidates.sort((a, b) => a.createdAt - b.createdAt);
     const resumed: string[] = [];
-    for (const { sessionId } of candidates) {
+    for (const { sessionId, variant } of candidates) {
       // `status()` applies the warm/cold rule and re-enqueues cold ones.
-      if (this.status(sessionId)?.status === 'queued' && this.jobs.has(sessionId))
-        resumed.push(sessionId);
+      if (
+        this.status(sessionId, variant)?.status === 'queued' &&
+        this.jobs.has(exportKey(sessionId, variant))
+      )
+        resumed.push(exportKey(sessionId, variant));
     }
     if (resumed.length > 0) this.o.onEvent?.('export.resumed', { count: resumed.length });
     return resumed;
@@ -264,10 +290,13 @@ export class ExportJobs {
    * the caller with the rest of the session directory.
    */
   forget(sessionId: string): void {
-    const queued = this.queue.indexOf(sessionId);
-    if (queued !== -1) this.queue.splice(queued, 1);
-    if (this.active?.sessionId === sessionId) this.active.abort.abort();
-    this.jobs.delete(sessionId);
+    for (const variant of ExportVariant.options) {
+      const key = exportKey(sessionId, variant);
+      const queued = this.queue.indexOf(key);
+      if (queued !== -1) this.queue.splice(queued, 1);
+      if (this.active?.key === key) this.active.abort.abort();
+      this.jobs.delete(key);
+    }
     this.fingerprints.delete(sessionId);
   }
 
@@ -283,8 +312,8 @@ export class ExportJobs {
     while (this.active || this.queue.length > 0) await new Promise((r) => setTimeout(r, 10));
   }
 
-  private outputPath(sessionId: string): string {
-    return join(this.o.sessionsDir, safeId(sessionId), OUTPUT);
+  private outputPath(sessionId: string, variant: ExportVariant): string {
+    return join(this.o.sessionsDir, safeId(sessionId), OUTPUT[variant]);
   }
 
   /**
@@ -344,7 +373,7 @@ export class ExportJobs {
   /** A `ready` record whose file vanished or whose speech changed is stale (persisted so polls stop churning). */
   private validate(job: ExportJobRecord): ExportJobRecord {
     if (job.status !== 'ready') return job;
-    const out = this.outputPath(job.sessionId);
+    const out = this.outputPath(job.sessionId, job.variant);
     const current = this.ledger(job.sessionId)?.value ?? null;
     const stale =
       !existsSync(out) ||
@@ -354,14 +383,15 @@ export class ExportJobs {
   }
 
   /** An `export.mp4` newer than the ledger with no record (e.g. restored from backup) counts as ready. */
-  private freshOutput(sessionId: string): ExportJobRecord | null {
-    const out = this.outputPath(sessionId);
+  private freshOutput(sessionId: string, variant: ExportVariant): ExportJobRecord | null {
+    const out = this.outputPath(sessionId, variant);
     if (!existsSync(out)) return null;
     const st = statSync(out);
     const ledgerFile = join(this.o.sessionsDir, safeId(sessionId), 'ledger.jsonl');
     if (existsSync(ledgerFile) && statSync(ledgerFile).mtimeMs > st.mtimeMs) return null;
     return {
       sessionId,
+      variant,
       status: 'ready',
       progress: 1,
       error: null,
@@ -378,65 +408,71 @@ export class ExportJobs {
     };
   }
 
-  private load(sessionId: string): ExportJobRecord | null {
-    const p = join(this.o.sessionsDir, safeId(sessionId), FILE);
+  private load(sessionId: string, variant: ExportVariant): ExportJobRecord | null {
+    const p = join(this.o.sessionsDir, safeId(sessionId), FILE[variant]);
     if (!existsSync(p)) return null;
     try {
       const parsed = ExportJobRecord.safeParse(JSON.parse(readFileSync(p, 'utf8')));
-      return parsed.success ? parsed.data : null;
+      // A record in the lesson file that claims to be the full one is a
+      // stray, and vice versa: neither is trusted.
+      return parsed.success && parsed.data.variant === variant ? parsed.data : null;
     } catch {
       return null;
     }
   }
 
   private save(job: ExportJobRecord): ExportJobRecord {
-    this.jobs.set(job.sessionId, job);
+    this.jobs.set(exportKey(job.sessionId, job.variant), job);
     const dir = join(this.o.sessionsDir, safeId(job.sessionId));
     try {
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, FILE), JSON.stringify(job));
+      writeFileSync(join(dir, FILE[job.variant]), JSON.stringify(job));
     } catch (error) {
       this.o.onError?.('export.persist', error);
     }
     return job;
   }
 
-  private update(sessionId: string, patch: Partial<ExportJobRecord>): ExportJobRecord | null {
-    const job = this.jobs.get(sessionId);
+  private update(key: string, patch: Partial<ExportJobRecord>): ExportJobRecord | null {
+    const job = this.jobs.get(key);
     if (!job) return null;
     return this.save({ ...job, ...patch, heartbeatAt: this.now() });
   }
 
   private pump(): void {
     if (this.closed || this.active) return;
-    const sessionId = this.queue.shift();
-    if (!sessionId) return;
+    const key = this.queue.shift();
+    if (!key) return;
     const abort = new AbortController();
-    this.active = { sessionId, abort };
-    void this.run(sessionId, abort.signal).finally(() => {
+    this.active = { key, abort };
+    void this.run(key, abort.signal).finally(() => {
       this.active = null;
       this.pump();
     });
   }
 
-  private async run(sessionId: string, signal: AbortSignal): Promise<void> {
+  private async run(key: string, signal: AbortSignal): Promise<void> {
+    const job = this.jobs.get(key);
+    if (!job) return;
+    const { sessionId, variant } = job;
     const startedAt = this.now();
-    this.update(sessionId, { status: 'rendering', startedAt, progress: 0.01, pid: this.pid });
+    this.update(key, { status: 'rendering', startedAt, progress: 0.01, pid: this.pid });
     const sessionDir = join(this.o.sessionsDir, safeId(sessionId));
-    const outputPath = this.outputPath(sessionId);
+    const outputPath = this.outputPath(sessionId, variant);
     try {
       const result = await this.o.renderer.render({
         sessionId,
+        variant,
         sessionDir,
         outputPath,
         signal,
         onProgress: (fraction) =>
-          this.update(sessionId, { progress: Math.min(0.99, Math.max(0.01, fraction)) }),
+          this.update(key, { progress: Math.min(0.99, Math.max(0.01, fraction)) }),
       });
       const bytes = existsSync(outputPath) ? statSync(outputPath).size : 0;
       if (bytes === 0) throw new Error('renderer produced no output');
       const finishedAt = this.now();
-      this.update(sessionId, {
+      this.update(key, {
         status: 'ready',
         progress: 1,
         error: null,
@@ -449,6 +485,7 @@ export class ExportJobs {
       });
       this.o.onEvent?.('export.ready', {
         sessionId,
+        variant,
         renderMs: finishedAt - startedAt,
         durationMs: Math.round(result.durationMs),
         bytes,
@@ -460,7 +497,7 @@ export class ExportJobs {
       if (signal.aborted) {
         // A deliberate stop (shutdown), not a failure worth a Sentry issue.
         this.o.onEvent?.('export.cancelled', { sessionId, renderMs });
-        this.update(sessionId, {
+        this.update(key, {
           status: 'failed',
           finishedAt: this.now(),
           error: 'The render was cancelled.',
@@ -469,7 +506,7 @@ export class ExportJobs {
       }
       const ref = Math.random().toString(36).slice(2, 8);
       this.o.onError?.('export.render', error, { sessionId, renderMs, ref });
-      this.update(sessionId, {
+      this.update(key, {
         status: 'failed',
         finishedAt: this.now(),
         // Users see a reason, never a path or a tool's stderr; `ref` finds the Sentry event.

@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { FEATURES, type FeatureFlagsDocument, type FeatureRule, ruleMatrix } from '@pen/contracts';
 import { buildFixture, type Mode, sessionDetailFixture } from '../test/fixtures/reports.js';
 
 /**
@@ -29,6 +30,81 @@ const NOW = Date.UTC(2026, 8, 19, 12, 0);
 let mode: Mode = 'full';
 let fixture = buildFixture(mode, NOW);
 
+/**
+ * The feature flags (ADR-0036), in the two states a review needs: a
+ * deployment that has decided a few things — preparation open to free on
+ * the web only, ads off on the phones — and one that has decided nothing.
+ * Saves are accepted and echoed back one revision on, so the screen's whole
+ * save path runs without a database.
+ */
+const DECIDED: Partial<Record<keyof typeof FEATURES, FeatureRule>> = {
+  prepare_new_topics: {
+    default: false,
+    plans: { standard: true, professional: true },
+    platforms: {},
+    cells: { 'free:web': true },
+  },
+  ads: {
+    default: true,
+    plans: { standard: false, professional: false },
+    platforms: { ios: false, android: false },
+    cells: {},
+  },
+};
+let featuresRevision = 4;
+function featuresDocument(): FeatureFlagsDocument {
+  const stored = mode === 'full' ? DECIDED : {};
+  const decided = Object.keys(stored).length;
+  return {
+    revision: decided > 0 ? featuresRevision : 0,
+    updatedAt: decided > 0 ? NOW - 3 * 86_400_000 : 0,
+    updatedBy: decided > 0 ? 'p_owner' : null,
+    updatedByName: decided > 0 ? 'Owner' : null,
+    stale: false,
+    features: (Object.keys(FEATURES) as Array<keyof typeof FEATURES>).map((name) => {
+      const def = FEATURES[name];
+      const storedRule = stored[name] ?? null;
+      const effectiveRule = storedRule ?? def.rule;
+      return {
+        name,
+        label: def.label,
+        description: def.description,
+        group: def.group,
+        defaultRule: def.rule,
+        storedRule,
+        effectiveRule,
+        matrix: ruleMatrix(effectiveRule),
+      };
+    }),
+  };
+}
+function featuresHistory() {
+  if (mode !== 'full') return { entries: [], nextBeforeRevision: null };
+  return {
+    entries: [
+      {
+        revision: 4,
+        updatedAt: NOW - 3 * 86_400_000,
+        updatedBy: 'p_owner',
+        updatedByName: 'Owner',
+        reason: 'Ads off on the phones until the SDK is in.',
+        restoredFromRevision: null,
+        rules: DECIDED,
+      },
+      {
+        revision: 3,
+        updatedAt: NOW - 9 * 86_400_000,
+        updatedBy: 'p_owner',
+        updatedByName: 'Owner',
+        reason: 'Launch week: let free learners on the web have a topic prepared.',
+        restoredFromRevision: null,
+        rules: { prepare_new_topics: DECIDED.prepare_new_topics },
+      },
+    ],
+    nextBeforeRevision: null,
+  };
+}
+
 const json = (res: import('node:http').ServerResponse, status: number, body: unknown) => {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -53,6 +129,15 @@ const server = createServer((req, res) => {
 
   if (path === '/api/admin/session')
     return json(res, 200, { admin: true, id: 'p_owner', name: 'Owner', email: 'owner@pen.test' });
+
+  if (path === '/api/admin/features/history') return json(res, 200, featuresHistory());
+  if (path === '/api/admin/features' || path === '/api/admin/features/rollback') {
+    if (req.method === 'PUT' || req.method === 'POST') {
+      featuresRevision += 1;
+      return json(res, 200, { ...featuresDocument(), revision: featuresRevision });
+    }
+    return json(res, 200, featuresDocument());
+  }
 
   if (path.startsWith('/api/admin/stats/')) {
     const report = path.slice('/api/admin/stats/'.length);

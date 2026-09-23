@@ -1,8 +1,10 @@
 import type {
   DownstreamAudioHeader,
   Expert,
+  FeatureSet,
   ParticipantId,
   PlanCode,
+  Platform,
   SelectionBand,
   ServerMessage,
 } from '@pen/contracts';
@@ -51,6 +53,10 @@ export interface LiveRoom {
   record: SessionRecord;
   createdAt: number;
   plan: PlanCode;
+  /** Where the host started this session from. */
+  platform: Platform;
+  /** The flags the room was built with (ADR-0036), resolved once for the host's plan and platform. */
+  features: FeatureSet;
   metrics: SessionMetrics;
   /**
    * The runtime settings the room was built with (ADR-0025), so the finished
@@ -60,6 +66,22 @@ export interface LiveRoom {
   settings: Record<string, string | number | boolean>;
   /** Stage events already sent to PostHog for this session. */
   readonly stageEvents: number;
+}
+
+/**
+ * The topic is not prepared and this host's plan may not have it prepared
+ * (`prepare_new_topics`, ADR-0036). Thrown before a row is written, an ad
+ * priced or a room built, so the attempt costs nothing and counts for
+ * nothing: the intake lookup that found the miss is the whole of it.
+ */
+export class PreparationRefused extends Error {
+  constructor(
+    readonly plan: PlanCode,
+    readonly canonicalId: string,
+  ) {
+    super('This topic is not prepared yet.');
+    this.name = 'PreparationRefused';
+  }
 }
 
 /**
@@ -88,6 +110,14 @@ export class RoomRegistry {
     language?: string;
     /** The host's remembered teaching pace, so the room is born at it (ADR-0010). */
     pace?: number;
+    /** Where the host is starting from; decides the flags with the plan (ADR-0036). */
+    platform?: Platform;
+    /**
+     * `replay` when the host started a prepared lesson again from a card or a
+     * shelf (ADR-0035): reported, and never allowed to reach the preparation
+     * path, because a replay of an unprepared lesson is a contradiction.
+     */
+    origin?: 'search' | 'replay';
   }): Promise<LiveRoom> {
     const { services } = this;
     const sessionId = newSessionId();
@@ -168,6 +198,27 @@ export class RoomRegistry {
       timing: true,
     });
     const plan = args.host.plan;
+    const platform = args.platform ?? 'web';
+    /**
+     * Resolved once, here, and kept for the room's life (ADR-0036) — the same
+     * rule as the runtime settings below: what the room was built with is
+     * what it offers, whatever the console says an hour later.
+     */
+    const features = services.features.featuresFor(plan, platform);
+    const prepared =
+      resolution.match === 'hit' || (resolution.match === 'partial' && resolution.packId !== null);
+    if (!prepared && !features.prepare_new_topics) {
+      observer.event('rooms.preparation_refused', {
+        plan,
+        platform,
+        origin: args.origin ?? 'search',
+        ckid: resolution.canonicalKnowledgeId,
+      });
+      // The intake timing above already opened this id's ledger on disk;
+      // an attempt that becomes no session leaves nothing behind.
+      services.ledger.remove(sessionId);
+      throw new PreparationRefused(plan, resolution.canonicalKnowledgeId);
+    }
     // Zero redundant generation: when nobody was asked for, the persona who already taught this
     // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
     const memoised =
@@ -240,8 +291,9 @@ export class RoomRegistry {
       searchProvider: services.searchProvider,
       targetMinutes: 14,
       participantAudio: services.livekit !== null,
+      features,
       ads: services.ads.policyFor(
-        args.host.plan,
+        features,
         sessionId,
         services.config.get('PEN_ADS_EVERY_SEGMENTS'),
       ),
@@ -290,6 +342,8 @@ export class RoomRegistry {
       language,
       plan: args.host.plan,
       band: args.band,
+      platform,
+      origin: args.origin ?? 'search',
     });
     const live: LiveRoom = {
       room,
@@ -297,6 +351,8 @@ export class RoomRegistry {
       record,
       createdAt: Date.now(),
       plan: args.host.plan,
+      platform,
+      features,
       metrics,
       settings,
       get stageEvents() {

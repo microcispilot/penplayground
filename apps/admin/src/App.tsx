@@ -2,6 +2,7 @@ import { ToastProvider } from '@pen/design';
 import { Navigate, Outlet, Route, Routes } from 'react-router';
 import type { AdminApi } from './lib/api.js';
 import { AdminProvider, useAdmin } from './lib/context.js';
+import { Features } from './screens/features/Features.js';
 import { SignIn } from './screens/SignIn.js';
 import { Settings } from './screens/settings/Settings.js';
 import { Audience } from './screens/statistics/Audience.js';
@@ -31,6 +32,7 @@ export function AdminApp({ api }: { api?: AdminApi } = {}) {
           <Route element={<RequireAdmin />}>
             <Route element={<AdminShell />}>
               <Route path="/settings" element={<Settings />} />
+              <Route path="/features" element={<Features />} />
               <Route path="/statistics" element={<Statistics />}>
                 <Route index element={<Overview />} />
                 <Route path="money" element={<Money />} />

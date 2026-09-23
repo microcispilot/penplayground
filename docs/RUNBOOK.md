@@ -165,6 +165,33 @@ to expire.
 
 ---
 
+## 2c. Feature flags (the operations console)
+
+ADR-0036. What each plan gets on each platform — whether a free learner may have a topic
+prepared, who may host a room, download a recording, see ads, chat, sign in with Google on a
+desktop — is a document in Postgres beside the runtime settings, changed at
+`https://admin.DOMAIN/features`. Each feature is a matrix: plans down the side, platforms across
+the top; a click on a cell cycles *nothing → on → off → nothing*, a plan or platform head answers
+for its row or column (the two AND), and the default stands where nothing does. Every cell always
+shows what actually resolves.
+
+**When a change takes effect.** On the next session. A room is built with its flags and keeps
+them, so nothing changes for a lesson in progress; request-time checks (the preparation gate, the
+recording routes, downloads, sign-in) read the store on the request, within the poll interval on
+other processes.
+
+**What the product does when the flags cannot be read.** Nothing changes: each API process keeps
+the last good document in memory and at `/data/feature-flags.json`, logs `features.read_failed`
+once per outage, and a restart reads the disk copy back. With nothing ever saved, the compiled-in
+rules are the product (`packages/contracts/src/features.ts`, `FEATURES`).
+
+**The one to reach for in an incident.** `Prepare new topics` — the expensive path. Off for a
+plan, a learner on that plan whose topic nobody has prepared is told so, offered Pricing and the
+lessons that are ready, and nothing is spent. `/api/health` reports `featuresRevision`.
+
+**There is no environment pin** for a flag. To change one, use the console, or write the
+document with a reason through `PUT /api/admin/features` as an operator.
+
 ## 3. Alerting — who gets told what
 
 Created by `pnpm --filter @pen/api sentry:alerts` (idempotent; re-run after

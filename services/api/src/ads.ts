@@ -1,9 +1,8 @@
 import {
   AD_RULES,
+  type FeatureSet,
   GOOGLE_IMA_SAMPLE_TAG,
-  hasEntitlement,
   nonPersonalisedTag,
-  type PlanCode,
 } from '@pen/contracts';
 import type { AdOutcome, AdPolicy } from '@pen/session-engine';
 import type { Config } from './config.js';
@@ -89,9 +88,13 @@ export class AdEconomics {
       });
   }
 
-  /** The room's ad policy for an ad-supported host; null when the plan pays or there is no demand. */
-  policyFor(plan: PlanCode, sessionId: string, everySegments: number): AdPolicy | null {
-    if (hasEntitlement(plan, 'no_ads') || !this.demand.tagUrl) return null;
+  /**
+   * The room's ad policy for an ad-supported host; null when the flags say no
+   * ads for this host (a plan that pays, by default — ADR-0036) or there is no
+   * demand.
+   */
+  policyFor(features: FeatureSet, sessionId: string, everySegments: number): AdPolicy | null {
+    if (!features.ads || !this.demand.tagUrl) return null;
     const ecpmUsd = this.config.get('PEN_AD_ECPM_USD');
     this.rateBySession.set(sessionId, ecpmUsd);
     return {

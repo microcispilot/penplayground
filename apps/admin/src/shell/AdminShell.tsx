@@ -1,6 +1,6 @@
 import { Button, cn } from '@pen/design';
 import type { LucideIcon } from 'lucide-react';
-import { BarChart3, LogOut, PenLine, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, LogOut, PenLine, SlidersHorizontal, ToggleRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useAdmin } from '../lib/context.js';
@@ -19,6 +19,7 @@ interface NavItem {
  */
 const NAV: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: SlidersHorizontal },
+  { to: '/features', label: 'Features', icon: ToggleRight },
   { to: '/statistics', label: 'Statistics', icon: BarChart3 },
 ];
 

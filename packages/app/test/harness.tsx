@@ -48,6 +48,7 @@ export const SIGNED_IN: Participant = {
 export function testPlatform(storage: KeyValueStorage = memoryStorage()): Platform {
   return {
     name: 'web',
+    id: 'web',
     basePath: '/',
     apiUrl: 'http://api.test',
     speech: {

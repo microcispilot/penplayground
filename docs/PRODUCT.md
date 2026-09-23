@@ -60,7 +60,10 @@ In the room the board *is* the screen: no shell, nothing else to look at.
    historical recreations are part of a plan (ADR-0020): six with Standard, all
    ten with Professional. A learner without that plan still sees the face and
    the name, with the plan's name on the card — never a lock, never a warning.
-3. **Your sessions** — replay, transcript, share, export.
+3. **Your sessions** — the saved page. *Replay* starts the lesson again as a
+   fresh session of your own (ADR-0035); the host also has *Watch my
+   recording* and *Download* (with or without their questions). Share for
+   everyone.
 4. **History / Learn later / Liked / Downloads / Rooms** — the learner's own
    shelves. A heart and a bookmark on every card and on the session page fill
    them; the like count is public, the shelf is not.
@@ -131,7 +134,7 @@ during preparation.
 
 | Tier | Price idea | What it buys |
 |------|-----------|--------------|
-| **Free** | $0, ad-supported (a skippable YouTube-style video ad between segments; on a topic miss one ad runs while sources are gathered, counted against the same budget) | Solo sessions, replay of your own sessions, standard voices, 3 sessions per UTC day, 20 minutes each. |
+| **Free** | $0, ad-supported (a skippable YouTube-style video ad between segments; on a topic miss one ad runs while sources are gathered, counted against the same budget) | Solo sessions on lessons that are already prepared (the topics nobody has prepared are the paid plans' — ADR-0036, flag `prepare_new_topics`), replay of any prepared lesson, watching your own recording, standard voices, 3 sessions per UTC day, 20 minutes each. |
 | **Standard** | $19/mo ($190/yr) | No ads. Unlimited solo sessions, 45 minutes each. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
 | **Professional** | $38/mo ($380/yr) | Everything in Standard, 60 minutes a session. Host rooms with up to 12 participants (11 guests). Shared replays. Class transcripts. Guest questions pinned by name. |
 
@@ -142,6 +145,18 @@ never longer than 30 s, and never on paid tiers. If the ad cannot load (blocker,
 no fill) the lesson resumes within 2 s — no dead air. Demand comes from the
 highest-paying network a new site can join, Google Ad Manager through the IMA
 SDK, behind one swappable tag (ADR-0014, `docs/ADS.md`).
+
+## What a plan gets, and where (ADR-0036)
+
+Every part of the product a plan may or may not have — preparing a topic
+nobody has prepared, hosting a room, downloading a recording, the ads, the
+chat, Google sign-in on a desktop — is a **feature flag**: a rule over the
+plan and the platform, with a compiled-in default the product runs on with
+nothing stored, changed from the operations console's Features screen and
+landing on the next session. The client is told its own cell and hides what
+is off; the server decides every time. A free learner whose topic nobody has
+prepared is told so under the box they typed into, with the way to upgrade
+and the lessons that are ready now — an answer, not a closed door.
 
 ## What the limits feel like (ADR-0016, ADR-0018)
 

@@ -7,6 +7,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { type GoogleProfile, GoogleTokenError, type GoogleTokenVerifier } from '../src/google.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /** Tokens are looked up by value; anything unknown is invalid. */
 class FakeVerifier implements GoogleTokenVerifier {
@@ -53,6 +54,7 @@ beforeAll(async () => {
     GOOGLE_CLIENT_ID: '123.apps.googleusercontent.com',
   });
   services = await buildServices(cfg, {
+    flags: PREPARE_FOR_EVERYONE,
     googleVerifier: new FakeVerifier({ 'ok:ada-0123456789abcdef': ada }),
   });
   ({ app } = buildApp(services));

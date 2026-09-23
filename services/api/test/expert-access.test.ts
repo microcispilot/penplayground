@@ -9,6 +9,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { Identity } from '../src/identity.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * Who may teach with whom (`packages/contracts/src/expert-access.ts`).
@@ -56,7 +57,7 @@ beforeAll(async () => {
     PEN_LLM_PROVIDER: 'fake',
     PEN_TTS_PROVIDER: 'silent',
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   identity = new Identity(cfg.PEN_JWT_SECRET);
   ({ app } = buildApp(services));
 }, 60_000);

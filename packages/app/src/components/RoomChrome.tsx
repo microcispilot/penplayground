@@ -198,6 +198,8 @@ export interface BottomBarProps {
   micState: 'idle' | 'starting' | 'listening' | 'denied' | 'error';
   micLevel: number;
   captionsOn: boolean;
+  /** The CC control exists in this room at all (ADR-0036). Absent means yes. */
+  captionsAvailable?: boolean;
   onTogglePlay: () => void;
   /** Host only; guests see the pill disabled. */
   onSetPace: (pace: number) => void;
@@ -326,14 +328,16 @@ export function BottomBar(p: BottomBarProps) {
             disabledReason="Only the host sets the pace"
             className="hidden md:block"
           />
-          <IconButton
-            label="Captions"
-            state={p.captionsOn ? 'on' : 'default'}
-            onClick={p.onToggleCaptions}
-            className="hidden sm:grid"
-          >
-            <Captions size={16} />
-          </IconButton>
+          {(p.captionsAvailable ?? true) ? (
+            <IconButton
+              label="Captions"
+              state={p.captionsOn ? 'on' : 'default'}
+              onClick={p.onToggleCaptions}
+              className="hidden sm:grid"
+            >
+              <Captions size={16} />
+            </IconButton>
+          ) : null}
           {/* The microphone is the point of the product, so on a phone it is the biggest thing here. */}
           <IconButton
             label={micLabel}
@@ -431,13 +435,15 @@ export function BottomBar(p: BottomBarProps) {
             }}
           />
         ) : null}
-        <SheetRow
-          label="Captions"
-          hint={p.captionsOn ? 'On' : 'Off'}
-          icon={<Captions size={16} />}
-          pressed={p.captionsOn}
-          onClick={p.onToggleCaptions}
-        />
+        {(p.captionsAvailable ?? true) ? (
+          <SheetRow
+            label="Captions"
+            hint={p.captionsOn ? 'On' : 'Off'}
+            icon={<Captions size={16} />}
+            pressed={p.captionsOn}
+            onClick={p.onToggleCaptions}
+          />
+        ) : null}
         <div className="flex items-center justify-between gap-3 rounded-md px-3 py-3">
           <span className="flex items-center gap-3 text-body-medium text-on-surface">
             <Gauge size={16} className="shrink-0" aria-hidden />

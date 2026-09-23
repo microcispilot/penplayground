@@ -117,3 +117,30 @@ describe('replay timeline', () => {
     expect(t.chapterAt(0)).toBeNull();
   });
 });
+
+describe('a recording with an interruption (ADR-0035)', () => {
+  it('keeps each sentence’s own cue, whatever order the audio played them in', () => {
+    // Generated: s1 s2 s3 (seq 1-3) then the answer a1 (seq 50). Heard: s1, s2,
+    // a1, then s3 again as take 1. The seek point of a1 must be a1's cue, and
+    // s3's must be s3's — pairing by position gave a1 s3's seq and s3 a1's.
+    const cues: Cue[] = [
+      say(1, 's1', 0),
+      say(2, 's2', 0),
+      say(3, 's3', 0),
+      { ...say(50, 't1.s0', 0), thread: 't1' },
+    ];
+    const t = buildReplayTimeline({
+      cues,
+      sayOrder: ['s1@0', 's2@0', 't1.s0@0', 's3@1'],
+      durationOf: () => 1000,
+      plan: null,
+    });
+    expect(t.says.map((s) => [s.key, s.cueSeq])).toEqual([
+      ['s1@0', 1],
+      ['s2@0', 2],
+      ['t1.s0@0', 50],
+      ['s3@1', 3],
+    ]);
+    expect(t.locate(2500)).toEqual({ index: 2, offsetMs: 500 });
+  });
+});

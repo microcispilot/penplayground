@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * A telling of a lesson that was collapsed into another (ADR-0031): the link
@@ -30,7 +31,7 @@ beforeAll(async () => {
     PEN_TTS_PROVIDER: 'silent',
     PEN_STT_PROVIDER: 'browser',
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   ({ app } = buildApp(services));
 }, 60_000);
 
@@ -79,8 +80,11 @@ describe('a link to a session that was collapsed into another', () => {
     expect(after.status).toBe(200);
     expect(((await after.json()) as { session: { id: string } }).session.id).toBe(kept);
 
-    // The replay reads the kept session's recording, not an empty one.
-    const ledger = await call('GET', `/api/sessions/${gone}/ledger`, null);
+    // The host's recording follows the link too: the kept session's, not an
+    // empty one. A recording is the host's alone (ADR-0035), so without their
+    // bearer the link answers 401 rather than somebody else's hour.
+    expect((await call('GET', `/api/sessions/${gone}/ledger`, null)).status).toBe(401);
+    const ledger = await call('GET', `/api/sessions/${gone}/ledger`, host);
     expect(ledger.status).toBe(200);
     const replay = (await ledger.json()) as {
       session: { id: string };

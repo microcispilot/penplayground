@@ -3,8 +3,17 @@
  * browser or Electron API directly; it goes through this seam so web and
  * desktop stay one codebase with one behaviour.
  */
+import type { Platform as PlatformId } from '@pen/contracts';
+
 export interface Platform {
   readonly name: 'web' | 'desktop';
+  /**
+   * Which platform this is, as the API knows them (ADR-0036): `web`, or the
+   * desktop app on its operating system. Sent with every request so the
+   * server answers with this platform's features, and every server-side
+   * check reads the same header.
+   */
+  readonly id: PlatformId;
   /**
    * The URL path the app is served under: `/` at the root of an origin,
    * `/testingxyzbdc` (or `/testingxyzbdc/`) when it is mounted under a prefix.

@@ -9,6 +9,7 @@ import { Identity } from '../src/identity.js';
 import { LiveKitRooms, type RoomServicePort } from '../src/livekit.js';
 import type { LiveRoom } from '../src/rooms.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * The room-audio routes against a real `Services` (PGlite in memory, fake
@@ -98,7 +99,7 @@ beforeAll(async () => {
     LIVEKIT_API_KEY: API_KEY,
     LIVEKIT_API_SECRET: API_SECRET,
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   roomService = new FakeRoomService();
   services.livekit = new LiveKitRooms({
     url: cfg.LIVEKIT_URL ?? '',

@@ -344,6 +344,8 @@ export interface SessionPanelProps {
   onMute: ((participantId?: string) => void) | null;
   /** What the people in the room have said to each other. The expert is not in it. */
   chat: ChatLine[];
+  /** The chat exists in this room at all (ADR-0036). Absent means yes. */
+  chatEnabled?: boolean;
   /** Reactions still on screen; they float over the participant cards. */
   reactions: LiveReaction[];
   /** An ad holds the floor: the composer is off for its duration, calmly. */
@@ -385,21 +387,34 @@ function PanelBody(p: SessionPanelProps & { bodyId: string }) {
         onToggleSection={() => setRosterOpen((v) => !v)}
       />
 
-      <SectionHeader
-        label="Chat"
-        dot
-        open={chatOpen}
-        onToggle={() => setChatOpen((v) => !v)}
-        controls={logId}
-        testId="chat-section-toggle"
-      />
-      {chatOpen ? (
-        <Chat id={logId} lines={p.chat} language={p.state.language} expertFirstName={firstName} />
+      {(p.chatEnabled ?? true) ? (
+        <>
+          <SectionHeader
+            label="Chat"
+            dot
+            open={chatOpen}
+            onToggle={() => setChatOpen((v) => !v)}
+            controls={logId}
+            testId="chat-section-toggle"
+          />
+          {chatOpen ? (
+            <Chat
+              id={logId}
+              lines={p.chat}
+              language={p.state.language}
+              expertFirstName={firstName}
+            />
+          ) : (
+            <div className="flex-1" />
+          )}
+        </>
       ) : (
         <div className="flex-1" />
       )}
 
-      <Composer language={p.state.language} disabled={p.adPaused} note={note} onSend={p.onSend} />
+      {(p.chatEnabled ?? true) ? (
+        <Composer language={p.state.language} disabled={p.adPaused} note={note} onSend={p.onSend} />
+      ) : null}
     </div>
   );
 }

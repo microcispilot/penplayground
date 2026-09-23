@@ -218,6 +218,12 @@ export function Room() {
    * only part of it that still means something alone.
    */
   const solo = state.participants.length <= 1;
+  /**
+   * The room's furniture, decided by the host's plan and platform when the
+   * room was built (ADR-0036): the server says what exists here, and every
+   * client draws the same room. Absent on an older ledger means all of it.
+   */
+  const furniture = state.features ?? { chat: true, reactions: true, captions: true };
   const panel = (
     <SessionPanel
       mode={docked ? 'docked' : 'drawer'}
@@ -251,6 +257,7 @@ export function Room() {
           .catch(() => toast('Could not mute — try again', 'danger'))
       }
       chat={ui.chat}
+      chatEnabled={furniture.chat}
       reactions={ui.reactions}
       adPaused={adShowing}
       onSend={(text) => session?.sendChat(text)}
@@ -300,7 +307,7 @@ export function Room() {
             <CaptionOverlay
               line={ui.caption}
               hint={ui.hint}
-              on={ui.captionsOn}
+              on={furniture.captions && ui.captionsOn}
               language={state.language}
             />
             {ui.check && session ? (
@@ -360,6 +367,7 @@ export function Room() {
         micState={ui.micState}
         micLevel={ui.micLevel}
         captionsOn={ui.captionsOn}
+        captionsAvailable={furniture.captions}
         onTogglePlay={() => session?.control(state.mode === 'paused' ? 'resume' : 'pause')}
         onSetPace={(pace) => session?.setPace(pace)}
         onToggleCaptions={() => session?.toggleCaptions()}
@@ -369,7 +377,9 @@ export function Room() {
           : {
               panelOpen: panelShowing,
               onTogglePanel: togglePanel,
-              onReact: (emoji: Reaction) => session?.react(emoji),
+              ...(furniture.reactions
+                ? { onReact: (emoji: Reaction) => session?.react(emoji) }
+                : {}),
             })}
         inputsPaused={adShowing}
         onFullscreen={() => {

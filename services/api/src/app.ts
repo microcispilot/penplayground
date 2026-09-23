@@ -7,16 +7,21 @@ import {
   ClientMessage,
   clampPace,
   decodeAudioFrame,
-  hasEntitlement,
+  FeatureFlagsMutation,
+  FeatureFlagsRollback,
   PACE_DEFAULT,
   Pace,
   ParticipantId,
   PLAN_LIMITS,
   PLAN_NAME,
+  PLATFORM_HEADER,
   PlanCode,
+  type Platform,
   planAllowsExpert,
+  platformFromHeader,
   RuntimeConfigMutation,
   RuntimeConfigRollback,
+  recordingIsPrivateTo,
   requiredPlanFor,
   type ServerErrorCode,
   type ServerMessage,
@@ -36,7 +41,8 @@ import { Admissions } from './admissions.js';
 import { createChallengeStore } from './auth/challenges.js';
 import { createAuthRateLimiter } from './auth/rate-limit.js';
 import { registerAuthRoutes } from './auth/routes.js';
-import { ExportRefused, exportFilename } from './export/index.js';
+import { ExportRefused, type ExportVariant, exportFilename } from './export/index.js';
+import { FeatureFlagsConflict, FeatureFlagsInvalid } from './features/index.js';
 import { GoogleTokenError } from './google.js';
 import type { Claims } from './identity.js';
 import { Identity, safeName } from './identity.js';
@@ -45,7 +51,7 @@ import { observer } from './observability.js';
 import { clientKey, RateLimiter } from './rate-limit.js';
 import { ReadinessProbe } from './readiness.js';
 import { RecognizerRouter } from './recognizer-router.js';
-import { type LiveRoom, RoomRegistry } from './rooms.js';
+import { type LiveRoom, PreparationRefused, RoomRegistry } from './rooms.js';
 import { RuntimeConfigConflict, RuntimeConfigInvalid } from './runtime-config/index.js';
 import {
   learningResourceJsonLd,
@@ -66,14 +72,26 @@ export interface App {
   injectWebSocket: ReturnType<typeof createNodeWebSocket>['injectWebSocket'];
 }
 
-const CreateSession = z.object({
-  topic: z.string().trim().min(2).max(200),
-  band: z.enum(['beginner', 'intermediate', 'advanced']).default('beginner'),
-  expertId: z.string().optional(),
-  visibility: z.enum(['public', 'private']).default('public'),
-  /** BCP-47; detected from the topic when omitted. */
-  language: z.string().min(2).max(12).optional(),
-});
+const CreateSession = z.union([
+  z.object({
+    topic: z.string().trim().min(2).max(200),
+    band: z.enum(['beginner', 'intermediate', 'advanced']).default('beginner'),
+    expertId: z.string().optional(),
+    visibility: z.enum(['public', 'private']).default('public'),
+    /** BCP-47; detected from the topic when omitted. */
+    language: z.string().min(2).max(12).optional(),
+  }),
+  /**
+   * Start a prepared lesson again (ADR-0035): the topic, the expert, the band
+   * and the language are the saved session's, so the memo and the voice store
+   * that lesson already filled are the ones this session reuses. The new
+   * session is the caller's own — their questions, their recording.
+   */
+  z.object({
+    replayOf: SessionId,
+    visibility: z.enum(['public', 'private']).default('public'),
+  }),
+]);
 
 const Anonymous = z.object({ name: z.string().max(60).optional() });
 const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
@@ -288,7 +306,7 @@ export function buildApp(services: Services): App {
       origin: (origin) =>
         allowedOrigins.has(origin) || (dev && LOOPBACK.test(origin)) ? origin : null,
       allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['authorization', 'content-type'],
+      allowHeaders: ['authorization', 'content-type', PLATFORM_HEADER],
       credentials: false,
       maxAge: 600,
     }),
@@ -332,6 +350,15 @@ export function buildApp(services: Services): App {
   };
 
   /**
+   * Where the caller is: the platform header, or the web when there is none
+   * (ADR-0036). A client that lies about its platform gets that platform's
+   * flags, which is a choice about its own experience and nothing else —
+   * every cell of the matrix is one the owner already offers to someone.
+   */
+  const platformOf = (c: { req: { header(name: string): string | undefined } }): Platform =>
+    platformFromHeader(c.req.header(PLATFORM_HEADER));
+
+  /**
    * What stands between this participant and a new session right now: their
    * plan's daily allowance, and the day's spend cap (ADR-0016). Both answers
    * are numbers the client can show plainly — "1 session left today" — rather
@@ -366,6 +393,7 @@ export function buildApp(services: Services): App {
       // what the setting asks for, which can be `jev` with no key behind it.
       intent: services.intentFor() ? 'jev' : 'model',
       configRevision: services.config.revision,
+      featuresRevision: services.features.revision,
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
       google: services.google !== null,
@@ -417,6 +445,13 @@ export function buildApp(services: Services): App {
    * ones that must NOT be distinguishable from outside.
    */
   registerAuthRoutes(app, {
+    enabled: async (c) => {
+      const claims = await bearer(c.req.header('authorization'));
+      return services.features.enabled('email_sign_in', {
+        plan: claims?.plan ?? 'free',
+        platform: platformOf(c),
+      });
+    },
     challenges: createChallengeStore(
       services.authChallenges,
       // A secret of its own where one is configured, so a leaked JWT secret
@@ -482,6 +517,19 @@ export function buildApp(services: Services): App {
   app.post('/api/identity/google', async (c) => {
     const ip = clientKey(c.req);
     if (!allowAuth(ip)) return c.json({ error: 'RATE_LIMITED' }, 429);
+    const claims = await bearer(c.req.header('authorization'));
+    // Judged for the caller's own plan (an anonymous caller is free) on their
+    // platform, exactly as `/api/me/features` answers them (ADR-0036).
+    if (
+      !services.features.enabled('google_sign_in', {
+        plan: claims?.plan ?? 'free',
+        platform: platformOf(c),
+      })
+    )
+      return c.json(
+        { error: 'GOOGLE_DISABLED', message: 'Google sign-in is not available here.' },
+        503,
+      );
     if (!services.google)
       return c.json(
         { error: 'GOOGLE_DISABLED', message: 'Google sign-in is not available here.' },
@@ -489,7 +537,6 @@ export function buildApp(services: Services): App {
       );
     const body = GoogleBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
-    const claims = await bearer(c.req.header('authorization'));
     const caller = claims ? await services.participants.get(claims.sub) : null;
     try {
       const result = await services.google.signIn(body.data.idToken, caller);
@@ -622,9 +669,17 @@ export function buildApp(services: Services): App {
     const hosted = await services.sessions.listForHost(claims.sub);
     const downloads = hosted.flatMap((record) => {
       if (record.endedAt === null) return [];
-      const job = services.exports.status(record.id);
+      const job =
+        [services.exports.status(record.id, 'full'), services.exports.status(record.id, 'lesson')]
+          .filter((j) => j?.status === 'ready')
+          .sort((a, b) => (b?.finishedAt ?? 0) - (a?.finishedAt ?? 0))[0] ?? null;
       return job && job.status === 'ready'
-        ? [{ ...record, export: { bytes: job.bytes, renderedAt: job.finishedAt } }]
+        ? [
+            {
+              ...record,
+              export: { bytes: job.bytes, renderedAt: job.finishedAt, variant: job.variant },
+            },
+          ]
         : [];
     });
     return c.json({ sessions: downloads });
@@ -760,10 +815,59 @@ export function buildApp(services: Services): App {
         503,
       );
     }
+    const platform = platformOf(c);
+    /**
+     * A replay (ADR-0035) is the saved session's lesson started again as this
+     * caller's own: same topic, expert, band and language, so the memo and
+     * the voice store already filled for it are what this session reuses.
+     * Resolved here, before the checks, because from here on it is an
+     * ordinary session and every rule below applies to it as to any other.
+     */
+    let create: {
+      topic: string;
+      band: 'beginner' | 'intermediate' | 'advanced';
+      expertId?: string;
+      visibility: 'public' | 'private';
+      language?: string;
+      origin: 'search' | 'replay';
+    };
+    if ('replayOf' in body.data) {
+      if (!services.features.enabled('quick_start', { plan: claims.plan, platform }))
+        return c.json(
+          {
+            error: 'FEATURE_OFF',
+            message: 'Starting a saved lesson again is not available here yet.',
+          },
+          403,
+        );
+      const source = await services.sessions.resolve(body.data.replayOf);
+      if (!source) return c.json({ error: 'NOT_FOUND', message: 'That lesson is gone.' }, 404);
+      // A private session is its host's: nobody else may start from its card,
+      // because nobody else was ever shown it.
+      if (source.visibility !== 'public' && source.hostId !== claims.sub)
+        return c.json({ error: 'NOT_FOUND', message: 'That lesson is gone.' }, 404);
+      create = {
+        topic: source.topic,
+        band: source.band,
+        expertId: source.expertId,
+        visibility: body.data.visibility,
+        language: source.language,
+        origin: 'replay',
+      };
+    } else {
+      create = {
+        topic: body.data.topic,
+        band: body.data.band,
+        visibility: body.data.visibility,
+        ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
+        ...(body.data.language ? { language: body.data.language } : {}),
+        origin: 'search',
+      };
+    }
     // A legend recreation is part of a plan (expert-access.ts). The client
     // already draws the lock from the served `requiredPlan`; this is the answer
     // that actually decides, and it names the plan rather than refusing blankly.
-    const asked = body.data.expertId;
+    const asked = create.expertId;
     if (asked && !planAllowsExpert(claims.plan, asked)) {
       const needed = requiredPlanFor(asked);
       const who = services.experts.get(asked);
@@ -809,15 +913,44 @@ export function buildApp(services: Services): App {
     try {
       // The room is born at the pace this learner last chose, so a signed-in
       // learner never hears the first sentence at someone else's speed (ADR-0010).
-      const live = await rooms.create({
-        topic: body.data.topic,
-        host: { id: claims.sub, name: claims.name, plan: claims.plan },
-        band: body.data.band,
-        visibility: body.data.visibility,
-        ...(body.data.expertId ? { expertId: body.data.expertId } : {}),
-        ...(body.data.language ? { language: body.data.language } : {}),
-        ...(me && !me.anonymous ? { pace: clampPace(me.pace) } : {}),
-      });
+      let live: LiveRoom;
+      try {
+        live = await rooms.create({
+          topic: create.topic,
+          host: { id: claims.sub, name: claims.name, plan: claims.plan },
+          band: create.band,
+          visibility: create.visibility,
+          platform,
+          origin: create.origin,
+          ...(create.expertId ? { expertId: create.expertId } : {}),
+          ...(create.language ? { language: create.language } : {}),
+          ...(me && !me.anonymous ? { pace: clampPace(me.pace) } : {}),
+        });
+      } catch (error) {
+        if (!(error instanceof PreparationRefused)) throw error;
+        /**
+         * Nobody has prepared this topic and this plan may not have it
+         * prepared (ADR-0036). Nothing was spent and nothing was counted.
+         * The answer names the way forward and brings the lessons that are
+         * ready — the same catalogue Home draws — so the learner has
+         * somewhere to go from here rather than a closed door.
+         */
+        services.analytics.capture(claims.sub, 'preparation_refused', {
+          plan: claims.plan,
+          platform,
+          origin: create.origin,
+        });
+        return c.json(
+          {
+            error: 'PREPARATION_REQUIRED',
+            message:
+              'Nobody has prepared that topic yet. Upgrade to have it prepared for you, or start one of the lessons that are ready now.',
+            upgrade: 'Pricing',
+            ready: (await services.sessions.listPublic(12)).map(anonymise),
+          },
+          402,
+        );
+      }
       const hostedByIp = liveByIp.get(ip) ?? new Set<string>();
       hostedByIp.add(live.record.id);
       liveByIp.set(ip, hostedByIp);
@@ -828,6 +961,23 @@ export function buildApp(services: Services): App {
       // any earlier would reopen the window it was taken to close.
       admission.release();
     }
+  });
+
+  /**
+   * The caller's own cell of the feature matrix (ADR-0036): their plan, on
+   * the platform they said they are on. What a client shows and hides; the
+   * server checks every one of these again where it matters.
+   */
+  app.get('/api/me/features', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const platform = platformOf(c);
+    return c.json({
+      plan: claims.plan,
+      platform,
+      features: services.features.featuresFor(claims.plan, platform),
+    });
   });
 
   /** The caller's own allowance, for the Home screen's "2 sessions left today". */
@@ -844,6 +994,10 @@ export function buildApp(services: Services): App {
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
     const claims = await bearer(c.req.header('authorization'));
     const live = rooms.get(record.id);
+    // A view is somebody else opening the saved page (ADR-0035): the host
+    // looking at their own is not an audience, and the recording route that
+    // used to count views is now the host's alone.
+    if (claims?.sub !== record.hostId) await services.sessions.recordView(record.id);
     return c.json({
       session: claims?.sub === record.hostId ? record : anonymise(record),
       live: live !== null,
@@ -895,26 +1049,87 @@ export function buildApp(services: Services): App {
     const { likes } = await services.lists.unlike(t.claims.sub, t.id);
     return c.json({ liked: false, likes });
   });
-  app.get('/api/sessions/:id/ledger', async (c) => {
+  /**
+   * Who may read a recording (ADR-0035): its host, and only its host. The
+   * questions in it are theirs, the answers were composed for them, and a
+   * caption is their own words. Everyone else starts the lesson again as a
+   * fresh session of their own (`replayOf`), which is what "replay" means
+   * here. The headless renderer and the `<a download>` link present the same
+   * short-lived token a download does, minted in the host's name; a bearer
+   * works too. The flag `recording_playback` is the host's own switch on top.
+   *
+   * Returns the record, or the response that says why not.
+   */
+  const recordingAccess = async (c: {
+    req: {
+      header(name: string): string | undefined;
+      param(name: string): string;
+      query(name: string): string | undefined;
+    };
+  }): Promise<
+    | {
+        ok: true;
+        record: NonNullable<Awaited<ReturnType<typeof services.sessions.resolve>>>;
+        viewer: string;
+      }
+    | { ok: false; status: 401 | 403 | 404; body: { error: string; message?: string } }
+  > => {
     const record = await services.sessions.resolve(c.req.param('id'));
-    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
-    const id = record.id;
-    await services.sessions.recordView(id);
-    const claims = await bearer(c.req.header('authorization'));
-    const host = claims?.sub === record.hostId;
+    if (!record) return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
+    const token = c.req.query('token');
+    let viewer: string | null = token
+      ? await services.downloadTokens.verify(token, record.id)
+      : null;
+    let plan: PlanCode | null = null;
+    if (!viewer) {
+      const claims = await bearer(c.req.header('authorization'));
+      if (claims) {
+        viewer = claims.sub;
+        plan = claims.plan;
+      }
+    }
+    if (!viewer) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
+    if (!recordingIsPrivateTo(record, viewer))
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: 'NOT_HOST',
+          message: 'A recording is only ever yours. Start this lesson to have your own.',
+        },
+      };
+    // The flag is about *watching* in the app. A token is the renderer or a
+    // download link, which `session_download` already decided, so it is not
+    // asked again here — otherwise a plan with downloads and no playback
+    // could never render the file it is allowed to have.
+    if (
+      plan !== null &&
+      !services.features.enabled('recording_playback', { plan, platform: platformOf(c) })
+    )
+      return {
+        ok: false,
+        status: 403,
+        body: { error: 'FEATURE_OFF', message: 'Recordings are not available on this plan here.' },
+      };
+    return { ok: true, record, viewer };
+  };
+  app.get('/api/sessions/:id/ledger', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const access = await recordingAccess(c);
+    if (!access.ok) return c.json(access.body, access.status);
+    const { record } = access;
     return c.json({
-      session: host ? record : anonymise(record),
-      entries: services.ledger
-        .read(id)
-        .map((e) => (!host && e.kind === 'join' ? { ...e, name: 'Learner' } : e)),
+      session: record,
+      entries: services.ledger.read(record.id),
       expert: services.experts.get(record.expertId),
     });
   });
   app.get('/api/sessions/:id/audio/:file', async (c) => {
+    const access = await recordingAccess(c);
+    if (!access.ok) return c.json(access.body, access.status);
     // The ledger above may have answered from a session this id was collapsed
     // into; its audio has to come from the same recording.
-    const record = await services.sessions.resolve(c.req.param('id'));
-    const p = record ? services.ledger.audioPath(record.id, c.req.param('file')) : null;
+    const p = services.ledger.audioPath(access.record.id, c.req.param('file'));
     if (!p) return c.notFound();
     c.header('Content-Type', 'application/octet-stream');
     c.header('Cache-Control', 'private, max-age=3600');
@@ -1258,7 +1473,9 @@ export function buildApp(services: Services): App {
         status: 403,
         body: { error: 'NOT_HOST', message: 'Only the host can export a session.' },
       };
-    if (!hasEntitlement(claims.plan, 'export'))
+    if (
+      !services.features.enabled('session_download', { plan: claims.plan, platform: platformOf(c) })
+    )
       return {
         ok: false,
         status: 402,
@@ -1277,14 +1494,24 @@ export function buildApp(services: Services): App {
     return { ok: true, claims, record };
   };
   /** What the client sees: never the file system path. */
+  /**
+   * Which recording (ADR-0035): `interactions=0` on the request is the lesson
+   * alone; anything else is the session as the host lived it. The client
+   * asks for one or the other and every answer names which it is about.
+   */
+  const exportVariantOf = (c: {
+    req: { query(name: string): string | undefined };
+  }): ExportVariant => (c.req.query('interactions') === '0' ? 'lesson' : 'full');
   const exportView = async (
     job: ReturnType<typeof services.exports.status>,
     claims: Claims,
     sessionId: string,
+    variant: ExportVariant,
   ) => {
     if (!job || job.status === 'stale')
       return {
         status: 'none' as const,
+        variant,
         progress: 0,
         error: null,
         downloadUrl: null,
@@ -1295,11 +1522,12 @@ export function buildApp(services: Services): App {
       job.status === 'ready'
         ? publicUrl(
             services.cfg.PEN_API_URL,
-            `/api/sessions/${encodeURIComponent(sessionId)}/export.mp4?token=${encodeURIComponent(await services.downloadTokens.issue(claims.sub, sessionId))}`,
+            `/api/sessions/${encodeURIComponent(sessionId)}/export.mp4?interactions=${variant === 'full' ? '1' : '0'}&token=${encodeURIComponent(await services.downloadTokens.issue(claims.sub, sessionId))}`,
           )
         : null;
     return {
       status: job.status,
+      variant,
       progress: job.progress,
       error: job.status === 'failed' ? (job.error ?? 'The render failed.') : null,
       downloadUrl,
@@ -1310,6 +1538,7 @@ export function buildApp(services: Services): App {
   app.post('/api/sessions/:id/export', async (c) => {
     const access = await exportAccess(c);
     if (!access.ok) return c.json(access.body, access.status);
+    const variant = exportVariantOf(c);
     if (services.renderUnavailable) {
       // A known boot condition (logged once at startup), not a new incident per click.
       observer.event('export.unavailable', { sessionId: access.record.id });
@@ -1320,23 +1549,32 @@ export function buildApp(services: Services): App {
     }
     let job: ReturnType<typeof services.exports.request>;
     try {
-      job = services.exports.request(access.record.id);
+      job = services.exports.request(access.record.id, variant);
     } catch (error) {
       if (!(error instanceof ExportRefused)) throw error;
       const status = error.code === 'QUEUE_FULL' ? 503 : error.code === 'TOO_LONG' ? 413 : 409;
       return c.json({ error: `EXPORT_${error.code}`, message: error.message }, status);
     }
-    services.analytics.capture(access.claims.sub, 'export_requested', { status: job.status });
+    services.analytics.capture(access.claims.sub, 'export_requested', {
+      status: job.status,
+      variant,
+    });
     return c.json(
-      await exportView(job, access.claims, access.record.id),
+      await exportView(job, access.claims, access.record.id, variant),
       job.status === 'ready' ? 200 : 202,
     );
   });
   app.get('/api/sessions/:id/export', async (c) => {
     const access = await exportAccess(c);
     if (!access.ok) return c.json(access.body, access.status);
+    const variant = exportVariantOf(c);
     return c.json(
-      await exportView(services.exports.status(access.record.id), access.claims, access.record.id),
+      await exportView(
+        services.exports.status(access.record.id, variant),
+        access.claims,
+        access.record.id,
+        variant,
+      ),
     );
   });
   /** The file itself: a bearer works, and so does the short-lived `token` the status endpoint hands out for `<a download>`. */
@@ -1349,13 +1587,20 @@ export function buildApp(services: Services): App {
       : null;
     if (!participantId) {
       const claims = await bearer(c.req.header('authorization'));
-      if (claims && hasEntitlement(claims.plan, 'export')) participantId = claims.sub;
+      if (
+        claims &&
+        services.features.enabled('session_download', {
+          plan: claims.plan,
+          platform: platformOf(c),
+        })
+      )
+        participantId = claims.sub;
     }
     if (!participantId) return c.json({ error: 'UNAUTHORIZED' }, 401);
     const record = await services.sessions.get(id);
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
     if (record.hostId !== participantId) return c.json({ error: 'NOT_HOST' }, 403);
-    const job = services.exports.status(id);
+    const job = services.exports.status(id, exportVariantOf(c));
     if (job?.status !== 'ready' || !job.output || !existsSync(job.output))
       return c.json({ error: 'NOT_READY', message: 'The video is not ready yet.' }, 404);
     const st = statSync(job.output);
@@ -1519,17 +1764,12 @@ export function buildApp(services: Services): App {
       };
     return { ok: true, claims, live, member };
   };
-  /** The plan comes from the host's participant row so a billing change applies at once (same rule as `bearer`). */
-  const hostPlanOf = async (live: LiveRoom) =>
-    services.cfg.PEN_DEV_PLAN ??
-    (await services.participants.get(live.record.hostId))?.plan ??
-    'free';
   app.post('/api/rooms/:id/token', async (c) => {
     const access = await roomAudioAccess(c);
     if (!access.ok) return c.json(access.body, access.status);
     const livekit = services.livekit;
     if (!livekit) return c.json({ error: 'ROOMS_UNAVAILABLE' }, 503);
-    if (!hasEntitlement(await hostPlanOf(access.live), 'rooms'))
+    if (!access.live.features.rooms)
       return c.json(
         {
           error: 'ENTITLEMENT_REQUIRED',
@@ -1745,6 +1985,61 @@ export function buildApp(services: Services): App {
     const body = RuntimeConfigRollback.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
     return runtimeConfigWrite(c, () => services.runtimeConfig.rollback(actor, body.data));
+  });
+
+  /**
+   * The Features screen's own routes (ADR-0036): the same shape as the
+   * settings above — document, save with a reason, history, rollback — and
+   * the same three ways a write can end.
+   */
+  const featuresWrite = async (c: Context, run: () => Promise<unknown>): Promise<Response> => {
+    c.header('cache-control', 'no-store');
+    try {
+      return c.json((await run()) as Record<string, unknown>);
+    } catch (error) {
+      if (error instanceof FeatureFlagsConflict)
+        return c.json({ error: 'CONFLICT', message: error.message, current: error.current }, 409);
+      if (error instanceof FeatureFlagsInvalid)
+        return c.json({ error: 'INVALID', message: error.message }, 422);
+      observer.error('features.write', error);
+      return c.json({ error: 'UNAVAILABLE', message: unreachable }, 503);
+    }
+  };
+  app.get('/api/admin/features', async (c) => {
+    c.header('cache-control', 'no-store');
+    if (!(await admin(c.req.header('authorization')))) return c.json({ error: 'FORBIDDEN' }, 403);
+    return c.json(await services.featureFlags.document());
+  });
+  app.put('/api/admin/features', async (c) => {
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ error: 'FORBIDDEN' }, 403);
+    const body = FeatureFlagsMutation.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    return featuresWrite(c, () => services.featureFlags.mutate(actor, body.data));
+  });
+  app.get('/api/admin/features/history', async (c) => {
+    c.header('cache-control', 'no-store');
+    if (!(await admin(c.req.header('authorization')))) return c.json({ error: 'FORBIDDEN' }, 403);
+    const before = Number(c.req.query('beforeRevision'));
+    const limit = Number(c.req.query('limit'));
+    try {
+      return c.json(
+        await services.featureFlags.history({
+          beforeRevision: Number.isFinite(before) && before > 0 ? before : null,
+          ...(Number.isFinite(limit) && limit > 0 ? { limit } : {}),
+        }),
+      );
+    } catch (error) {
+      observer.error('features.history', error);
+      return c.json({ error: 'UNAVAILABLE', message: unreachable }, 503);
+    }
+  });
+  app.post('/api/admin/features/rollback', async (c) => {
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ error: 'FORBIDDEN' }, 403);
+    const body = FeatureFlagsRollback.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    return featuresWrite(c, () => services.featureFlags.rollback(actor, body.data));
   });
 
   app.get('/api/admin/costs', async (c) => {

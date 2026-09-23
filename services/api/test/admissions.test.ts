@@ -9,6 +9,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { Identity } from '../src/identity.js';
 import { buildServices, type Services } from '../src/services.js';
+import { PREPARE_FOR_EVERYONE } from './flags.js';
 
 /**
  * Both ceilings on `POST /api/sessions` were check-then-act across a long
@@ -96,7 +97,7 @@ beforeAll(async () => {
     PEN_TTS_PROVIDER: 'silent',
     PEN_MAX_SESSIONS_PER_IP: String(IP_CAP),
   });
-  services = await buildServices(cfg);
+  services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   identity = new Identity(cfg.PEN_JWT_SECRET);
   ({ app } = buildApp(services));
 }, 60_000);
