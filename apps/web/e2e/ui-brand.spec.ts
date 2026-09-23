@@ -73,20 +73,31 @@ async function applyFamily(page: Page, family: Family): Promise<void> {
 }
 
 /**
- * That the family reached the page at all, and that it reached the *board*.
+ * That the family reached the page, and that the board kept its own ink.
  *
- * Two separate claims. The first is that the cascade took the attribute. The
- * second is the one this whole exercise turns on: that a shape already drawn
- * on the live board is now painted in this family's ink and not in some other
- * family's — the sketches are SVG filled with `var(--color-ink-accent)`
- * (packages/board/src/shapes/ink-text.tsx, ink-stroke.tsx), so a brand that
- * re-tunes the token repaints the drawing without re-teaching the lesson.
+ * Two separate claims, and the second is the opposite of what this test
+ * asserted before ADR-0034. A family used to re-tune `--color-ink-accent`
+ * and the sketches followed it; now the board is a surface the learner
+ * chooses, its ink is the board's own (`[data-board]` and `[data-ink]` come
+ * after every family in tokens.css, on purpose — teal at 3.59:1 on paper is
+ * unreadable chalk on slate), and a family repaints the chrome around it.
+ * So: the chrome took the attribute, and the shape already drawn on the live
+ * board is painted in the board's ink whatever the family says — the
+ * sketches are SVG filled with `var(--color-ink-accent)`
+ * (packages/board/src/shapes/ink-text.tsx, ink-stroke.tsx).
  */
-async function theBoardIsDrawnInTheBrand(page: Page, family: Family): Promise<void> {
-  const declared = await page.evaluate(() =>
-    getComputedStyle(document.documentElement).getPropertyValue('--color-ink-accent').trim(),
-  );
-  expect(declared, `${family} must draw the board in its own ink`).toBe(INK[family]);
+async function theBoardIsDrawnInItsOwnInk(page: Page, family: Family): Promise<void> {
+  const [primary, declared] = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    return [
+      root.getPropertyValue('--color-primary').trim(),
+      root.getPropertyValue('--color-ink-accent').trim(),
+    ];
+  });
+  expect(primary, `${family} must reach the chrome`).not.toBe('');
+  chrome.set(family, primary);
+  expect(declared, 'the board must have an ink of its own').not.toBe('');
+  expect(declared, `${family} must not repaint the board (ADR-0034)`).not.toBe(INK.teal);
 
   /*
    * What the ink resolves to, and what the drawing is actually painted in.
@@ -115,13 +126,14 @@ async function theBoardIsDrawnInTheBrand(page: Page, family: Family): Promise<vo
   expect(painted.length, 'the board has drawn nothing to check').toBeGreaterThan(0);
   expect(
     painted,
-    `${family}: nothing on the board is painted in this family's ink (${resolved})`,
+    `${family}: nothing on the board is painted in the board's ink (${resolved})`,
   ).toContain(resolved);
   seen.set(family, resolved);
 }
 
-/** What each family actually put on the board, so the run can prove they differ. */
+/** What each family put on the board — one ink for all of them — and on the chrome, which does differ. */
 const seen = new Map<Family, string>();
+const chrome = new Map<Family, string>();
 
 async function shoot(page: Page, screen: string, theme: string, family: Family): Promise<void> {
   mkdirSync(SHOTS, { recursive: true });
@@ -253,13 +265,15 @@ test.describe('brand candidates, side by side', () => {
       // A little more of the lesson, so the board is a drawing rather than a
       // first stroke and the panel has a line or two in it.
       await page.waitForTimeout(6_000);
-      await everyFamily(page, 'room', theme, (family) => theBoardIsDrawnInTheBrand(page, family));
+      await everyFamily(page, 'room', theme, (family) => theBoardIsDrawnInItsOwnInk(page, family));
 
-      // The board is not merely repainting, it is repainting differently: the
-      // brand and the platform it replaced must never resolve to one ink, or
-      // the attribute is doing nothing and every shot above is the same shot.
-      expect(new Set(seen.values()).size, `inks seen: ${[...seen].join(', ')}`).toBeGreaterThan(1);
-      expect(seen.get('brand')).not.toBe(seen.get('teal'));
+      // The family is doing something — the chrome repaints, so the brand and
+      // the platform it replaced never resolve to one primary — while the
+      // board's ink is the same under every one of them (ADR-0034).
+      expect(chrome.get('brand'), `primaries seen: ${[...chrome].join(', ')}`).not.toBe(
+        chrome.get('teal'),
+      );
+      expect(new Set(seen.values()).size, `board inks seen: ${[...seen].join(', ')}`).toBe(1);
 
       /*
        * And the same lesson once it is saved — the picture that shows what a

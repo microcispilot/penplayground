@@ -13,6 +13,8 @@
     "voices:assign": "node --import tsx scripts/assign-voices.ts",
     "listen:pace": "node --env-file=../../.env --import tsx scripts/listen-pace.ts",
     "intent:probe": "node --env-file=../../.env --import tsx scripts/intent-probe.ts",
+    "grade:probe": "node --env-file=../../.env --import tsx scripts/grade-probe.ts",
+    "board:handwriting": "node --env-file=../../.env --import tsx scripts/board-handwriting.ts",
     "load": "node --import tsx scripts/load.ts",
     "packs:prewarm": "node --env-file=../../.env --import tsx scripts/prewarm-packs.ts",
     "sessions:dedupe": "node --env-file-if-exists=../../.env --import tsx scripts/dedupe-sessions.ts",

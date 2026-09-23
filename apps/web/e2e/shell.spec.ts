@@ -23,7 +23,7 @@ async function liveSession(
     headers: { authorization: `Bearer ${token}` },
     data: { topic },
   });
-  expect(created.ok()).toBe(true);
+  expect(created.ok(), `${created.status()} ${await created.text()}`).toBe(true);
   return ((await created.json()) as { session: { id: string } }).session.id;
 }
 
@@ -352,11 +352,19 @@ test.describe('shell screenshots', () => {
     mkdirSync(SCREENS_DIR, { recursive: true });
     const anon = await anonymous(request, 'Screenshot');
     const saved = await endedSession(request, anon, 'How Transformers work in LLMs');
-    const second = await anonymous(request, 'Screenshot Two');
+    // A free learner never has a topic prepared (ADR-0036): the second
+    // catalogue card, on a topic nobody has taught, comes from a Standard one.
+    const second = await signIn(
+      request,
+      await anonymous(request, 'Screenshot Two'),
+      'Seeder Two',
+      'standard',
+    );
     await endedSession(request, second, 'Swift fundamentals');
     const account = await signIn(request, await anonymous(request, 'Ada'), 'Ada Lovelace');
-    // A shelf with something on it reads very differently from an empty one.
-    await endedSession(request, account, 'Reading an ECG strip');
+    // A shelf with something on it reads very differently from an empty one;
+    // a prepared topic, because Ada is on the free plan.
+    await endedSession(request, account, 'How Transformers work in LLMs');
 
     const viewports = [
       { name: '1440', width: 1440, height: 900 },
@@ -478,7 +486,14 @@ test.describe('shell screenshots', () => {
     mkdirSync(SCREENS_DIR, { recursive: true });
     const anon = await anonymous(request, 'Brand');
     const saved = await endedSession(request, anon, 'How Transformers work in LLMs');
-    await endedSession(request, await anonymous(request, 'Brand Two'), 'Swift fundamentals');
+    // The second card is on a topic nobody has taught, so it needs a Standard host (ADR-0036).
+    const seeder = await signIn(
+      request,
+      await anonymous(request, 'Brand Two'),
+      'Seeder',
+      'standard',
+    );
+    await endedSession(request, seeder, 'Swift fundamentals');
 
     for (const brand of ['teal', 'green', 'forest'] as const) {
       for (const theme of ['light', 'dark'] as const) {

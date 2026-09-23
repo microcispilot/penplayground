@@ -13,10 +13,12 @@ import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ShellPage } from '../components/AppShell.js';
+import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useSeo } from '../lib/seo.js';
 import { isDarkTheme, useTheme } from '../lib/theme.js';
 import { useBoard } from '../lib/use-board.js';
+import { CHALK_HANDWRITING, MARKER_HANDWRITING } from './board-handwriting.js';
 
 /**
  * Settings: the things that are about the app rather than about a lesson.
@@ -74,13 +76,42 @@ function PlanTag({ name }: { name: string }) {
 }
 
 /**
- * A board, drawn as itself.
+ * A board, drawn as itself, with something written on it.
  *
  * The swatch wears `data-board`, so every colour in it — the surface, the
- * frame, the ink of the sample stroke — comes from the same token block that
+ * frame, the ink of the writing — comes from the same token block that
  * paints the real board. There is not one hex in this file, which is what
  * makes a palette change in `tokens.css` show up here for free.
+ *
+ * The writing is a real piece of board work (Pythagoras, a triangle, one
+ * worked line) rather than a bar: a preview of a board should look like a
+ * lesson on it. It is an alpha mask (`board-handwriting.ts`, drawn once in
+ * chalk and once in marker) laid over the surface and filled with
+ * `--color-ink`, so the same drawing appears in white chalk on slate, in
+ * black marker on cream, and in whichever colour the learner picks below.
  */
+function Handwriting({ kind, className }: { kind: 'chalk' | 'marker'; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute inset-x-[7%] inset-y-[10%] bg-[var(--color-ink)]',
+        className,
+      )}
+      style={{
+        maskImage: `url("${kind === 'chalk' ? CHALK_HANDWRITING : MARKER_HANDWRITING}")`,
+        WebkitMaskImage: `url("${kind === 'chalk' ? CHALK_HANDWRITING : MARKER_HANDWRITING}")`,
+        maskSize: 'contain',
+        WebkitMaskSize: 'contain',
+        maskRepeat: 'no-repeat',
+        WebkitMaskRepeat: 'no-repeat',
+        maskPosition: 'center',
+        WebkitMaskPosition: 'center',
+      }}
+    />
+  );
+}
+
 function SurfaceCard({
   surface,
   chosen,
@@ -94,26 +125,35 @@ function SurfaceCard({
 }) {
   const body = (
     <>
-      <span
-        data-board={surface.id === 'auto' ? undefined : surface.id}
-        className={cn(
-          'relative block h-[74px] overflow-hidden rounded-md border-4',
-          // `auto` has no board of its own to preview, so it shows the two it
-          // stands for, split down the middle.
-          surface.id === 'auto'
-            ? 'border-outline-variant bg-[linear-gradient(105deg,var(--color-surface-container-lowest)_0_50%,#20262c_50%_100%)]'
-            : 'border-[var(--board-frame-b)] bg-[var(--color-paper)]',
-        )}
-      >
-        {surface.id === 'auto' ? null : (
+      {surface.id === 'auto' ? (
+        // `auto` has no board of its own to preview, so it shows the two it
+        // stands for, split down the middle — each half a real board with the
+        // same writing in its own ink, clipped along the diagonal.
+        <span className="relative block h-[112px] overflow-hidden rounded-md border-4 border-outline-variant">
           <span
-            aria-hidden
-            className="absolute top-1/2 left-4 h-[3px] w-[58%] -translate-y-1/2 rounded-full bg-[var(--color-ink)]"
-          />
-        )}
-      </span>
-      <span className="mt-2.5 flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-label-large font-semibold">
+            data-board="whiteboard"
+            className="absolute inset-0 bg-[var(--color-paper)] [clip-path:polygon(0_0,58%_0,42%_100%,0_100%)]"
+          >
+            <Handwriting kind="marker" />
+          </span>
+          <span
+            data-board="blackboard"
+            className="absolute inset-0 bg-[var(--color-paper)] [clip-path:polygon(58%_0,100%_0,100%_100%,42%_100%)]"
+          >
+            <Handwriting kind="chalk" />
+          </span>
+        </span>
+      ) : (
+        <span
+          data-board={surface.id}
+          className="relative block h-[112px] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
+        >
+          <Handwriting kind={surface.kind ?? 'marker'} />
+        </span>
+      )}
+      <span className="mt-2.5 flex items-start gap-2">
+        {/* Wraps rather than truncates: "Green board" beside its plan tag does not fit a phone's column, and "Green boa…" is not a name. */}
+        <span className="min-w-0 flex-1 text-label-large font-semibold leading-tight text-balance">
           {surface.name}
         </span>
         {chosen ? <Check size={15} className="shrink-0 text-primary" aria-hidden /> : null}
@@ -131,7 +171,12 @@ function SurfaceCard({
   // A board above the plan is a link to Pricing, not a dead control: the
   // learner gets somewhere from clicking it.
   return locked ? (
-    <Link to="/pricing" className={shell} data-testid={`board-${surface.id}`}>
+    <Link
+      to="/pricing"
+      className={shell}
+      data-testid={`board-${surface.id}`}
+      onClick={() => trackAction('upgrade_clicked', { source: 'settings_board' })}
+    >
       {body}
     </Link>
   ) : (
@@ -175,14 +220,24 @@ function InkDot({
       <span className="mt-1.5 flex items-center justify-center gap-1 text-label-small font-semibold">
         {ink.name}
       </span>
-      {locked ? (
-        <span className="mt-0.5 block text-label-tiny text-on-surface-variant">{locked}</span>
-      ) : null}
+      <span className="block min-h-[1em] text-label-tiny text-on-surface-variant">
+        {locked ?? ''}
+      </span>
     </>
   );
-  const shell = 'state-layer rounded-lg px-2 py-1.5 text-center';
+  // Three rows on a fixed grid — dot, name, plan — so a colour without a plan
+  // tag keeps its dot on the same line as the others rather than dropping to
+  // sit on the baseline. `grid-rows-subgrid` takes the rows from the fieldset.
+  const shell = cn(
+    'state-layer grid grid-rows-subgrid row-span-3 justify-items-center rounded-lg px-1.5 pt-1.5 pb-1 text-center',
+  );
   return locked ? (
-    <Link to="/pricing" className={shell} data-testid={`ink-${ink.id}`}>
+    <Link
+      to="/pricing"
+      className={shell}
+      data-testid={`ink-${ink.id}`}
+      onClick={() => trackAction('upgrade_clicked', { source: 'settings_ink' })}
+    >
       {body}
     </Link>
   ) : (
@@ -230,7 +285,10 @@ export function Settings() {
                 surface={s}
                 chosen={preference.surface === s.id}
                 locked={planAllowsSurface(plan, s.id) ? null : planNameFor(s.minPlan)}
-                onChoose={() => choose({ ...preference, surface: s.id })}
+                onChoose={() => {
+                  trackAction('board_chosen', { surface: s.id });
+                  choose({ ...preference, surface: s.id });
+                }}
               />
             ))}
           </fieldset>
@@ -244,7 +302,7 @@ export function Settings() {
               : 'What the expert writes with. Markers belong on a marker board; pick a chalk board and the chalks appear instead.'
           }
         >
-          <fieldset className="flex flex-wrap gap-1 border-0 p-0">
+          <fieldset className="grid grid-cols-[repeat(auto-fill,minmax(60px,max-content))] grid-rows-[auto_auto_auto] items-start gap-x-0.5 border-0 p-0">
             <legend className="sr-only">
               {surface.kind === 'chalk' ? 'Chalk colour' : 'Marker colour'}
             </legend>
@@ -255,14 +313,15 @@ export function Settings() {
                 surfaceId={surface.id}
                 chosen={chosenForKind === c.id}
                 locked={planAllowsInk(plan, c.id) ? null : planNameFor(c.minPlan)}
-                onChoose={() =>
+                onChoose={() => {
+                  trackAction('ink_chosen', { ink: c.id, surface: surface.id });
                   choose({
                     ...preference,
                     // Written to the field for its own kind, so the other
                     // colour survives a trip to a different board and back.
                     [c.kind]: c.id,
-                  })
-                }
+                  });
+                }}
               />
             ))}
           </fieldset>
@@ -278,7 +337,10 @@ export function Settings() {
               <button
                 key={t}
                 type="button"
-                onClick={() => setTheme(t)}
+                onClick={() => {
+                  trackAction('theme_changed', { theme: t, source: 'settings' });
+                  setTheme(t);
+                }}
                 aria-pressed={isDarkTheme(theme) === (t === 'dark')}
                 data-testid={`theme-${t}`}
                 className={cn(
