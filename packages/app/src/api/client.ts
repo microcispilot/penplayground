@@ -1,4 +1,5 @@
 import {
+  BoardPreference,
   clampPace,
   Expert,
   LikeResult,
@@ -26,6 +27,15 @@ export const Participant = z.object({
   avatarUrl: z.string().nullable().default(null),
   /** The teaching pace kept on the account (ADR-0010); defaulted so an older server still parses. */
   pace: z.number().default(PACE_DEFAULT),
+  /**
+   * The board kept on the account (ADR-0034). `null` means never chose, which
+   * is not the same as chose the default — the device's own copy still wins,
+   * and this only fills in on a machine that has none.
+   *
+   * Nullish-defaulted so a server that predates the column still parses; a
+   * missing field must not fail `/api/me`, which is the call sign-in waits on.
+   */
+  board: BoardPreference.nullish().default(null),
 });
 
 export { PlanUsage } from '@pen/contracts';
@@ -121,6 +131,8 @@ export class ApiClient {
   private paceWanted: number | null = null;
   /** Serialises `rememberPace`'s writes so they cannot land out of order. */
   private paceWrite: Promise<void> = Promise.resolve();
+  /** The board write's queue, for the same ordering reason as `paceWrite`. */
+  private boardWrite: Promise<void> = Promise.resolve();
   /**
    * The mint or check in flight, if there is one. Two things read it, and
    * both are about the same window — the tens of milliseconds between the
@@ -307,6 +319,32 @@ export class ApiClient {
       .catch(() => {
         this.paceWanted = null;
       })
+      .then(() => undefined);
+  }
+
+  /**
+   * Keep the board on the account. Best-effort, exactly as `rememberPace` is:
+   * the device already holds the choice (`lib/board-preference.ts`), so there
+   * is nothing here for the learner to do and nothing to report if it fails.
+   *
+   * Anonymous accounts are skipped — there is no account to keep it on, and
+   * the device's copy is the whole preference for them.
+   */
+  rememberBoard(board: BoardPreference): void {
+    const account = this.account;
+    if (account === null || account.anonymous) return;
+    // Serialised like the pace write so two quick changes cannot land out of
+    // order and leave the account on a board nobody chose.
+    this.boardWrite = this.boardWrite
+      .then(() =>
+        this.request('/api/me', z.object({ participant: Participant }), {
+          method: 'PATCH',
+          body: JSON.stringify({ board }),
+        }).then((res) => {
+          this.account = res.participant;
+        }),
+      )
+      .catch(() => undefined)
       .then(() => undefined);
   }
 

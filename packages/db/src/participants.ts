@@ -141,6 +141,24 @@ export class ParticipantRepository {
   }
 
   /**
+   * The board this learner chose (ADR-0034), kept on the account so the choice
+   * survives a new machine. The device's own copy stays authoritative; this is
+   * the same courtesy `setPace` is.
+   *
+   * Stored as given and validated on the way out rather than in: a row written
+   * by a newer build, naming a board this one has never heard of, has to
+   * degrade to the default instead of failing a sign-in.
+   */
+  async setBoard(id: string, board: unknown): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ board, lastSeenAt: new Date() })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
    * Erase the participant. Their sessions are removed separately (the caller
    * also has on-disk ledgers, audio, exports and thumbnails to clear), so this
    * is the last step, after which the bearer identifies nobody.

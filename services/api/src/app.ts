@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { createNodeWebSocket } from '@hono/node-ws';
 import {
+  BoardPreference,
   ClientMessage,
   clampPace,
   decodeAudioFrame,
@@ -92,10 +93,22 @@ const UpdateMe = z
      * playback speed holds for the next video.
      */
     pace: Pace.optional(),
+    /**
+     * The board this learner chose (ADR-0034). Validated here rather than
+     * taken as free-form JSON: this column is read back into the UI, and an
+     * unvalidated object would let one account write a shape every later read
+     * has to defend against.
+     */
+    board: BoardPreference.optional(),
   })
-  .refine((v) => v.name !== undefined || v.analyticsOptOut !== undefined || v.pace !== undefined, {
-    message: 'nothing to change',
-  });
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.analyticsOptOut !== undefined ||
+      v.pace !== undefined ||
+      v.board !== undefined,
+    { message: 'nothing to change' },
+  );
 
 /** The participant as the client sees it; `anonymous` decides whether the account chip offers sign-in or sign-out. */
 function participantView(row: {
@@ -106,7 +119,12 @@ function participantView(row: {
   email?: string | null;
   avatarUrl?: string | null;
   pace?: number | null;
+  board?: unknown;
 }) {
+  // Parsed, never trusted: a row written by a newer build naming a board this
+  // one has never heard of degrades to the default rather than failing the
+  // whole `/api/me` response, which is a sign-in that does not complete.
+  const board = BoardPreference.safeParse(row.board);
   return {
     id: row.id,
     name: row.name,
@@ -115,6 +133,7 @@ function participantView(row: {
     email: row.email ?? null,
     avatarUrl: row.avatarUrl ?? null,
     pace: clampPace(row.pace ?? PACE_DEFAULT),
+    board: board.success ? board.data : null,
   };
 }
 
@@ -493,6 +512,8 @@ export function buildApp(services: Services): App {
     }
     if (body.data.pace !== undefined)
       row = await services.participants.setPace(claims.sub, clampPace(body.data.pace));
+    if (body.data.board !== undefined)
+      row = await services.participants.setBoard(claims.sub, body.data.board);
     if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
     return c.json({ participant: participantView({ ...row, plan: claims.plan }) });
   });

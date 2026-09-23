@@ -63,6 +63,23 @@ export const participants = pgTable(
      * carry the default and the device's own preference stands.
      */
     pace: doublePrecision('pace').notNull().default(1),
+    /**
+     * The board this learner chose (ADR-0034): `{ surface, marker, chalk }`.
+     *
+     * One column rather than three because the three values are one decision,
+     * and a half-written preference — a surface from today beside a chalk from
+     * a build that spelled it differently — is the failure a single parse
+     * cannot produce.
+     *
+     * Nullable on purpose, and it means "never chose" rather than "chose the
+     * default". The device's own copy is the authoritative one (see
+     * `lib/board-preference.ts`); this exists so the choice survives a new
+     * machine, exactly as `pace` does. It is read back through
+     * `BoardPreference.safeParse`, so a row written by a newer build with a
+     * board this one has never heard of degrades to the default instead of
+     * throwing.
+     */
+    board: jsonb('board'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },

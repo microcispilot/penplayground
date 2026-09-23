@@ -164,3 +164,41 @@ describe('the picker', () => {
     expect(document.documentElement.getAttribute('data-ink')).toBe('chalk-white');
   });
 });
+
+/**
+ * Device-first, but not device-only.
+ *
+ * The account copy exists so a green board set on a laptop turns up on a
+ * phone. The dangerous half is the other direction: adopting the account's
+ * board on a machine that already has one would overwrite a choice the learner
+ * made seconds ago, on the screen they are looking at. The guard is that the
+ * raw storage key must be absent — "read returned the default" is not the same
+ * as "the learner never chose", and only the key can tell the two apart.
+ */
+describe('the account copy', () => {
+  const withBoard = {
+    ...SIGNED_IN,
+    board: { surface: 'greenboard', marker: 'marker-red', chalk: 'chalk-pink' },
+  } as const;
+
+  it('fills in on a machine that has never chosen', async () => {
+    const storage = memoryStorage();
+    renderWithApp(<Settings />, { participant: withBoard, storage });
+    await waitFor(() => expect(readBoardPreference(storage).surface).toBe('greenboard'));
+    expect(readBoardPreference(storage).chalk).toBe('chalk-pink');
+  });
+
+  it('never overwrites a choice this device already holds', async () => {
+    const storage = memoryStorage();
+    writeBoardPreference(storage, {
+      surface: 'ivory',
+      marker: 'marker-blue',
+      chalk: 'chalk-white',
+    });
+    renderWithApp(<Settings />, { participant: withBoard, storage });
+    await waitFor(() => expect(screen.getByTestId('board-ivory')).toBeTruthy());
+    // Still the device's, not the account's.
+    expect(readBoardPreference(storage).surface).toBe('ivory');
+    expect(readBoardPreference(storage).marker).toBe('marker-blue');
+  });
+});

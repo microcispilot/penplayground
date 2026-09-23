@@ -28,6 +28,8 @@ export const ANONYMOUS: Participant = {
   email: null,
   avatarUrl: null,
   pace: 1,
+  // Never chose a board; the device's copy is the whole preference.
+  board: null,
 };
 
 export const SIGNED_IN: Participant = {
@@ -38,6 +40,8 @@ export const SIGNED_IN: Participant = {
   email: 'ada@example.com',
   avatarUrl: null,
   pace: 1,
+  // Never chose a board; the device's copy is the whole preference.
+  board: null,
 };
 
 /** A platform with nothing real behind it: no analytics, no Sentry, no Google. */

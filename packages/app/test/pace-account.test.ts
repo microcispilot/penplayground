@@ -20,6 +20,8 @@ const SIGNED_IN: Participant = {
   email: 'ada@example.com',
   avatarUrl: null,
   pace: 1,
+  // Never chose a board; the device's copy is the whole preference.
+  board: null,
 };
 
 interface Rig {

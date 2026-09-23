@@ -8,6 +8,7 @@ import {
 import { useEffect, useSyncExternalStore } from 'react';
 import {
   applyBoardAttributes,
+  BOARD_PREFERENCE_KEY,
   boardPreference,
   setBoardPreference,
   subscribeToBoardPreference,
@@ -45,7 +46,7 @@ export interface ResolvedBoard {
  * else pays for.
  */
 export function useBoard(): ResolvedBoard {
-  const { platform, participant } = useApp();
+  const { platform, participant, api } = useApp();
   const [theme] = useTheme();
   const preference = useSyncExternalStore(
     subscribeToBoardPreference,
@@ -65,11 +66,34 @@ export function useBoard(): ResolvedBoard {
     applyBoardAttributes(surface.id, ink);
   }, [surface.id, ink]);
 
+  /*
+   * A machine that has never chosen adopts the account's board, once.
+   *
+   * Device-first does not mean device-only: a learner who set a green board on
+   * their laptop should find it on their phone. The guard is that this only
+   * fires when the device holds *nothing* — `readBoardPreference` returning
+   * the default is not the same as the learner having chosen the default, so
+   * the raw key is checked instead. Without that, signing in would overwrite a
+   * choice made on this machine five seconds earlier.
+   */
+  useEffect(() => {
+    const fromAccount = participant?.board;
+    if (!fromAccount) return;
+    if (platform.storage.get(BOARD_PREFERENCE_KEY) !== null) return;
+    setBoardPreference(platform.storage, fromAccount);
+  }, [participant, platform.storage]);
+
   return {
     preference,
     surface,
     ink,
-    choose: (next) => setBoardPreference(platform.storage, next),
+    choose: (next) => {
+      // The device write is the one that counts and cannot fail; the account
+      // write is a courtesy that never blocks and never reports (see
+      // `ApiClient.rememberBoard`, and `RoomSession.keepPace` before it).
+      setBoardPreference(platform.storage, next);
+      api.rememberBoard(next);
+    },
   };
 }
 

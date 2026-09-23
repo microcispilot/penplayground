@@ -85,6 +85,13 @@
       "when": 1789861168432,
       "tag": "0011_session_redirects",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790139116637,
+      "tag": "0012_participant_board",
+      "breakpoints": true
     }
   ]
 }
