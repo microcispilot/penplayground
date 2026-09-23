@@ -275,3 +275,36 @@ describe('resetting a forgotten password', () => {
     expect(body.challengeId).toMatch(/^ch_/);
   });
 });
+
+describe('a deployment with no mail relay', () => {
+  /**
+   * The API must still boot, and the one thing that genuinely cannot work must
+   * fail honestly rather than silently.
+   *
+   * The first version of this threw inside `buildServices`, so a missing mail
+   * credential took the whole API down — lessons, rooms, replays, all of it —
+   * and it did exactly that on the first deploy after it was written. The
+   * refusal belongs where the damage is.
+   */
+  it('refuses to send rather than refusing to start', async () => {
+    const { createMailer } = await import('../src/auth/mailer.js');
+    const production = createMailer({ production: true, smtp: null });
+    expect(production.kind).toBe('refusing');
+    await expect(
+      production.send({ to: 'someone@example.test', subject: 's', text: 'a code: 12345678' }),
+    ).rejects.toThrow();
+  });
+
+  it('turns that into a 503 the caller can act on, and creates nothing', async () => {
+    services.mailer = {
+      kind: 'refusing',
+      async send() {
+        throw new Error('SMTP is not configured');
+      },
+    };
+    ({ app } = buildApp(services));
+    const res = await post('/api/auth/register/start', { email: 'nomail@example.test' });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toBe('MAIL_UNAVAILABLE');
+  });
+});

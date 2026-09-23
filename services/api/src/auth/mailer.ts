@@ -14,16 +14,15 @@ import { logger } from '../logger.js';
  * no host is configured the code goes to the log instead, clearly marked, and
  * the whole journey — challenge, code, account, sign-in — can be walked today.
  *
- * That is a development affordance and it is refused in production: booting
- * with `PEN_SMTP_HOST` unset while `NODE_ENV=production` throws rather than
- * quietly printing verification codes into a log aggregator. A code in a log
- * is a code somebody can read.
+ * That is a development affordance, and production never gets it: with no SMTP
+ * there, `send` refuses and logs an error *without the body*. A code in a
+ * production log is a code somebody can read.
  */
 export interface Mailer {
   /** Resolves when the message is handed off. Throws if it cannot be. */
   send(message: { to: string; subject: string; text: string }): Promise<void>;
   /** What this mailer is, for the boot line. */
-  readonly kind: 'smtp' | 'log';
+  readonly kind: 'smtp' | 'log' | 'refusing';
 }
 
 export interface SmtpConfig {
@@ -93,25 +92,46 @@ export function smtpMailer(cfg: SmtpConfig): Mailer {
 }
 
 /**
- * Pick a mailer, and refuse the unsafe combination.
+ * A mailer that cannot send, and says so at the point of use.
  *
- * The refusal is the important half. A production deployment that silently
- * fell back to the log mailer would look healthy, would answer every
- * registration request with a cheerful 202, and would never deliver a single
- * code — while writing every one of them into the logs.
+ * Production with no SMTP configured. It must not log the body — a
+ * verification code in a production log is a code somebody can read — and it
+ * must not pretend to have sent anything, so it throws and the route turns
+ * that into a 503 the caller can act on.
+ */
+function refusingMailer(): Mailer {
+  return {
+    kind: 'refusing',
+    async send({ to, subject }) {
+      logger.error(
+        { evt: 'mail.unconfigured', to, subject },
+        'no SMTP is configured: set PEN_SMTP_HOST, PEN_SMTP_USERNAME, PEN_SMTP_PASSWORD and PEN_SMTP_FROM',
+      );
+      throw new Error('SMTP is not configured');
+    },
+  };
+}
+
+/**
+ * Pick a mailer for the environment.
+ *
+ * Three outcomes, and the middle one is a correction. This used to *throw* when
+ * production had no SMTP, on the reasoning that a deployment which silently
+ * logged codes would look healthy and deliver nothing. The reasoning was right
+ * and the remedy was far too broad: it ran inside `buildServices`, so the API
+ * refused to boot at all, and a missing mail credential took down lessons,
+ * rooms, replays and every other thing this product does. It did exactly that
+ * on the first deploy after it was written.
+ *
+ * So the refusal moved to where the damage is. The process boots, everything
+ * unrelated to email works, and the one thing that genuinely cannot happen —
+ * signing up — fails honestly with a 503 and an error in the log. Nothing is
+ * ever written to a production log that a code could be read out of.
  */
 export function createMailer(opts: { production: boolean; smtp: SmtpEnv | null }): Mailer {
   const { host, port, username, password, from } = opts.smtp ?? {};
   const configured = Boolean(host && username && password && from);
-  if (!configured) {
-    if (opts.production) {
-      throw new Error(
-        'PEN_SMTP_HOST, PEN_SMTP_USERNAME, PEN_SMTP_PASSWORD and PEN_SMTP_FROM are required in production: ' +
-          'without them no verification code can be delivered and every code would be written to the log',
-      );
-    }
-    return logMailer();
-  }
+  if (!configured) return opts.production ? refusingMailer() : logMailer();
   return smtpMailer({
     host: host as string,
     port: port ?? 587,
