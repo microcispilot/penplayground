@@ -21,6 +21,9 @@
 # prod-app-01), PEN_IMAGE_TAG (default: git short sha, "-dirty" when the tree has changes),
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /
 # VITE_GOOGLE_CLIENT_ID (web build args),
+# POSTHOG_PROJECT_TOKEN / POSTHOG_HOST / SENTRY_DSN (written into the host's api.env when set, so
+# the API reports to the same PostHog project the dashboards read and the Sentry project the
+# alerts watch),
 # GOOGLE_CLIENT_ID (written into the host's api.env; sign-in needs both halves — see below),
 # PEN_TYPESAFE_API_KEY (likewise; with it intent goes straight to TypeSafe, without it the
 #                       room falls back to the session model and only a log line says so),
@@ -373,7 +376,18 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # the other not is the one combination that looks deployed and is not, which is
 # exactly what happened here on 2026-09-18 (`/api/health` said `google:false`
 # beside a rendered button). They are set together or the deploy says so.
+#
+# `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` ride along for the same reason,
+# learned on 2026-09-23: the host's api.env carried a token that belonged to no
+# project we own, so every server-side event production had ever sent went
+# nowhere, while the dashboards — reading the project the workstation's token
+# names — showed only development and desktop traffic. The batch endpoint
+# answers 200 to a wrong token, so nothing on the host could have said so.
+# `SENTRY_DSN` too, found the same day the same way: the host's DSN matched
+# none of the organisation's active keys. When the operator's shell has them,
+# the host gets them.
 for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY \
+  POSTHOG_PROJECT_TOKEN POSTHOG_HOST SENTRY_DSN \
   PEN_SMTP_HOST PEN_SMTP_PORT PEN_SMTP_USERNAME PEN_SMTP_PASSWORD PEN_SMTP_FROM; do
   value="${!var:-}"
   [ -n "$value" ] || continue

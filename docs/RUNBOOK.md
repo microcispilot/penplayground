@@ -281,6 +281,20 @@ with another product, and an unfiltered average silently mixes them. Rows with
 `plan = null` are sessions from before `plan` was added to the event; they age
 out of the 30-day window.
 
+> **2026-09-23, found while testing the visitor timeline below:** the host's
+> `api.env` carried a `POSTHOG_PROJECT_TOKEN` that belonged to no project we
+> own, so every server-side event production had ever sent went nowhere; the
+> dashboards showed only development and desktop traffic (senders were the
+> workstation and residential addresses, never the host's). PostHog's batch
+> endpoint answers 200 to a wrong token, so nothing on the host could say so.
+> The API's `SENTRY_DSN` was wrong the same way — it matched none of the
+> organisation's active keys. Both are now the real ones, and
+> `deploy/deploy.sh` writes `POSTHOG_PROJECT_TOKEN` / `POSTHOG_HOST` /
+> `SENTRY_DSN` from the operator's shell. **The checks that would have caught
+> it:** a HogQL query for `properties.$ip` of `pen-academy-api` events must
+> list the host's public address, and the Sentry cron monitor's last
+> check-in must be minutes old, not days.
+
 ### Following one visitor (ADR-0038)
 
 Everything a person does is under one distinct id: their participant id, the

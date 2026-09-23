@@ -26,7 +26,7 @@ signalling 7880); only the host nginx and LiveKit's media and TURN ports (7881/t
 | --- | --- |
 | `deploy/deploy.sh` | build → ship → sync → `compose up` → health check, idempotent |
 | `deploy/docker-compose.yml` | the stack (`/srv/pen-playground/docker-compose.yml` on the host) |
-| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env` |
+| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env`. `deploy.sh` overwrites `PEN_PUBLIC_URL`, `PEN_API_URL`, `GOOGLE_CLIENT_ID`, `PEN_TYPESAFE_API_KEY`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `SENTRY_DSN` and `PEN_SMTP_*` from the operator's shell whenever they are set there, so those never drift from the workstation's `.env` |
 | `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-playground/postgres.env` |
 | `deploy/searxng/` | SearXNG compose + `settings.yml` (included by the stack) |
 | `deploy/livekit/livekit.yaml` | LiveKit server config (ports, TURN, room limits; no secrets) |
