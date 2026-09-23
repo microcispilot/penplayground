@@ -22,6 +22,8 @@
 # VITE_TLDRAW_LICENSE_KEY / VITE_SENTRY_DSN / VITE_POSTHOG_TOKEN / VITE_POSTHOG_HOST /
 # VITE_GOOGLE_CLIENT_ID (web build args),
 # GOOGLE_CLIENT_ID (written into the host's api.env; sign-in needs both halves — see below),
+# PEN_TYPESAFE_API_KEY (likewise; with it intent goes straight to TypeSafe, without it the
+#                       room falls back to the session model and only a log line says so),
 #
 # Serving the app under a path prefix instead of the root of its host — the test deployment:
 #   PEN_VHOST=test                               which vhost to render: "prod" (default) or "test"
@@ -349,6 +351,13 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # return URLs). Set either variable and its line is rewritten in place; leave them unset — the
 # default — and api.env is not touched at all.
 #
+# `PEN_TYPESAFE_API_KEY` rides along because intent classification is the one
+# provider whose key decides *which endpoint* is called, not just whether it
+# works: with it the room talks to TypeSafe directly (one hop fewer, ~29 % off
+# the median), without it the room quietly falls back to the session model and
+# nothing says so except a single log line. Leaving it out of a deploy is a
+# slower product that looks healthy.
+#
 # `GOOGLE_CLIENT_ID` rides along for a reason learned the hard way: the web
 # build takes its half of sign-in from `VITE_GOOGLE_CLIENT_ID` as a build arg,
 # so setting only that ships a button the API cannot honour — it verifies the
@@ -356,7 +365,7 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # the other not is the one combination that looks deployed and is not, which is
 # exactly what happened here on 2026-09-18 (`/api/health` said `google:false`
 # beside a rendered button). They are set together or the deploy says so.
-for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID; do
+for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY; do
   value="${!var:-}"
   [ -n "$value" ] || continue
   case "$var" in
@@ -375,7 +384,7 @@ for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID; do
     mv api.env.next api.env"
   # A client id is a credential, not a URL: say that it was set, never what it is.
   case "$var" in
-    GOOGLE_CLIENT_ID) echo "  $var=<set>" ;;
+    GOOGLE_CLIENT_ID | PEN_TYPESAFE_API_KEY) echo "  $var=<set>" ;;
     *) echo "  $var=$value" ;;
   esac
 done
