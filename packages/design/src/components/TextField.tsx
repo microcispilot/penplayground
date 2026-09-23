@@ -17,6 +17,9 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
  *     `primary`, caret `primary`, input `body-large`, label and supporting
  *     text `body-small` in `on-surface-variant`, error in `error`.
  *
+ * One deliberate departure from that sheet: the focus ring is `outline`, not
+ * `primary`. See the rule below.
+ *
  * Four pixels of corner beside a fully round button is not an accident: M3
  * gives a field a quiet, almost square container precisely so the controls
  * around it read as the things you press.
@@ -42,8 +45,23 @@ export function TextField({
           // the same height as a `size="md"` button, so a field and the
           // button beside it line up.
           'flex h-10 items-center gap-2 rounded-xs bg-transparent px-4 transition-shadow',
-          'shadow-[0_0_0_1px_var(--color-outline)] focus-within:shadow-[0_0_0_2px_var(--color-primary)]',
-          error && 'shadow-[0_0_0_1px_var(--color-error)]',
+          /*
+           * Focus thickens the same neutral edge; it does not turn it red.
+           *
+           * M3 specifies a 2 px `primary` ring here and this followed it, but
+           * `primary` in this product is the brand red — so every focused
+           * field wore the colour that means "this is wrong", and a sign-in
+           * dialog opened with its email box apparently already rejected. The
+           * owner made the same call on the command bar first.
+           *
+           * `outline` is neutral and clears 3:1 against the surfaces a field
+           * sits on, which is what a focus indicator owes (WCAG 1.4.11). Red
+           * is left to mean one thing: the field below actually says what is
+           * wrong, and the colour only agrees with the words.
+           */
+          'shadow-[0_0_0_1px_var(--color-outline-variant)] focus-within:shadow-[0_0_0_2px_var(--color-outline)]',
+          error &&
+            'shadow-[0_0_0_2px_var(--color-error)] focus-within:shadow-[0_0_0_2px_var(--color-error)]',
         )}
       >
         {leading ? <span className="text-on-surface-variant">{leading}</span> : null}

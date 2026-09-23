@@ -108,7 +108,9 @@ test.describe('content security policy', () => {
         await expect(google).toBeVisible({ timeout: 20_000 });
         await p.waitForTimeout(3_000);
       } else {
-        await expect(p.getByLabel('Display name')).toBeVisible();
+        // No client id configured (CI has no .env), so there is no Google
+        // button — but the sign-in form itself is always there.
+        await expect(p.getByTestId('auth-email')).toBeVisible();
       }
       await p.keyboard.press('Escape');
     });

@@ -1,5 +1,6 @@
 import {
   BoardPreference,
+  ChallengeAccepted,
   clampPace,
   Expert,
   LikeResult,
@@ -278,11 +279,84 @@ export class ApiClient {
       z.object({ token: z.string(), participant: Participant, outcome: GoogleSignInOutcome }),
       { method: 'POST', body: JSON.stringify({ idToken }) },
     );
+    return { participant: this.adopt(res), outcome: res.outcome };
+  }
+
+  /**
+   * Adopt a bearer and the account it names. The one place a sign-in lands.
+   *
+   * Shared by Google and by email+password so the two cannot drift: forgetting
+   * one of these four writes is a sign-in that appears to work and does not
+   * survive a reload.
+   */
+  private adopt(res: { token: string; participant: Participant }): Participant {
     this.token = res.token;
     this.storage.set(TOKEN_KEY, res.token);
     this.storage.set(NAME_KEY, res.participant.name);
     this.account = res.participant;
-    return { participant: res.participant, outcome: res.outcome };
+    return res.participant;
+  }
+
+  /** Step one of signing up: ask for a code. Always succeeds, account or not. */
+  async startRegistration(email: string): Promise<ChallengeAccepted> {
+    return this.request('/api/auth/register/start', ChallengeAccepted, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resendRegistrationCode(challengeId: string): Promise<ChallengeAccepted> {
+    return this.request(
+      `/api/auth/register/resend/${encodeURIComponent(challengeId)}`,
+      ChallengeAccepted,
+      { method: 'POST' },
+    );
+  }
+
+  /** Step two: the code, a name and a password. Signs in on success. */
+  async completeRegistration(body: {
+    challengeId: string;
+    code: string;
+    name: string;
+    password: string;
+  }): Promise<Participant> {
+    const res = await this.request(
+      '/api/auth/register/complete',
+      z.object({ token: z.string(), participant: Participant }),
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+    return this.adopt(res);
+  }
+
+  async signInWithPassword(email: string, password: string): Promise<Participant> {
+    const res = await this.request(
+      '/api/auth/login',
+      z.object({ token: z.string(), participant: Participant }),
+      { method: 'POST', body: JSON.stringify({ email, password }) },
+    );
+    return this.adopt(res);
+  }
+
+  /** Ask for a reset code. Always succeeds, account or not. */
+  async startPasswordReset(email: string): Promise<ChallengeAccepted> {
+    return this.request('/api/auth/password/forgot', ChallengeAccepted, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /** Set a new password with a code, and sign in with it. */
+  async resetPassword(body: {
+    challengeId: string;
+    code: string;
+    password: string;
+  }): Promise<Participant> {
+    const res = await this.request(
+      '/api/auth/password/reset',
+      z.object({ token: z.string(), participant: Participant }),
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+    return this.adopt(res);
   }
 
   /** Rename in place: same participant, same sessions, same bearer. */

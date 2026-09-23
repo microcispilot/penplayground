@@ -3,7 +3,7 @@ import { planIncludes } from '@pen/contracts';
 import { Chip, cn, Skeleton, useToast } from '@pen/design';
 import { ArrowRight, Mic, Search, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, type SessionRecord } from '../api/client.js';
 import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
@@ -524,6 +524,31 @@ function SectionBand({ children }: { children: ReactNode }) {
   return (
     <div className="mb-7 flex flex-wrap items-center gap-3" data-testid="section-band">
       {children}
+      {/*
+        The legal line, and nothing else.
+        
+        The pane that used to sit here carried the mark, Pricing, Your sessions
+        and Privacy choices as well, and the owner asked for it gone: every one
+        of those is a sidebar row two inches to the left, so it was a second
+        copy of the navigation stuck to the bottom of the page.
+        
+        What is left is `lg:hidden` and was never part of what they saw. Above
+        1024 px the sidebar's own footer says these three; below it the sidebar
+        is a *closed* drawer, so without this Terms would be unreachable from
+        Home — and Terms is where the AI disclosure is stated. Removing the
+        whole footer did exactly that, and `shell.spec.ts` caught it.
+      */}
+      <footer className="lg:hidden">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-5 gap-y-2 px-6 pt-4 pb-10 text-body-medium text-on-surface-dim">
+          <NavLink to="/terms" className="hover:text-on-surface">
+            Terms
+          </NavLink>
+          <NavLink to="/privacy" className="hover:text-on-surface">
+            Privacy
+          </NavLink>
+          <span>© 2026 Microcis</span>
+        </div>
+      </footer>
     </div>
   );
 }

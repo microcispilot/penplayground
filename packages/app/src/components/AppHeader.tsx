@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useApp } from '../lib/context.js';
 import { isDarkTheme, useTheme } from '../lib/theme.js';
-import { NameDialog } from './NameDialog.js';
+import { AuthDialog } from './AuthDialog.js';
 
 /**
  * The header's primary links, as M3 navigation items: a filled pill when the
@@ -158,7 +158,10 @@ export function AppHeader({
           <button
             type="button"
             className="state-layer ml-1 flex h-9 items-center gap-2 rounded-full py-1 pr-3 pl-1 text-label-large text-on-surface"
-            onClick={() => setNaming(true)}
+            // Signed in, this is a way to your account, not a dialog: the
+            // things it used to open — your name, your plan, privacy, delete —
+            // are a page now.
+            onClick={() => navigate('/account')}
             aria-label={`Your account, ${participant.name}`}
             data-testid="account-chip"
           >
@@ -182,7 +185,7 @@ export function AppHeader({
             Sign in
           </button>
         )}
-        <NameDialog open={naming} onClose={() => setNaming(false)} />
+        <AuthDialog open={naming} onClose={() => setNaming(false)} />
       </div>
     </header>
   );

@@ -189,9 +189,17 @@ test.describe('the app shell', () => {
     await expect(page.getByTestId('sidebar-footer')).toBeVisible();
     for (const text of ['Terms', 'Privacy', '© 2026 Microcis'])
       await expect(onScreen(text), text).toHaveCount(1);
-    // Home's own footer stays, with what the sidebar does not carry.
-    await expect(page.getByRole('button', { name: 'Privacy choices' })).toBeVisible();
-    await expect(onScreen('Pricing')).toHaveCount(2); // a sidebar row and a footer link
+    /*
+     * Home's bottom pane is gone above 1024 px, and that is the point.
+     *
+     * It used to repeat the mark, Pricing, Your sessions and Privacy choices —
+     * every one of them a sidebar row two inches to the left. Pricing is now
+     * said once, by the sidebar. What survives is the legal line below, which
+     * is `lg:hidden` and exists because at phone width the sidebar is a
+     * *closed* drawer and Terms would otherwise be unreachable from Home.
+     */
+    await expect(onScreen('Pricing')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Privacy choices' })).toHaveCount(0);
 
     // 1024 px is exactly where the shell's sidebar appears, so it is the edge to check.
     await page.setViewportSize({ width: 1024, height: 800 });
@@ -294,7 +302,20 @@ test.describe('the app shell', () => {
     await expect(page.getByTestId('sidebar-signin')).toHaveCount(0);
     await expect(page.getByTestId('account-chip')).toHaveText('Sign in');
     await page.getByTestId('account-chip').click();
-    await expect(page.getByLabel('Display name')).toBeVisible();
+    /*
+     * Sign in opens a sign-in.
+     *
+     * This used to assert a "Display name" field, because the button opened a
+     * sheet titled "How should we call you?" — a rename form with the actual
+     * sign-in buried underneath it. Naming yourself is not signing in, and the
+     * two are separate now: this is email, password and Google, and everything
+     * about an existing account lives on /account.
+     */
+    await expect(page.getByTestId('auth-email')).toBeVisible();
+    await expect(page.getByTestId('auth-password')).toBeVisible();
+    await expect(page.getByTestId('auth-to-forgot')).toBeVisible();
+    await expect(page.getByTestId('auth-to-signup')).toBeVisible();
+    await expect(page.getByLabel('Display name')).toHaveCount(0);
     await page.keyboard.press('Escape');
   });
 
