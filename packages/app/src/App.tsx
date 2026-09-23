@@ -11,6 +11,7 @@ import { RouteHead, setSeoBasePath } from './lib/seo.js';
 import { BoardAttributes } from './lib/use-board.js';
 import { noteScreen } from './lib/visits.js';
 import type { Platform } from './platform/types.js';
+import { Account } from './screens/Account.js';
 import { Experts } from './screens/Experts.js';
 import { Home } from './screens/Home.js';
 import { Library } from './screens/Library.js';
@@ -68,6 +69,7 @@ function screenOf(pathname: string): string {
   if (pathname === '/sessions') return 'library';
   if (pathname === '/pricing') return 'pricing';
   if (pathname === '/settings') return 'settings';
+  if (pathname === '/account') return 'account';
   if (pathname === '/experts') return 'experts';
   if (pathname === '/history') return 'history';
   if (pathname === '/saved') return 'saved';
@@ -179,6 +181,7 @@ export function PenApp({ platform }: { platform: Platform }) {
                 <Route path="/rooms" element={<RoomsScreen />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/account" element={<Account />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="*" element={<NotFound />} />
