@@ -6,6 +6,7 @@ import { ApiError } from '../api/client.js';
 import { markStartClicked } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useSeo } from '../lib/seo.js';
+import { pickTopicExample } from '../lib/topic-examples.js';
 
 /**
  * A dead end is still an invitation: the mark, one plain sentence about what
@@ -22,6 +23,8 @@ export function NotFound() {
   const { api, participant } = useApp();
   const [topic, setTopic] = useState('');
   const [starting, setStarting] = useState(false);
+  // Once per mount, from the same curated list Home draws from.
+  const [example] = useState(pickTopicExample);
   useSeo({
     title: 'Page not found',
     description: 'That page is not here — start a session on any topic instead.',
@@ -50,7 +53,7 @@ export function NotFound() {
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden px-6 py-16">
       <div className="flex w-full max-w-[560px] flex-col items-center text-center">
-        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-lg-increased bg-surface-container text-on-surface shadow-level2">
+        <span className="animate-rise mb-6 grid size-14 place-items-center rounded-lg-increased border border-outline-variant bg-surface-container text-on-surface">
           <PenMark size={28} />
         </span>
         <h1
@@ -68,9 +71,16 @@ export function NotFound() {
         </p>
 
         <form
+          /*
+           * The same matte field as Home's, for the same reason: flat, with a
+           * hairline for an edge and a thicker hairline for focus. This one
+           * was the more dimensional of the two — level 2 lifting to level 3,
+           * *and* a two-pixel `primary` ring on focus, which is the shape of a
+           * validation error on a field that has done nothing wrong.
+           */
           className={cn(
-            'animate-rise mt-8 flex min-h-[58px] w-full items-center gap-1 rounded-lg-increased bg-surface-container p-2 pl-4 shadow-level2 transition-shadow duration-[var(--duration-base)]',
-            'focus-within:shadow-[var(--shadow-level3),0_0_0_2px_var(--color-primary)]',
+            'animate-rise mt-8 flex min-h-[58px] w-full items-center gap-1 rounded-lg-increased border border-outline-variant bg-surface-container p-2 pl-4 transition-colors duration-[var(--duration-base)]',
+            'focus-within:border-outline',
           )}
           style={{ animationDelay: '180ms' }}
           onSubmit={(e) => void start(e)}
@@ -78,7 +88,7 @@ export function NotFound() {
           <Search size={18} className="shrink-0 text-on-surface-dim" aria-hidden />
           <input
             className="h-11 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface caret-primary outline-none placeholder:text-on-surface-dim"
-            placeholder="Fundamentals of music theory"
+            placeholder={example}
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             aria-label="What do you want to learn?"

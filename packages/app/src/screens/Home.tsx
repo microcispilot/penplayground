@@ -10,6 +10,7 @@ import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
 import { markStartClicked } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
+import { pickTopicExample } from '../lib/topic-examples.js';
 
 /**
  * How many faces the row carries before it hands over to the Experts page.
@@ -83,6 +84,8 @@ export function Home() {
   const setCategory = (next: string) => setParams(next === 'all' ? {} : { topic: next });
   /** Today's allowance, so the page can say what is left before anyone clicks Start. */
   const [usage, setUsage] = useState<PlanUsage | null>(null);
+  // Once per mount. See the placeholder below for why this is not a plain call.
+  const [example] = useState(pickTopicExample);
   const [privacyOpen, setPrivacyOpen] = useState(false);
 
   useEffect(() => {
@@ -254,17 +257,34 @@ export function Home() {
 
           <form
             className={cn(
-              // M3's search bar: `corner-full` on `surface-container-high`, lifted by
-              // elevation level 1 rather than by a wash.
-              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-xl-increased bg-surface-container-high p-2 pl-5 text-left shadow-level1 transition-shadow duration-[var(--duration-base)]',
-              // Focus lifts the bar and draws a hairline, and does **not**
-              // ring it in the brand. Two pixels of `primary` around a 64 px
-              // pill is the shape of a validation error, and the field is
-              // focused the moment the page opens — so the first thing a
-              // visitor saw was their search box outlined in red for no
-              // reason. `outline` is neutral and clears 3:1 on this surface,
-              // which is what a focus indicator owes (WCAG 1.4.11).
-              'focus-within:shadow-[var(--shadow-level2),0_0_0_1px_var(--color-outline)]',
+              /*
+               * M3's search bar shape — `corner-full` on
+               * `surface-container-high` — drawn flat.
+               *
+               * It used to sit on elevation level 1 and lift to level 2 on
+               * focus. The owner: *"this search box is too much stand out. I
+               * don't like things that are looking 3d. I like matte."* Two
+               * stacked shadows under a 64 px pill is the most dimensional
+               * thing on the page, and it is the first thing a visitor looks
+               * at, so the page read as though the field were floating above
+               * it.
+               *
+               * The edge is a hairline instead. Nothing here casts a shadow
+               * now: the bar is told from the page by its tone and its
+               * border, which is what matte means.
+               */
+              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-xl-increased border border-outline-variant bg-surface-container-high p-2 pl-5 text-left transition-colors duration-[var(--duration-base)]',
+              /*
+               * Focus thickens the same edge rather than adding a second
+               * thing. It is deliberately **not** the brand: two pixels of
+               * `primary` around this pill is the shape of a validation
+               * error, and the field is focused the moment the page opens —
+               * so the first thing a visitor saw was their search box
+               * outlined in red for no reason. `outline` is neutral and
+               * clears 3:1 on this surface, which is what a focus indicator
+               * owes (WCAG 1.4.11).
+               */
+              'focus-within:border-outline',
             )}
             style={{ animationDelay: '160ms' }}
             onSubmit={(e) => {
@@ -298,28 +318,19 @@ export function Home() {
               ref={inputRef}
               className="h-12 min-w-0 flex-1 bg-transparent px-3 text-body-large text-on-surface outline-none placeholder:text-on-surface-dim caret-primary"
               /*
-               * The example is the thing itself, written the way a person
-               * would write it: no "Try", no quotation marks around it. A
-               * placeholder that quotes its example is holding it at arm's
-               * length — the field should read as though the topic is
-               * already in it.
+               * One of `TOPIC_EXAMPLES`, chosen once per visit. The rules the
+               * list is curated to — a subject rather than a question, no
+               * quotation marks, something most people recognise, something
+               * that draws well on a board — live with the list in
+               * `lib/topic-examples.ts`, where a test holds every line to
+               * them.
                *
-               * And it is a *subject*, not a trivia question. This product
-               * teaches a lesson with an expert and a board; "why pi never
-               * ends" invited a single answer, which set the wrong
-               * expectation about what is on the other side of Start. A
-               * noun phrase — capitalised, no question mark, because it is
-               * not a question — says "teach me this" instead.
-               *
-               * It also has to be a subject *most* people recognise. It was
-               * "how Transformers work in LLMs", the product's own seeded
-               * demo, which reads to almost everybody as jargon they are
-               * not the audience for. Music theory is the opposite: nearly
-               * everyone has wanted it at some point, it is unmistakably
-               * something you learn rather than look up, and it draws well
-               * on a board.
+               * Picked in `useState`'s initialiser, not in the body: a bare
+               * `pickTopicExample()` call here would re-roll on every render,
+               * so the example would flicker to a different subject on each
+               * keystroke in a *different* field on the page.
                */
-              placeholder="Fundamentals of music theory"
+              placeholder={example}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="What do you want to learn?"
