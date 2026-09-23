@@ -121,6 +121,69 @@ export class FallbackFont implements GlyphSource {
   }
 }
 
+/**
+ * Two fonts, one hand: the primary for every glyph it has, a second for the
+ * rest.
+ *
+ * Eraser is the board's hand and it has 100 glyphs. It has no `<`, `>`, `[`,
+ * `]`, `}`, `\u00d7`, `\u00f7`, `\u2192`, `\u00b0`, `\u2026` and no accented letters — and this
+ * product teaches maths and renders code, so it meets all of them. Without a
+ * fallback each one draws as `.notdef`, which on a board is a blank or a box
+ * in the middle of an equation. The owner: *"use another font for things it's
+ * not able to handle."*
+ *
+ * CSS does this per glyph automatically; outlines do not, because the board
+ * takes its glyphs from parsed font bytes rather than from the cascade. So the
+ * cascade is reproduced here, deliberately and in one place.
+ *
+ * Two details that are easy to get wrong:
+ *
+ *   **Metrics come from the primary, always.** Ascent and descent set the
+ *   baseline grid for the whole line; taking them per glyph would make a line
+ *   containing one `\u2192` sit differently from the line above it.
+ *
+ *   **Kerning only applies within one font.** A kerning pair is a fact about
+ *   two glyphs in the same design; asking Eraser how it kerns against a Caveat
+ *   bracket is meaningless, and opentype would answer 0 anyway. Returning 0
+ *   explicitly says so rather than relying on that.
+ */
+export class LayeredFont implements GlyphSource {
+  constructor(
+    private readonly primary: GlyphSource,
+    private readonly fallback: GlyphSource,
+  ) {}
+
+  get ascent(): number {
+    return this.primary.ascent;
+  }
+
+  get descent(): number {
+    return this.primary.descent;
+  }
+
+  /** Whichever font actually draws this character. */
+  private source(ch: string): GlyphSource {
+    return this.primary.has(ch) ? this.primary : this.fallback;
+  }
+
+  has(ch: string): boolean {
+    return this.primary.has(ch) || this.fallback.has(ch);
+  }
+
+  advance(ch: string, fontSize: number): number {
+    return this.source(ch).advance(ch, fontSize);
+  }
+
+  kerning(prev: string, ch: string, fontSize: number): number {
+    const a = this.source(prev);
+    return a === this.source(ch) ? a.kerning(prev, ch, fontSize) : 0;
+  }
+
+  path(ch: string, x: number, baselineY: number, fontSize: number): string {
+    return this.source(ch).path(ch, x, baselineY, fontSize);
+  }
+}
+
 export function parseHandFont(bytes: ArrayBuffer | Uint8Array): HandFont {
   const buffer =
     bytes instanceof Uint8Array
@@ -130,15 +193,17 @@ export function parseHandFont(bytes: ArrayBuffer | Uint8Array): HandFont {
   return new HandFont(parseFont(buffer as ArrayBuffer));
 }
 
-let current: HandFont | null = null;
-let pending: Promise<HandFont> | null = null;
-const waiters: Array<(f: HandFont) => void> = [];
+// A `GlyphSource`, not a `HandFont`: once a fallback is supplied this holds a
+// `LayeredFont`, and every consumer only ever asked for the interface.
+let current: GlyphSource | null = null;
+let pending: Promise<GlyphSource> | null = null;
+const waiters: Array<(f: GlyphSource) => void> = [];
 
-export function getHandFont(): HandFont | null {
+export function getHandFont(): GlyphSource | null {
   return current;
 }
 
-export function setHandFont(font: HandFont | null): void {
+export function setHandFont(font: GlyphSource | null): void {
   current = font;
   if (font) {
     const list = waiters.splice(0, waiters.length);
@@ -147,10 +212,10 @@ export function setHandFont(font: HandFont | null): void {
 }
 
 /** Resolves as soon as a hand font is available (immediately if it already is). */
-export function whenHandFont(): Promise<HandFont> {
+export function whenHandFont(): Promise<GlyphSource> {
   if (current) return Promise.resolve(current);
   if (pending) return pending;
-  return new Promise<HandFont>((resolve) => waiters.push(resolve));
+  return new Promise<GlyphSource>((resolve) => waiters.push(resolve));
 }
 
 /**
@@ -158,12 +223,27 @@ export function whenHandFont(): Promise<HandFont> {
  * memo so the next call retries (a network blip must not kill handwriting for
  * the whole session).
  */
-export function loadHandFont(loader: () => Promise<ArrayBuffer>): Promise<HandFont> {
+export function loadHandFont(
+  loader: () => Promise<ArrayBuffer>,
+  /**
+   * Bytes for the glyphs the primary lacks. Optional, and a failure here is
+   * not a failure: a board in one font with a few blanks is still a lesson,
+   * where no board at all is not. So the fallback is awaited but never allowed
+   * to reject the primary.
+   */
+  fallbackLoader?: () => Promise<ArrayBuffer>,
+): Promise<GlyphSource> {
   if (current) return Promise.resolve(current);
   if (pending) return pending;
   pending = loader()
-    .then((bytes) => {
-      const font = parseHandFont(bytes);
+    .then(async (bytes) => {
+      const primary = parseHandFont(bytes);
+      const second = fallbackLoader
+        ? await fallbackLoader()
+            .then((b) => parseHandFont(b))
+            .catch(() => null)
+        : null;
+      const font = second ? new LayeredFont(primary, second) : primary;
       pending = null;
       setHandFont(font);
       return font;

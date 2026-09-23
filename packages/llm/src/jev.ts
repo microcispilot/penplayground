@@ -127,6 +127,35 @@ export interface JevDecisionsOptions {
 
 export const JEV_DEFAULT_BASE_URL = 'https://openrouter.ai/api/alpha/decisions';
 
+/**
+ * TypeSafe's own endpoint, which is where Jev actually lives.
+ *
+ * The wire is the same one this adapter already spoke — `{ model, state,
+ * questions: { name: { type, instructions, criteria } } }` in, `{ model,
+ * answers, usage }` back — so reaching it took a constant rather than a second
+ * adapter. That is the seam paying off.
+ *
+ * Two differences from the gateway, both confirmed against the live endpoint
+ * on 2026-09-22 rather than assumed:
+ *
+ *   **The model id is `jev-latest`, and only that.** `typesafe/jev-1.13` and
+ *   `jev-1.13` are both refused with `400 Unknown model`. This is the exact
+ *   mirror of OpenRouter, which refuses `typesafe/jev-latest` and wants
+ *   `typesafe/jev-1.13` — so the id belongs to the route, not to the model,
+ *   and the two must never be swapped independently. The response reports
+ *   `jev-1.13.0`, i.e. the same weights either way.
+ *
+ *   **No `usage.cost`.** The gateway returned one and we cross-checked our
+ *   table against it; here the table is the only source. It is the same rate
+ *   (`INTENT_PRICING_PER_M_INPUT`), so the ledger does not move.
+ *
+ * Measured: 276 ms for a four-option classification, 398 input tokens.
+ */
+export const TYPESAFE_DIRECT_BASE_URL = 'https://api.typesafe.ai/v1/systemone';
+
+/** The only id TypeSafe's own endpoint accepts. See above. */
+export const TYPESAFE_DIRECT_MODEL = 'jev-latest';
+
 export class JevDecisionsModel implements DecisionsModel {
   readonly id: string;
   private readonly meter: CostMeter;

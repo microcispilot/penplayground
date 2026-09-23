@@ -1,4 +1,4 @@
-import { JevDecisionsModel } from '@pen/llm';
+import { JevDecisionsModel, TYPESAFE_DIRECT_BASE_URL, TYPESAFE_DIRECT_MODEL } from '@pen/llm';
 import {
   classifyLocally,
   INTENT_MIN_CONFIDENCE,
@@ -52,12 +52,20 @@ const pad = (s: string, n: number) => s.padEnd(n).slice(0, n);
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  if (!cfg.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not set');
+  // The same route the room picks (`src/intent.ts`): TypeSafe's own endpoint
+  // when we have its key, the gateway otherwise. A probe that always went
+  // through the gateway would be measuring a path production no longer takes.
+  const direct = cfg.PEN_TYPESAFE_API_KEY;
+  const apiKey = direct ?? cfg.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('set PEN_TYPESAFE_API_KEY or OPENROUTER_API_KEY');
+  const model = direct ? TYPESAFE_DIRECT_MODEL : cfg.PEN_INTENT_MODEL;
+  const route = direct ? 'typesafe direct' : 'openrouter';
   const classifier = new JevIntentClassifier({
     decisions: new JevDecisionsModel({
-      apiKey: cfg.OPENROUTER_API_KEY,
-      model: cfg.PEN_INTENT_MODEL,
+      apiKey,
+      model,
       timeoutMs: INTENT_TIMEOUT_MS,
+      ...(direct ? { baseUrl: TYPESAFE_DIRECT_BASE_URL } : {}),
       // Only here. In a session a refusal is a status code and nothing else,
       // because the gateway may quote our request — and our request carries
       // what the learner said. These sentences are the operator's own.
@@ -65,7 +73,7 @@ async function main(): Promise<void> {
     }),
   });
   console.log(
-    `model ${cfg.PEN_INTENT_MODEL} · timeout ${INTENT_TIMEOUT_MS} ms · acts at confidence ≥ ${INTENT_MIN_CONFIDENCE}\n`,
+    `model ${model} · via ${route} · timeout ${INTENT_TIMEOUT_MS} ms · acts at confidence ≥ ${INTENT_MIN_CONFIDENCE}\n`,
   );
   console.log(
     `${pad('utterance', 52)} ${pad('local', 12)} ${pad('jev', 12)} ${pad('command', 8)} ${pad('conf', 5)} ${pad('ms', 5)} usd`,

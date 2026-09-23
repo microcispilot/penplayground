@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lt, lte, or } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { type ParticipantRow, participants, sessions } from './schema.js';
 
@@ -44,6 +44,34 @@ export class ParticipantRepository {
       .where(eq(participants.googleSub, googleSub))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * Every account with this email address.
+   *
+   * A list, not a row, and that is the point: nothing here enforces one
+   * account per address. Google's flow keys on `googleSub`, and an address can
+   * legitimately appear on more than one row. A caller that needs *the*
+   * account has to decide what to do about two, rather than be handed the
+   * first one silently.
+   */
+  async findByEmail(email: string): Promise<ParticipantRow[]> {
+    return this.db.select().from(participants).where(eq(participants.email, email));
+  }
+
+  /**
+   * Accounts that have an email, most recently seen first — enough to find one
+   * by eye from an operator script. Anonymous rows are excluded: there are
+   * orders of magnitude more of them and none of them is who you are looking
+   * for.
+   */
+  async recentAccounts(limit = 40): Promise<ParticipantRow[]> {
+    return this.db
+      .select()
+      .from(participants)
+      .where(isNotNull(participants.email))
+      .orderBy(desc(participants.lastSeenAt))
+      .limit(limit);
   }
 
   async rename(id: string, name: string): Promise<ParticipantRow | null> {

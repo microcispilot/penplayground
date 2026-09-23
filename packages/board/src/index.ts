@@ -33,6 +33,7 @@ export {
   type GlyphSource,
   getHandFont,
   HandFont,
+  LayeredFont,
   loadHandFont,
   parseHandFont,
   setHandFont,

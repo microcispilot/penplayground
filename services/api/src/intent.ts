@@ -1,4 +1,9 @@
-import { type CostMeter, JevDecisionsModel } from '@pen/llm';
+import {
+  type CostMeter,
+  JevDecisionsModel,
+  TYPESAFE_DIRECT_BASE_URL,
+  TYPESAFE_DIRECT_MODEL,
+} from '@pen/llm';
 import { INTENT_TIMEOUT_MS, type IntentClassifier, JevIntentClassifier } from '@pen/session-engine';
 import type { Config } from './config.js';
 import { logger } from './logger.js';
@@ -34,29 +39,45 @@ export function createIntentClassifier(
   return () => {
     const provider = config.get('PEN_INTENT_PROVIDER');
     if (provider === 'model') return null;
-    if (!cfg.OPENROUTER_API_KEY) {
+    /*
+     * TypeSafe's own endpoint when we have TypeSafe's own key, the gateway
+     * otherwise. Direct wins when both are set: OpenRouter only ever existed
+     * to reach this model, so going through it is a hop and a markup for
+     * nothing.
+     *
+     * The id travels with the route rather than with the model — TypeSafe
+     * refuses `typesafe/jev-1.13` and OpenRouter refuses `jev-latest`, both
+     * with a 400 — so `PEN_INTENT_MODEL` is honoured only on the gateway path.
+     * Letting an operator point a pinned gateway id at TypeSafe would be a
+     * setting that reads as configured and fails every call.
+     */
+    const direct = cfg.PEN_TYPESAFE_API_KEY;
+    const apiKey = direct ?? cfg.OPENROUTER_API_KEY;
+    if (!apiKey) {
       if (!warnedAboutKey) {
         warnedAboutKey = true;
         logger.warn(
           { evt: 'intent.no_key' },
-          'PEN_INTENT_PROVIDER=jev has no OPENROUTER_API_KEY; rooms classify with the session model',
+          'PEN_INTENT_PROVIDER=jev has no PEN_TYPESAFE_API_KEY or OPENROUTER_API_KEY; rooms classify with the session model',
         );
       }
       return null;
     }
-    const model = config.get('PEN_INTENT_MODEL');
-    const cacheId = `${provider}:${model}`;
+    const model = direct ? TYPESAFE_DIRECT_MODEL : config.get('PEN_INTENT_MODEL');
+    const route = direct ? 'typesafe' : 'openrouter';
+    const cacheId = `${provider}:${route}:${model}`;
     const cached = built.get(cacheId);
     if (cached !== undefined) return cached;
     logger.info(
-      { evt: 'intent.provider', model, timeoutMs: INTENT_TIMEOUT_MS },
+      { evt: 'intent.provider', model, route, timeoutMs: INTENT_TIMEOUT_MS },
       'intent classified by a hosted decisions model; the session model stays as the fallback',
     );
     const classifier = new JevIntentClassifier({
       decisions: new JevDecisionsModel({
-        apiKey: cfg.OPENROUTER_API_KEY,
+        apiKey,
         model,
         timeoutMs: INTENT_TIMEOUT_MS,
+        ...(direct ? { baseUrl: TYPESAFE_DIRECT_BASE_URL } : {}),
         ...(meter ? { meter } : {}),
       }),
     });

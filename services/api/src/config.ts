@@ -74,6 +74,22 @@ export const Env = z.object({
    * (spend attribution and rate limits both depend on that separation).
    */
   OPENROUTER_API_KEY: z.string().optional(),
+  /**
+   * TypeSafe's own key, for TypeSafe's own endpoint.
+   *
+   * When it is set the room talks to `api.typesafe.ai` directly and
+   * `OPENROUTER_API_KEY` is not used for intent at all — one hop fewer, one
+   * account fewer, and the gateway's markup gone. It wins over the gateway
+   * when both are present, because the gateway only ever existed to reach this
+   * model.
+   *
+   * The model id changes with the route (`TYPESAFE_DIRECT_MODEL`, and the
+   * comment there says why), which is why `PEN_INTENT_MODEL` is not consulted
+   * on the direct path: pointing a pinned OpenRouter id at TypeSafe is a 400,
+   * and the one place that pairing can be got right is where the route is
+   * chosen.
+   */
+  PEN_TYPESAFE_API_KEY: z.string().optional(),
 
   PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
   FISH_AUDIO_API_KEY: z.string().optional(),

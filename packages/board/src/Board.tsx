@@ -1,5 +1,6 @@
 import 'tldraw/tldraw.css';
 import './styles/board.css';
+import fallbackUrl from '@fontsource/caveat/files/caveat-latin-400-normal.woff?url';
 import type { BoardExecuteOptions, BoardExecution, BoardPort } from '@pen/conductor';
 import type { BoardEvent, NoteEvent } from '@pen/contracts';
 import handUrl from '@pen/design/fonts/eraser-regular.woff?url';
@@ -150,9 +151,18 @@ export function Board({
    */
   useEffect(() => {
     const url = fontUrl ?? handUrl;
-    loadHandFont(() =>
-      fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`)))),
-    ).catch((err: unknown) => {
+    const bytes = (u: string) => () =>
+      fetch(u).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))));
+    /*
+     * Eraser first, Caveat for the glyphs it does not have.
+     *
+     * Eraser has 100 of them — no `<`, `>`, `[`, `]`, `}`, no arrows, degrees
+     * or accents — and a lesson about maths or code meets every one. CSS falls
+     * back per glyph on its own; outlines do not, so `LayeredFont` does it
+     * here, and a missing character is a Caveat character rather than a blank
+     * in the middle of an equation.
+     */
+    loadHandFont(bytes(url), bytes(fallbackUrl)).catch((err: unknown) => {
       onWarningRef.current?.({
         code: 'font-unavailable',
         message: `hand font failed to load: ${err instanceof Error ? err.message : String(err)}`,

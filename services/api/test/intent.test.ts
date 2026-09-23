@@ -94,3 +94,39 @@ describe('the hosted intent classifier', () => {
     expect(intentFor()).toBe(before);
   });
 });
+
+/**
+ * Which endpoint the room actually talks to.
+ *
+ * The model id belongs to the *route*, not to the model, and that is the whole
+ * reason this is tested rather than left to a comment: TypeSafe refuses
+ * `typesafe/jev-1.13` and OpenRouter refuses `jev-latest`, both with a 400, so
+ * a build that picks one key and the other id is configured, looks configured,
+ * and fails every classification — silently, because intent falls back to the
+ * session model on any error.
+ */
+describe('the route to Jev', () => {
+  it('prefers TypeSafe direct when its key is present, and uses its own id', () => {
+    const { intentFor } = factory({
+      PEN_TYPESAFE_API_KEY: 'ts-key',
+      OPENROUTER_API_KEY: 'or-key',
+      PEN_INTENT_MODEL: 'typesafe/jev-1.13',
+    });
+    const classifier = intentFor();
+    expect(classifier).not.toBeNull();
+    // The gateway's pinned id must NOT have followed us to TypeSafe.
+    expect(classifier?.id).toBe('jev-latest');
+  });
+
+  it('falls back to the gateway, with the gateway\u2019s pinned id', () => {
+    const { intentFor } = factory({
+      OPENROUTER_API_KEY: 'or-key',
+      PEN_INTENT_MODEL: 'typesafe/jev-1.13',
+    });
+    expect(intentFor()?.id).toBe('typesafe/jev-1.13');
+  });
+
+  it('classifies with the session model when neither key is set', () => {
+    expect(factory().intentFor()).toBeNull();
+  });
+});

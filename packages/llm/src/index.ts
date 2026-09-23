@@ -11,6 +11,8 @@ export {
   JEV_DEFAULT_BASE_URL,
   JevDecisionsModel,
   type JevDecisionsOptions,
+  TYPESAFE_DIRECT_BASE_URL,
+  TYPESAFE_DIRECT_MODEL,
 } from './jev.js';
 export { ModelEnvelope, ModelEvent } from './model-schema.js';
 export { OpenAILanguageModel, type OpenAIModelOptions } from './openai.js';

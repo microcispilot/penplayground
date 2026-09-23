@@ -204,6 +204,7 @@ export const NOT_SETTINGS = {
   OPENAI_API_KEY_PROFESSIONAL: 'secret',
   OPENAI_API_KEY_PLATFORM: 'secret',
   OPENROUTER_API_KEY: 'secret',
+  PEN_TYPESAFE_API_KEY: 'secret',
   FISH_AUDIO_API_KEY: 'secret',
   DEEPGRAM_API_KEY: 'secret',
   ASSEMBLYAI_API_KEY: 'secret',

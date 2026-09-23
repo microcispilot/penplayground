@@ -84,6 +84,13 @@ export function llmCostLines(
  */
 export const INTENT_PRICING_PER_M_INPUT: Record<string, number> = {
   'typesafe/jev-1.13': 0.042,
+  // The same weights reached without the gateway: TypeSafe's own endpoint
+  // takes `jev-latest` and answers `jev-1.13.0`. Listed rather than left to
+  // the fallback so the route is visible in the table, and priced the same
+  // because it is the same model — the direct call reports no `usage.cost` of
+  // its own, so this table is the only source on that path.
+  'jev-latest': 0.042,
+  'jev-1.13.0': 0.042,
 };
 /** Unknown decision models are priced like Jev so a pinned-version bump never hides spend. */
 export const INTENT_PRICING_FALLBACK = 'typesafe/jev-1.13';
