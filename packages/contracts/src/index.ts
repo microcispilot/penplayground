@@ -1,6 +1,7 @@
 export * from './ads.js';
 export * from './audio-frame.js';
 export * from './billing.js';
+export * from './board-backgrounds.js';
 export * from './constants.js';
 export * from './cues.js';
 export * from './expert.js';

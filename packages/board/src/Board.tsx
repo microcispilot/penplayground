@@ -13,7 +13,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { type Editor, type TLComponents, type TLGridProps, Tldraw, useEditor } from 'tldraw';
+import { type Editor, type TLComponents, Tldraw, useEditor } from 'tldraw';
 import { CameraDirector } from './camera.js';
 import { BoardExecutor, type BoardWarning } from './executor.js';
 import { loadHandFont } from './font.js';
@@ -57,36 +57,41 @@ export interface BoardController extends BoardPort {
   exportPng(opts?: ExportPngOptions): Promise<Blob | null>;
 }
 
-const GRID = 26;
+/*
+ * There is no grid any more.
+ *
+ * The board used to be dotted paper — a 26 px camera-space pattern of dots
+ * drawn from `--color-paper-grid`. The owner asked for the opposite: *"the
+ * board should have a real board like background not with dots."* A real
+ * board has no dots on it; what it has is a surface, and that is now the
+ * grain and the uneven wipe in `board.css`.
+ *
+ * `--color-paper-grid` survives, because it was never only the dots — the
+ * markdown block still rules `<hr>`, `<pre>` and table cells with it.
+ */
 
-/** Camera-space dotted grid, 26 px at zoom 1, drawn from the paper-grid token. */
-function PaperGrid({ x, y, z }: TLGridProps) {
-  const s = GRID * z;
-  const xo = 0.5 + x * z;
-  const yo = 0.5 + y * z;
-  const gx = xo > 0 ? xo % s : s + (xo % s);
-  const gy = yo > 0 ? yo % s : s + (yo % s);
-  const r = Math.max(0.7, Math.min(1.6, 1.1 * z));
-  return (
-    <svg className="pen-board__grid" aria-hidden="true">
-      <defs>
-        <pattern id="pen-paper-grid" width={s} height={s} patternUnits="userSpaceOnUse">
-          <circle className="pen-board__grid-dot" cx={gx} cy={gy} r={r} />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#pen-paper-grid)" />
-    </svg>
-  );
-}
-
+/*
+ * The writing surface.
+ *
+ * Three layers, and the two extra ones are why this stopped being a flat
+ * colour: the grain is a fractal-noise overlay at `--board-grain`, and the
+ * wipe is the uneven brightness of a board that has been cleaned a thousand
+ * times. Both are pure CSS on pseudo-elements, so they cost no DOM and scale
+ * with the element rather than with the camera — a texture that zoomed with
+ * the canvas would swim under the ink.
+ *
+ * The frame and the chalk tray are deliberately NOT here. They live outside
+ * the board in the app's own chrome, because `editor.toImage` rasterises this
+ * element and the owner asked for exports to come out clean: a thumbnail grid
+ * of framed pictures is a grid of picture frames.
+ */
 function PaperBackground() {
-  return <div className="tl-background pen-board__paper" />;
+  return <div className="tl-background pen-board__paper" aria-hidden="true" />;
 }
 
 /** Paper background and grid; no collaborator cursors, no UI panels (hideUi covers the rest). */
 const components: TLComponents = {
   Background: PaperBackground,
-  Grid: PaperGrid,
   CollaboratorCursor: null,
   InFrontOfTheCanvas: null,
   ContextMenu: null,
@@ -160,7 +165,8 @@ export function Board({
 
   const handleMount = useCallback(
     (editor: Editor) => {
-      editor.updateInstanceState({ isGridMode: true, isDebugMode: false, isFocusMode: true });
+      // isGridMode stays off: there is no grid component any more (see PaperBackground).
+      editor.updateInstanceState({ isGridMode: false, isDebugMode: false, isFocusMode: true });
       editor.setCameraOptions({
         isLocked: !interactive,
         wheelBehavior: interactive ? 'pan' : 'none',

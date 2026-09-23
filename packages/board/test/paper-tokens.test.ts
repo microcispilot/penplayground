@@ -3,9 +3,22 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The board is ALWAYS paper (ADR-0007 tokens: --color-paper*, --color-ink*).
- * Theme-flipping tokens would render a dark card with invisible text on the
- * paper in the app's dark theme, so none may appear in board sources.
+ * The board draws from board tokens only — `--color-paper*`, `--color-ink*`
+ * and the `--board-*` set — and never from the app's own surfaces.
+ *
+ * ADR-0007 made this rule when the board was always light paper: a
+ * theme-flipping token would have rendered a dark card with invisible text on
+ * a permanently light sheet. ADR-0034 gave the board five surfaces of its own,
+ * and the rule survives that intact — arguably it matters more now. The board
+ * is a *surface of its own*, chosen by `data-board`, and a page token
+ * borrowed into it would follow the app's theme instead of the board, which is
+ * how a blackboard ends up with a white note card on it.
+ *
+ * `--board-grain`, `--board-dim`, `--board-note`, `--board-marker-blend` and
+ * `--board-code-theme` are deliberately outside `ALLOWED`: that list guards
+ * `--color-*` specifically, which is where the theme-flipping danger lives.
+ * They are asserted below instead, so adding one is a decision rather than an
+ * omission.
  */
 const FORBIDDEN = [
   /--color-bg\b/,
@@ -33,6 +46,19 @@ const ALLOWED = [
   '--color-ink-warn',
   '--color-ink-muted',
   '--color-ink-highlight',
+];
+
+/**
+ * The non-colour board tokens the board sources may ask for. Not colours, so
+ * they carry no theme-flip risk — but they are still the board's vocabulary,
+ * and a new one should be added here on purpose rather than discovered later.
+ */
+const BOARD_TOKENS = [
+  '--board-grain',
+  '--board-dim',
+  '--board-note',
+  '--board-marker-blend',
+  '--board-code-theme',
 ];
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -76,5 +102,19 @@ describe('board sources use only paper tokens', () => {
     }
     const bad = [...used].filter((t) => !ALLOWED.includes(t) && t !== '--color-background');
     expect(bad).toEqual([]);
+  });
+});
+
+describe('the board tokens that are not colours', () => {
+  it('every --board-* the sources use is one this test knows about', () => {
+    const used = new Set<string>();
+    for (const file of walk(join(import.meta.dirname, '..', 'src'))) {
+      for (const [, name] of readFileSync(file, 'utf8').matchAll(/(--board-[a-z-]+)/g)) {
+        if (name) used.add(name);
+      }
+    }
+    // Non-empty, or this is asserting nothing.
+    expect(used.size).toBeGreaterThan(0);
+    for (const name of used) expect(BOARD_TOKENS).toContain(name);
   });
 });

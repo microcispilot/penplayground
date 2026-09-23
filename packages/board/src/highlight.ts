@@ -96,7 +96,32 @@ export function createShikiHighlighter(): CodeHighlighter {
   type Core = Awaited<ReturnType<typeof import('shiki/core')['createHighlighterCore']>>;
   let corePromise: Promise<Core> | null = null;
   const loaded = new Set<string>();
-  let themeFg = '#24292e';
+  /*
+   * Two themes, because the board is no longer always light (ADR-0034).
+   * `github-light` on a blackboard is dark-grey keywords on near-black, which
+   * is a code block nobody can read — and the board cannot re-tint them,
+   * because Shiki emits each token as a literal hex.
+   *
+   * Which one is in use is read from `--board-code-theme`: a number rather
+   * than a colour, because Shiki picks a theme by name and CSS has no way to
+   * hand it one. 1 is dark.
+   */
+  const THEMES = { 0: 'github-light', 1: 'github-dark' } as const;
+  const themeFg: Record<string, string> = {
+    'github-light': '#24292e',
+    'github-dark': '#c9d1d9',
+  };
+
+  /** The Shiki theme the board in use calls for. Light when we cannot tell. */
+  const themeName = (): 'github-light' | 'github-dark' => {
+    if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
+      return THEMES[0];
+    }
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue('--board-code-theme')
+      .trim();
+    return v === '1' ? THEMES[1] : THEMES[0];
+  };
 
   const core = (): Promise<Core> => {
     if (corePromise) return corePromise;
@@ -104,12 +129,15 @@ export function createShikiHighlighter(): CodeHighlighter {
       .then(([shiki, js]) =>
         shiki.createHighlighterCore({
           engine: js.createJavaScriptRegexEngine({ forgiving: true }),
-          themes: [import('shiki/themes/github-light.mjs')],
+          themes: [import('shiki/themes/github-light.mjs'), import('shiki/themes/github-dark.mjs')],
           langs: [],
         }),
       )
       .then((h) => {
-        themeFg = (h.getTheme('github-light').fg ?? themeFg).toLowerCase();
+        for (const name of Object.values(THEMES)) {
+          const fg = h.getTheme(name).fg;
+          if (fg) themeFg[name] = fg.toLowerCase();
+        }
         return h;
       })
       .catch((err: unknown) => {
@@ -131,16 +159,23 @@ export function createShikiHighlighter(): CodeHighlighter {
           await h.loadLanguage(loader() as never);
           loaded.add(id);
         }
-        const tokens = h.codeToTokensBase(code, { lang: id, theme: 'github-light' });
+        const theme = themeName();
+        const tokens = h.codeToTokensBase(code, { lang: id, theme });
         return tokens.map((line) =>
           line.map((tok) => {
             const c = tok.color?.toLowerCase() ?? null;
             const fontStyle = tok.fontStyle ?? 0;
             return {
               t: tok.content,
-              c: c === null || c === themeFg ? null : c,
+              // A token painted the theme's own foreground carries no colour,
+              // so it inherits `--color-ink` and follows the board.
+              c: c === null || c === themeFg[theme] ? null : c,
               b: (fontStyle & 2) !== 0,
-              i: (fontStyle & 1) !== 0,
+              // Bit 1 is italic, and the board has none of it: the owner asked
+              // for no italic anywhere on the board, and a slanted hand face
+              // slanted further is a smear. Comments and keywords keep their
+              // colour and their weight to tell them apart.
+              i: false,
             };
           }),
         );

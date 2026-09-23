@@ -91,8 +91,22 @@ function renderInlines(inlines: readonly MdInline[], budget: Budget): ReactNode[
         out.push(<strong key={i}>{renderInlines(n.children, budget)}</strong>);
         break;
       case 'italic':
-        // biome-ignore lint/suspicious/noArrayIndexKey: inline order is fixed
-        out.push(<em key={i}>{renderInlines(n.children, budget)}</em>);
+        /*
+         * Emphasis, set upright.
+         *
+         * The owner asked for no italic anywhere on the board, and the reason
+         * is visible the moment you try it: the board is written in a hand
+         * face that already slopes, and slanting it again is a smear rather
+         * than an emphasis. `_like this_` still has to read as emphasised, so
+         * it takes the accent ink — which is what a teacher reaching for a
+         * second colour actually does — instead of a slope.
+         */
+        out.push(
+          // biome-ignore lint/suspicious/noArrayIndexKey: inline order is fixed
+          <em key={i} className="pen-md__em">
+            {renderInlines(n.children, budget)}
+          </em>,
+        );
         break;
     }
   });

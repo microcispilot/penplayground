@@ -1,8 +1,15 @@
 import { getStroke } from 'perfect-freehand';
-import { useMemo } from 'react';
+import { type CSSProperties, useMemo } from 'react';
 import { SVGContainer, T, type TLBaseShape } from 'tldraw';
 import { outlineToPath, revealStrokes, type Stroke } from '../primitives.js';
-import { EMPHASIS_VALUES, inkVar, PaperShapeUtil, resolveInk } from './paper-shape.js';
+import {
+  EMPHASIS_VALUES,
+  inkVar,
+  markerBlendVar,
+  PaperShapeUtil,
+  resolveInk,
+  resolveMarkerBlend,
+} from './paper-shape.js';
 import { type InkStrokeProps, SHAPE_TYPE, STROKE_STYLE } from './props.js';
 
 /**
@@ -43,20 +50,42 @@ export class InkStrokeShapeUtil extends PaperShapeUtil<InkStrokeShape> {
   }
 
   override toSvg(shape: InkStrokeShape) {
-    const color = resolveInk(this.editor.getContainer(), shape.props.emphasis);
-    return <StrokePaths props={{ ...shape.props, progress: 1 }} color={color} />;
+    const container = this.editor.getContainer();
+    const color = resolveInk(container, shape.props.emphasis);
+    // Export is rasterised outside the cascade, so the blend is resolved here
+    // the way the colour is. A highlighter that exported with the wrong blend
+    // would paint over the words instead of over the board.
+    return (
+      <StrokePaths
+        props={{ ...shape.props, progress: 1 }}
+        color={color}
+        blend={resolveMarkerBlend(container)}
+      />
+    );
   }
 }
 
 function InkStrokeView({ shape }: { shape: InkStrokeShape }) {
   return (
     <SVGContainer style={{ overflow: 'visible' }}>
-      <StrokePaths props={shape.props} color={inkVar(shape.props.emphasis)} />
+      <StrokePaths
+        props={shape.props}
+        color={inkVar(shape.props.emphasis)}
+        blend={markerBlendVar()}
+      />
     </SVGContainer>
   );
 }
 
-function StrokePaths({ props, color }: { props: InkStrokeProps; color: string }) {
+function StrokePaths({
+  props,
+  color,
+  blend,
+}: {
+  props: InkStrokeProps;
+  color: string;
+  blend: string;
+}) {
   const strokes = props.strokes as Stroke[];
   const paths = useMemo(() => {
     return revealStrokes(strokes, props.progress).map((p) =>
@@ -67,7 +96,10 @@ function StrokePaths({ props, color }: { props: InkStrokeProps; color: string })
   return (
     <g
       fill={color}
-      style={marker ? { mixBlendMode: 'multiply' } : undefined}
+      // `blend` is a CSS custom property on the live board and a resolved
+      // keyword in an export; neither is in csstype's union for this property,
+      // which is why it is cast rather than typed.
+      style={marker ? ({ mixBlendMode: blend } as CSSProperties) : undefined}
       opacity={marker ? 0.92 : 1}
     >
       {paths.map((d, i) => (

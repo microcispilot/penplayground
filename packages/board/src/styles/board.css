@@ -1,6 +1,9 @@
 /*
  * @pen/board styles. Import after `tldraw/tldraw.css` and the design tokens.
- * Colours come from tokens only (ADR-0007); the board is always paper.
+ * Colours come from tokens only. The board is no longer always paper — it is
+ * whichever surface `data-board` names (ADR-0034, superseding ADR-0007) — but
+ * the rule that nothing here may hardcode a colour is unchanged, and
+ * `test/paper-tokens.test.ts` still enforces it.
  */
 
 .pen-board {
@@ -20,9 +23,46 @@
   background: var(--color-paper) !important;
 }
 
+/*
+ * The surface itself: colour, grain, wipe.
+ *
+ * `::before` is fractal noise — a real board is not a flat fill, and without
+ * it a blackboard reads as a dark rectangle rather than as slate. It is an
+ * inline SVG filter rather than an image so there is nothing to fetch and
+ * nothing to cache-bust, and it is `overlay` so one texture works on a white
+ * surface and a black one: overlay lightens what is light and darkens what is
+ * dark, which is what grain does.
+ *
+ * `::after` is the wipe — two soft highlights where a cloth has passed, and a
+ * vignette at the edges where a board catches less light. It is what stops the
+ * surface looking printed.
+ *
+ * Both are fixed to the element, not to the camera. A texture that zoomed with
+ * the canvas would swim under the ink, which is worse than no texture.
+ */
 .pen-board__paper {
   position: absolute;
   inset: 0;
+}
+.pen-board__paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--board-grain, 0.04);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
+}
+.pen-board__paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 32% 30%, rgb(255 255 255 / 4%), rgb(255 255 255 / 0%) 60%),
+    radial-gradient(ellipse 60% 50% at 75% 72%, rgb(255 255 255 / 3%), rgb(255 255 255 / 0%) 62%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, rgb(0 0 0 / 0%) 45%, rgb(0 0 0 / 12%) 100%);
 }
 
 /* Viewers never fight the camera: the expert layer takes no pointer input. */
@@ -31,23 +71,20 @@
   cursor: default;
 }
 
-.pen-board__grid {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.pen-board__grid-dot {
-  fill: var(--color-paper-grid);
-}
-
-/* Dim while a learner has the floor: 55 % navy with a 1.5 px blur, overlay not shape. */
+/*
+ * Dim while a learner has the floor: a veil over the board with a 1.5 px
+ * blur, overlay not shape.
+ *
+ * The veil was a literal 55 % navy, which is a veil only because the board
+ * under it was white. Over slate the same navy is a slightly different slate
+ * and the board does not visibly dim at all, so the value belongs to the
+ * surface now (ADR-0034) and this asks for it.
+ */
 .pen-board__dim {
   position: absolute;
   inset: 0;
   z-index: 5;
-  background: oklch(0.285 0.062 247.7 / 55%);
+  background: var(--board-dim);
   -webkit-backdrop-filter: blur(1.5px);
   backdrop-filter: blur(1.5px);
   opacity: 0;
@@ -222,8 +259,15 @@
   box-sizing: border-box;
   width: 100%;
   border-radius: var(--radius-lg, 14px);
-  background: oklch(0.985 0.006 80);
-  border: 1px solid oklch(0.285 0.062 247.7 / 14%);
+  /*
+   * The note card's own sheet. Still not a theme-flipping token — the rule
+   * that put a literal here stands — but it follows the *board* now: a
+   * near-white card on a blackboard is a hole in the board. `--board-note` is
+   * a step up in lightness from each surface, so the card reads as a card on
+   * all six.
+   */
+  background: var(--board-note);
+  border: 1px solid var(--color-paper-grid);
   border-left: 2px solid var(--color-ink-accent);
   box-shadow:
     0 1px 2px oklch(0.2 0.05 248 / 6%),
@@ -282,4 +326,30 @@
   .pen-code__caret {
     animation: none;
   }
+}
+
+/*
+ * A highlighter or an underline: ink laid *over* other ink.
+ *
+ * `multiply` is what a marker does on white paper — it can only darken. On a
+ * dark board that is the same as painting nothing, because the stroke is
+ * already lighter than the surface, and the mark simply vanishes. `screen` is
+ * the inverse, and it is what chalk over chalk does. The value belongs to the
+ * board (ADR-0034), so this asks for it rather than choosing.
+ */
+.pen-ink__marker {
+  mix-blend-mode: var(--board-marker-blend);
+}
+
+/*
+ * Emphasis on the board is a colour, not a slope.
+ *
+ * The board is written in a hand face that already slopes, so an italic on top
+ * of it is a smear rather than an emphasis — and the owner asked for no italic
+ * anywhere here. `_like this_` takes the accent ink instead, which is what a
+ * teacher reaching for a second colour actually does.
+ */
+.pen-md__em {
+  font-style: normal;
+  color: var(--color-ink-accent);
 }

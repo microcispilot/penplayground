@@ -54,7 +54,10 @@ export class CodeBlockShapeUtil extends PaperShapeUtil<CodeBlockShape> {
             style={{
               color: tok.c ?? undefined,
               fontWeight: tok.b ? 600 : undefined,
-              fontStyle: tok.i ? 'italic' : undefined,
+              // No italic on the board, by instruction. `tok.i` is already
+              // forced false upstream in `highlight.ts`; this is the second
+              // half of the same decision, so a future highlighter that starts
+              // reporting italic again cannot slip it back in here.
             }}
           >
             {text}

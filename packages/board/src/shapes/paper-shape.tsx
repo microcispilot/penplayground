@@ -90,4 +90,29 @@ export function resolveInk(container: HTMLElement | null, emphasis: Emphasis): s
   }
 }
 
+/**
+ * How a highlighter or an underline blends with what is under it.
+ *
+ * `multiply` is what a marker does on white paper: it can only darken. On a
+ * dark board that is the same as painting nothing, because the stroke is
+ * already lighter than the ground — the mark simply vanishes. `screen` is the
+ * inverse and is what chalk over chalk does.
+ *
+ * Two functions for the same reason `inkVar` and `resolveInk` are two: the
+ * live board reads the cascade, and an SVG export is rasterised outside it and
+ * needs the value already resolved.
+ */
+export function markerBlendVar(): string {
+  return 'var(--board-marker-blend)';
+}
+
+/** The blend as a concrete value, for export. Falls back to the paper answer. */
+export function resolveMarkerBlend(container: HTMLElement | null): string {
+  if (container && typeof getComputedStyle === 'function') {
+    const v = getComputedStyle(container).getPropertyValue('--board-marker-blend').trim();
+    if (v) return v;
+  }
+  return 'multiply';
+}
+
 export const EMPHASIS_VALUES = ['ink', 'accent', 'warn', 'muted'] as const;
