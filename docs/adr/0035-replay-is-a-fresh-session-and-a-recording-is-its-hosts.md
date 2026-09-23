@@ -164,9 +164,9 @@ session nothing is shown: the learner asked it.
 - The glossary's **Replay** changes meaning; **Recording** is the old one.
 - The e2e journey that clicked *Replay* to reach `/replay/:id` clicks *Watch my
   recording*.
-- `shared_replays` on the Professional plan is still declared and still
-  unenforced. A room's guests heard each other's questions live; whether they
-  may watch the recording is a decision this ADR does not take.
+- `shared_replays` is gone from the entitlement table and from Pricing: the
+  owner decided a room's recording is the host's to watch or export, and a
+  guest's part in it is theirs to have heard live.
 - Tests: `packages/contracts/test/recording-order.test.ts`,
   `services/api/test/features.test.ts` (replay, recording access, the two
   downloads), `services/api/test/anonymise.test.ts`, `dedupe.test.ts`.

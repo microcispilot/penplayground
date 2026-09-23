@@ -371,7 +371,7 @@ export function RoomsScreen() {
         title: entitled ? 'No rooms yet.' : 'Rooms come with Professional.',
         line: entitled
           ? 'Start a session and share the link: up to twelve people can listen, watch the board and ask.'
-          : 'Professional turns a session into a room for up to twelve people, with guest questions and shared replays.',
+          : 'Professional turns a session into a room for up to twelve people, with guest questions and a recording of the whole class that only you can watch or download.',
         action: entitled ? (
           <StartLearningButton label="Start a session" />
         ) : (

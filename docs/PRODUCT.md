@@ -150,7 +150,7 @@ during preparation.
 |------|-----------|--------------|
 | **Free** | $0, ad-supported (a skippable YouTube-style video ad between segments; on a topic miss one ad runs while sources are gathered, counted against the same budget) | Solo sessions on lessons that are already prepared (the topics nobody has prepared are the paid plans' — ADR-0036, flag `prepare_new_topics`), replay of any prepared lesson, watching your own recording, standard voices, 3 sessions per UTC day, 20 minutes each. |
 | **Standard** | $19/mo ($190/yr) | No ads. Unlimited solo sessions, 45 minutes each. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
-| **Professional** | $38/mo ($380/yr) | Everything in Standard, 60 minutes a session. Host rooms with up to 12 participants (11 guests). Shared replays. Class transcripts. Guest questions pinned by name. |
+| **Professional** | $38/mo ($380/yr) | Everything in Standard, 60 minutes a session. Host rooms with up to 12 participants (11 guests). The whole class recorded — every guest's questions included — for the host to watch or export, like a Zoom recording. Class transcripts. |
 
 Ads never appear inside the live lesson audio; they are a visible in-stream
 **video** over the board between segments (only video, like YouTube), labelled

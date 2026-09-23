@@ -22,7 +22,6 @@ export const Entitlement = z.enum([
   'premium_voices',
   'priority_preparation',
   'unlimited_sessions',
-  'shared_replays',
 ]);
 export type Entitlement = z.infer<typeof Entitlement>;
 
@@ -36,7 +35,6 @@ export const PLAN_ENTITLEMENTS: Record<PlanCode, readonly Entitlement[]> = {
     'premium_voices',
     'priority_preparation',
     'unlimited_sessions',
-    'shared_replays',
   ],
 };
 

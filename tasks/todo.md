@@ -478,18 +478,18 @@ afterwards, each with a test that fails on an unchanged checkout.
       the expert land in the chat under the speaker's name, marked "to
       <expert>", in their own run (`ChatLine.kind = 'question'`); solo shows
       nothing. `packages/app/test/chat.test.ts`.
-- [ ] `shared_replays` on Professional is now a dead entitlement: the owner
-      decided only the host watches or exports a room's recording. Remove it
-      from `PLAN_ENTITLEMENTS` and the Pricing copy in a cleanup.
+- [x] `shared_replays` removed from `PLAN_ENTITLEMENTS`, the Rooms shelf and
+      Pricing: a room's recording is the host's to watch or export.
 - [x] Resume keeps restarting the cut sentence, by the owner's ruling;
       `docs/PRODUCT.md` says so instead of flagging it.
 - [x] A question Onten has nothing on (`missing`) is answered by one warm
       redirect from `outOfScope` with no model call, and recorded as
       `question_out_of_scope` beside the learner's words in the recording.
       `packages/session-engine/test/room.test.ts`.
-- [ ] `partial`, `conflict` and `stale` still share one prompt line. Worth
-      distinct lines ("here is what I have, and what I don't"; "the sources
-      disagree, here are both") — the owner has not asked.
+- [x] `partial`, `conflict` and `stale` each get their own instruction in the
+      answer prompt (`evidenceGuidance`, prompts.ts): what to say with
+      confidence, what to say plainly is not there, and never a guess to
+      fill a gap. `packages/session-engine/test/prompts.test.ts`.
 
 ## The room is a room again (2026-09-20)
 

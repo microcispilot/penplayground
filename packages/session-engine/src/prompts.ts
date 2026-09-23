@@ -177,7 +177,7 @@ export function answerMessages(args: {
   status: string;
   language: string;
 }): Message[] {
-  const partial = args.status !== 'sufficient';
+  const evidence = evidenceGuidance(args.status);
   return [
     { role: 'system', content: args.system },
     {
@@ -186,11 +186,31 @@ export function answerMessages(args: {
 
 ${args.askedBy} interrupted and asked: "${args.question}"
 
-Answer in 2–5 spoken sentences, directly, like a good teacher on a call, in the language the learner asked in (they may switch languages at any time; follow the question even if it differs from LANGUAGE below). Start with a "note" event (language = the BCP-47 tag of the language the learner asked in; question ≤ 12 words, headline 2–6 words, detail ≤ 20 words) so a card can be pinned on the board. Add at most one board op only if drawing helps. Finish with ONE short bridge sentence back to the lesson, in the same language as the answer (in English it would be "Okay, back to where we were."). ${partial ? 'The evidence is only partial: answer what you can, say plainly what you cannot support, and keep it short.' : ''}
+Answer in 2–5 spoken sentences, directly, like a good teacher on a call, in the language the learner asked in (they may switch languages at any time; follow the question even if it differs from LANGUAGE below). Start with a "note" event (language = the BCP-47 tag of the language the learner asked in; question ≤ 12 words, headline 2–6 words, detail ≤ 20 words) so a card can be pinned on the board. Add at most one board op only if drawing helps. Finish with ONE short bridge sentence back to the lesson, in the same language as the answer (in English it would be "Okay, back to where we were."). ${evidence}
 ${languageLine(args.language)}`,
     },
     { role: 'user', content: `EVIDENCE (AnswerContext):\n${args.modelContext}` },
   ];
+}
+
+/**
+ * What the expert is told about the evidence behind an answer, by Onten's
+ * status — the way a good teacher on a call handles the edge of what they
+ * have: confident where the material is solid, plain about where it is not,
+ * and never a guess dressed as an answer. `missing` never reaches the model
+ * (the room speaks its own redirect, ADR-0035); `sufficient` needs no line.
+ */
+export function evidenceGuidance(status: string): string {
+  switch (status) {
+    case 'partial':
+      return 'The evidence covers only part of this. Answer the part it covers with confidence, then say in one plain clause what it does not cover — "the material here does not go into X" — and stop there rather than fill the gap from memory. Keep it short.';
+    case 'conflict':
+      return 'The sources disagree on this. Say so in one breath, give the two readings in a sentence each, say which you would go with and why in one clause, and do not pretend they agree.';
+    case 'stale':
+      return 'The material on this point may be out of date. Answer from it, then add one short clause that this may have moved since and is worth checking against a current source. Do not invent what changed.';
+    default:
+      return '';
+  }
 }
 
 export function gradeMessages(args: {
