@@ -409,6 +409,8 @@ function PersonTile({
   isHostSeat,
   onToggleMic,
   onMute,
+  hand = 0,
+  calledOn = false,
 }: {
   p: Participant;
   presence: ParticipantPresence;
@@ -419,21 +421,44 @@ function PersonTile({
   isHostSeat: boolean;
   onToggleMic: () => void;
   onMute: (() => void) | null;
+  /** Queue position of a raised hand, 1-based; 0 when down (ADR-0037). */
+  hand?: number;
+  /** The expert has just called on this person and is waiting to hear them. */
+  calledOn?: boolean;
 }) {
   const speaking = presence === 'speaking';
   const mutedByHost = isSelf && voice === 'muted';
+  const handUp = (hand ?? 0) > 0;
   return (
     <li
       data-testid={`roster-${p.id}`}
       data-voice={voice}
       data-presence={presence}
-      className={cn(TILE_BASE, ringFor(presence))}
+      data-hand={handUp ? hand : calledOn ? 'called' : undefined}
+      className={cn(TILE_BASE, 'relative', ringFor(presence))}
       style={{ minHeight: size + 46 }}
     >
       <span className="sr-only">
         {isHostSeat ? 'Host, ' : ''}
         {presenceLabel(presence, isHostSeat)}
+        {handUp ? `, hand up, ${ordinalOf(hand ?? 0)} in line` : calledOn ? ', called on' : ''}
       </span>
+      {/* The hand where the host's eye is: on the face, with its place in line. */}
+      {handUp || calledOn ? (
+        <span
+          aria-hidden
+          className={cn(
+            'absolute top-1.5 right-1.5 z-[1] inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-label-small tabular-nums',
+            calledOn
+              ? 'bg-primary text-on-primary'
+              : 'bg-primary-container text-on-primary-container',
+          )}
+          data-testid={`hand-tile-${p.id}`}
+        >
+          <Hand size={11} />
+          {handUp ? hand : null}
+        </span>
+      ) : null}
       <TileFace
         name={tileNameFor(p.name, isSelf, compact)}
         qualifier={qualifierFor('person', isSelf, isHostSeat, compact)}
@@ -580,6 +605,8 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                   onMute={
                     canMute && person.id !== p.state.hostId ? () => p.onMute?.(person.id) : null
                   }
+                  hand={handOf(person.id)}
+                  calledOn={calledOn === person.id}
                 />
               ))}
             </ul>
