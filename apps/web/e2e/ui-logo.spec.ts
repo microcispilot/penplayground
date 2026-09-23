@@ -6,19 +6,28 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
 /**
  * The mark, on the product, in both themes and at all three widths.
  *
- * The artwork the owner supplied is a single charcoal — #2A2A2A for the
- * lettering and both strokes — which is 14.3:1 on a white page and 1.07:1 on
+ * The artwork the owner supplied is a single black — #000000 for the
+ * lettering and both strokes — which is 21:1 on a white page and 1.27:1 on
  * `surface-container` in dark. Shipped as drawn it is a logo that half the
  * product cannot see, and no unit test catches that: the file is valid, the
  * component renders, the pixels are simply not there. So the guarantee is
  * made here, in a browser, against the computed colour the mark actually
  * takes and the contrast it actually reaches.
  *
+ * What the mark is *painted with* moved in the current drawing, and reading it
+ * the old way would have quietly turned this file into a test of nothing. The
+ * two diagonals are no longer filled quadrilaterals: they are open curves with
+ * `fill: none` and the ink on their `stroke`. A check that collected
+ * `getComputedStyle(path).fill` would have come back with `none` for both of
+ * them and a colour only for the lettering — still one ink, still passing,
+ * while the strokes themselves went unchecked. So both painted properties are
+ * collected, and `none` is dropped rather than counted as a colour.
+ *
  * Three things are checked, and each one is a way the mark has already been
  * got wrong somewhere:
  *
  *   · the ink follows the theme, so the lockup is legible on both grounds;
- *   · the triangle does *not* — it is `primary-fixed`, rgb(230, 33, 23), the
+ *   · the delta does *not* — it is `primary-fixed`, rgb(230, 33, 23), the
  *     same hex in light and dark, which is what the owner asked for and what
  *     makes the mark survive a client that ignores a colour-scheme rule;
  *   · the artwork's aspect is intact, because a mark is easy to squash and
@@ -63,7 +72,12 @@ async function lockup(page: Page) {
   return page.evaluate((home) => {
     const el = document.querySelector(`${home} svg`);
     if (!el) throw new Error('the header has no mark');
-    const paths = [...el.querySelectorAll('path')].map((p) => getComputedStyle(p).fill);
+    // Both painted properties, minus the ones painting nothing. The delta is
+    // a fill, the diagonals are strokes, and the lettering is both.
+    const paths = [...el.querySelectorAll('path')].flatMap((p) => {
+      const s = getComputedStyle(p);
+      return [s.fill, s.stroke].filter((c) => c && c !== 'none');
+    });
     const box = el.getBoundingClientRect();
     // The nearest ancestor that actually paints, which is what the ink is read against.
     let node: HTMLElement | null = el.parentElement;
@@ -88,20 +102,22 @@ async function lockup(page: Page) {
 
 test.describe('the mark', () => {
   for (const theme of THEMES) {
-    test(`${theme}: the ink follows the page and the triangle does not`, async ({ page }) => {
+    test(`${theme}: the ink follows the page and the delta does not`, async ({ page }) => {
       await useTheme(page, theme);
       await page.goto(`${UI_WEB}/`);
       const { fills, ground } = await lockup(page);
 
-      // The triangle: one path, the brand, the same hex in both themes.
+      // The delta: one fill, the brand, the same hex in both themes.
       const brand = fills.filter((f) => f === BRAND);
-      expect(brand, `the header mark has no ${BRAND} triangle in ${theme}`).toHaveLength(1);
+      expect(brand, `the header mark has no ${BRAND} delta in ${theme}`).toHaveLength(1);
 
       // The ink: everything else, and it has to be a single resolved colour
       // that a person can see against the bar it sits on. 3:1 is WCAG 1.4.11 —
       // the mark is a graphic, not text.
       const ink = fills.filter((f) => f !== BRAND);
-      expect(ink.length).toBeGreaterThan(0);
+      // Eight: the lettering filled and stroked (3 + 3), and the two diagonals
+      // stroked. A drop to three would mean the strokes stopped being painted.
+      expect(ink).toHaveLength(8);
       expect(new Set(ink).size, 'the lettering and the strokes are one ink').toBe(1);
       const measured = contrast(ink[0] ?? '', ground);
       expect(
@@ -111,7 +127,7 @@ test.describe('the mark', () => {
     });
   }
 
-  test('the ink is a different colour in each theme, and the triangle is not', async ({ page }) => {
+  test('the ink is a different colour in each theme, and the delta is not', async ({ page }) => {
     await useTheme(page, 'light');
     await page.goto(`${UI_WEB}/`);
     const light = await lockup(page);

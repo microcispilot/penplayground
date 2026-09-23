@@ -7,12 +7,24 @@
  *
  * `brand/pen-logo.svg` and `brand/pen-favicon.svg` are the owner's artwork,
  * checked in exactly as they arrived. They are not usable as shipped, for one
- * reason: the lettering and the two strokes are a single charcoal, #2A2A2A,
- * which is 1.07:1 on `surface-container` in dark — measurably invisible, and
+ * reason: the lettering and the two strokes are a single black, #000000, which
+ * is 1.27:1 on `surface-container` in dark — measurably invisible, and
  * `apps/web/e2e/ui-logo.spec.ts` is where that is held to 3:1 against the bar
  * the mark actually sits on. Everything below exists to turn one flat file
  * into something that survives both themes without anybody keeping two copies
  * of a logo in step by hand.
+ *
+ * ── the ink is stroked now, and that changes what "the artwork" means ───────
+ *
+ * In the first drawings every shape was a fill. In this one the two diagonals
+ * are open curves painted with `stroke-width="43"` and a round cap, and the
+ * wordmark is filled *and* stroked at 3 to weight it. So a path is no longer
+ * described by `d` and `fill`: its stroke and that stroke's width, cap and
+ * join are part of the drawing, and anything that copies a path forward has to
+ * carry all of them or it is shipping a different logo. That is why `Path`
+ * has stroke fields, why `role()` is applied to a stroke as well as a fill,
+ * and why the favicon needs a class per painted property rather than one
+ * `.ink` rule — a rule that set `fill` would turn both strokes into blobs.
  *
  * ── what is derived, and from what ──────────────────────────────────────────
  *
@@ -66,8 +78,8 @@ const WEB_PUBLIC = join(REPO, 'apps/web/public');
  * the generator rather than rendering slightly cropped.
  */
 export const BBOX = {
-  icon: { x: 1120.1735, y: 268.5233, w: 266.3785, h: 326.5287 },
-  logo: { x: 380, y: 268.5233, w: 1006.552, h: 326.5287 },
+  icon: { x: 1068.5, y: 217.5, w: 409.343, h: 459 },
+  logo: { x: 382, y: 217.5, w: 1095.843, h: 459 },
 } as const;
 
 /**
@@ -78,29 +90,41 @@ export const BBOX = {
  * from 224.9x281.9 to 266.4x326.5. Nothing about the file announces that, and
  * a stale box crops a logo by a few per cent, which reads as bad drawing
  * rather than as a bug. So the checksum is the announcement.
+ *
+ * The third revision is the one that made the measurement itself wrong rather
+ * than merely stale. Its diagonals are stroked curves, and `getBBox()` answers
+ * with the centre line — it put the icon's left edge at x=1090, which is
+ * precisely where the first stroke's round cap *begins*, with 21.5 units of
+ * paint to the left of it. Blink ignores `getBBox({ stroke: true })` and
+ * `getBoundingClientRect()` agrees with `getBBox()`, so the boxes below are
+ * composed per path from geometry plus half the stroke width, and
+ * `measure-bbox.mjs --verify` checks that against the painted pixels.
  */
 export const ARTWORK: Record<string, string> = {
-  'pen-favicon.svg': 'e9ac23018bcb22de196de3488baeb90264892f433b0daecd69fb645c3a734ec9',
-  'pen-logo.svg': '301a2e2028646c5f8caa2a5a03d408c93ef4a7acc646cdb2e363b8c7168ad6e9',
-  'pen-favicon-dark.svg': '6f8d3aa52dc459c0697845a359641076495066ffca4a0d4d50522fecf3fdfc25',
-  'pen-logo-dark.svg': 'b421c3a9d23a09979f358ec00a4e05096aeb966a7fc947bc32f440039fcdb4dd',
+  'pen-favicon.svg': '7378765e882f80dc31ae374e4d80a249d904c3fb00b0d4e86a8443a37320c8bb',
+  'pen-logo.svg': 'f95291fa8335815ab19f62ee4fd115a07859296589188483743552337f22b683',
+  'pen-favicon-dark.svg': 'ad79ba7b4818e669c28edec3c82a70974b7a7d0e17dd9b6d97b6d9d85f52ac36',
+  'pen-logo-dark.svg': 'c6bd1ed574a13f6be86ab037e7bfb334d4d0a8611c915cc4f21119907ce77e5c',
 };
 
 /**
  * The three colours in the artwork.
  *
  * The owner supplies the mark twice — `pen-logo.svg` and `pen-logo-dark.svg` —
- * and the pair differ in exactly one way: the ink is #2A2A2A in one and
- * #FFFFFF in the other, with identical geometry and the same red triangle in
+ * and the pair differ in exactly one way: the ink is #000000 in one and
+ * #FFFFFF in the other, with identical geometry and the same red delta in
  * both. `assertDarkIsLightWithWhiteInk()` proves that rather than trusting it,
  * and it is why this ships one component instead of two files somebody has to
- * keep in step.
+ * keep in step. The repaint now has to be checked on `stroke` as well as
+ * `fill`: the diagonals carry no fill at all, so a comparison that looked only
+ * at fills would have found two paints of `none` on each side and called the
+ * pair identical no matter what colour the strokes were.
  *
  * Note that the dark ink is *pure white*, not `on-surface` (#e2e2e2). That is
  * the owner's drawing and it is the usual thing for a logotype: body text on a
  * dark page is softened to stop it glaring, a mark is not.
  */
-export const CHARCOAL = '#2A2A2A';
+export const INK = '#000000';
 export const WHITE = '#FFFFFF';
 export const BRAND_RED = '#E62117';
 
@@ -117,12 +141,20 @@ export const INK_TOKEN = 'var(--color-mark-ink)';
 
 /**
  * The favicon's square. The icon is taller than it is wide, so the square is
- * set from its height: 310 leaves ~5 % above and below, which is as tight as a
- * tab icon should be cropped and still reads at 16 px (the strokes land just
- * under a pixel there and survive on contrast — see the size sheet the test
- * writes).
+ * set from its height, with ~5 % above and below — as tight as a tab icon
+ * should be cropped and still reads at 16 px (the strokes land just under a
+ * pixel there and survive on contrast).
+ *
+ * It is derived rather than typed in, and that is a fix. It was the literal
+ * 310, which left the right margin when the icon was 281.9 tall; the second
+ * revision took the icon to 326.5 and nobody revisited the constant, so the
+ * shipped favicon has been a 310-unit square holding a 326.5-unit icon —
+ * centred, and clipped by 8.26 units top and bottom. A tab icon is 16 px and
+ * the missing slice is half a pixel, which is why it survived review. Deriving
+ * it means the square cannot fall behind the drawing again.
  */
-export const FAVICON_SIDE = 310;
+export const FAVICON_PAD = 0.05;
+export const FAVICON_SIDE = Math.round(BBOX.icon.h * (1 + 2 * FAVICON_PAD));
 
 /** apple-touch-icon: 180 px, and iOS gives an icon no padding of its own. */
 export const TOUCH_SIDE = 180;
@@ -139,9 +171,23 @@ const round = (v: number): number => Number(v.toFixed(4));
 
 export interface Path {
   d: string;
+  /** May be `none` — the diagonals are stroke-only. */
   fill: string;
+  stroke?: string | undefined;
+  strokeWidth?: string | undefined;
+  strokeLinecap?: string | undefined;
+  strokeLinejoin?: string | undefined;
   transform?: string | undefined;
 }
+
+/**
+ * The stroke attributes that are part of the drawing rather than decoration.
+ * If the artwork ever grows one this does not know about — a dash array, a
+ * miter limit — it is silently dropped from every artefact, so the reader
+ * below refuses the file instead.
+ */
+const STROKE_ATTRS = ['stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'] as const;
+const KNOWN_ATTRS = new Set<string>(['d', 'fill', 'transform', ...STROKE_ATTRS]);
 
 /** Every `<path>` inside one `<g id="…">` of a supplied file, in document order. */
 export function paths(svg: string, id: string): Path[] {
@@ -152,14 +198,43 @@ export function paths(svg: string, id: string): Path[] {
     const attrs = match[1] ?? '';
     const at = (name: string): string | undefined =>
       new RegExp(`\\b${name}="([^"]*)"`).exec(attrs)?.[1];
+    for (const [, name] of attrs.matchAll(/\b([\w-]+)="/g)) {
+      if (name !== undefined && !KNOWN_ATTRS.has(name)) {
+        throw new Error(
+          `a <path> in #${id} carries ${name}="…", which this generator would ` +
+            'drop on the way into the component. Teach it the attribute rather ' +
+            'than shipping a mark that is missing it.',
+        );
+      }
+    }
     const d = at('d');
     const fill = at('fill');
     if (!d || !fill) throw new Error(`a <path> in #${id} has no d or no fill`);
-    out.push({ d, fill, transform: at('transform') });
+    const stroke = at('stroke');
+    if (stroke && stroke !== 'none' && !at('stroke-width')) {
+      throw new Error(`a <path> in #${id} is stroked with no stroke-width`);
+    }
+    out.push({
+      d,
+      fill,
+      stroke,
+      strokeWidth: at('stroke-width'),
+      strokeLinecap: at('stroke-linecap'),
+      strokeLinejoin: at('stroke-linejoin'),
+      transform: at('transform'),
+    });
   }
   if (out.length === 0) throw new Error(`no <path> in #${id}`);
   return out;
 }
+
+/** The paints a path actually uses, as uppercase hex or `NONE`. */
+const paints = (p: Path): string[] =>
+  [p.fill, p.stroke].filter((v): v is string => v !== undefined).map((v) => v.toUpperCase());
+
+/** Is this path drawn in the ink — as a fill, as a stroke, or as both? */
+export const isInked = (p: Path, ink: string = INK): boolean =>
+  paints(p).includes(ink.toUpperCase());
 
 /**
  * Read one artwork file, and refuse it if it is not the drawing `BBOX` was
@@ -193,15 +268,30 @@ function assertDarkIsLightWithWhiteInk(light: string, dark: string, id: string):
   }
   a.forEach((p, i) => {
     const q = b[i];
-    if (!q || p.d !== q.d || p.transform !== q.transform) {
+    if (!q) throw new Error(`${dark} #${id} is missing path ${i}`);
+    // Geometry *and* the stroke's shape: a cap or a width that moved between
+    // the two files is a redrawn mark, and a colour token cannot express it.
+    const shape = (x: Path) =>
+      [x.d, x.transform, x.strokeWidth, x.strokeLinecap, x.strokeLinejoin].join('|');
+    if (shape(p) !== shape(q)) {
       throw new Error(`${dark} #${id} path ${i} is not the same shape as ${light}`);
     }
-    const want = p.fill.toUpperCase() === CHARCOAL ? WHITE : p.fill.toUpperCase();
-    if (q.fill.toUpperCase() !== want) {
-      throw new Error(
-        `${dark} #${id} path ${i} is ${q.fill}, expected ${want} — the dark ` +
-          'artwork may only repaint the ink, never the triangle',
-      );
+    for (const key of ['fill', 'stroke'] as const) {
+      const from = p[key];
+      const to = q[key];
+      if (from === undefined || to === undefined) {
+        if (from !== to) {
+          throw new Error(`${dark} #${id} path ${i} differs from ${light} on ${key}`);
+        }
+        continue;
+      }
+      const want = from.toUpperCase() === INK ? WHITE : from.toUpperCase();
+      if (to.toUpperCase() !== want) {
+        throw new Error(
+          `${dark} #${id} path ${i} has ${key}="${to}", expected ${want} — the ` +
+            'dark artwork may only repaint the ink, never the delta',
+        );
+      }
     }
   });
 }
@@ -224,11 +314,17 @@ export function art(): { icon: Path[]; wordmark: Path[] } {
 
 // ── the component ───────────────────────────────────────────────────────────
 
-/** The ink becomes a token; the red is named rather than repeated. */
-const role = (fill: string): string => {
-  if (fill.toUpperCase() === CHARCOAL) return INK_TOKEN;
-  if (fill.toUpperCase() === BRAND_RED) return 'var(--color-primary-fixed)';
-  throw new Error(`the artwork uses ${fill}, which this generator has no role for`);
+/**
+ * The ink becomes a token; the red is named rather than repeated. Applied to a
+ * stroke exactly as to a fill, and `none` is a real answer — the diagonals are
+ * `fill="none"` and dropping that would fill them.
+ */
+const role = (paint: string): string => {
+  const hex = paint.toUpperCase();
+  if (hex === 'NONE') return 'none';
+  if (hex === INK) return INK_TOKEN;
+  if (hex === BRAND_RED) return 'var(--color-primary-fixed)';
+  throw new Error(`the artwork uses ${paint}, which this generator has no role for`);
 };
 
 /**
@@ -243,14 +339,41 @@ const role = (fill: string): string => {
 const jsx = (list: Path[], indent: string): string =>
   list
     .map((p) => {
+      // JSX wants the camelCase spellings. The values are the artwork's.
       const attrs = [
         `d="${p.d}"`,
         `fill="${role(p.fill)}"`,
+        ...(p.stroke ? [`stroke="${role(p.stroke)}"`] : []),
+        ...(p.strokeWidth ? [`strokeWidth="${p.strokeWidth}"`] : []),
+        ...(p.strokeLinecap ? [`strokeLinecap="${p.strokeLinecap}"`] : []),
+        ...(p.strokeLinejoin ? [`strokeLinejoin="${p.strokeLinejoin}"`] : []),
         ...(p.transform ? [`transform="${p.transform}"`] : []),
       ];
       return `${indent}<path\n${attrs.map((a) => `${indent}  ${a}`).join('\n')}\n${indent}/>`;
     })
     .join('\n');
+
+/**
+ * One path as raw SVG, with `paint` deciding what a colour becomes. Shared by
+ * the favicon and the two rasters so a stroke attribute cannot be remembered
+ * in one of them and forgotten in the other.
+ */
+const rawPath = (p: Path, paint: (colour: string, prop: 'fill' | 'stroke') => string): string => {
+  const attrs = [
+    paint(p.fill, 'fill'),
+    `d="${p.d}"`,
+    ...(p.stroke ? [paint(p.stroke, 'stroke')] : []),
+    ...(p.strokeWidth ? [`stroke-width="${p.strokeWidth}"`] : []),
+    ...(p.strokeLinecap ? [`stroke-linecap="${p.strokeLinecap}"`] : []),
+    ...(p.strokeLinejoin ? [`stroke-linejoin="${p.strokeLinejoin}"`] : []),
+    ...(p.transform ? [`transform="${p.transform}"`] : []),
+  ].filter((a) => a !== '');
+  return `    <path ${attrs.join(' ')} />`;
+};
+
+/** The ink written out literally — for a raster, which cannot ask the OS. */
+const literal = (colour: string, prop: 'fill' | 'stroke'): string =>
+  `${prop}="${colour.toUpperCase() === INK ? INK : colour.toUpperCase() === 'NONE' ? 'none' : BRAND_RED}"`;
 
 const box = (b: { x: number; y: number; w: number; h: number }): string =>
   `viewBox="0 0 ${b.w} ${b.h}"`;
@@ -269,31 +392,46 @@ export function component(): string {
  *
  * Two substitutions are made on the way in, and only two:
  *
- *   The ink becomes \`var(--color-mark-ink)\`. The owner draws the mark twice —
- *   #2A2A2A on light, #FFFFFF on dark, identical geometry — and shipping the
- *   light one alone puts a logo at 1.07:1 on \`surface-container\`, which is to
- *   say no logo at all on half the product. The token carries both, so the
- *   pair is one component and a theme switch rather than two assets somebody
- *   has to remember to change together. It is pure white in dark and not
- *   \`on-surface\` (#e2e2e2): body text is softened on a dark page so it does
- *   not glare, a mark is not, and that is the owner's drawing.
+ *   The ink becomes \`var(--color-mark-ink)\`, on the fill and on the stroke
+ *   alike. The owner draws the mark twice — #000000 on light, #FFFFFF on dark,
+ *   identical geometry — and shipping the light one alone puts a logo at
+ *   1.27:1 on \`surface-container\`, which is to say no logo at all on half the
+ *   product. The token carries both, so the pair is one component and a theme
+ *   switch rather than two assets somebody has to remember to change together.
+ *   It is pure white in dark and not \`on-surface\` (#e2e2e2): body text is
+ *   softened on a dark page so it does not glare, a mark is not, and that is
+ *   the owner's drawing.
  *
  *   The red becomes \`var(--color-primary-fixed)\`. Same hex, named: it is then
  *   one thing with Sign in, Start and the board's ink rather than a fourth
  *   place #E62117 is written down. It is deliberately *not* toned per theme —
- *   the triangle is the one part of the mark that reads on both grounds, and
+ *   the delta is the one part of the mark that reads on both grounds, and
  *   \`primary-fixed\` is M3's role for exactly that.
+ *
+ * The diagonals are strokes, not filled shapes: \`stroke-width\`, the round cap
+ * and \`fill="none"\` are copied across with the \`d\`, because each of them is
+ * the difference between this drawing and a different one. It also means the
+ * artwork's real extent is wider than its geometry — the box this is cropped
+ * to includes the caps. See \`BBOX\` in the generator.
  *
  * Size is a height. A mark is set against a line of text, and it is the height
  * that has to agree with it; the width follows from the artwork's own aspect,
  * so neither of these can be squashed by passing the wrong number.
  *
- * The default is 22, and it is not arbitrary. What the header carried before
- * this component was a 22 px mark beside "Pen" set at \`title-large\` — about
- * 66 px of brand in total. The lockup's aspect is 3.08, so 22 px of height is
- * 67.8 px of width: the same block, in the same place, drawn rather than
- * typeset. A first attempt used 26 and the owner caught it immediately — a
- * logotype that grows when it becomes artwork is a redesign nobody asked for.
+ * The default is 22, and it is a height that has been held across three
+ * drawings on purpose. What the header carried before this component was a
+ * 22 px mark beside "Pen" set at \`title-large\`; an early attempt at 26 was
+ * caught immediately, because a logotype that grows when it becomes artwork is
+ * a redesign nobody asked for.
+ *
+ * What *has* moved is the width that height buys, and it is worth knowing. The
+ * lockup's aspect was 3.08 and is now 2.39, because this drawing gives the
+ * delta more height above the lettering than the last one did. So 22 px of
+ * height is 52.5 px of width where it used to be 67.8, and the wordmark inside
+ * it is set smaller against the same line of text. That is the drawing, not a
+ * bug — but it is the kind of change only the owner can sign off, so the
+ * height stays where it was and the question is asked rather than answered
+ * here.
  */
 import type { SVGProps } from 'react';
 
@@ -317,7 +455,7 @@ function label(title: string | undefined) {
 }
 
 /**
- * The icon alone: the red triangle and the two strokes. Use it where the word
+ * The icon alone: the red delta and the two strokes. Use it where the word
  * "Pen" is already on the screen beside it, or where there is no room for the
  * lockup — a 16 px footer line, a 28 px tile.
  */
@@ -384,24 +522,36 @@ export function faviconSvg(): string {
   const b = BBOX.icon;
   const dx = (FAVICON_SIDE - b.w) / 2 - b.x;
   const dy = (FAVICON_SIDE - b.h) / 2 - b.y;
+
+  // A class per painted property, not one `.ink`. The diagonals are
+  // `fill="none"` with an inked stroke: a single rule that set `fill` would
+  // paint the area between each curve and its chord, which is a black wedge
+  // where the drawing has none.
+  const used = new Set<'fill' | 'stroke'>();
   const body = icon
-    .map((p) => {
-      const ink = p.fill.toUpperCase() === CHARCOAL;
-      const attrs = [
-        ink ? 'class="ink"' : `fill="${BRAND_RED}"`,
-        `d="${p.d}"`,
-        ...(p.transform ? [`transform="${p.transform}"`] : []),
-      ];
-      return `    <path ${attrs.join(' ')} />`;
-    })
+    .map((path) =>
+      rawPath(path, (colour, prop) => {
+        if (colour.toUpperCase() === INK) {
+          used.add(prop);
+          return `class="ink-${prop}"`;
+        }
+        if (colour.toUpperCase() === 'NONE') return prop === 'fill' ? 'fill="none"' : '';
+        return `${prop}="${BRAND_RED}"`;
+      }),
+    )
     .join('\n');
+  const rule = (colour: string, indent: string): string =>
+    [...used].map((prop) => `${indent}.ink-${prop} { ${prop}: ${colour} }`).join('\n');
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FAVICON_SIDE} ${FAVICON_SIDE}">
   <title>Pen Playground</title>
   <style>
-    /* The ink follows the tab strip. The triangle does not: it is the one part
+    /* The ink follows the tab strip. The delta does not: it is the one part
        of the mark that reads on both, and it is the brand. */
-    .ink { fill: ${CHARCOAL} }
-    @media (prefers-color-scheme: dark) { .ink { fill: ${WHITE} } }
+${rule(INK, '    ')}
+    @media (prefers-color-scheme: dark) {
+${rule(WHITE, '      ')}
+    }
   </style>
   <g transform="translate(${round(dx)} ${round(dy)})">
 ${body}
@@ -417,16 +567,7 @@ export function groundedSvg(side: number, inset: number, ground: string): string
   const scale = (side * inset) / b.h;
   const dx = (side - b.w * scale) / 2;
   const dy = (side - b.h * scale) / 2;
-  const body = icon
-    .map((p) => {
-      const attrs = [
-        `fill="${p.fill.toUpperCase() === CHARCOAL ? CHARCOAL : BRAND_RED}"`,
-        `d="${p.d}"`,
-        ...(p.transform ? [`transform="${p.transform}"`] : []),
-      ];
-      return `    <path ${attrs.join(' ')} />`;
-    })
-    .join('\n');
+  const body = icon.map((path) => rawPath(path, literal)).join('\n');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${side} ${side}">
   <rect width="${side}" height="${side}" fill="${ground}" />
   <g transform="translate(${round(dx)} ${round(dy)}) scale(${round(scale)}) translate(${round(-b.x)} ${round(-b.y)})">
@@ -447,16 +588,7 @@ export function flatSvg(): string {
   const b = BBOX.icon;
   const dx = (FAVICON_SIDE - b.w) / 2 - b.x;
   const dy = (FAVICON_SIDE - b.h) / 2 - b.y;
-  const body = icon
-    .map((p) => {
-      const attrs = [
-        `fill="${p.fill.toUpperCase() === CHARCOAL ? CHARCOAL : BRAND_RED}"`,
-        `d="${p.d}"`,
-        ...(p.transform ? [`transform="${p.transform}"`] : []),
-      ];
-      return `    <path ${attrs.join(' ')} />`;
-    })
-    .join('\n');
+  const body = icon.map((path) => rawPath(path, literal)).join('\n');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FAVICON_SIDE} ${FAVICON_SIDE}">
   <g transform="translate(${round(dx)} ${round(dy)})">
 ${body}
@@ -467,9 +599,23 @@ ${body}
 
 // ── cli ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Rasterise one of the square SVGs above, rendering well over the target and
+ * downsampling so the curves and the round caps land smooth at 32 px.
+ *
+ * The density is computed from the artwork's own viewBox rather than fixed.
+ * It used to be a flat 2400 dpi, which worked only because the square happened
+ * to be 310 units: sharp renders an SVG at `density/72` times its intrinsic
+ * size, so when the square became 505 units the same number asked for a
+ * 16833 px image and sharp refused it outright ("Input image exceeds pixel
+ * limit"). Deriving it means the raster is the same size whatever the drawing
+ * measures.
+ */
 async function png(svg: string, side: number, to: string): Promise<void> {
   const { default: sharp } = await import('sharp');
-  await sharp(Buffer.from(svg), { density: 2400 })
+  const units = Number(/viewBox="0 0 ([\d.]+)/.exec(svg)?.[1] ?? side);
+  const raster = Math.max(side * 8, 1024);
+  await sharp(Buffer.from(svg), { density: (72 * raster) / units })
     .resize(side, side, { fit: 'fill' })
     .png({ compressionLevel: 9 })
     .toFile(to);

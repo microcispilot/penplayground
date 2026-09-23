@@ -27,11 +27,12 @@ import {
   art,
   BBOX,
   BRAND_RED,
-  CHARCOAL,
   component,
   FAVICON_SIDE,
   faviconSvg,
+  INK,
   INK_TOKEN,
+  isInked,
   paths,
   WHITE,
 } from '../scripts/mark.js';
@@ -46,6 +47,14 @@ const GENERATED = [
   'apps/web/public/favicon.svg',
   'apps/admin/public/favicon.svg',
 ] as const;
+
+/**
+ * The attributes of each `<path>` the component ships, and nothing else. The
+ * header comment discusses the same attribute names it sets, so a check that
+ * greps the whole file can be satisfied by the prose alone.
+ */
+const componentPaths = (): string[] =>
+  [...read('src/components/PenLogo.tsx').matchAll(/<path\n([\s\S]*?)\/>/g)].map((m) => m[1] ?? '');
 
 describe('the generated artefacts are still the artwork', () => {
   it.each(GENERATED)('%s is what the generator writes today', (file) => {
@@ -78,9 +87,24 @@ describe('the generated artefacts are still the artwork', () => {
       ['brand/pen-logo.svg', 'brand/pen-logo-dark.svg', 'icon'],
     ] as const) {
       const [a, b] = [paths(read(light), id), paths(read(dark), id)];
-      expect(b.map((p) => [p.d, p.transform])).toEqual(a.map((p) => [p.d, p.transform]));
-      expect(b.map((p) => p.fill.toUpperCase())).toEqual(
-        a.map((p) => (p.fill.toUpperCase() === CHARCOAL ? WHITE : p.fill.toUpperCase())),
+      // Geometry, and the stroke's shape with it: a cap or a width that moved
+      // between the two files is a redrawn mark, not a repainted one.
+      const shape = (p: (typeof a)[number]) => [
+        p.d,
+        p.transform,
+        p.strokeWidth,
+        p.strokeLinecap,
+        p.strokeLinejoin,
+      ];
+      expect(b.map(shape)).toEqual(a.map(shape));
+
+      // Both painted properties. The diagonals have no fill at all, so a
+      // fill-only comparison would see `none` on each side and pass however
+      // the strokes were coloured.
+      const repaint = (v: string | undefined) =>
+        v === undefined ? undefined : v.toUpperCase() === INK ? WHITE : v.toUpperCase();
+      expect(b.map((p) => [p.fill.toUpperCase(), p.stroke?.toUpperCase()])).toEqual(
+        a.map((p) => [repaint(p.fill), repaint(p.stroke)]),
       );
     }
   });
@@ -97,6 +121,39 @@ describe('the generated artefacts are still the artwork', () => {
    * "tidied" a coordinate would be a redrawn logo, and it would pass a
    * screenshot review.
    */
+  it('the diagonals are still strokes, and the component carries what paints them', () => {
+    // The drawing stopped being all-fills: the two diagonals are open curves
+    // whose width, cap and `fill="none"` are the difference between this mark
+    // and a different one. Copying `d` alone would render two hairlines.
+    const { icon } = art();
+    const strokes = icon.filter((p) => p.stroke !== undefined && p.stroke !== 'none');
+    expect(strokes).toHaveLength(2);
+    for (const p of strokes) {
+      expect(p.fill).toBe('none');
+      expect(p.strokeWidth).toBe('43');
+      expect(p.strokeLinecap).toBe('round');
+    }
+    // Counted over the <path> elements alone. Matching the whole file would
+    // also count the header comment, which quotes `fill="none"` while
+    // explaining it — prose passing a test is exactly what this suite is for.
+    const drawn = componentPaths();
+    const carrying = (attr: string) => drawn.filter((a) => a.includes(attr)).length;
+    // Twice each: PenMark draws the icon, and the lockup draws it again.
+    expect(carrying('strokeWidth="43"')).toBe(4);
+    expect(carrying('strokeLinecap="round"')).toBe(4);
+    expect(carrying('fill="none"')).toBe(4);
+    // Every diagonal takes the ink as a token, never a literal.
+    expect(
+      drawn
+        .filter((a) => a.includes('strokeWidth="43"'))
+        .every((a) => a.includes('stroke="var(--color-mark-ink)"')),
+    ).toBe(true);
+    // Seven inked strokes in all: four diagonals, and the three wordmark
+    // glyphs, which this drawing also strokes — at 3, to weight the letters.
+    expect(carrying('stroke="var(--color-mark-ink)"')).toBe(7);
+    expect(carrying('strokeWidth="3"')).toBe(3);
+  });
+
   it('every path in the component is copied out of the artwork verbatim', () => {
     const { icon, wordmark } = art();
     const drawn = [...wordmark, ...icon].map((p) => p.d);
@@ -115,27 +172,39 @@ describe('the generated artefacts are still the artwork', () => {
 const fills = (): string[] =>
   [...read('src/components/PenLogo.tsx').matchAll(/\bfill="([^"]*)"/g)].map((m) => m[1] ?? '');
 
+/** The other painted property. The diagonals are stroke-only, so this is the mark. */
+const strokes = (): string[] =>
+  [...read('src/components/PenLogo.tsx').matchAll(/\sstroke="([^"]*)"/g)].map((m) => m[1] ?? '');
+
 describe('the two substitutions, which are the reason for the pipeline', () => {
   it('nothing in the component is painted a literal hex', () => {
-    // #2A2A2A is 1.07:1 on `surface-container` in dark, so a literal one is a
+    // #000000 is 1.27:1 on `surface-container` in dark, so a literal one is a
     // logo half the product cannot see; #E62117 is right but would be a fourth
     // place the brand is written down. Both hexes are named in the header
     // comment on purpose — this is about what gets painted.
-    for (const fill of fills()) expect(fill).not.toMatch(/^#/);
+    for (const paint of [...fills(), ...strokes()]) expect(paint).not.toMatch(/^#/);
   });
 
-  it('the ink became the token, once per path that had it', () => {
+  it('the ink became the token, on every property that carried it', () => {
     const { icon, wordmark } = art();
-    const inked = [...wordmark, ...icon, ...icon].filter(
-      (p) => p.fill.toUpperCase() === CHARCOAL,
-    ).length;
-    expect(fills().filter((f) => f === INK_TOKEN)).toHaveLength(inked);
+    // The icon is drawn twice: alone in PenMark, again inside the lockup.
+    const all = [...wordmark, ...icon, ...icon];
+    const inkedFills = all.filter((p) => p.fill.toUpperCase() === INK).length;
+    const inkedStrokes = all.filter((p) => p.stroke?.toUpperCase() === INK).length;
+    // The wordmark is filled and stroked in the ink; the diagonals are only
+    // stroked. Both counts have to be non-zero or the check is vacuous.
+    expect(inkedFills).toBeGreaterThan(0);
+    expect(inkedStrokes).toBeGreaterThan(0);
+    expect(fills().filter((f) => f === INK_TOKEN)).toHaveLength(inkedFills);
+    expect(strokes().filter((f) => f === INK_TOKEN)).toHaveLength(inkedStrokes);
+    expect(all.filter((p) => isInked(p))).toHaveLength(inkedFills + inkedStrokes - 3);
   });
 
   it('the ink is a token and not currentColor, which would be #e2e2e2 in dark', () => {
     // The owner's dark drawing is pure white. Inheriting `on-surface` would
     // put the mark at #e2e2e2 — close enough to look deliberate and wrong.
     expect(fills()).not.toContain('currentColor');
+    expect(strokes()).not.toContain('currentColor');
     expect(INK_TOKEN).toBe('var(--color-mark-ink)');
   });
 
@@ -145,7 +214,7 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
       (m[1] ?? '').toUpperCase(),
     );
     // @theme, the prefers-color-scheme block, and [data-theme="dark"].
-    expect(declared).toEqual([CHARCOAL, WHITE, WHITE]);
+    expect(declared).toEqual([INK, WHITE, WHITE]);
   });
 
   it('the red is named, and appears once in the mark and once in the lockup', () => {
@@ -161,11 +230,28 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
   it('the favicon carries its own dark rule, since it has no document to inherit from', () => {
     const svg = faviconSvg();
     expect(svg).toContain('@media (prefers-color-scheme: dark)');
-    // The triangle is deliberately outside it: it is the one part of the mark
+    // The delta is deliberately outside it: it is the one part of the mark
     // that reads on both grounds, and the part that stays the brand when a
     // client ignores the media query altogether.
     expect(svg).toMatch(new RegExp(`fill="${BRAND_RED}"`, 'i'));
     expect(svg).not.toMatch(/\.brand\s*\{/);
+  });
+
+  /**
+   * The favicon themes the diagonals by class, and the class may only touch
+   * the property the artwork painted. A `.ink { fill: … }` rule — which is
+   * what this file used to emit — would fill the area between each curve and
+   * its chord, putting a black wedge through the mark on every tab.
+   */
+  it('the favicon themes the stroke, and never fills a stroke-only path', () => {
+    const svg = faviconSvg();
+    expect(svg).toContain('.ink-stroke { stroke:');
+    expect(svg).not.toMatch(/\.ink-stroke\s*\{\s*fill:/);
+    expect(svg).not.toMatch(/\.ink-fill\s*\{/);
+    // Each diagonal keeps its own width and cap, and is explicitly unfilled.
+    expect(svg.match(/stroke-width="43"/g)).toHaveLength(2);
+    expect(svg.match(/stroke-linecap="round"/g)).toHaveLength(2);
+    expect(svg.match(/fill="none"/g)).toHaveLength(2);
   });
 });
 
@@ -185,6 +271,25 @@ describe('the crop', () => {
     expect(file).toContain(`viewBox="0 0 ${BBOX.logo.w} ${BBOX.logo.h}"`);
     expect(file).toContain(`translate(${-BBOX.icon.x} ${-BBOX.icon.y})`);
     expect(file).toContain(`translate(${-BBOX.logo.x} ${-BBOX.logo.y})`);
+  });
+
+  /**
+   * The crop has to clear the paint, not the centre line. `getBBox()` reports
+   * the icon starting at x=1090, which is where the first diagonal's round cap
+   * begins — the ink reaches 21.5 further, and a box measured the naive way
+   * shaves the cap off both strokes at every size. These numbers come from
+   * `measure-bbox.mjs`, which grows each path's box by half its stroke width.
+   */
+  it('the box clears the stroke, not just the geometry', () => {
+    const { icon } = art();
+    const half = Math.max(
+      ...icon.map((p) => (p.stroke && p.stroke !== 'none' ? Number(p.strokeWidth) / 2 : 0)),
+    );
+    expect(half).toBe(21.5);
+    // The leftmost diagonal starts at x=1090 in the artwork's own units.
+    expect(BBOX.icon.x).toBeCloseTo(1090 - half, 3);
+    // And the square the favicon crops to has to be at least as tall as that.
+    expect(FAVICON_SIDE).toBeGreaterThanOrEqual(BBOX.icon.h);
   });
 
   it('the favicon is square and the icon is centred in it', () => {
