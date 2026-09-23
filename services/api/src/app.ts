@@ -201,6 +201,10 @@ export const WS_LIMITS: Record<string, { limit: number; windowMs: number }> = {
    * broadcast rather than about spend.
    */
   chat: { limit: 150, windowMs: 60_000 },
+  /** A hand goes up or down a few times in a class, not a few times a second (ADR-0037). */
+  hand: { limit: 60, windowMs: 60_000 },
+  /** The host removing people: a handful in a class at most. */
+  remove_participant: { limit: 30, windowMs: 60_000 },
   /**
    * The rest of the protocol, which had no bucket at all until every family
    * was checked against this table. Each of these reaches something that

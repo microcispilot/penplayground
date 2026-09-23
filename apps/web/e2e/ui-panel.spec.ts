@@ -86,6 +86,15 @@ async function fillRoom(page: Page, people: number, names = NAMES): Promise<void
           ...state.participants.filter((p) => !p.id.startsWith('p_guest_0000')),
           ...extra,
         ],
+        // Two hands up in a full room (ADR-0037), so the review pictures show
+        // the queue the way the class sees it.
+        hands:
+          extra.length >= 2
+            ? [
+                { participantId: extra[1]?.id ?? '', at: Date.now() - 4000 },
+                { participantId: extra[0]?.id ?? '', at: Date.now() - 1000 },
+              ]
+            : [],
       });
       const filled = withExtras(base);
       window.__penRosterHold?.();

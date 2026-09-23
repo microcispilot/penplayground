@@ -279,10 +279,24 @@ export class Conductor {
 
   // ── learner → conductor ────────────────────────────────────────────────────
 
+  /**
+   * Whether what this participant says right now is for the expert at all
+   * (ADR-0037). The host: always. A guest: only while the expert has given
+   * them the floor. Anything else is for the people in the room, and never
+   * becomes an interrupt or a transcript. In a discussion nobody is heard.
+   */
+  private mayAddressExpert(): boolean {
+    const state = this.state;
+    if (!state || state.mode === 'discussing') return false;
+    if (this.isHost) return true;
+    return state.floor === this.o.participantId;
+  }
+
   /** Confirmed speech from the local mic (harmonic VAD). Zero round-trips: fade, freeze, then tell the room. */
   onSpeechStart(): void {
     const mode = this.state?.mode;
     if (!mode || this.phase === 'ended') return;
+    if (!this.mayAddressExpert()) return;
     if (this.phase === 'listening') return;
     const interruptible =
       mode === 'teaching' ||
@@ -319,6 +333,7 @@ export class Conductor {
   /** Transcript from the platform's speech recognizer (on-device or relayed). */
   onTranscript(utteranceId: string, text: string, final: boolean): void {
     if (this.phase === 'ended') return;
+    if (!this.mayAddressExpert()) return;
     if (this.phase !== 'listening' && final && text.trim()) {
       // Recognizer produced a final without a VAD start (browser STT): interrupt now.
       this.onSpeechStart();
@@ -399,8 +414,25 @@ export class Conductor {
       }
       this.o.board.setDimmed(true);
       this.o.captions.hint(
-        state.floor === this.o.participantId ? null : `${this.nameOf(state.floor)} has the floor`,
+        state.floor === this.o.participantId
+          ? state.invited === this.o.participantId
+            ? 'Go ahead — the expert is listening'
+            : null
+          : state.invited === state.floor
+            ? `${this.nameOf(state.floor)} was called on`
+            : `${this.nameOf(state.floor)} has the floor`,
       );
+    } else if (mode === 'discussing') {
+      // The class is talking among themselves (ADR-0037): the lesson holds
+      // like a pause, the board stays readable, and the expert waits.
+      if (this.phase === 'playing') {
+        this.o.audio.pause();
+        for (const { exec } of this.executions.values()) exec.pause();
+      }
+      if (!inAd) this.phase = 'paused';
+      this.o.board.setDimmed(false);
+      this.o.captions.hint('Discussion — the expert is waiting');
+      this.o.presence.setSpeaking(false);
     } else if (mode === 'paused') {
       if (this.phase === 'playing') {
         this.o.audio.pause();
@@ -422,7 +454,7 @@ export class Conductor {
       if (!inAd) this.phase = 'playing';
       this.o.board.setDimmed(false);
       this.o.captions.hint(null);
-      if (previous?.mode === 'paused')
+      if (previous?.mode === 'paused' || previous?.mode === 'discussing')
         for (const { exec } of this.executions.values()) exec.resume();
       // A boundary ad whose sentence was cancelled mid-flight (a barge-in, or a
       // check-in answered before the sentence finished) never gets the say-end

@@ -262,6 +262,15 @@ export class RoomRegistry {
         for (const seat of seats.keys())
           if (seat.readyState === seat.OPEN) seat.send(frame, { binary: true });
       },
+      // The host removed them (ADR-0037): after the `REMOVED` error the room
+      // already sent, their seats close, and `join` will refuse them.
+      close: (participantId) => {
+        for (const [socket, seat] of seats)
+          if (seat.participantId === participantId) {
+            seats.delete(socket);
+            if (socket.readyState === socket.OPEN) socket.close(4003, 'removed');
+          }
+      },
     };
     const room = new SessionRoom({
       sessionId,
@@ -437,7 +446,9 @@ export class RoomRegistry {
           message:
             joined.code === 'ROOM_FULL'
               ? 'This room is full (12 people).'
-              : 'Rooms with guests need the Professional plan.',
+              : joined.code === 'REMOVED'
+                ? 'The host removed you from this room.'
+                : 'Rooms with guests need the Professional plan.',
           spoken: false,
         },
       };

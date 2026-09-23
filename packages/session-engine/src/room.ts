@@ -47,7 +47,15 @@ import { withTelemetry } from '@pen/llm';
 import type { MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
 import { nanoid } from 'nanoid';
-import { acknowledgement, bridgeBack, classifyLocally, outOfScope } from './brain.js';
+import {
+  acknowledgement,
+  bridgeBack,
+  callOnHand,
+  classifyLocally,
+  handUnanswered,
+  handWithdrawn,
+  outOfScope,
+} from './brain.js';
 import {
   INTENT_MIN_CONFIDENCE,
   type IntentClassifier,
@@ -156,6 +164,13 @@ export interface LedgerSink {
   ): string;
 }
 
+/** How long a guest who was called on has to start speaking before the lesson carries on (ADR-0037). */
+export const HAND_WAIT_MS = 8_000;
+
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] || name;
+}
+
 export interface SessionRoomDeps {
   sessionId: string;
   topic: string;
@@ -234,6 +249,23 @@ export class SessionRoom {
   private readonly d: SessionRoomDeps;
   /** The flags this room was built with; never re-read during its life. */
   readonly features: FeatureSet;
+  /**
+   * The floor in a room (ADR-0037). `hands` is the queue of guests waiting to
+   * be called on, oldest first, mirrored into `state.hands`. `calling` is the
+   * one being called right now: waiting for the host to reach a sentence
+   * boundary (`boundarySeq`), then for the invitation to be heard
+   * (`inviteSeq`), and then they hold the floor as `state.invited` until they
+   * speak or the wait runs out. `removed` is everyone the host took out.
+   */
+  private hands: Array<{ participantId: ParticipantId; at: number }> = [];
+  private calling: {
+    participantId: ParticipantId;
+    boundarySeq: number | null;
+    inviteSeq: number | null;
+  } | null = null;
+  private inviteTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly removed = new Set<ParticipantId>();
+  private floorLines = 0;
   private readonly observer: RoomObserver;
   private readonly now: () => number;
   /** Public so the API can add what it measures itself (STT finals). */
@@ -370,6 +402,8 @@ export class SessionRoom {
       hostId: host.id,
       participants: [host],
       participantAudio: Boolean(deps.participantAudio) && this.features.rooms,
+      hands: [],
+      invited: null,
       features: {
         chat: this.features.chat,
         reactions: this.features.reactions,
@@ -493,6 +527,8 @@ export class SessionRoom {
   }): { ok: true; participant: Participant } | { ok: false; code: ServerErrorCode } {
     const existing = this.participants.get(participant.id);
     if (existing) return { ok: true, participant: existing };
+    // The host took them out; the door stays shut (ADR-0037).
+    if (this.removed.has(participant.id)) return { ok: false, code: 'REMOVED' };
     // Entitlement first: on a solo plan the honest answer is "rooms are a
     // Professional feature", not "this room is full" — one seat is not a crowd.
     if (!this.features.rooms) return { ok: false, code: 'ENTITLEMENT_REQUIRED' };
@@ -532,7 +568,14 @@ export class SessionRoom {
       ok: true,
       meta: { role: 'guest', participants: this.participants.size },
     });
-    if (this.state.floor === participantId) this.endTurnEarly();
+    // Their hand, their call and their floor go with them — silently: the
+    // class does not need a sentence about somebody who is no longer there.
+    this.hands = this.hands.filter((h) => h.participantId !== participantId);
+    if (this.calling?.participantId === participantId) this.cancelCall();
+    if (this.state.invited === participantId) {
+      this.clearInvite();
+      this.releaseFloor();
+    } else if (this.state.floor === participantId) this.endTurnEarly();
     this.syncParticipants();
   }
 
@@ -576,6 +619,12 @@ export class SessionRoom {
         break;
       case 'chat':
         this.chat(p, message.text);
+        break;
+      case 'hand':
+        this.hand(p, message.raised);
+        break;
+      case 'remove_participant':
+        this.removeParticipant(p, message.participantId);
         break;
       case 'ad_event':
         this.adEvent(p, message);
@@ -1531,10 +1580,233 @@ export class SessionRoom {
       }
       if (this.lessonComplete && seq >= this.seq - 1 && this.state.mode === 'teaching')
         this.setMode('complete');
+      // A hand is being called (ADR-0037): the host has reached the sentence
+      // the lesson holds at, so the invitation can be spoken; or has heard the
+      // invitation, so the floor is theirs.
+      const calling = this.calling;
+      if (calling) {
+        if (calling.inviteSeq !== null) {
+          if (seq >= calling.inviteSeq) this.giveFloor(calling.participantId);
+        } else if (calling.boundarySeq !== null && seq >= calling.boundarySeq) {
+          this.speakInvitation();
+        }
+      }
     }
   }
 
-  private control(p: Participant, action: 'pause' | 'resume' | 'end' | 'next_segment'): void {
+  // ── the floor in a room (ADR-0037) ─────────────────────────────────────────
+
+  /** A guest raised or lowered their hand. The host is heard without one and is ignored here. */
+  private hand(p: Participant, raised: boolean): void {
+    if (p.role === 'host' || this.state.phase !== 'live') return;
+    const has = this.hands.some((h) => h.participantId === p.id);
+    if (raised) {
+      if (has || this.calling?.participantId === p.id || this.state.invited === p.id) return;
+      this.hands.push({ participantId: p.id, at: this.now() });
+      this.metrics.interaction(p.id, 'hand_raised', { queue: this.hands.length });
+      this.observer.event('room.hand', {
+        participantId: p.id,
+        raised: true,
+        queue: this.hands.length,
+      });
+      this.broadcastState();
+      this.maybeCallNextHand();
+      return;
+    }
+    if (has) {
+      this.hands = this.hands.filter((h) => h.participantId !== p.id);
+      this.metrics.interaction(p.id, 'hand_lowered', { queue: this.hands.length });
+      this.broadcastState();
+    }
+    if (this.calling?.participantId === p.id) {
+      // Called, not yet invited: the lesson simply carries on.
+      this.metrics.interaction(p.id, 'hand_withdrawn', { spoken: false });
+      this.cancelCall();
+      this.resumeLesson();
+      return;
+    }
+    if (this.state.invited === p.id) {
+      // Invited and changed their mind: said in one breath, then the lesson.
+      this.metrics.interaction(p.id, 'hand_withdrawn', { spoken: true });
+      this.clearInvite();
+      this.speakOnFloor(handWithdrawn(firstName(p.name), ++this.floorLines, this.language));
+      this.releaseFloor();
+    }
+  }
+
+  /**
+   * Call the next hand if the expert can: nobody has the floor, nothing is
+   * being answered, no ad is up, and the class is not paused or in
+   * discussion. While teaching, the lesson is held at the end of the sentence
+   * at the speaker first; when the expert is already waiting — the lesson
+   * complete, or a check-in open — the invitation is spoken at once.
+   */
+  private maybeCallNextHand(): void {
+    if (this.state.phase !== 'live' || this.calling || this.turn || this.state.floor) return;
+    if (this.adShowing()) return;
+    const mode = this.state.mode;
+    if (mode !== 'teaching' && mode !== 'complete' && mode !== 'checking') return;
+    while (this.hands.length > 0 && !this.participants.has(this.hands[0]?.participantId ?? ''))
+      this.hands.shift();
+    const next = this.hands[0];
+    if (!next) return;
+    this.calling = { participantId: next.participantId, boundarySeq: null, inviteSeq: null };
+    if (mode === 'teaching') {
+      const boundary = this.holdAfterCurrent();
+      if (boundary !== null) {
+        this.calling.boundarySeq = boundary;
+        return;
+      }
+    }
+    this.speakInvitation();
+  }
+
+  /**
+   * Let the sentence at the speaker finish and nothing after it: every lesson
+   * sentence banked beyond it is re-taken (`say_take`, reason `pace`, the
+   * mechanism a pace change uses — the host's player swaps at the boundary
+   * and, with no newer take arriving, holds). Returns the boundary's seq, or
+   * null when nothing is at the speaker.
+   */
+  private holdAfterCurrent(): number | null {
+    const unheard: Array<{ id: string; seq: number }> = [];
+    for (const id of this.lessonOrder) {
+      const entry = this.lessonSays.get(id);
+      if (entry && entry.seq > this.hostProgressSeq) unheard.push({ id, seq: entry.seq });
+    }
+    const current = unheard[0];
+    if (!current) return null;
+    const rest = unheard.slice(1);
+    if (rest.length > 0) {
+      const ids = new Set(rest.map((r) => r.id));
+      this.pipeline.retake((sayId) => ids.has(sayId));
+      for (const { id } of rest) {
+        const take = (this.takes.get(id) ?? 0) + 1;
+        this.takes.set(id, take);
+        this.d.transport.broadcast({ kind: 'say_take', sayId: id, take, reason: 'pace' });
+      }
+    }
+    return current.seq;
+  }
+
+  /** The boundary is here: pop the hand, hold the lesson's place, and say the invitation. */
+  private speakInvitation(): void {
+    const calling = this.calling;
+    if (!calling) return;
+    const p = this.participants.get(calling.participantId);
+    if (!p) {
+      this.cancelCall();
+      return;
+    }
+    this.hands = this.hands.filter((h) => h.participantId !== p.id);
+    this.pausedBeforeTurn = this.state.mode === 'checking' ? 'checking' : 'teaching';
+    // Nothing of the lesson after this point is spoken until the turn is over;
+    // the resume point is the next unheard sentence, so nothing is repeated.
+    this.pipeline.cancel();
+    this.state = {
+      ...this.state,
+      resume: { seq: Math.max(0, this.hostProgressSeq), sayId: null, offsetMs: 0, take: 0 },
+    };
+    const cue = this.speakOnFloor(callOnHand(firstName(p.name), ++this.floorLines, this.language));
+    calling.inviteSeq = cue.seq;
+    this.metrics.interaction(p.id, 'hand_called', { waited: this.hands.length });
+    this.observer.event('room.hand_called', { participantId: p.id });
+    this.broadcastState();
+  }
+
+  /** The invitation has been heard: the floor is theirs, for as long as a person takes to start. */
+  private giveFloor(participantId: ParticipantId): void {
+    this.calling = null;
+    if (!this.participants.has(participantId)) {
+      this.releaseFloor();
+      return;
+    }
+    this.state = { ...this.state, invited: participantId };
+    this.setMode('listening', participantId);
+    this.inviteTimer = setTimeout(() => this.inviteRanOut(participantId), HAND_WAIT_MS);
+  }
+
+  private inviteRanOut(participantId: ParticipantId): void {
+    this.inviteTimer = null;
+    if (this.state.invited !== participantId || this.state.floor !== participantId) return;
+    const p = this.participants.get(participantId);
+    this.clearInvite();
+    this.metrics.interaction(participantId, 'hand_unanswered', { waitMs: HAND_WAIT_MS });
+    this.observer.event('room.hand_unanswered', { participantId });
+    if (p) this.speakOnFloor(handUnanswered(firstName(p.name), ++this.floorLines, this.language));
+    this.releaseFloor();
+  }
+
+  private clearInvite(): void {
+    if (this.inviteTimer) clearTimeout(this.inviteTimer);
+    this.inviteTimer = null;
+    if (this.state.invited) this.state = { ...this.state, invited: null };
+  }
+
+  /** A call that goes nowhere: the hand stays where it was (or is gone), nothing is said. */
+  private cancelCall(): void {
+    this.calling = null;
+  }
+
+  /** The host took the floor, or paused the class, while a hand was being called: it goes to the front again. */
+  private deferCall(): void {
+    const calling = this.calling;
+    if (!calling) return;
+    this.calling = null;
+    if (
+      this.participants.has(calling.participantId) &&
+      !this.hands.some((h) => h.participantId === calling.participantId)
+    )
+      this.hands.unshift({ participantId: calling.participantId, at: this.now() });
+  }
+
+  /**
+   * One sentence of the expert's own to the room — the invitation, the
+   * let-go — on the `floor` thread: not the lesson (so never in the shared
+   * voice store, where a name would be), and not a turn.
+   */
+  private speakOnFloor(text: string): Cue {
+    const say: SayEvent = { type: 'say', id: `s${this.floorLines}`, text, tone: 'warm' };
+    const cue = this.pushCue(say, this.state.segment, 'floor');
+    if (cue.event.type === 'say') {
+      this.pipeline.enqueue(cue.event, 'floor', 0, this.voiceForCurrentLanguage());
+      this.spoken.push(cue.event.text);
+    }
+    return cue;
+  }
+
+  /** Host only: take a guest out of the room, for good (ADR-0037). */
+  private removeParticipant(host: Participant, participantId: ParticipantId): void {
+    if (host.role !== 'host') {
+      this.d.transport.send(host.id, {
+        kind: 'error',
+        code: 'NOT_HOST',
+        message: 'Only the host can do that.',
+        spoken: false,
+      });
+      return;
+    }
+    const target = this.participants.get(participantId);
+    if (!target || target.role === 'host') return;
+    this.removed.add(participantId);
+    this.metrics.interaction(host.id, 'participant_removed', {
+      participants: this.participants.size - 1,
+    });
+    this.observer.event('room.participant_removed', { participantId });
+    this.d.transport.send(participantId, {
+      kind: 'error',
+      code: 'REMOVED',
+      message: 'The host removed you from this room.',
+      spoken: false,
+    });
+    this.leave(participantId);
+    this.d.transport.close?.(participantId);
+  }
+
+  private control(
+    p: Participant,
+    action: 'pause' | 'resume' | 'end' | 'next_segment' | 'discuss',
+  ): void {
     if (p.role !== 'host') {
       this.d.transport.send(p.id, {
         kind: 'error',
@@ -1548,10 +1820,34 @@ export class SessionRoom {
       case 'pause':
         if (this.state.mode === 'teaching' || this.state.mode === 'complete') {
           this.pipeline.cancel();
+          this.deferCall();
           this.setMode('paused');
         }
         return;
+      case 'discuss':
+        // The class talks among themselves (ADR-0037): the lesson stops at
+        // the sentence, the expert waits, and nobody's voice reaches it.
+        if (
+          this.state.mode === 'teaching' ||
+          this.state.mode === 'complete' ||
+          this.state.mode === 'checking' ||
+          this.state.mode === 'paused'
+        ) {
+          this.pipeline.cancel();
+          this.deferCall();
+          this.metrics.interaction(p.id, 'discussion_started', {});
+          this.observer.event('room.discussion', { on: true });
+          this.setMode('discussing');
+        }
+        return;
       case 'resume':
+        if (this.state.mode === 'discussing') {
+          this.metrics.interaction(p.id, 'discussion_ended', {});
+          this.observer.event('room.discussion', { on: false });
+          if (this.pendingCheck) this.setMode('checking');
+          else this.resumeLesson();
+          return;
+        }
         if (this.state.mode === 'paused') this.resumeLesson();
         return;
       case 'end':
@@ -1586,7 +1882,12 @@ export class SessionRoom {
       this.pipeline.enqueue(entry.say, 'lesson', take, this.voiceForCurrentLanguage());
     }
     this.state = { ...this.state, resume: null };
+    // A finished lesson does not go back to "teaching" because a turn ended:
+    // the expert is waiting for the next question, and says so.
+    if (ids.length === 0 && this.lessonComplete && this.hostProgressSeq >= this.seq - 1)
+      this.setMode('complete');
     this.broadcastState();
+    this.maybeCallNextHand();
   }
 
   // ── turns ──────────────────────────────────────────────────────────────────
@@ -1603,19 +1904,34 @@ export class SessionRoom {
       this.refuseDuringAd('interrupt', p);
       return;
     }
+    // In a discussion the expert hears nobody, the host included (ADR-0037).
+    if (this.state.mode === 'discussing') return;
+    // A guest reaches the expert only with the floor the expert gave them;
+    // anything else they say is for the people in the room, and is dropped
+    // here without a word.
+    if (p.role !== 'host' && this.state.floor !== p.id) return;
     if (
       this.state.mode === 'listening' ||
       this.state.mode === 'thinking' ||
       this.state.mode === 'answering'
     ) {
-      // Someone else has the floor; a second voice is queued by the client UI, not the room.
       if (this.state.floor !== p.id) {
-        this.d.transport.send(p.id, {
-          kind: 'error',
-          code: 'RATE_LIMITED',
-          message: `${this.participants.get(this.state.floor ?? '')?.name ?? 'Someone'} has the floor.`,
-          spoken: false,
+        // The host cutting in over a guest's turn: the host is primary, the
+        // way a teacher can interject. The guest's turn ends here and the
+        // lesson's resume point stays where their question stopped it.
+        this.clearInvite();
+        this.pipeline.cancel();
+        this.ledger({
+          kind: 'interrupt',
+          t: this.now(),
+          participantId: p.id,
+          atSeq: at.atSeq,
+          offsetMs: at.offsetMs,
         });
+        if (this.turn) this.turn.done = true;
+        this.turn = null;
+        this.pipeline.resetLookahead();
+        this.setMode('listening', p.id);
         return;
       }
       // The floor holder cut in again — over the answer they just asked for, or
@@ -1648,6 +1964,9 @@ export class SessionRoom {
           ? 'paused'
           : 'teaching';
     this.pipeline.cancel();
+    // A hand being called goes back to the front of the queue: the host is
+    // speaking now, and the invitation, if it was mid-air, is moot.
+    this.deferCall();
     this.ledger({
       kind: 'interrupt',
       t: this.now(),
@@ -1674,6 +1993,9 @@ export class SessionRoom {
       this.refuseDuringAd('transcript', p);
       return;
     }
+    if (this.state.mode === 'discussing') return;
+    if (p.role !== 'host' && this.state.floor !== p.id) return;
+    if (this.state.invited === p.id && final && text.trim()) this.clearInvite();
     if (this.state.floor !== p.id) {
       const openFloor =
         this.state.mode === 'teaching' ||
@@ -1869,6 +2191,7 @@ export class SessionRoom {
 
   /** Nothing to answer: give the floor back and continue. */
   private releaseFloor(): void {
+    this.clearInvite();
     this.state = { ...this.state, floor: null };
     if (this.pausedBeforeTurn === 'checking') this.setMode('checking');
     else if (this.pausedBeforeTurn === 'paused') this.setMode('paused');
@@ -2152,7 +2475,11 @@ export class SessionRoom {
   }
 
   private broadcastState(): void {
-    this.state = { ...this.state, participants: [...this.participants.values()] };
+    this.state = {
+      ...this.state,
+      participants: [...this.participants.values()],
+      hands: [...this.hands],
+    };
     this.d.transport.broadcast({ kind: 'state', state: this.state });
   }
 

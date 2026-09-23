@@ -105,6 +105,18 @@ export const InteractionName = z.enum([
   'question_out_of_scope',
   /** A guest was told the room is being recorded, as Zoom tells a caller. */
   'recording_notice_shown',
+  // the floor in a room (ADR-0037)
+  'hand_raised',
+  'hand_lowered',
+  /** The expert called on the first hand in the queue. */
+  'hand_called',
+  /** Called on, and lowered the hand before saying anything. */
+  'hand_withdrawn',
+  /** Called on, and said nothing for the wait. */
+  'hand_unanswered',
+  'discussion_started',
+  'discussion_ended',
+  'participant_removed',
   'check_answered',
   'interrupt',
   'pause',

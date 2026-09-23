@@ -5,6 +5,8 @@ export interface RoomTransport {
   broadcast(message: ServerMessage): void;
   send(participantId: ParticipantId, message: ServerMessage): void;
   broadcastAudio(header: DownstreamAudioHeader, pcm: Uint8Array): void;
+  /** Close a participant's seats: the host removed them (ADR-0037). Absent in tests. */
+  close?(participantId: ParticipantId): void;
 }
 
 export interface RoomObserver {

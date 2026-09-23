@@ -89,7 +89,7 @@ export function expertPresence(state: RoomState | null, speaking: boolean): Expe
   if (!state || state.phase !== 'live') return 'idle';
   if (state.mode === 'listening') return 'listening';
   if (state.mode === 'thinking') return 'thinking';
-  if (state.mode === 'paused') return 'paused';
+  if (state.mode === 'paused' || state.mode === 'discussing') return 'paused';
   return speaking ? 'speaking' : 'idle';
 }
 

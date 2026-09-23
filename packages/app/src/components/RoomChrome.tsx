@@ -15,7 +15,9 @@ import {
   Captions,
   Ellipsis,
   Gauge,
+  Hand,
   Maximize2,
+  MessagesSquare,
   Mic,
   MicOff,
   PanelRight,
@@ -201,6 +203,14 @@ export interface BottomBarProps {
   /** The CC control exists in this room at all (ADR-0036). Absent means yes. */
   captionsAvailable?: boolean;
   /**
+   * The floor in a room (ADR-0037). A guest raises a hand to be called on;
+   * the host opens and closes a discussion. Absent in a solo session, where
+   * the learner is heard without either.
+   */
+  handRaised?: boolean;
+  onToggleHand?: () => void;
+  onToggleDiscuss?: () => void;
+  /**
    * There are guests, so the room is being recorded for its host and everyone
    * is told, the way a call shows its recording dot (ADR-0035).
    */
@@ -237,6 +247,13 @@ export interface BottomBarProps {
   onUnmuteVoice?: () => void;
 }
 
+function ordinal(n: number): string {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  const last = n % 10;
+  return `${n}${last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th'}`;
+}
+
 /**
  * The recording mark a call carries while it is recorded: a steady dot and
  * the word, in the ordinary voice. A fact about the room, never a warning.
@@ -255,10 +272,18 @@ function RecordingDot() {
 }
 
 /** What the room is doing, in the learner's words. */
-function statusLabelOf(state: RoomState, total: number): string {
+function statusLabelOf(state: RoomState, total: number, selfId?: string): string {
   switch (state.mode) {
     case 'listening':
-      return 'Paused — you have the floor';
+      if (selfId && state.floor !== selfId) {
+        const name = state.participants.find((p) => p.id === state.floor)?.name ?? 'Someone';
+        return state.invited === state.floor ? `${name} was called on` : `${name} has the floor`;
+      }
+      return state.invited === selfId
+        ? 'Go ahead — the expert is listening'
+        : 'Paused — you have the floor';
+    case 'discussing':
+      return 'Discussion — the expert is waiting';
     case 'thinking':
       return 'Thinking…';
     case 'answering':
@@ -279,7 +304,15 @@ export function BottomBar(p: BottomBarProps) {
   const total = p.state.plan?.segments.length ?? 0;
   const done = p.state.mode === 'complete' ? total : Math.min(total, p.state.segment);
   const playing = p.state.mode !== 'paused';
-  const statusLabel = statusLabelOf(p.state, total);
+  const statusLabel = statusLabelOf(p.state, total, p.selfId);
+  const discussing = p.state.mode === 'discussing';
+  const myHand = p.state.hands?.findIndex((h) => h.participantId === p.selfId) ?? -1;
+  const handLabel =
+    myHand >= 0
+      ? `Hand up${myHand > 0 ? ` · ${ordinal(myHand + 1)} in line` : ' · you are next'} — lower it`
+      : p.state.invited === p.selfId
+        ? 'The expert called on you — go ahead'
+        : 'Raise your hand to ask the expert';
   const micLive = p.micState === 'listening' && !p.audio?.mutedByHost && !p.inputsPaused;
   const micLabel = p.inputsPaused
     ? 'Microphone is off while the ad plays'
@@ -338,10 +371,43 @@ export function BottomBar(p: BottomBarProps) {
             <IconButton
               label={playing ? 'Pause' : 'Resume'}
               onClick={p.onTogglePlay}
-              disabled={!canPlayPause}
+              disabled={!canPlayPause || discussing}
               className="hidden md:grid"
             >
               {playing ? <Pause size={14} /> : <Play size={14} />}
+            </IconButton>
+          ) : null}
+          {p.isHost && p.onToggleDiscuss ? (
+            // The class talks among themselves; the expert waits (ADR-0037).
+            <IconButton
+              label={discussing ? 'Back to the expert' : 'Discuss — pause the expert'}
+              state={discussing ? 'on' : 'default'}
+              onClick={p.onToggleDiscuss}
+              disabled={p.inputsPaused ?? false}
+              data-testid="discuss-toggle"
+            >
+              <MessagesSquare size={16} />
+            </IconButton>
+          ) : null}
+          {!p.isHost && p.onToggleHand ? (
+            <IconButton
+              label={handLabel}
+              state={myHand >= 0 || p.state.invited === p.selfId ? 'on' : 'default'}
+              onClick={p.onToggleHand}
+              disabled={(p.inputsPaused ?? false) || p.state.invited === p.selfId}
+              size={44}
+              className="relative sm:[--icon-size:32px]"
+              data-testid="hand-toggle"
+            >
+              <Hand size={20} />
+              {myHand > 0 ? (
+                <span
+                  aria-hidden
+                  className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-[10px] text-on-primary tabular-nums"
+                >
+                  {myHand + 1}
+                </span>
+              ) : null}
             </IconButton>
           ) : null}
           <PaceMenu
@@ -451,9 +517,21 @@ export function BottomBar(p: BottomBarProps) {
           <SheetRow
             label={playing ? 'Pause' : 'Resume'}
             icon={playing ? <Pause size={16} /> : <Play size={16} />}
-            disabled={!canPlayPause}
+            disabled={!canPlayPause || discussing}
             onClick={() => {
               p.onTogglePlay();
+              setMore(false);
+            }}
+          />
+        ) : null}
+        {p.isHost && p.onToggleDiscuss ? (
+          <SheetRow
+            label={discussing ? 'Back to the expert' : 'Discuss — pause the expert'}
+            hint={discussing ? 'On' : 'Off'}
+            icon={<MessagesSquare size={16} />}
+            pressed={discussing}
+            onClick={() => {
+              p.onToggleDiscuss?.();
               setMore(false);
             }}
           />

@@ -68,6 +68,7 @@ export {
 export {
   type AdOutcome,
   type AdPolicy,
+  HAND_WAIT_MS,
   hueFor,
   type KnowledgeAcquirer,
   type LedgerSink,

@@ -17,6 +17,7 @@ export const LiveMode = z.enum([
   'answering', // expert answering a question; lesson resume point held
   'checking', // expert asked a check-in and is waiting for an answer
   'complete', // lesson finished; room still open for questions
+  'discussing', // the host paused the class to talk among themselves; the expert waits and hears nobody (ADR-0037)
 ]);
 export type LiveMode = z.infer<typeof LiveMode>;
 
@@ -109,6 +110,17 @@ export const RoomState = z.object({
   features: z
     .object({ chat: z.boolean(), reactions: z.boolean(), captions: z.boolean() })
     .optional(),
+  /**
+   * Guests waiting to be called on, in the order they raised their hands
+   * (ADR-0037). The expert takes the first at the next good place to stop.
+   * Absent on older ledgers.
+   */
+  hands: z.array(z.object({ participantId: ParticipantId, at: z.number().int() })).optional(),
+  /**
+   * The guest the expert has just called on and is waiting to hear from:
+   * they hold the floor without having spoken yet. Null otherwise.
+   */
+  invited: ParticipantId.nullable().optional(),
   plan: LessonPlan.nullable(),
   /** Index of the segment currently being taught. */
   segment: z.number().int().nonnegative(),

@@ -23,7 +23,15 @@ export const ClientJoin = z.object({
 });
 export const ClientControl = z.object({
   kind: z.literal('control'),
-  action: z.enum(['pause', 'resume', 'end', 'next_segment']),
+  /** `discuss` is the host pausing the class to talk among themselves (ADR-0037); `resume` ends it. */
+  action: z.enum(['pause', 'resume', 'end', 'next_segment', 'discuss']),
+});
+/** A guest raises or lowers their hand (ADR-0037). The host never needs to. */
+export const ClientHand = z.object({ kind: z.literal('hand'), raised: z.boolean() });
+/** Host only: take a guest out of the room. Their seat closes with `REMOVED` and they cannot rejoin. */
+export const ClientRemoveParticipant = z.object({
+  kind: z.literal('remove_participant'),
+  participantId: ParticipantId,
 });
 /** Local barge-in already happened; tell the room exactly where the lesson stopped. */
 export const ClientInterrupt = z.object({
@@ -147,6 +155,8 @@ export const ClientMessage = z.discriminatedUnion('kind', [
   ClientReport,
   ClientAdEvent,
   ClientReaction,
+  ClientHand,
+  ClientRemoveParticipant,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 export type ClientReport = z.infer<typeof ClientReport>;
@@ -250,6 +260,8 @@ export const ServerError = z.object({
     'UNAUTHORIZED',
     'SESSION_NOT_FOUND',
     'ROOM_FULL',
+    /** The host took this participant out of the room (ADR-0037). */
+    'REMOVED',
     'NOT_HOST',
     'ENTITLEMENT_REQUIRED',
     'RATE_LIMITED',

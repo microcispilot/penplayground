@@ -195,6 +195,61 @@ export function outOfScope(seed: number, language = 'en'): string {
   return list[Math.abs(seed) % list.length] ?? list[0] ?? '';
 }
 
+/**
+ * The floor in a room (ADR-0037): calling on a raised hand, letting a silent
+ * one go, and letting a withdrawn one go. `{name}` is the guest's first
+ * name. Said the way a teacher says it — by name, warmly, and briefly,
+ * because the class is waiting.
+ */
+const CALL_ON: Record<string, string[]> = {
+  en: [
+    'Okay {name}, I see your hand — go ahead.',
+    '{name}, you had your hand up. Go on.',
+    'Yes, {name} — what have you got?',
+  ],
+  es: ['Vale, {name}, veo tu mano — adelante.', '{name}, tenías la mano levantada. Dime.'],
+  fr: ['D’accord {name}, je vois ta main — vas-y.', '{name}, tu avais la main levée. Je t’écoute.'],
+  de: ['Okay {name}, ich sehe deine Hand — nur zu.', '{name}, du hattest die Hand oben. Bitte.'],
+  fa: ['خب {name}، دستت رو دیدم — بفرما.'],
+  ja: ['はい、{name}さん、手が挙がっていましたね。どうぞ。'],
+  zh: ['好，{name}，我看到你举手了——请说。'],
+};
+const HAND_UNANSWERED: Record<string, string[]> = {
+  en: [
+    'Take your time, {name} — I’ll keep going. Raise your hand again whenever you’re ready.',
+    'No rush, {name}. I’ll carry on; put your hand up again when you have it.',
+  ],
+  es: ['Tranquilo, {name}, sigo. Levanta la mano otra vez cuando quieras.'],
+  fr: ['Pas de souci, {name}, je continue. Relève la main quand tu veux.'],
+  de: ['Kein Stress, {name}, ich mache weiter. Heb die Hand wieder, wenn du so weit bist.'],
+  fa: ['عجله‌ای نیست {name}، من ادامه می‌دم. هر وقت آماده بودی دوباره دست بلند کن.'],
+  ja: ['大丈夫ですよ、{name}さん。続けますね。準備ができたらまた手を挙げてください。'],
+  zh: ['不急，{name}，我先继续。准备好了再举手。'],
+};
+const HAND_WITHDRAWN: Record<string, string[]> = {
+  en: ['No problem, {name} — moving on.', 'All good, {name}. Back to it.'],
+  es: ['Sin problema, {name}. Seguimos.'],
+  fr: ['Pas de problème, {name}. On continue.'],
+  de: ['Kein Problem, {name}. Weiter geht’s.'],
+  fa: ['مشکلی نیست {name}. ادامه می‌دیم.'],
+  ja: ['大丈夫です、{name}さん。続けましょう。'],
+  zh: ['没关系，{name}。我们继续。'],
+};
+function forName(table: Record<string, string[]>, name: string, seed: number, language: string) {
+  const list = table[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? table.en ?? [];
+  const line = list[Math.abs(seed) % list.length] ?? list[0] ?? '{name}.';
+  return line.replaceAll('{name}', name);
+}
+export function callOnHand(name: string, seed: number, language = 'en'): string {
+  return forName(CALL_ON, name, seed, language);
+}
+export function handUnanswered(name: string, seed: number, language = 'en'): string {
+  return forName(HAND_UNANSWERED, name, seed, language);
+}
+export function handWithdrawn(name: string, seed: number, language = 'en'): string {
+  return forName(HAND_WITHDRAWN, name, seed, language);
+}
+
 export function bridgeBack(seed: number, language = 'en'): string {
   const list = BRIDGES[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? BRIDGES.en ?? [];
   return list[Math.abs(seed) % list.length] ?? list[0] ?? 'Back to it.';

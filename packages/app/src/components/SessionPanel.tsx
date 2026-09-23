@@ -363,6 +363,8 @@ export interface SessionPanelProps {
   micLevel: number;
   onToggleMic: () => void;
   onMute: ((participantId?: string) => void) | null;
+  /** Host only: take a guest out of the room (ADR-0037). */
+  onRemove?: ((participantId: string) => void) | null;
   /** What the people in the room have said to each other. The expert is not in it. */
   chat: ChatLine[];
   /** The chat exists in this room at all (ADR-0036). Absent means yes. */
@@ -403,6 +405,7 @@ function PanelBody(p: SessionPanelProps & { bodyId: string }) {
         micLevel={p.micLevel}
         onToggleMic={p.onToggleMic}
         onMute={p.onMute}
+        onRemove={p.onRemove ?? null}
         reactions={p.reactions}
         sectionOpen={rosterOpen}
         onToggleSection={() => setRosterOpen((v) => !v)}

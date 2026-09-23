@@ -417,6 +417,28 @@ afterwards, each with a test that fails on an unchanged checkout.
       curve the product is judged by. It ranks above every `left_*` answer,
       because the learner did not leave: we stopped.
 
+## The floor in a room (2026-09-23, ADR-0037)
+
+- [x] **Guests raise a hand; the expert takes them in order at a sentence
+      boundary, by name.** `hand` on the wire, `RoomState.hands` / `invited`,
+      the lesson held after the sentence at the speaker (a pace re-take with
+      no newer take), the invitation on the `floor` thread (never the lesson
+      voice store), the floor on the invitation being heard, an 8 s wait
+      before the expert lets a silent hand go by name. Withdrawn, lowered,
+      left, removed, host-interrupted, during a check-in, during a discussion:
+      each has a test in `packages/session-engine/test/hands.test.ts`.
+- [x] **A guest without the floor is never heard.** The conductor and the
+      room both drop their speech; a guest's recogniser runs only while they
+      hold the floor.
+- [x] **The host's discussion** (`control: discuss`): `LiveMode.discussing`,
+      lesson held, expert dimmed and waiting, nobody heard, hands queue,
+      `resume` brings it back. **Remove** (`remove_participant`): seat
+      closed with `REMOVED`, no way back in.
+- [ ] A two-browser e2e of a real hand (the rooms pair needs LiveKit, which
+      does not run in this environment — `rooms.spec.ts` is recorded as
+      failing here already). The panel review pictures carry a synthetic
+      queue instead.
+
 ## Replay, recordings and the flags (2026-09-23)
 
 - [x] **A recording is its host's alone (ADR-0035).** `GET /api/sessions/:id/ledger`

@@ -78,6 +78,8 @@ export interface RoomUiState {
    */
   reactions: LiveReaction[];
   learnerHeard: string;
+  /** This guest's hand is up (ADR-0037); the room's queue is `state.hands`. */
+  handRaised: boolean;
   /** Pinned "You asked" notes, in order. */
   notes: NoteEvent[];
   /** Wall-clock derived lesson clock for the bottom bar. */
@@ -112,6 +114,7 @@ const initial: RoomUiState = {
   chat: [],
   reactions: [],
   learnerHeard: '',
+  handRaised: false,
   notes: [],
   clockMs: 0,
   errorText: null,

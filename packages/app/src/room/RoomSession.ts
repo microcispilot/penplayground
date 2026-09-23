@@ -253,7 +253,15 @@ export class RoomSession {
       setState: (state: RoomState) => {
         this.syncClock(state);
         this.followLanguage(state.language);
-        set({ state, preparation: state.preparation, phase: this.conductor.getPhase() });
+        set({
+          state,
+          preparation: state.preparation,
+          phase: this.conductor.getPhase(),
+          // The room's queue is the truth about a hand: raised here, lowered
+          // by the expert calling on us, by our own tap, or by leaving.
+          handRaised: (state.hands ?? []).some((h) => h.participantId === this.o.participantId),
+        });
+        this.syncRecognizer(state);
         this.expertSpeaking = state.mode === 'teaching' || state.mode === 'answering';
         this.syncPlaybackActive();
         this.onPhase(state);
@@ -409,6 +417,7 @@ export class RoomSession {
               m.code === 'SESSION_NOT_FOUND' ||
               m.code === 'UNAUTHORIZED' ||
               m.code === 'ROOM_FULL' ||
+              m.code === 'REMOVED' ||
               m.code === 'ENTITLEMENT_REQUIRED'
             )
               set({ errorText: m.message });
@@ -656,6 +665,12 @@ export class RoomSession {
     const track = this.micStream?.getAudioTracks()[0];
     if (mic.state === 'listening' && track && this.mic === mic)
       void this.audio.attachMicrophone(track);
+    // A guest without the floor keeps the microphone for the people in the
+    // room and holds the recogniser until the expert calls on them.
+    if (!this.mayAddressExpert(useRoomStore.getState().state)) {
+      this.recognizerHeld = true;
+      return;
+    }
     const recognizer = this.o.platform.speech.create(this.recognizerHandlers(), {
       language: useRoomStore.getState().state?.language ?? navigator.language ?? 'en-US',
     });
@@ -721,6 +736,57 @@ export class RoomSession {
     if (recognizer.available) void recognizer.start();
   }
 
+  /**
+   * Whether what we say may reach the expert right now (ADR-0037): the host
+   * always, a guest only with the floor, nobody in a discussion. The
+   * conductor makes the same call for barge-in; this one is about cost — a
+   * guest's recogniser runs only while they are being heard, so a room of
+   * twelve is not twelve recognitions of side talk.
+   */
+  private mayAddressExpert(state: RoomState | null): boolean {
+    if (!state || state.mode === 'discussing') return false;
+    if (state.hostId === this.o.participantId) return true;
+    return state.floor === this.o.participantId;
+  }
+
+  private recognizerHeld = false;
+  private syncRecognizer(state: RoomState): void {
+    if (!this.mic) return;
+    const allowed = this.mayAddressExpert(state);
+    if (allowed && this.recognizerHeld) {
+      this.recognizerHeld = false;
+      const recognizer = this.o.platform.speech.create(this.recognizerHandlers(), {
+        language: state.language,
+      });
+      this.recognizer = recognizer;
+      if (recognizer.available) void recognizer.start();
+    } else if (!allowed && !this.recognizerHeld && this.recognizer) {
+      this.recognizerHeld = true;
+      this.recognizer.stop();
+      this.recognizer = null;
+    }
+  }
+
+  /** A guest's hand up or down (ADR-0037). The host is heard without one. */
+  setHand(raised: boolean): void {
+    if (this.adGate.refuses()) return;
+    trackInteraction(raised ? 'hand_raised' : 'hand_lowered');
+    useRoomStore.getState().set({ handRaised: raised });
+    this.client.send({ kind: 'hand', raised });
+  }
+
+  /** Host: pause the class for a discussion, or bring the expert back. */
+  discuss(on: boolean): void {
+    trackInteraction(on ? 'discussion_started' : 'discussion_ended');
+    this.client.send({ kind: 'control', action: on ? 'discuss' : 'resume' });
+  }
+
+  /** Host: take a guest out of the room for good. */
+  removeParticipant(participantId: string): void {
+    trackInteraction('participant_removed');
+    this.client.send({ kind: 'remove_participant', participantId });
+  }
+
   disableMic(): void {
     if (this.mic) trackInteraction('mic_off');
     if (this.serverSpeech && this.currentUtterance) {
@@ -728,6 +794,7 @@ export class RoomSession {
       this.currentUtterance = null;
     }
     this.serverSpeech = false;
+    this.recognizerHeld = false;
     this.recognizer?.stop();
     this.recognizer = null;
     // Unpublish before the Microphone stops its tracks so the room sees a clean leave, not a dead track.

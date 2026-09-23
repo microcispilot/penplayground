@@ -1,6 +1,6 @@
 import type { Expert, Participant, RoomState } from '@pen/contracts';
 import { Avatar, Button, cn, ExpertOrb, type ExpertPresence, Pill } from '@pen/design';
-import { ChevronDown, Mic, MicOff, VolumeX } from 'lucide-react';
+import { ChevronDown, Hand, Mic, MicOff, UserMinus, VolumeX } from 'lucide-react';
 import { type ReactNode, useId, useState } from 'react';
 import type { RoomAudioUi } from '../room/audio/RoomAudio.js';
 import {
@@ -128,6 +128,8 @@ export interface ParticipantRosterProps {
   onToggleMic: () => void;
   /** Host only; `undefined` mutes everyone but the host. */
   onMute: ((participantId?: string) => void) | null;
+  /** Host only: take a guest out of the room for good (ADR-0037). */
+  onRemove?: ((participantId: string) => void) | null;
   /** Reactions still on screen; they float over the cards and fade. */
   reactions: LiveReaction[];
   /** The section's own fold, driven by the chevron at the end of its heading. */
@@ -342,6 +344,7 @@ function ExpertTile({
   compact,
   soundBlocked,
   onEnableSound,
+  waiting = false,
 }: {
   expert: Expert | null;
   presence: ExpertPresence;
@@ -350,26 +353,33 @@ function ExpertTile({
   compact: boolean;
   soundBlocked: boolean;
   onEnableSound: () => void;
+  /** The class is in a discussion (ADR-0037): the expert waits, dimmed, and says so. */
+  waiting?: boolean;
 }) {
   const name = expert?.displayName ?? 'Expert';
   const talking = presence === 'speaking';
   return (
     <li
       data-testid="roster-expert"
-      data-presence={presence}
+      data-presence={waiting ? 'waiting' : presence}
       /* The tile follows the same rule as everyone else's — a green line while
          audible, a hairline otherwise. The finer states only the AI human has
          (thinking, listening for you) are the orb's to draw, and drawing them
          twice put a second grey box round the expert for half the lesson. */
-      className={cn(TILE_BASE, ringFor(talking ? 'speaking' : 'listening'))}
+      className={cn(
+        TILE_BASE,
+        ringFor(talking ? 'speaking' : 'listening'),
+        // Dimmed, not gone: the expert is in the room and waiting for the host.
+        waiting && 'opacity-50 transition-opacity duration-[var(--duration-base)]',
+      )}
       style={{ minHeight: size + 46 }}
     >
       {/* The ring and the bars are the sighted read of this; a screen reader
           gets the same fact in words rather than nothing at all. */}
-      <span className="sr-only">{expertPresenceLabel(presence)}</span>
+      <span className="sr-only">{waiting ? 'Waiting' : expertPresenceLabel(presence)}</span>
       <TileFace
         name={tileNameFor(name, false, compact)}
-        qualifier={qualifierFor('expert', false, false, compact)}
+        qualifier={waiting ? 'waiting' : qualifierFor('expert', false, false, compact)}
         glyph={talking ? <SpeakingGlyph /> : null}
       >
         <ExpertOrb name={name} portraitUrl={portraitUrl} presence={presence} size={size} />
@@ -479,6 +489,11 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
   const compact = total > MAX_ROSTER_CARDS;
   const voiceOn = p.audio !== null && p.audio.status !== 'off';
   const canMute = p.isHost && voiceOn && p.onMute !== null;
+  const canRemove = p.isHost && Boolean(p.onRemove);
+  /** Queue position of a raised hand, 1-based; 0 when the hand is down (ADR-0037). */
+  const handOf = (id: string) =>
+    (p.state.hands?.findIndex((h) => h.participantId === id) ?? -1) + 1;
+  const calledOn = p.state.invited ?? null;
   const unmutedGuests = people.filter(
     (x) => x.id !== p.state.hostId && !['off', 'muted'].includes(voiceOf(x, p.selfId, p.audio)),
   );
@@ -549,6 +564,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                 compact={compact}
                 soundBlocked={p.soundBlocked}
                 onEnableSound={p.onEnableSound}
+                waiting={p.state.mode === 'discussing'}
               />
               {shownPeople.map((person) => (
                 <PersonTile
@@ -621,6 +637,18 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                         <span className="shrink-0 text-label-small text-on-surface-dim">You</span>
                       ) : null}
                       {host ? <Pill tone="accent">Host</Pill> : null}
+                      {handOf(person.id) > 0 ? (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary-container px-1.5 py-0.5 text-label-small text-on-primary-container"
+                          title={`Hand up, ${ordinalOf(handOf(person.id))} in line`}
+                          data-testid={`hand-${person.id}`}
+                        >
+                          <Hand size={11} aria-hidden />
+                          {handOf(person.id)}
+                        </span>
+                      ) : calledOn === person.id ? (
+                        <Pill tone="warm">Called on</Pill>
+                      ) : null}
                     </div>
                     <div
                       className={cn(
@@ -641,6 +669,18 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
                       data-testid={`mute-${person.id}`}
                     >
                       {voice === 'muted' ? 'Muted' : 'Mute'}
+                    </Button>
+                  ) : null}
+                  {canRemove && !host && !isSelf ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => p.onRemove?.(person.id)}
+                      leading={<UserMinus size={13} />}
+                      aria-label={`Remove ${person.name} from the room`}
+                      data-testid={`remove-${person.id}`}
+                    >
+                      Remove
                     </Button>
                   ) : null}
                 </li>
@@ -666,4 +706,11 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
       ) : null}
     </section>
   );
+}
+
+function ordinalOf(n: number): string {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  const last = n % 10;
+  return `${n}${last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th'}`;
 }

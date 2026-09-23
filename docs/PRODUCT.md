@@ -131,12 +131,24 @@ during preparation.
   offers its host the recording and everyone else the way to search the
   topic, whose lesson the memo already holds.
 
-- **Host** starts, pauses, resumes, ends, invites. Only the host's pause pauses
+- **Host** starts, pauses, resumes, ends, invites, mutes and removes. The host
+  is the one voice the expert always hears: they interrupt as a solo learner
+  does, and may cut in over a guest's turn. Only the host's pause pauses
   the room.
-- **Guests** join by link, hear everything, see the board, can raise their
-  voice (interrupt) and ask questions. Their question is captioned for the room
-  and the expert answers the room.
-- A guest interrupt while the host has paused is queued, not lost.
+- **Discussion** (ADR-0037): the host's control that pauses the class to
+  talk among themselves. The lesson stops at the sentence, the expert dims
+  and waits, and nobody's voice reaches it — the host's included — until the
+  host brings the expert back.
+- **Guests** join by link, hear everything, see the board, and **raise a
+  hand** to ask. The expert takes hands in the order raised, at the end of
+  the sentence it is on, by name — *"Okay Tom, I see your hand — go ahead"*
+  — and then Tom has the floor. A guest who is not called on is never heard
+  by the expert (the room hears them); one who says nothing for a few
+  seconds, or lowers their hand, is let go by name and the lesson carries
+  on. A hand lowered before the call is simply gone; raised again, it joins
+  the back of the queue.
+- A hand raised during a discussion, a pause or an ad waits, and is taken at
+  the first sentence boundary after the lesson resumes.
 - **Reactions** are how a room of twelve says something without taking the floor
   (ADR-0019): eight emoji, one tap, the sender's face beside their emoji over the
   participants for a few seconds. They never interrupt the expert, and the one

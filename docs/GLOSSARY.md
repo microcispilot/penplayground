@@ -9,7 +9,9 @@ Use these words exactly, in code, docs and UI copy.
 - **Expert** — an AI human persona from the catalog: name, role, biography, interaction style, portrait, `voice_id`, mandatory AI disclosure. Persona shapes manner, never capability.
 - **Session** — one classroom instance: a topic, an expert, a host, 0–11 guests, a lesson, a timeline, a transcript, a recording.
 - **Host** — the participant who started the session. Only the host can pause, resume, end, or invite.
-- **Guest** — any other participant. Can listen, watch, interrupt and ask.
+- **Guest** — any other participant. Listens, watches, talks to the other people, and asks the expert by **raising a hand**; is heard by the expert only while holding the floor the expert gave them (ADR-0037).
+- **Hand** — a guest's request for the floor, queued oldest first in `RoomState.hands`. The expert calls the first at the end of the sentence it is on (the **invitation**, on the `floor` thread), gives them the floor (`RoomState.invited`), and lets them go by name if they say nothing for `HAND_WAIT_MS` or lower it.
+- **Discussion** — `LiveMode.discussing`: the host paused the class to talk among themselves. The lesson holds at the sentence, the expert waits and hears nobody, hands still queue. Host-only, both ways.
 - **Lesson** — the ordered list of **segments** the expert intends to teach for this session. Produced by the planner from the pack (or reused via the memo).
 - **Segment** — one teaching beat (≈ 30–120 s): a goal, speech, board work, optionally a check-in. Progress dots in the bottom bar are segments.
 - **Plan opening** — the title, the promise and segment 1: the part of a lesson plan the model writes first, and everything segment 1's call needs. The room takes it while the rest of the outline is still being written and sends segment 1 against it, so the two calls overlap; nothing is spoken until the whole plan has landed (ADR-0019).

@@ -186,7 +186,7 @@ const frame = (sayId: string, take = 0, final = true): DownstreamAudioHeader => 
   take,
 });
 
-function setup() {
+function setup(participantId: string = HOST) {
   const audio = new FakeAudio();
   const boardPort = new FakeBoard();
   const captions = new FakeCaptions();
@@ -199,7 +199,7 @@ function setup() {
     captions,
     presence,
     transport,
-    participantId: HOST,
+    participantId,
     setTimeout: (fn, ms) => {
       timers.push({ fn, ms });
       return timers.length;
@@ -753,5 +753,65 @@ describe('Conductor rejoin', () => {
     // And the resumed stream plays.
     c.handleAudio(frame('L0.s2'), new Uint8Array(4));
     expect(audio.enqueued).toEqual(['L0.s1@0', 'L0.s2@0']);
+  });
+});
+
+describe('the floor in a room (ADR-0037)', () => {
+  it("a guest's confirmed speech without the floor is neither an interrupt nor a transcript", () => {
+    const guest = 'guest-0001';
+    const { c, audio, transport } = setup(guest);
+    c.handleServer({
+      kind: 'ready',
+      participantId: guest,
+      state: state('teaching', {
+        participants: [
+          { id: HOST, name: 'Sam', role: 'host', hue: 1, micOn: false, joinedAt: 0 },
+          { id: guest, name: 'Tom', role: 'guest', hue: 2, micOn: true, joinedAt: 1 },
+        ],
+      }),
+      backlog: [],
+    });
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'A sentence being spoken.') });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    const cancelsBefore = audio.cancelled;
+    const sentBefore = transport.sent.length;
+    c.onSpeechStart();
+    c.onTranscript('u1', 'did you get that bit?', true);
+    expect(audio.cancelled).toBe(cancelsBefore);
+    expect(transport.sent.length).toBe(sentBefore);
+    expect(c.getPhase()).toBe('playing');
+    // Given the floor by the expert, the same guest is heard like anyone.
+    c.handleServer({
+      kind: 'state',
+      state: state('listening', {
+        floor: guest,
+        invited: guest,
+        participants: [
+          { id: HOST, name: 'Sam', role: 'host', hue: 1, micOn: false, joinedAt: 0 },
+          { id: guest, name: 'Tom', role: 'guest', hue: 2, micOn: true, joinedAt: 1 },
+        ],
+      }),
+    });
+    c.onTranscript('u2', 'Why divide by the root of d?', true);
+    expect(transport.sent.at(-1)).toMatchObject({
+      kind: 'transcript',
+      text: 'Why divide by the root of d?',
+    });
+  });
+
+  it('a discussion holds the lesson like a pause, keeps the board readable, and hears nobody', () => {
+    const { c, audio, board, captions, transport } = setup();
+    c.handleServer({ kind: 'cue', cue: say(0, 'L0.s1', 'A sentence being spoken.') });
+    c.handleAudio(frame('L0.s1'), new Uint8Array(4));
+    c.audioEvents.onSayStart('L0.s1@0');
+    c.handleServer({ kind: 'state', state: state('discussing') });
+    expect(c.getPhase()).toBe('paused');
+    expect(audio.paused).toBe(true);
+    expect(board.dimmed).toBe(false);
+    expect(captions.hints.at(-1)).toMatch(/Discussion/);
+    const sentBefore = transport.sent.length;
+    c.onSpeechStart();
+    expect(transport.sent.length).toBe(sentBefore);
   });
 });

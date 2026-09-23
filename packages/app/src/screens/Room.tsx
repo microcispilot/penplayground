@@ -272,6 +272,14 @@ export function Room() {
           )
           .catch(() => toast('Could not mute — try again', 'danger'))
       }
+      onRemove={
+        isHost
+          ? (pid) => {
+              session?.removeParticipant(pid);
+              toast('Removed from the room', 'success');
+            }
+          : null
+      }
       chat={ui.chat}
       chatEnabled={furniture.chat}
       reactions={ui.reactions}
@@ -394,6 +402,10 @@ export function Room() {
           : {
               panelOpen: panelShowing,
               onTogglePanel: togglePanel,
+              // The floor in a room (ADR-0037): the host's discussion, a guest's hand.
+              ...(isHost
+                ? { onToggleDiscuss: () => session?.discuss(state.mode !== 'discussing') }
+                : { onToggleHand: () => session?.setHand(!ui.handRaised) }),
               ...(furniture.reactions
                 ? { onReact: (emoji: Reaction) => session?.react(emoji) }
                 : {}),
