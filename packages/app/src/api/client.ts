@@ -78,6 +78,12 @@ export const SessionRecord = z.object({
   keywords: z.array(z.string()).default([]),
   /** Public like count (ADR-0015); absent on records older than the column. */
   likes: z.number().int().nonnegative().default(0),
+  /**
+   * Guests who took a seat: more than none makes it a room, which is a
+   * recording and not a lesson to replay (ADR-0035). Absent where a route
+   * does not count them.
+   */
+  guests: z.number().int().nonnegative().default(0),
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
 

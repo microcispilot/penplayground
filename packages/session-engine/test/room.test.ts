@@ -10,6 +10,7 @@ import { createOnten } from '@pen/onten';
 import { SilentSynthesizer } from '@pen/voice';
 import { describe, expect, it } from 'vitest';
 import { MemoryLessonMemo } from '../src/lesson-memo.js';
+import { NullMetrics } from '../src/metrics.js';
 import { qualifyIds, SessionRoom } from '../src/room.js';
 import type { RoomTransport } from '../src/transport.js';
 
@@ -549,5 +550,69 @@ describe('segment lookahead', () => {
       globalThis.clearTimeout = realClearTimeout;
       for (const h of longLived) realClearTimeout(h as ReturnType<typeof setTimeout>);
     }
+  });
+});
+
+describe('a question the material has nothing on', () => {
+  it('is answered in one breath with no model call, and the miss is on record', async () => {
+    const { onten, memo } = await preparedPack();
+    const transport = new MemoryTransport();
+    const turns: string[] = [];
+    const model = fakeModel();
+    const inner = model.streamEvents.bind(model);
+    model.streamEvents = (request) => {
+      turns.push(request.purpose);
+      return inner(request);
+    };
+    const interactions: Array<{ event: string; props: Record<string, unknown> }> = [];
+    const metrics = new NullMetrics();
+    metrics.interaction = (_p, event, props) => {
+      interactions.push({ event, props: props ?? {} });
+    };
+    const room = new SessionRoom({
+      sessionId: 'sess-oos',
+      topic: 'How Transformers work in LLMs',
+      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      expert,
+      band: 'beginner',
+      language: 'en',
+      locale: 'en-US',
+      onten,
+      runtime: onten.newRuntime(),
+      memo,
+      model,
+      synthesizer: new SilentSynthesizer(),
+      voice: 'v',
+      sampleRate: 44100,
+      transport,
+      acquirer: null,
+      metrics,
+      targetMinutes: 2,
+    });
+    await room.start();
+    await until(() => transport.cues().filter((c) => c.segment === 0).length >= 3);
+    room.handle('host-1234', { kind: 'progress', seq: 0, clockMs: 2000 });
+    room.handle('host-1234', { kind: 'interrupt', atSeq: 2, sayId: 'L0.s2', offsetMs: 900 });
+    // Nothing in a Transformers pack knows about sourdough.
+    room.handle('host-1234', {
+      kind: 'transcript',
+      utteranceId: 'u1',
+      text: 'What hydration should my sourdough starter be at?',
+      final: true,
+    });
+    await until(() => transport.messages.some((m) => m.kind === 'turn_done' && m.thread === 't1'));
+    const says = transport
+      .cues()
+      .filter((c) => c.thread === 't1' && c.event.type === 'say')
+      .map((c) => (c.event.type === 'say' ? c.event.text : ''));
+    // The acknowledgement, then the redirect: nothing invented, nothing pinned.
+    expect(says).toHaveLength(2);
+    expect(says[1]).toMatch(/today|session/);
+    expect(transport.cues().some((c) => c.thread === 't1' && c.event.type === 'note')).toBe(false);
+    expect(turns.filter((p) => p === 'turn')).toHaveLength(0);
+    expect(interactions.find((i) => i.event === 'question_out_of_scope')).toMatchObject({
+      props: { turn: 't1', kind: 'question' },
+    });
+    await room.end();
   });
 });

@@ -1,5 +1,17 @@
 import { utcDayStart } from '@pen/contracts';
-import { and, asc, desc, eq, getTableColumns, isNotNull, isNull, like, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  notExists,
+  sql,
+} from 'drizzle-orm';
 import type { Database } from './client.js';
 import {
   participants,
@@ -8,6 +20,7 @@ import {
   sessionRedirects,
   sessionSaves,
   sessions,
+  sessionVisits,
 } from './schema.js';
 
 export type SessionRecord = SessionRow;
@@ -132,6 +145,23 @@ export class SessionRepository {
    * what this person did, and two of their own tellings are two of their own
    * tellings.
    */
+  /**
+   * How many guests took a seat in each session: what makes a session a
+   * *room*. Read where a record is served, never stored on the row, so it
+   * cannot drift from the visits it is counted from.
+   */
+  async guestCounts(ids: readonly string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (ids.length === 0) return counts;
+    const rows = await this.db
+      .select({ sessionId: sessionVisits.sessionId, n: sql<number>`count(*)::int` })
+      .from(sessionVisits)
+      .where(and(inArray(sessionVisits.sessionId, [...ids]), eq(sessionVisits.role, 'guest')))
+      .groupBy(sessionVisits.sessionId);
+    for (const r of rows) counts.set(r.sessionId, r.n);
+    return counts;
+  }
+
   async listPublic(limit = 48): Promise<SessionRecord[]> {
     const recapPoints = sql`jsonb_array_length(${sessions.recap})`;
     const saveCounts = this.db
@@ -149,7 +179,24 @@ export class SessionRepository {
       .selectDistinctOn([groupKey], getTableColumns(sessions))
       .from(sessions)
       .leftJoin(saveCounts, eq(saveCounts.sessionId, sessions.id))
-      .where(and(eq(sessions.visibility, 'public'), isNotNull(sessions.endedAt)))
+      .where(
+        and(
+          eq(sessions.visibility, 'public'),
+          isNotNull(sessions.endedAt),
+          // A room — a session somebody joined as a guest — is its host's
+          // recording, not a lesson for the catalogue (ADR-0035): replay is
+          // for solo sessions, and the room's lesson is reused by the memo
+          // the moment anyone asks for the topic.
+          notExists(
+            this.db
+              .select({ one: sql`1` })
+              .from(sessionVisits)
+              .where(
+                and(eq(sessionVisits.sessionId, sessions.id), eq(sessionVisits.role, 'guest')),
+              ),
+          ),
+        ),
+      )
       .orderBy(
         groupKey,
         desc(recapPoints),
@@ -202,7 +249,24 @@ export class SessionRepository {
         startedAt: sessions.startedAt,
       })
       .from(sessions)
-      .where(and(eq(sessions.visibility, 'public'), isNotNull(sessions.endedAt)));
+      .where(
+        and(
+          eq(sessions.visibility, 'public'),
+          isNotNull(sessions.endedAt),
+          // A room — a session somebody joined as a guest — is its host's
+          // recording, not a lesson for the catalogue (ADR-0035): replay is
+          // for solo sessions, and the room's lesson is reused by the memo
+          // the moment anyone asks for the topic.
+          notExists(
+            this.db
+              .select({ one: sql`1` })
+              .from(sessionVisits)
+              .where(
+                and(eq(sessionVisits.sessionId, sessions.id), eq(sessionVisits.role, 'guest')),
+              ),
+          ),
+        ),
+      );
 
     const byScope = new Map<string, DuplicateMember[]>();
     for (const row of rows) {

@@ -116,6 +116,22 @@ export function Room() {
   }, [api, platform, id, participant]);
 
   const isHost = ui.state?.hostId === participant?.id;
+  /**
+   * A guest is told the room is being recorded — once, as they take their
+   * seat, the way a call says "this meeting is being recorded" (ADR-0035).
+   * The recording is the host's alone; that is said too, so nobody has to
+   * wonder who can watch them later.
+   */
+  const noticed = useRef(false);
+  useEffect(() => {
+    const st = ui.state;
+    if (noticed.current || !st || st.phase !== 'live' || !participant) return;
+    if (st.hostId === participant.id) return;
+    if (!st.participants.some((p) => p.id === participant.id)) return;
+    noticed.current = true;
+    toast('This session is being recorded. Only the host can watch or download it.', 'neutral');
+    trackInteraction('recording_notice_shown');
+  }, [ui.state, participant, toast]);
   const firstName = expert?.displayName.split(' ')[0] ?? 'Expert';
   const portrait = api.portraitUrl(expert?.portrait?.src, 192);
   const presence = expertPresence(ui.state, ui.speaking);
@@ -368,6 +384,7 @@ export function Room() {
         micLevel={ui.micLevel}
         captionsOn={ui.captionsOn}
         captionsAvailable={furniture.captions}
+        recording={!solo}
         onTogglePlay={() => session?.control(state.mode === 'paused' ? 'resume' : 'pause')}
         onSetPace={(pace) => session?.setPace(pace)}
         onToggleCaptions={() => session?.toggleCaptions()}

@@ -225,8 +225,26 @@ export class RoomSession {
           learnerHeard: '',
         });
       },
-      showLearner: (_name, text, final) => {
+      showLearner: (name, text, final, participantId) => {
         set({ caption: { who: 'learner', text, revealMs: 0, live: !final, at: Date.now() } });
+        // In a room, what somebody said to the expert goes in the chat under
+        // their name, so everyone sees who asked what; the board never carries
+        // it. Solo, the learner asked it themselves and nothing is shown.
+        const st = useRoomStore.getState();
+        const room = (st.state?.participants.length ?? 0) > 1;
+        if (!final || !participantId || !room || !text.trim()) return;
+        const at = Date.now();
+        st.set({
+          chat: appendChat(st.chat, {
+            id: `${participantId}@${at}#${++this.lineCounter}`,
+            participantId,
+            name,
+            text: text.trim(),
+            at,
+            own: participantId === this.o.participantId,
+            kind: 'question',
+          }),
+        });
       },
       hint: (text) => set({ hint: text }),
       clear: () => set({ caption: null }),

@@ -200,6 +200,11 @@ export interface BottomBarProps {
   captionsOn: boolean;
   /** The CC control exists in this room at all (ADR-0036). Absent means yes. */
   captionsAvailable?: boolean;
+  /**
+   * There are guests, so the room is being recorded for its host and everyone
+   * is told, the way a call shows its recording dot (ADR-0035).
+   */
+  recording?: boolean;
   onTogglePlay: () => void;
   /** Host only; guests see the pill disabled. */
   onSetPace: (pace: number) => void;
@@ -230,6 +235,23 @@ export interface BottomBarProps {
   audio?: RoomAudioUi;
   selfId?: string;
   onUnmuteVoice?: () => void;
+}
+
+/**
+ * The recording mark a call carries while it is recorded: a steady dot and
+ * the word, in the ordinary voice. A fact about the room, never a warning.
+ */
+function RecordingDot() {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 text-body-small text-on-surface-variant"
+      data-testid="recording-dot"
+      title="This session is being recorded for its host"
+    >
+      <span aria-hidden className="size-1.5 rounded-full bg-primary" />
+      Recording
+    </span>
+  );
 }
 
 /** What the room is doing, in the learner's words. */
@@ -288,6 +310,7 @@ export function BottomBar(p: BottomBarProps) {
             {p.state.plan?.title ?? p.state.topic}
           </span>
           {p.state.mode === 'complete' ? <Pill tone="accent">Complete</Pill> : null}
+          {p.recording ? <RecordingDot /> : null}
           <span
             className="hidden text-body-small text-on-surface-dim lg:inline"
             data-testid="room-status-label"

@@ -179,6 +179,17 @@ is not. These are the places the mock is thinner than the real thing.
    (`packages/knowledge/src/builder.ts:467`); `KnowledgeAcquirer` does not carry
    them to the room, so nothing ever shows them.
 
+11. **A `missing` on a question in another language is not a judgement.**
+   The room speaks a human redirect instead of calling the model when Onten
+   answers `missing` (ADR-0035 amendment) — but only when the learner asked
+   in the pack's own language (`packages/session-engine/src/room.ts`,
+   `answer`). The mock's retrieval is lexical, so a question in Spanish
+   against an English pack is `missing` whatever it asks, and treating that
+   as "beside the topic" would redirect every non-English learner on every
+   question. Until the SDK lands those questions go to the model with the
+   partial-evidence line, as before. With a language-aware registry the
+   guard is deleted.
+
 ## The rule, in one line
 
 **Never implement an Onten capability outside `packages/onten`, and never put a

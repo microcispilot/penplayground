@@ -154,6 +154,47 @@ const BRIDGES: Record<string, string[]> = {
   ja: ['では、続きに戻りましょう。'],
   zh: ['好，我们回到刚才的地方。'],
 };
+/**
+ * What the expert says when the prepared material has nothing on the
+ * question (Onten: `missing`). Almost always that means the question is
+ * beside today's topic, and a real expert with a class to teach does not
+ * guess and does not stall: they acknowledge it, hold the line for the sake
+ * of the time, and offer the way to have it properly — another session. One
+ * breath, warm, and never a model call.
+ */
+const OUT_OF_SCOPE: Record<string, string[]> = {
+  en: [
+    "I hear you — but for the sake of time and today's topic, let's stay with this one. Ask me anything on it, and if that other thread matters to you, start a session on it after and I'll give it the attention it deserves.",
+    "Good question, and honestly a different lesson. For today let's keep to what we're on — start a session on that afterwards and we'll do it properly.",
+    "That one's outside what we're covering today, so I'll leave it rather than guess. Stay with me on this, and take it up in its own session later.",
+  ],
+  es: [
+    'Te entiendo, pero por el tiempo y el tema de hoy, quedémonos con esto. Pregúntame lo que quieras sobre esto, y ese otro tema lo vemos bien en otra sesión.',
+    'Buena pregunta, y en realidad es otra lección. Hoy sigamos con lo nuestro; empieza una sesión sobre eso después y lo hacemos como se debe.',
+  ],
+  fr: [
+    "Je t'entends, mais pour le temps et le sujet du jour, restons sur celui-ci. Pose-moi ce que tu veux dessus, et cette autre question, on la traite dans sa propre séance.",
+    "Bonne question, mais c'est une autre leçon. Aujourd'hui, restons sur notre sujet ; lance une séance là-dessus ensuite et on le fera bien.",
+  ],
+  de: [
+    'Verstehe ich — aber der Zeit und dem heutigen Thema zuliebe bleiben wir hier. Frag mich alles dazu, und das andere Thema nimmst du dir danach in einer eigenen Sitzung vor.',
+    'Gute Frage, und ehrlich gesagt eine andere Lektion. Heute bleiben wir bei unserem Thema; starte danach eine Sitzung dazu, dann machen wir es richtig.',
+  ],
+  fa: [
+    'می‌فهمم چی می‌گی، ولی به خاطر وقت و موضوع امروز، همین‌جا بمونیم. هر چی درباره‌ی این بپرسی در خدمتم، و اون موضوع رو بعداً تو یه جلسه‌ی جدا درست و حسابی می‌گیم.',
+  ],
+  ja: [
+    'なるほど。ただ今日は時間とテーマの都合で、この話に絞りましょう。それについては、あとで別のセッションでじっくりやりましょう。',
+  ],
+  zh: [
+    '我明白你的意思，不过为了时间和今天的主题，我们先专注在这个上。关于它你随时问我；那个话题之后另开一节课，我们好好讲。',
+  ],
+};
+export function outOfScope(seed: number, language = 'en'): string {
+  const list = OUT_OF_SCOPE[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? OUT_OF_SCOPE.en ?? [];
+  return list[Math.abs(seed) % list.length] ?? list[0] ?? '';
+}
+
 export function bridgeBack(seed: number, language = 'en'): string {
   const list = BRIDGES[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? BRIDGES.en ?? [];
   return list[Math.abs(seed) % list.length] ?? list[0] ?? 'Back to it.';

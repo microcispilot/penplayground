@@ -79,7 +79,11 @@ In the room the board *is* the screen: no shell, nothing else to look at.
    chevron on its own edge and the board takes the width. The board carries no
    transcript and no names: captions are off until the CC control turns them
    on, and then they are subtitles — the words, with nobody's name in front of
-   them. Pinned "You asked" notes and check-in questions stay on the board. A
+   them. Nothing about the learner is ever written on the board — no name, no
+   "you asked" note — because a real expert does not write the asker on the
+   whiteboard; in a room the chat shows who asked what, and in a solo session
+   the learner asked it themselves. Check-in questions, which are the expert's
+   own, stay on the board. A
    bottom bar carries progress dots, clock, pause (host), captions, mic,
    reactions, the panel, fullscreen and Leave.
 7. **Recap** — what was covered, your questions, save / learn something else.
@@ -97,7 +101,7 @@ In the room the board *is* the screen: no shell, nothing else to look at.
 | 6 000 | "Each token becomes a vector…" | Draws six boxes under the words, one per beat. | Progress dot 1 → 2. |
 | 41 000 | *(learner speaks)* "Wait, why divide by the square root of d?" | Board dims 55 %. Caption shows "You: …" live. | VAD confirms speech in 240 ms → audio fades out in 20 ms → lesson paused at cue 6.3. |
 | 41 600 | — | — | STT final. Onten AnswerContext (sufficient, 4 spans) in < 20 ms. LLM first sentence streamed. |
-| 42 300 | "Good one. Without it the dot products get huge as the vectors get longer…" | Pins a "YOU ASKED" note: *why ÷ √d? — keeps the dot products from blowing up*. | Note is persisted to the transcript at the cue where it was asked. |
+| 42 300 | "Good one. Without it the dot products get huge as the vectors get longer…" | Nothing new on the board unless the answer needs a sketch; the question is never written there. | The question is in the host's own recording; in a room, the chat shows who asked. |
 | 55 000 | "Okay — back to where we were." | Board undims. | Lesson resumes at cue 6.3 with a bridge phrase, not a restart. |
 | 300 000 | "Quick one back at you — when 'sat' attends to 'cat', what is actually being compared?" | Three choices appear. Orb glows green. | Check-in. Learner answers by voice. Graded from evidence, never from vibes. |
 | 840 000 | "That's the whole block. Stack it thirty-two times…" | Final diagram complete. | Session complete. Recap panel. Saved to My sessions. |
@@ -116,6 +120,16 @@ written on the board while sources arrive, and the learner can ask a question
 during preparation.
 
 ## Classroom rules (host, guests, up to 12)
+
+- **A room is recorded for its host, and everyone is told** (ADR-0035): the
+  bar carries a steady *Recording* mark while there are guests, and a guest
+  is told once as they take their seat that the session is being recorded
+  and that only the host can watch or download it — the way a call says it.
+  Only the host watches or exports the recording, and it holds everything:
+  the lesson, every guest's questions, the answers.
+- **A room is not replayed.** Replay is for solo sessions; a room's page
+  offers its host the recording and everyone else the way to search the
+  topic, whose lesson the memo already holds.
 
 - **Host** starts, pauses, resumes, ends, invites. Only the host's pause pauses
   the room.
@@ -191,5 +205,8 @@ built around: see `docs/COST.md`.
   for > 2 s without an honest status line.
 - Board text that appears all at once.
 - A TTS artifact at a chunk seam.
-- A pause that restarts the sentence instead of resuming it.
+- A resume that picks up mid-sentence. A person cut off says "so, as we
+  said…" and starts the sentence again; the expert does the same (a bridge
+  line, then the cut sentence from its first word), and never resumes from
+  a word in the middle of one.
 - A guest who cannot tell whether the room is paused or listening to them.

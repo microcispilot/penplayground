@@ -115,6 +115,48 @@ injectable into a live stream and separable from a recording: `thread`
 decides, everywhere, and `recordingOrder({ lessonOnly })` is the one place
 the separation is spelled.
 
+## Amendment (same day): rooms, resume, and a question with nothing behind it
+
+The owner ruled on the three things the first version left open.
+
+**Rooms are recordings, not replays.** A room — a session with guests — is
+recorded whole, questions and all, for its host, who alone watches or
+exports it, "like a Zoom recording". Everyone in it is told: a *Recording*
+mark in the bar while there are guests, and a guest is told once as they
+take their seat. Replay is for solo sessions: `replayOf` a room answers
+`409 NOT_REPLAYABLE`, a room's page shows no Replay, and rooms are not
+catalogue cards (`listPublic` leaves out any session with a guest visit).
+The room's *lesson* is still reused — the memo holds it — the moment anyone
+searches the topic; that is Onten's and the memo's job, not the recording's.
+`guests` rides on every served record (counted from `session_visits`, never
+stored on the row), and is what "room" means everywhere.
+
+**Resume restarts the cut sentence.** Kept exactly as it was: a bridge line,
+then the interrupted sentence from its first word. The owner: "a real human
+would not start in the middle of the sentence … restarting from the
+beginning of that cut sentence doesn't hurt and it's even better and more
+natural." `docs/PRODUCT.md` now says the same, and `resume.offsetMs` stays
+recorded for the ledger without being acted on.
+
+**A question the material has nothing on gets a human redirect, not a
+model.** When Onten answers `missing` the expert says one warm line from
+`outOfScope` (`brain.ts`, per language) — "I hear you, but for the sake of
+time and today's topic, let's stay with this one … start a session on it
+after" — with no model call, no note pinned, and nothing invented. The miss
+is recorded as `question_out_of_scope` (turn, kind, length) beside the
+learner's own words in the host's recording, so why the material had nothing
+can be read back from the transcript later.
+
+**Nothing about the learner goes on the board.** A real expert does not
+write the asker's name or their question on the whiteboard. The board
+carries the lesson and the expert's own check-in questions, and that is
+all: the conductor draws nothing for a `note` cue (ADR-0032 already did
+this; the executor's note shape is unreachable and stays so). In a room,
+who asked what is the chat's job — every final line spoken to the expert
+lands there under the speaker's name with a small "to Dario" mark, in its
+own run, never mixed into the conversation (`ChatLine.kind`). In a solo
+session nothing is shown: the learner asked it.
+
 ## Consequences
 
 - `ReplaySession` is a host-only player. Opened by anyone else it says so and

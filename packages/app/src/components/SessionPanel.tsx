@@ -144,27 +144,40 @@ function ChatRun({
   group,
   now,
   locale,
+  expertFirstName,
 }: {
   group: ChatGroup;
   now: number;
   locale: string | undefined;
+  expertFirstName: string;
 }) {
+  const toExpert = group.kind === 'question';
   return (
     <article
       data-testid={`chat-run-${group.id}`}
       data-participant={group.participantId}
       data-own={group.own ? 'true' : 'false'}
+      data-kind={group.kind}
       className={cn(
         'rounded-md px-3 py-2',
-        group.own
-          ? 'border-s-2 border-primary-fixed/60 bg-surface-container-high/50'
-          : 'bg-surface-container-high/70 hairline',
+        // Words to the expert sit a touch lighter than the conversation:
+        // they are the record of who asked, not a message to reply to.
+        toExpert
+          ? 'border-s-2 border-outline-variant bg-transparent'
+          : group.own
+            ? 'border-s-2 border-primary-fixed/60 bg-surface-container-high/50'
+            : 'bg-surface-container-high/70 hairline',
       )}
     >
       <p className="flex items-baseline gap-2">
         <span dir="auto" className="min-w-0 truncate text-label-large font-medium text-on-surface">
           {group.own ? 'You' : group.name}
         </span>
+        {toExpert ? (
+          <span className="shrink-0 text-label-small text-on-surface-variant">
+            to {expertFirstName}
+          </span>
+        ) : null}
         <time
           dateTime={new Date(group.at).toISOString()}
           className="shrink-0 text-label-small text-on-surface-dim tabular-nums"
@@ -232,7 +245,15 @@ function Chat({
           it. To ask {expertFirstName} something, just say it.
         </p>
       ) : (
-        groups.map((group) => <ChatRun key={group.id} group={group} now={now} locale={language} />)
+        groups.map((group) => (
+          <ChatRun
+            key={group.id}
+            group={group}
+            now={now}
+            locale={language}
+            expertFirstName={expertFirstName}
+          />
+        ))
       )}
     </div>
   );

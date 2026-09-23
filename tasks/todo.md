@@ -466,18 +466,30 @@ afterwards, each with a test that fails on an unchanged checkout.
       `quick_start`, `chat` / `reactions` / `captions` (the room refuses
       silently, the client hides), `google_sign_in` / `email_sign_in` (503
       per platform).
-- [ ] `shared_replays` on Professional is still declared and unenforced: a
-      room's guests may or may not watch its recording. A decision, not a bug.
-- [ ] Pause and resume speak the interrupted sentence again from its start
-      (`resumeLesson`); `resume.offsetMs` is recorded and never used.
-      `docs/PRODUCT.md` lists "a pause that restarts the sentence" as a
-      launch-review flag, and a human does restart a sentence they were cut
-      off in — the two disagree, and neither this change nor its tests
-      decide it.
-- [ ] `answer()` does not branch on the AnswerContext status: `missing`,
-      `partial`, `conflict` and `stale` all get the same "evidence is only
-      partial" line in the prompt. A `missing` deserves its own honest
-      sentence, and possibly no model call at all.
+- [x] **Rooms are recordings, not replays** (ADR-0035 amendment). A session
+      with guests is recorded whole for its host alone; the bar shows a
+      *Recording* mark and a guest is told once on joining. `replayOf` a room
+      is `409 NOT_REPLAYABLE`, its page offers no Replay, and rooms are not
+      catalogue cards. `guests` rides on served records from `session_visits`.
+- [x] **Nothing about the learner on the board.** The owner: "they won't
+      write the name of the person who asked the question on the board."
+      Already true of the board (no note is drawn since ADR-0032); the
+      product doc said otherwise and now does not. In a room, words spoken to
+      the expert land in the chat under the speaker's name, marked "to
+      <expert>", in their own run (`ChatLine.kind = 'question'`); solo shows
+      nothing. `packages/app/test/chat.test.ts`.
+- [ ] `shared_replays` on Professional is now a dead entitlement: the owner
+      decided only the host watches or exports a room's recording. Remove it
+      from `PLAN_ENTITLEMENTS` and the Pricing copy in a cleanup.
+- [x] Resume keeps restarting the cut sentence, by the owner's ruling;
+      `docs/PRODUCT.md` says so instead of flagging it.
+- [x] A question Onten has nothing on (`missing`) is answered by one warm
+      redirect from `outOfScope` with no model call, and recorded as
+      `question_out_of_scope` beside the learner's words in the recording.
+      `packages/session-engine/test/room.test.ts`.
+- [ ] `partial`, `conflict` and `stale` still share one prompt line. Worth
+      distinct lines ("here is what I have, and what I don't"; "the sources
+      disagree, here are both") — the owner has not asked.
 
 ## The room is a room again (2026-09-20)
 

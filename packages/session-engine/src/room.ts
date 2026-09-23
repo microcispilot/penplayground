@@ -47,7 +47,7 @@ import { withTelemetry } from '@pen/llm';
 import type { MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
 import type { SpeechSynthesizer } from '@pen/voice';
 import { nanoid } from 'nanoid';
-import { acknowledgement, bridgeBack, classifyLocally } from './brain.js';
+import { acknowledgement, bridgeBack, classifyLocally, outOfScope } from './brain.js';
 import {
   INTENT_MIN_CONFIDENCE,
   type IntentClassifier,
@@ -1910,6 +1910,43 @@ export class SessionRoom {
         question,
         kind === 'clarify' ? 'clarify:v1' : 'answer:v1',
       );
+      /**
+       * Only a question in the pack's own language can be judged out of
+       * scope by the mock: its retrieval is lexical, so a Spanish question
+       * against an English pack is `missing` whatever it asks
+       * (docs/ONTEN-BOUNDARY.md, known limitation 11). The real Onten resolves
+       * across languages, and this guard goes with the mock.
+       */
+      const packLanguage = (this.d.language.split('-')[0] ?? 'en').toLowerCase();
+      const askedIn = (this.language.split('-')[0] ?? 'en').toLowerCase();
+      if (context.status === 'missing' && askedIn === packLanguage) {
+        /**
+         * Nothing prepared covers this. Almost always it is beside the topic,
+         * and the expert says so in one breath — warmly, holding the line for
+         * the sake of the time, pointing at a session of its own — with no
+         * model call and nothing invented (the owner: "a human expert will
+         * always answer properly"). The miss is on record: the interaction
+         * here, the learner's words in the host's own recording, so "why did
+         * it have nothing" can be answered later from the transcript.
+         */
+        this.setMode('answering', p.id);
+        this.emitTurnEvent(turn, {
+          type: 'say',
+          id: 's1',
+          text: outOfScope(this.turnCounter, this.language),
+          tone: 'warm',
+        });
+        this.metrics.interaction(p.id, 'question_out_of_scope', {
+          turn: turnId,
+          kind,
+          chars: question.length,
+        });
+        this.observer.event('room.out_of_scope', { turn: turnId, kind, chars: question.length });
+        turn.done = true;
+        this.d.transport.broadcast({ kind: 'turn_done', thread: turn.id });
+        this.maybeFinishTurn(turn);
+        return;
+      }
       const recent = this.spoken.slice(-4);
       const stream = this.model.streamEvents({
         messages: answerMessages({

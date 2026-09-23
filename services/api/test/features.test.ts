@@ -401,6 +401,34 @@ describe('replay is a fresh session of your own (ADR-0035)', () => {
     await rooms.end(((await own.json()) as { session: { id: string } }).session.id);
   });
 
+  it('never replays a room: a session with guests is a recording, and leaves the catalogue', async () => {
+    const author = await participant('professional');
+    const saved = await seedSession(author.id, 'public');
+    const guest = await participant('free');
+    await services.lists.visit(guest.id, saved.id, 'guest');
+    // The record says it is a room.
+    const record = (await (await app.request(`/api/sessions/${saved.id}`)).json()) as {
+      session: { guests: number };
+    };
+    expect(record.session.guests).toBe(1);
+    // Nobody, guest or stranger or host, starts a replay from it.
+    for (const who of [guest, author, await participant('free')]) {
+      const res = await call('POST', '/api/sessions', who.headers, { replayOf: saved.id });
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: string }).error).toBe('NOT_REPLAYABLE');
+    }
+    // And it is not a card: the catalogue is lessons to replay.
+    const listed = (await (await app.request('/api/sessions')).json()) as {
+      sessions: Array<{ id: string }>;
+    };
+    expect(listed.sessions.some((s) => s.id === saved.id)).toBe(false);
+    // The host still has the recording, whole.
+    expect((await call('GET', `/api/sessions/${saved.id}/ledger`, author.headers)).status).toBe(
+      200,
+    );
+    expect((await call('GET', `/api/sessions/${saved.id}/ledger`, guest.headers)).status).toBe(403);
+  });
+
   it('is a flag: off, the saved page cannot start it', async () => {
     await saveRules({ quick_start: { default: false, plans: {}, platforms: {}, cells: {} } });
     const author = await participant('standard');

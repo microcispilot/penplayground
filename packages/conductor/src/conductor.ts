@@ -226,6 +226,7 @@ export class Conductor {
             this.nameOf(message.participantId),
             message.text,
             message.final,
+            message.participantId,
           );
         return;
       case 'check_result':
@@ -322,7 +323,7 @@ export class Conductor {
       // Recognizer produced a final without a VAD start (browser STT): interrupt now.
       this.onSpeechStart();
     }
-    if (text.trim()) this.o.captions.showLearner('You', text, final);
+    if (text.trim()) this.o.captions.showLearner('You', text, final, this.o.participantId);
     this.o.transport.send({ kind: 'transcript', utteranceId, text, final });
   }
 

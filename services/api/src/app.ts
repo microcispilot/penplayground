@@ -350,6 +350,16 @@ export function buildApp(services: Services): App {
   };
 
   /**
+   * A record with how many guests took a seat in it (ADR-0035): what makes a
+   * session a room, and a room is a recording rather than a lesson to replay.
+   */
+  type Guested<T> = T & { guests: number };
+  const withGuests = async <T extends { id: string }>(records: T[]): Promise<Guested<T>[]> => {
+    const counts = await services.sessions.guestCounts(records.map((r) => r.id));
+    return records.map((r) => ({ ...r, guests: counts.get(r.id) ?? 0 }));
+  };
+
+  /**
    * Where the caller is: the platform header, or the web when there is none
    * (ADR-0036). A client that lies about its platform gets that platform's
    * flags, which is a choice about its own experience and nothing else —
@@ -643,9 +653,11 @@ export function buildApp(services: Services): App {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
     const history = await services.lists.historyFor(claims.sub);
+    const counts = await services.sessions.guestCounts(history.map((h) => h.session.id));
     return c.json({
       sessions: history.map((h) => ({
         ...(h.session.hostId === claims.sub ? h.session : anonymise(h.session)),
+        guests: counts.get(h.session.id) ?? 0,
         visit: { role: h.role, at: h.at },
       })),
     });
@@ -653,13 +665,13 @@ export function buildApp(services: Services): App {
   app.get('/api/me/saved', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    const saved = await services.lists.savedFor(claims.sub);
+    const saved = await withGuests(await services.lists.savedFor(claims.sub));
     return c.json({ sessions: saved.map((r) => (r.hostId === claims.sub ? r : anonymise(r))) });
   });
   app.get('/api/me/liked', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    const liked = await services.lists.likedFor(claims.sub);
+    const liked = await withGuests(await services.lists.likedFor(claims.sub));
     return c.json({ sessions: liked.map((r) => (r.hostId === claims.sub ? r : anonymise(r))) });
   });
   /** Hosted sessions whose MP4 is rendered and on disk (the Downloads screen). */
@@ -770,7 +782,7 @@ export function buildApp(services: Services): App {
   app.get('/api/sessions/mine', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
-    return c.json({ sessions: await services.sessions.listForHost(claims.sub) });
+    return c.json({ sessions: await withGuests(await services.sessions.listForHost(claims.sub)) });
   });
   app.post('/api/sessions', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
@@ -846,6 +858,19 @@ export function buildApp(services: Services): App {
       // because nobody else was ever shown it.
       if (source.visibility !== 'public' && source.hostId !== claims.sub)
         return c.json({ error: 'NOT_FOUND', message: 'That lesson is gone.' }, 404);
+      // A room — a session with guests — is a recording, not a lesson to
+      // replay (ADR-0035). The lesson it taught is still one search away,
+      // through the memo, for anyone who asks for the topic.
+      const [room] = await withGuests([source]);
+      if (room && room.guests > 0)
+        return c.json(
+          {
+            error: 'NOT_REPLAYABLE',
+            message:
+              'That was a room, and a room is a recording. Search the topic to have the lesson yourself.',
+          },
+          409,
+        );
       create = {
         topic: source.topic,
         band: source.band,
@@ -998,8 +1023,10 @@ export function buildApp(services: Services): App {
     // looking at their own is not an audience, and the recording route that
     // used to count views is now the host's alone.
     if (claims?.sub !== record.hostId) await services.sessions.recordView(record.id);
+    const [guested] = await withGuests([record]);
+    const shown = guested ?? { ...record, guests: 0 };
     return c.json({
-      session: claims?.sub === record.hostId ? record : anonymise(record),
+      session: claims?.sub === record.hostId ? shown : anonymise(shown),
       live: live !== null,
       state: live?.room.getState() ?? null,
       expert: services.experts.get(record.expertId),

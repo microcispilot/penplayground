@@ -87,3 +87,19 @@ describe('chat groups the way a chat between people groups', () => {
     expect(groupChat(EMPTY)).toEqual([]);
   });
 });
+
+describe('words to the expert in a room (ADR-0035)', () => {
+  it('sit in their own run, apart from the same person’s messages, so who asked what is readable', () => {
+    const list = [
+      line({ id: 'a', text: 'hi all', at: 1_000 }),
+      line({ id: 'q', text: 'Why divide by the root of d?', at: 2_000, kind: 'question' }),
+      line({ id: 'b', text: 'thanks', at: 3_000 }),
+    ];
+    const groups = groupChat(list);
+    expect(groups.map((g) => [g.kind, g.lines.length])).toEqual([
+      ['message', 1],
+      ['question', 1],
+      ['message', 1],
+    ]);
+  });
+});

@@ -97,6 +97,14 @@ export const InteractionName = z.enum([
   // what the learner did
   'question_typed',
   'question_spoken',
+  /**
+   * A question the prepared material had nothing on (Onten answered
+   * `missing`): the expert redirected in one breath, no model was called,
+   * and the words are in the host's own recording for anyone asking why.
+   */
+  'question_out_of_scope',
+  /** A guest was told the room is being recorded, as Zoom tells a caller. */
+  'recording_notice_shown',
   'check_answered',
   'interrupt',
   'pause',

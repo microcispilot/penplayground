@@ -78,7 +78,12 @@ export interface CaptionPort {
    */
   showExpert(text: string, revealMs: number, thread?: string): void;
   /** Live learner transcript (partial or final). */
-  showLearner(name: string, text: string, final: boolean): void;
+  /**
+   * `participantId` says whose words these are, so a room can put a question
+   * to the expert in its chat under the asker's name (ADR-0035). Absent on
+   * a replay, where the recording has nobody to attribute to.
+   */
+  showLearner(name: string, text: string, final: boolean, participantId?: string): void;
   hint(text: string | null): void;
   clear(): void;
 }

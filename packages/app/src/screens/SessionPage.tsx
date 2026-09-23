@@ -477,6 +477,9 @@ export function SessionPage() {
    * session of their own (ADR-0035).
    */
   const canWatch = isHost && !live && features.recording_playback;
+  /** A room is a recording, not a lesson to replay (ADR-0035). */
+  const room = (s?.guests ?? 0) > 0;
+  const replayable = !live && quickStart.enabled && !room;
 
   // Insights are the host's: loaded on demand, refreshed while the session is still live.
   useEffect(() => {
@@ -542,7 +545,13 @@ export function SessionPage() {
                     ? `${relativeDay(s.startedAt)} · ${live ? 'live now' : formatDuration(s.durationMs)} · ${s.views} view${s.views === 1 ? '' : 's'}`
                     : ''}
                 </p>
-                {s && !live && quickStart.enabled ? (
+                {s && room ? (
+                  <p className="mt-1 text-body-medium text-on-surface-dim" data-testid="room-note">
+                    A room with {s.guests} {s.guests === 1 ? 'guest' : 'guests'}. Its recording is
+                    the host's; to have this lesson yourself, search the topic.
+                  </p>
+                ) : null}
+                {s && replayable ? (
                   // What "Replay" is here: not a recording of somebody else's
                   // hour, but the lesson again, live, for you (ADR-0035).
                   <p
@@ -564,7 +573,7 @@ export function SessionPage() {
                   >
                     Join
                   </Button>
-                ) : quickStart.enabled ? (
+                ) : replayable ? (
                   <Button
                     variant="primary"
                     leading={<Play size={14} />}

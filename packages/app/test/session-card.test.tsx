@@ -9,6 +9,7 @@ afterEach(cleanup);
 
 const SESSION: SessionRecord = {
   id: 's_card_00000001',
+  guests: 0,
   topic: 'How Transformers work in LLMs',
   title: 'How Transformers work in LLMs',
   promise: 'Read an attention diagram and explain why every piece is there.',

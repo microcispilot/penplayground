@@ -33,7 +33,8 @@ export function StartAgain({ session, live }: { session: SessionRecord; live: bo
         Rejoin
       </Button>
     );
-  if (!quickStart.enabled)
+  // A room is a recording, not a lesson to replay (ADR-0035): its page is the way in.
+  if (!quickStart.enabled || session.guests > 0)
     return (
       <Button variant="primary" onClick={() => navigate(`/sessions/${session.id}`)}>
         Open

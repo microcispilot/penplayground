@@ -32,6 +32,14 @@ export interface ChatLine {
   at: number;
   /** This device's own line. */
   own: boolean;
+  /**
+   * `message`: said to the other people. `question`: said to the expert —
+   * a spoken question or a check-in answer, shown here in a room so everyone
+   * can see who asked what, because the board never carries it (a real
+   * expert does not write the asker on the whiteboard). Absent means
+   * `message`. Never shown in a solo session: the learner asked it.
+   */
+  kind?: 'message' | 'question';
 }
 
 /**
@@ -69,6 +77,8 @@ export interface ChatGroup {
   own: boolean;
   /** When the run started. */
   at: number;
+  /** A run is all messages or all words to the expert, never both. */
+  kind: 'message' | 'question';
   lines: ChatLine[];
 }
 
@@ -88,7 +98,14 @@ export function groupChat(
   for (const line of list) {
     const open = groups[groups.length - 1];
     const last = open?.lines[open.lines.length - 1];
-    if (open && last && open.participantId === line.participantId && line.at - last.at <= gapMs) {
+    const kind = line.kind ?? 'message';
+    if (
+      open &&
+      last &&
+      open.participantId === line.participantId &&
+      open.kind === kind &&
+      line.at - last.at <= gapMs
+    ) {
       open.lines.push(line);
       continue;
     }
@@ -99,6 +116,7 @@ export function groupChat(
       name: line.name,
       own: line.own,
       at: line.at,
+      kind,
       lines: [line],
     });
   }
