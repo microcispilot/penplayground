@@ -197,7 +197,14 @@
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI",
     Roboto, "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
+  /*
+   * The board's hand. Eraser first, Caveat immediately behind it — the
+   * browser falls back per glyph, and Eraser has no `<`, `>`, `[`, `]`, `}`,
+   * `×`, `÷`, `→`, `°`, `…` or accented letters, every one of which a maths
+   * or code lesson will reach for. Two handwriting faces side by side read as
+   * one hand; a hand face falling back to a system sans does not.
+   */
+  --font-hand: "Eraser", "Caveat", "Bradley Hand", "Segoe Print", cursive;
 
   /* ──────────────────────────────────────────────────────────────────────
    * Shape — the M3 corner scale. `rounded-full` is Tailwind's own and is the
