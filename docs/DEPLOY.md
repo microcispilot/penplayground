@@ -323,13 +323,12 @@ and TURN/TLS on `443` of `turn.penplayground.com` — LiveKit advertises the TLS
 `turns:<turn.domain>:443` whatever `turn.tls_port` says, so 443 of that name has to be the
 media server's. On the media host nothing else wants 443, which is the point of the host.
 
-**The address.** `turn.penplayground.com` currently resolves to the floating address
-`5.78.25.5`, moved to the media host with the server (ADR-0043). TURN/TLS works through it.
-TURN/UDP does not reliably: the UDP listener answers from the host's primary address, and a
-client's NAT drops the reply. The fix is one DNS change — `turn.penplayground.com` → the
-primary address `5.78.195.213` — then `deploy/livekit-host/deploy.sh` (it issues the
-certificate standalone on port 80 of whatever the name resolves to) and releasing the floating
-address at Hetzner.
+**The address.** `turn.penplayground.com` resolves to the media host's primary address
+(`5.78.195.213`), which carries TURN/UDP, TURN/TLS and the media ports alike. It briefly sat on
+a floating address moved over from the app host (ADR-0043); that broke TURN/UDP behind NAT, since
+the UDP listener answers from the primary address, so the name was moved and the floating address
+released. If TURN ever needs an address of its own again, it must be the one the host routes
+from, not an alias.
 
 **The certificate** is certbot's, standalone, on the media host; the deploy hook
 `/etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh` is a two-line wrapper that copies the

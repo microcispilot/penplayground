@@ -63,14 +63,16 @@ switch. It is a stopgap: see the consequence below.
   the old host only TURN over TLS on 443 could ever have reached the server
   from the internet. That was not visible from inside the host, where ufw
   looked right, and it is why the runbook now says to check both.
-- **TURN over UDP through the floating address is unreliable behind NAT.**
+- **TURN over UDP through the floating address was unreliable behind NAT.**
   The UDP listener binds every address, and Linux answers a packet that
   arrived on the floating address from the primary address, which a
-  client's NAT then drops. TURN over TLS on 443 is unaffected. The fix is
-  one DNS change: point `turn.penplayground.com` at the media host's primary
-  address (5.78.195.213), re-run `deploy/livekit-host/deploy.sh` to issue
-  the certificate there, and release the floating address. DNS lives at
-  Hostinger and needs the owner.
+  client's NAT — or the app host's own stateful cloud firewall — then drops;
+  confirmed with a capture on the media host. TURN over TLS on 443 was
+  unaffected. Resolved the same day: the owner pointed
+  `turn.penplayground.com` at the primary address (5.78.195.213), and the
+  floating address was released.
+- The six-hour block that started this turned out to be a payment hold on the
+  Hetzner account, not an abuse report; it lifted once the invoice was paid.
 - The deploy invocation gains `PEN_LIVEKIT_HOST=10.10.0.4`. Without it,
   `deploy.sh` would start a second LiveKit on the app host and point the API
   back at it.
