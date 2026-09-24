@@ -543,7 +543,10 @@ export function Home() {
             </h2>
             {sessions !== null && sessions.length > 0 ? (
               <>
-                <div className="flex min-w-0 flex-1 gap-1.5 overflow-auto py-1">
+                {/* The row scrolls, and a scroller clips at its own edge — which took the
+                    first chip's hairline off (the owner: "the first label is cropped at the
+                    left"). A pixel of padding inside, taken back outside, keeps the edge. */}
+                <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-auto px-1 py-1">
                   {categories.map((c) => (
                     <Chip
                       key={c.id}

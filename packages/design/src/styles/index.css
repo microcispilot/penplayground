@@ -45,6 +45,24 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /*
+   * A hand over anything that can be pressed. Tailwind's preflight resets
+   * buttons to `cursor: default`, so every control in the product — the
+   * doors in the header, a chip, a swatch, a sidebar row — read as inert
+   * under the mouse (the owner: "the buttons should have a hand hover when
+   * mouse is on them"). Disabled controls keep saying no; a link already has
+   * its hand from the browser.
+   */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  input[type="submit"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
   body {
     margin: 0;
     /*

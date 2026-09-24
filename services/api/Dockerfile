@@ -52,6 +52,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 FROM deps AS build
 ARG GIT_SHA=unknown
 ARG SENTRY_ORG=pen-playground
+# deploy.sh builds this stage on node:22-bookworm-slim (glibc, to match the
+# Playwright runtime), and Debian slim ships without CA certificates — so
+# sentry-cli's TLS to sentry.io failed with a bare "API request failed" and the
+# API's source maps were never uploaded (every build on 2026-09-23). Alpine has
+# them; Debian needs them installed. The runtime stages are untouched.
+RUN if command -v apt-get >/dev/null 2>&1; then       apt-get update    && apt-get install -y --no-install-recommends ca-certificates    && rm -rf /var/lib/apt/lists/*;     fi
 COPY . .
 RUN --mount=type=secret,id=sentry_auth_token \
     sh -eu -c ' \

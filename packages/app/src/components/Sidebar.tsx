@@ -244,9 +244,11 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
             aria-current={activeTopic ? 'page' : undefined}
             className={rowClass(true, activeTopic !== null)}
             onClick={() => {
-              const topic = activeTopic ?? TOPIC_DOMAINS[0]?.id ?? 'computing-data';
+              // On the rail there is no list: the button is a way to the
+              // topics, and a way back out of one.
+              const topic = activeTopic ? 'all' : (TOPIC_DOMAINS[0]?.id ?? 'computing-data');
               trackAction('topic_chosen', { topic, source: 'rail' });
-              navigate(`/?topic=${topic}`);
+              navigate(topic === 'all' ? '/' : `/?topic=${topic}`);
               onNavigate?.();
             }}
           >
@@ -275,6 +277,26 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
             </button>
             {topicsOpen ? (
               <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-[26px]">
+                {/* The way back. A topic chosen here filtered Home with no row to
+                    un-choose it (the owner, 2026-09-23); this is the chips' "All",
+                    where the topics are. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    trackAction('topic_chosen', { topic: 'all', source: 'sidebar' });
+                    navigate('/');
+                    onNavigate?.();
+                  }}
+                  className={cn(
+                    'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
+                    activeTopic === null && location.pathname === '/'
+                      ? 'bg-secondary-container text-on-secondary-container'
+                      : 'text-on-surface-variant',
+                  )}
+                  data-testid="sidebar-topic-all"
+                >
+                  All topics
+                </button>
                 {TOPIC_DOMAINS.map((d) => (
                   <button
                     key={d.id}
