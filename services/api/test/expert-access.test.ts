@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Expert, PlanCode } from '@pen/contracts';
-import { LEGEND_MIN_PLAN, planAllowsExpert, requiredPlanFor } from '@pen/contracts';
+import {
+  FREE_EXPERTS,
+  LEGEND_MIN_PLAN,
+  planAllowsExpert,
+  randomFreeExpert,
+  requiredPlanFor,
+} from '@pen/contracts';
 import type { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
@@ -95,12 +101,27 @@ describe('the legend map and the catalog', () => {
     );
   });
 
-  it('leaves every other expert on every plan', () => {
-    for (const e of services.experts.all()) {
-      if (e.premium) continue;
-      expect(requiredPlanFor(e.id), e.id).toBeNull();
-      expect(planAllowsExpert('free', e.id), e.id).toBe(true);
+  it('gives the free plan its two experts and every other modern one to Standard (ADR-0040)', () => {
+    expect(FREE_EXPERTS).toEqual(['elena-biology-professor', 'soren-philosophy-professor']);
+    for (const id of FREE_EXPERTS) {
+      expect(services.experts.get(id), id).not.toBeNull();
+      expect(requiredPlanFor(id), id).toBeNull();
+      expect(planAllowsExpert('free', id), id).toBe(true);
     }
+    for (const e of services.experts.all()) {
+      if (e.premium || FREE_EXPERTS.includes(e.id)) continue;
+      expect(requiredPlanFor(e.id), e.id).toBe('standard');
+      expect(planAllowsExpert('free', e.id), e.id).toBe(false);
+      expect(planAllowsExpert('standard', e.id), e.id).toBe(true);
+    }
+  });
+
+  it('picks one of the two at random for a visit, and only those', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i += 1) seen.add(randomFreeExpert());
+    expect([...seen].sort()).toEqual([...FREE_EXPERTS].sort());
+    expect(randomFreeExpert(() => 0)).toBe('elena-biology-professor');
+    expect(randomFreeExpert(() => 0.99)).toBe('soren-philosophy-professor');
   });
 });
 
@@ -113,10 +134,12 @@ describe('GET /api/experts — the server stamps the answer', () => {
     for (const e of experts) expect(e.requiredPlan).toBe(requiredPlanFor(e.id));
     const aristotle = experts.find((e) => e.id === 'aristotle');
     const newton = experts.find((e) => e.id === 'isaac-newton');
-    const modern = experts.find((e) => !e.premium);
+    const free = experts.find((e) => FREE_EXPERTS.includes(e.id));
+    const modern = experts.find((e) => !e.premium && !FREE_EXPERTS.includes(e.id));
     expect(aristotle?.requiredPlan).toBe('standard');
     expect(newton?.requiredPlan).toBe('professional');
-    expect(modern?.requiredPlan).toBeNull();
+    expect(free?.requiredPlan).toBeNull();
+    expect(modern?.requiredPlan).toBe('standard');
   });
 
   it('carries it on the single-expert route too', async () => {
@@ -169,5 +192,7 @@ describe('POST /api/sessions — the plan decides who teaches', () => {
     expect(res.status).toBe(201);
     const { session } = (await res.json()) as { session: { expertId: string } };
     expect(requiredPlanFor(session.expertId)).toBeNull();
+    // Which means one of the free plan's own two, and nobody else (ADR-0040).
+    expect(FREE_EXPERTS).toContain(session.expertId);
   });
 });

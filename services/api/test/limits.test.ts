@@ -31,9 +31,9 @@ interface Caller {
   headers: Record<string, string>;
 }
 
-async function participant(plan: PlanCode): Promise<Caller> {
-  const issued = await identity.issue({ name: 'Ada', plan, anonymous: true });
-  await services.participants.ensure({ id: issued.claims.sub, name: 'Ada', plan, anonymous: true });
+async function participant(plan: PlanCode, anonymous = true): Promise<Caller> {
+  const issued = await identity.issue({ name: 'Ada', plan, anonymous });
+  await services.participants.ensure({ id: issued.claims.sub, name: 'Ada', plan, anonymous });
   return { id: issued.claims.sub, headers: { authorization: `Bearer ${issued.token}` } };
 }
 
@@ -68,12 +68,16 @@ async function seedSession(hostId: string, startedAt: number): Promise<SessionRe
   return record;
 }
 
-function start(caller: Caller, ip: string): Promise<Response> {
+function start(
+  caller: Caller,
+  ip: string,
+  topic = 'How Transformers work in LLMs',
+): Promise<Response> {
   return Promise.resolve(
     app.request('/api/sessions', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': ip, ...caller.headers },
-      body: JSON.stringify({ topic: 'How Transformers work in LLMs', visibility: 'private' }),
+      body: JSON.stringify({ topic, visibility: 'private' }),
     }),
   );
 }
@@ -112,16 +116,18 @@ describe('GET /api/me/usage', () => {
     expect((await app.request('/api/me/usage')).status).toBe(401);
   });
 
-  it('tells a free learner they have all three sessions and twenty minutes each', async () => {
-    const free = await participant('free');
+  it('tells a free learner sessions are unlimited, twenty minutes each, with one custom session (ADR-0040)', async () => {
+    const free = await participant('free', false);
     expect(await usageOf(free)).toMatchObject({
       plan: 'free',
       sessionsToday: 0,
-      sessionsPerDay: 3,
-      remaining: 3,
+      sessionsPerDay: null,
+      remaining: null,
       maxSessionMinutes: 20,
       canStart: true,
       reason: null,
+      customSessionsUsed: 0,
+      customSessions: 1,
     });
   });
 
@@ -150,49 +156,43 @@ describe('GET /api/me/usage', () => {
   });
 });
 
-describe('the free plan daily allowance', () => {
-  it('stops the fourth session of the day kindly, and says so in the usage payload', async () => {
-    const free = await participant('free');
+describe('the free plan: unlimited sessions, one custom one (ADR-0040)', () => {
+  it('never stops a free learner for the day, however many sessions they had', async () => {
+    const free = await participant('free', false);
     const today = utcDayStart(Date.now()) + 1_000;
-    for (let i = 0; i < 3; i += 1) await seedSession(free.id, today + i);
-
-    const res = await start(free, '198.51.100.10');
-    expect(res.status).toBe(402);
-    const body = (await res.json()) as {
-      error: string;
-      message: string;
-      usage: unknown;
-      upgrade: string;
-    };
-    expect(body.error).toBe('ENTITLEMENT_REQUIRED');
-    expect(body.upgrade).toBe('Pricing');
-    expect(PlanUsage.parse(body.usage)).toMatchObject({ remaining: 0, reason: 'daily_limit' });
-    // A limit, explained — not an accusation.
-    expect(body.message).toContain('3');
-    expect(/(^|\s)(error|denied|blocked|forbidden|violation)/i.test(body.message)).toBe(false);
-
+    for (let i = 0; i < 5; i += 1) await seedSession(free.id, today + i);
     expect(await usageOf(free)).toMatchObject({
-      sessionsToday: 3,
-      remaining: 0,
-      canStart: false,
-      reason: 'daily_limit',
-    });
-  });
-
-  it('does not count a session started before the current UTC midnight', async () => {
-    const free = await participant('free');
-    const yesterday = utcDayStart(Date.now()) - 1_000;
-    for (let i = 0; i < 3; i += 1) await seedSession(free.id, yesterday - i);
-
-    expect(await usageOf(free)).toMatchObject({
-      sessionsToday: 0,
-      remaining: 3,
+      sessionsToday: 5,
+      remaining: null,
       canStart: true,
       reason: null,
     });
-    const res = await start(free, '198.51.100.11');
-    expect(res.status).toBe(201);
+    // A topic nobody has prepared: the account's one custom session.
+    const res = await start(free, '198.51.100.10');
+    expect(res.status, await res.clone().text()).toBe(201);
+    expect(await usageOf(free)).toMatchObject({ customSessionsUsed: 1, customSessions: 1 });
   }, 30_000);
+
+  it('asks a free account for an upgrade on its second custom session, kindly, with the lessons that are ready', async () => {
+    const free = await participant('free', false);
+    const first = await start(free, '198.51.100.12');
+    expect(first.status, await first.clone().text()).toBe(201);
+    const second = await start(free, '198.51.100.12', 'Reading an ECG strip, a custom lesson');
+    expect(second.status).toBe(402);
+    const body = (await second.json()) as {
+      error: string;
+      message: string;
+      upgrade: string;
+      ready: unknown[];
+    };
+    expect(body.error).toBe('PREPARATION_REQUIRED');
+    expect(body.upgrade).toBe('Pricing');
+    expect(body.message).toMatch(/upgrade/i);
+    expect(/(^|\s)(error|denied|blocked|forbidden|violation)/i.test(body.message)).toBe(false);
+    expect(Array.isArray(body.ready)).toBe(true);
+    // (That a prepared lesson stays theirs to start, as often as they like,
+    // is proved in features.test.ts, where the packs are seeded.)
+  }, 60_000);
 });
 
 describe('one machine may not host a farm of rooms', () => {

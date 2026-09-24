@@ -11,12 +11,14 @@ import {
   Settings2,
   Sparkles,
   Tag,
+  UserRound,
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { trackAction } from '../lib/analytics.js';
+import { useApp } from '../lib/context.js';
 import { useLists } from '../lib/lists.js';
 
 /** The domains the catalog teaches, in the order the sidebar lists them. */
@@ -202,6 +204,7 @@ function Divider() {
 export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { features, openSignIn } = useApp();
   const counts = useLists((s) => s.counts);
   const [topicsOpen, setTopicsOpen] = useState(() =>
     new URLSearchParams(location.search).has('topic'),
@@ -307,56 +310,78 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
 
         <Divider />
         <SectionLabel rail={rail}>You</SectionLabel>
-        <Row
-          to="/history"
-          icon={<History size={19} />}
-          label="History"
-          rail={rail}
-          count={counts.history}
-          onNavigate={onNavigate}
-        />
-        <Row
-          to="/saved"
-          icon={<Bookmark size={19} />}
-          label="Learn later"
-          railLabel="Later"
-          rail={rail}
-          count={counts.saved}
-          onNavigate={onNavigate}
-        />
-        <Row
-          to="/liked"
-          icon={<Heart size={19} />}
-          label="Liked"
-          rail={rail}
-          count={counts.liked}
-          onNavigate={onNavigate}
-        />
-        <Row
-          to="/sessions"
-          icon={<PlaySquare size={19} />}
-          label="Your sessions"
-          railLabel="Sessions"
-          rail={rail}
-          count={counts.hosted}
-          onNavigate={onNavigate}
-        />
-        <Row
-          to="/downloads"
-          icon={<Download size={19} />}
-          label="Downloads"
-          rail={rail}
-          tag="Standard"
-          onNavigate={onNavigate}
-        />
-        <Row
-          to="/rooms"
-          icon={<Users size={19} />}
-          label="Rooms"
-          rail={rail}
-          tag="Professional"
-          onNavigate={onNavigate}
-        />
+        {!features.history ? (
+          // A visitor without an account has no shelf yet (ADR-0040): one
+          // row, the way in, where the shelf will be.
+          <button
+            type="button"
+            className={rowClass(rail, false)}
+            onClick={() => {
+              openSignIn('sidebar');
+              onNavigate?.();
+            }}
+            data-testid="sidebar-sign-in"
+          >
+            <span className="grid shrink-0 place-items-center">
+              <UserRound size={19} />
+            </span>
+            <RowLabel rail={rail}>{rail ? 'Sign in' : 'Sign in to keep your sessions'}</RowLabel>
+          </button>
+        ) : null}
+        {features.history ? (
+          <>
+            <Row
+              to="/history"
+              icon={<History size={19} />}
+              label="History"
+              rail={rail}
+              count={counts.history}
+              onNavigate={onNavigate}
+            />
+            <Row
+              to="/saved"
+              icon={<Bookmark size={19} />}
+              label="Learn later"
+              railLabel="Later"
+              rail={rail}
+              count={counts.saved}
+              onNavigate={onNavigate}
+            />
+            <Row
+              to="/liked"
+              icon={<Heart size={19} />}
+              label="Liked"
+              rail={rail}
+              count={counts.liked}
+              onNavigate={onNavigate}
+            />
+            <Row
+              to="/sessions"
+              icon={<PlaySquare size={19} />}
+              label="Your sessions"
+              railLabel="Sessions"
+              rail={rail}
+              count={counts.hosted}
+              onNavigate={onNavigate}
+            />
+            <Row
+              to="/downloads"
+              icon={<Download size={19} />}
+              label="Downloads"
+              rail={rail}
+              tag="Standard"
+              onNavigate={onNavigate}
+            />
+            <Row
+              to="/rooms"
+              icon={<Users size={19} />}
+              label="Rooms"
+              rail={rail}
+              tag="Professional"
+              onNavigate={onNavigate}
+            />
+          </>
+        ) : null}
 
         <Divider />
         {/*

@@ -116,7 +116,13 @@ export class RoomRegistry {
 
   async create(args: {
     topic: string;
-    host: { id: ParticipantId; name: string; plan: PlanCode };
+    host: { id: ParticipantId; name: string; plan: PlanCode; anonymous?: boolean };
+    /**
+     * Whether a topic nobody has prepared may be prepared for this host
+     * (ADR-0040): the flag, and the free plan's custom-session allowance,
+     * decided by the route that read the row. Absent, the flag alone decides.
+     */
+    allowPreparation?: boolean;
     band: SelectionBand;
     expertId?: string;
     visibility: 'public' | 'private';
@@ -237,10 +243,12 @@ export class RoomRegistry {
      * rule as the runtime settings below: what the room was built with is
      * what it offers, whatever the console says an hour later.
      */
-    const features = services.features.featuresFor(plan, platform);
+    const features = services.features.featuresFor(plan, platform, {
+      anonymous: args.host.anonymous === true,
+    });
     const prepared =
       resolution.match === 'hit' || (resolution.match === 'partial' && resolution.packId !== null);
-    if (!prepared && !features.prepare_new_topics) {
+    if (!prepared && !(args.allowPreparation ?? features.prepare_new_topics)) {
       observer.event('rooms.preparation_refused', {
         plan,
         platform,
@@ -252,6 +260,11 @@ export class RoomRegistry {
       services.ledger.remove(sessionId);
       throw new PreparationRefused(plan, resolution.canonicalKnowledgeId);
     }
+    // The free plan's custom session, counted the moment it is granted
+    // (ADR-0040): a preparation that fails half-way still spent the house's
+    // money, and the count is what the next request is judged by.
+    if (!prepared && PLAN_LIMITS[plan].customSessions !== null)
+      await services.participants.countCustomSession(args.host.id);
     // Zero redundant generation: when nobody was asked for, the persona who already taught this
     // topic (and whose lesson is memoised) teaches it again, so the memo is reused, not rebuilt.
     const memoised =
@@ -263,7 +276,12 @@ export class RoomRegistry {
     // asked for by id (the API has already answered that request with a 402),
     // inherited from a memo, or picked for the domain.
     const included = (e: Expert | null) => (e && planAllowsExpert(plan, e.id) ? e : null);
+    // A replay is taught by whoever taught the lesson (ADR-0040): that is
+    // what makes it a replay rather than a new lesson.
+    const replayed =
+      args.origin === 'replay' && args.expertId ? services.experts.get(args.expertId) : null;
     const expert =
+      replayed ??
       included(args.expertId ? services.experts.get(args.expertId) : null) ??
       included(memoExpert) ??
       services.experts.pickFor(

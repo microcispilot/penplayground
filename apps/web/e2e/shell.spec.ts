@@ -138,8 +138,10 @@ test.describe('the app shell', () => {
     const tiles = page.getByTestId('experts-grid').getByTestId('expert-tile');
     await expect(tiles.first()).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => tiles.count(), { timeout: 20_000 }).toBeGreaterThan(20);
-    const chosen = (await tiles.first().getAttribute('title')) ?? '';
-    await tiles.first().click();
+    // The first expert the visitor may learn with (ADR-0040): a locked tile is a link to Pricing.
+    const open = tiles.filter({ hasNotText: 'Standard' }).filter({ hasNotText: 'Professional' });
+    const chosen = (await open.first().getAttribute('title')) ?? '';
+    await open.first().click();
     await expect(page).toHaveURL(new RegExp(`${page.url().split('/').slice(0, 3).join('/')}/?$`));
     await expect(page.getByText(/^with /)).toBeVisible();
     expect(chosen).toContain('Learn with');
@@ -301,21 +303,29 @@ test.describe('the app shell', () => {
     // Identity is the header's account chip and nowhere else; the sidebar asks nothing.
     await expect(page.getByTestId('sidebar-signin')).toHaveCount(0);
     await expect(page.getByTestId('account-chip')).toHaveText('Sign in');
+    await expect(page.getByTestId('sign-up-cta')).toHaveText('Sign up for free');
     await page.getByTestId('account-chip').click();
     /*
-     * Sign in opens a sign-in.
-     *
-     * This used to assert a "Display name" field, because the button opened a
-     * sheet titled "How should we call you?" — a rename form with the actual
-     * sign-in buried underneath it. Naming yourself is not signing in, and the
-     * two are separate now: this is email, password and Google, and everything
-     * about an existing account lives on /account.
+     * Sign in opens the one sheet (ADR-0040): Google first, then an address
+     * and Continue; the password step comes after the address, the same for
+     * everyone, with the two other doors under it. Nothing about an existing
+     * account is here — that lives on /account.
      */
+    await expect(page.getByTestId('auth-google')).toBeVisible();
     await expect(page.getByTestId('auth-email')).toBeVisible();
+    await expect(page.getByTestId('auth-password')).toHaveCount(0);
+    await page.getByTestId('auth-email').fill('visitor@example.com');
+    await page.getByTestId('auth-continue').click();
+    await expect(page.getByTestId('auth-email-shown')).toHaveText('visitor@example.com');
     await expect(page.getByTestId('auth-password')).toBeVisible();
     await expect(page.getByTestId('auth-to-forgot')).toBeVisible();
     await expect(page.getByTestId('auth-to-signup')).toBeVisible();
     await expect(page.getByLabel('Display name')).toHaveCount(0);
+    await page.getByTestId('auth-close').click();
+    await expect(page.getByTestId('auth-form')).toBeHidden();
+    // The other door opens the same sheet.
+    await page.getByTestId('sign-up-cta').click();
+    await expect(page.getByTestId('auth-email')).toBeVisible();
     await page.keyboard.press('Escape');
   });
 

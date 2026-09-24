@@ -9,6 +9,7 @@ import { BoardThumb, SessionCard } from '../components/SessionCard.js';
 import { TOPIC_DOMAINS } from '../components/Sidebar.js';
 import { markStartClicked, trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
+import { defaultExpertFor } from '../lib/default-expert.js';
 import { pickTopicExample } from '../lib/topic-examples.js';
 
 /**
@@ -63,12 +64,18 @@ const STARTERS: { topic: string; domain: string; promise: string }[] = [
 ];
 
 export function Home() {
-  const { api, participant, platform } = useApp();
+  const { api, participant, openSignIn, platform } = useApp();
   const navigate = useNavigate();
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [withExpert, setWithExpert] = useState<Expert | null>(null);
+  /**
+   * The learner took the chip out (ADR-0040): "whoever you like". Kept so the
+   * default does not walk straight back in on the next render; a new visit
+   * starts with a chip again.
+   */
+  const [cleared, setCleared] = useState(false);
   const [listening, setListening] = useState(false);
   const [starting, setStarting] = useState(false);
   /** The re-entrancy guard `starting` cannot be: state is a render, this is the same tick. */
@@ -248,6 +255,17 @@ export function Home() {
     if (unpreparedReady !== null) trackAction('unprepared_shown', { ready: unpreparedReady });
   }, [unpreparedReady]);
 
+  // The box always has an expert in it (ADR-0040): the account's own default
+  // when it has one, else one the plan includes, at random, once per visit.
+  useEffect(() => {
+    if (withExpert || cleared || experts.length === 0 || !participant) return;
+    const pick = defaultExpertFor(experts, {
+      plan: participant.plan,
+      defaultExpertId: participant.defaultExpertId,
+    });
+    if (pick) setWithExpert(pick);
+  }, [experts, participant, withExpert, cleared]);
+
   // Arriving from the Experts screen: that expert is already in the command bar.
   const requestedExpert = (location.state as { expertId?: string } | null)?.expertId ?? null;
   useEffect(() => {
@@ -344,6 +362,7 @@ export function Home() {
                   className="state-layer grid size-5 place-items-center rounded-full"
                   onClick={() => {
                     trackAction('expert_cleared');
+                    setCleared(true);
                     setWithExpert(null);
                   }}
                 >
@@ -440,15 +459,29 @@ export function Home() {
               <p className="text-body-medium text-on-surface-variant text-pretty">
                 {unprepared.message}
               </p>
-              <Link
-                to="/pricing"
-                data-testid="home-upgrade"
-                onClick={() => trackAction('upgrade_clicked', { source: 'home_unprepared' })}
-                className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
-              >
-                Upgrade to continue
-                <ArrowRight size={16} />
-              </Link>
+              {unprepared.upgrade === 'SignIn' ? (
+                // A visitor without an account (ADR-0040): the door is the
+                // account, and it opens right here.
+                <button
+                  type="button"
+                  data-testid="home-sign-in"
+                  onClick={() => openSignIn('home_unprepared')}
+                  className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
+                >
+                  Sign in to continue
+                  <ArrowRight size={16} />
+                </button>
+              ) : (
+                <Link
+                  to="/pricing"
+                  data-testid="home-upgrade"
+                  onClick={() => trackAction('upgrade_clicked', { source: 'home_unprepared' })}
+                  className="state-layer inline-flex h-10 items-center gap-2 rounded-full bg-primary-fixed px-5 text-label-large text-on-primary-fixed transition-transform duration-[var(--duration-fast)] active:scale-[0.985]"
+                >
+                  Upgrade to continue
+                  <ArrowRight size={16} />
+                </Link>
+              )}
               {unprepared.ready.length > 0 ? (
                 <div className="mt-2 flex w-full flex-col gap-3 text-left">
                   <p className="text-title-small text-on-surface">Ready now</p>
@@ -482,7 +515,7 @@ export function Home() {
               <p className="text-body-medium text-on-surface-variant text-pretty">
                 {usage?.reason === 'capacity'
                   ? 'Free sessions are all booked for today — they open again at midnight UTC.'
-                  : `That is your ${usage?.sessionsPerDay ?? 3} sessions for today. They are back at midnight UTC.`}
+                  : 'That is your allowance for today. It is back at midnight UTC.'}
               </p>
               <Link
                 to="/pricing"

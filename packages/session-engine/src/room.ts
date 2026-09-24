@@ -56,6 +56,7 @@ import {
   handUnanswered,
   handWithdrawn,
   outOfScope,
+  questionsUpgrade,
 } from './brain.js';
 import {
   GRADE_MIN_CONFIDENCE,
@@ -181,7 +182,7 @@ function firstName(name: string): string {
 export interface SessionRoomDeps {
   sessionId: string;
   topic: string;
-  host: { id: ParticipantId; name: string; plan: PlanCode };
+  host: { id: ParticipantId; name: string; plan: PlanCode; anonymous?: boolean };
   expert: Expert;
   band: SelectionBand;
   language: string;
@@ -372,7 +373,9 @@ export class SessionRoom {
       this.markFirstAudio = resolve;
     });
     this.d = deps;
-    this.features = deps.features ?? defaultFeaturesFor(deps.host.plan);
+    this.features =
+      deps.features ??
+      defaultFeaturesFor(deps.host.plan, 'web', { anonymous: deps.host.anonymous === true });
     this.sessionId = deps.sessionId;
     this.observer = deps.observer ?? SILENT_OBSERVER;
     this.now = deps.now ?? (() => Date.now());
@@ -688,7 +691,11 @@ export class SessionRoom {
     // Nothing is waiting for a first sentence that will never come now.
     this.markFirstAudio();
     let recap: string[] = [];
-    if (this.plan && this.spoken.length > 0) {
+    if (this.plan && this.spoken.length > 0 && !this.features.model_recap) {
+      // The lesson's own goals, in its own words (ADR-0040): a plan without
+      // model-written recaps still ends with what was covered, for free.
+      recap = this.plan.segments.slice(0, 6).map((s) => s.goal);
+    } else if (this.plan && this.spoken.length > 0) {
       try {
         const { value } = await this.model.complete({
           messages: recapMessages({
@@ -2263,6 +2270,35 @@ export class SessionRoom {
     };
     this.turn = turn;
     this.questions.push(question);
+    if (!this.features.ask_questions) {
+      /**
+       * Heard, understood, and not answered by the model (ADR-0040): the
+       * plan does not include answers. The expert says so in one warm
+       * breath and carries on; the client draws the way to Pricing beside
+       * it. The question is on record like any other — in the ledger, in
+       * the host's own recording — so what people asked before they upgraded
+       * can be read later. No Onten, no model, no acknowledgement first: the
+       * line is the acknowledgement.
+       */
+      this.setMode('answering', p.id);
+      this.emitTurnEvent(turn, {
+        type: 'say',
+        id: 's1',
+        text: questionsUpgrade(this.turnCounter, this.language),
+        tone: 'warm',
+      });
+      this.d.transport.broadcast({ kind: 'nudge', reason: 'questions' });
+      this.metrics.interaction(p.id, 'question_upgrade_required', {
+        turn: turnId,
+        kind,
+        chars: question.length,
+      });
+      this.observer.event('room.question_upgrade_required', { turn: turnId, kind });
+      turn.done = true;
+      this.d.transport.broadcast({ kind: 'turn_done', thread: turn.id });
+      this.maybeFinishTurn(turn);
+      return;
+    }
     this.setMode('thinking', p.id);
     // Instant acknowledgement in the learner's language: audible within the TTS first-chunk
     // time, while the answer is composed. Languages without a table stay silent instead.

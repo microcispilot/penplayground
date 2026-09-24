@@ -403,7 +403,7 @@ export function BottomBar(p: BottomBarProps) {
               {myHand > 0 ? (
                 <span
                   aria-hidden
-                  className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-[10px] text-on-primary tabular-nums"
+                  className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-label-small text-on-primary tabular-nums"
                 >
                   {myHand + 1}
                 </span>

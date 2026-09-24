@@ -254,6 +254,16 @@ export const ServerSayTake = z.object({
   take: z.number().int().nonnegative(),
   reason: z.enum(['resume', 'pace']).optional(),
 });
+/**
+ * The room asking the client to show the way forward, calmly, beside what the
+ * expert just said (ADR-0040): the learner asked a question on a plan that
+ * does not include answers. What the client draws is its own; the room only
+ * says why.
+ */
+export const ServerNudge = z.object({
+  kind: z.literal('nudge'),
+  reason: z.enum(['questions']),
+});
 export const ServerError = z.object({
   kind: z.literal('error'),
   code: z.enum([
@@ -292,6 +302,7 @@ export const ServerMessage = z.discriminatedUnion('kind', [
   ServerTurnDone,
   ServerReaction,
   ServerChat,
+  ServerNudge,
   ServerError,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;

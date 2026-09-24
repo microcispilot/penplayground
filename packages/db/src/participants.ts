@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { type ParticipantRow, participants, sessions } from './schema.js';
 
@@ -72,6 +72,26 @@ export class ParticipantRepository {
       .where(isNotNull(participants.email))
       .orderBy(desc(participants.lastSeenAt))
       .limit(limit);
+  }
+
+  /** The expert who sits in the search box for this learner (ADR-0040); null clears it. */
+  async setDefaultExpert(id: string, expertId: string | null): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ defaultExpertId: expertId })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /** One more topic prepared for this learner (ADR-0040); returns the row with the new count. */
+  async countCustomSession(id: string): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ customSessions: sql`${participants.customSessions} + 1` })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
   }
 
   async rename(id: string, name: string): Promise<ParticipantRow | null> {

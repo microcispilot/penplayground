@@ -19,10 +19,23 @@ const PLANS: readonly PlanCode[] = ['free', 'standard', 'professional'];
 
 describe('PLAN_LIMITS', () => {
   it('holds the published allowances for every plan', () => {
+    // Unlimited sessions on every plan since ADR-0040 (a free session is a
+    // prepared lesson replayed, ad-supported); the free plan's one custom
+    // session is the thing that is counted.
     expect(PLAN_LIMITS).toEqual({
-      free: { sessionsPerDay: 3, maxSessionMinutes: 20, maxParticipants: 1 },
-      standard: { sessionsPerDay: null, maxSessionMinutes: 45, maxParticipants: 1 },
-      professional: { sessionsPerDay: null, maxSessionMinutes: 60, maxParticipants: 12 },
+      free: { sessionsPerDay: null, customSessions: 1, maxSessionMinutes: 20, maxParticipants: 1 },
+      standard: {
+        sessionsPerDay: null,
+        customSessions: null,
+        maxSessionMinutes: 45,
+        maxParticipants: 1,
+      },
+      professional: {
+        sessionsPerDay: null,
+        customSessions: null,
+        maxSessionMinutes: 60,
+        maxParticipants: 12,
+      },
     });
     for (const plan of PLANS) expect(planLimits(plan)).toBe(PLAN_LIMITS[plan]);
   });
@@ -58,11 +71,14 @@ describe('utcDayStart', () => {
 });
 
 describe('sessionsRemaining', () => {
-  it('counts the free plan down and floors at zero', () => {
-    expect(sessionsRemaining('free', 0)).toBe(3);
-    expect(sessionsRemaining('free', 1)).toBe(2);
-    expect(sessionsRemaining('free', 3)).toBe(0);
-    expect(sessionsRemaining('free', 9)).toBe(0);
+  it('is null for the free plan too since ADR-0040, and would count a capped plan down to zero', () => {
+    expect(sessionsRemaining('free', 0)).toBeNull();
+    expect(sessionsRemaining('free', 9)).toBeNull();
+    // The arithmetic stays for a plan that is capped again one day.
+    const capped = { ...PLAN_LIMITS.free, sessionsPerDay: 3 };
+    const remaining = (started: number) => Math.max(0, (capped.sessionsPerDay ?? 0) - started);
+    expect(remaining(1)).toBe(2);
+    expect(remaining(9)).toBe(0);
   });
 
   it('is null for the unlimited plans, however many were started', () => {

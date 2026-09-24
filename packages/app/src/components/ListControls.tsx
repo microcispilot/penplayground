@@ -53,7 +53,7 @@ export function LikeButton({
   surface?: ControlSurface;
   className?: string;
 }) {
-  const { api } = useApp();
+  const { api, features, openSignIn } = useApp();
   const toast = useToast();
   const liked = useLists((s) => s.likedIds.has(session.id));
   const likesOf = useLists((s) => s.likesOf);
@@ -76,6 +76,8 @@ export function LikeButton({
       onClick={(e: MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
+        // A like is kept on an account (ADR-0040): a visitor is shown the way in, here.
+        if (!features.lists) return openSignIn('like');
         toggle(api, session.id, session.likes).catch(() =>
           toast('Could not save that just now.', 'danger'),
         );
@@ -101,7 +103,7 @@ export function SaveButton({
   withLabel?: boolean;
   className?: string;
 }) {
-  const { api } = useApp();
+  const { api, features, openSignIn } = useApp();
   const toast = useToast();
   const saved = useLists((s) => s.savedIds.has(session.id));
   const toggle = useLists((s) => s.toggleSaved);
@@ -122,6 +124,7 @@ export function SaveButton({
       onClick={(e: MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
+        if (!features.lists) return openSignIn('save');
         toggle(api, session.id).catch(() => toast('Could not save that just now.', 'danger'));
       }}
     >

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { FeatureRulesDocument, KeyOwner, PlanCode } from '@pen/contracts';
+import type { KeyOwner, PlanCode } from '@pen/contracts';
+import { FeatureRulesDocument } from '@pen/contracts';
 import {
   AuthChallengeRepository,
   type Connection,
@@ -315,11 +316,17 @@ export async function buildServices(
    * by the compiled-in rules with a change arriving a poll later.
    */
   const featureFlagsRepo = new FeatureFlagsRepository(db.db);
+  // A test deployment's pinned flags (`PEN_FEATURE_OVERLAY`, refused in
+  // production) under the test seam's, which wins where both speak.
+  const envOverlay: FeatureRulesDocument = cfg.PEN_FEATURE_OVERLAY
+    ? FeatureRulesDocument.parse(JSON.parse(cfg.PEN_FEATURE_OVERLAY))
+    : {};
+  const overlay = { ...envOverlay, ...(opts.flags ?? {}) };
   const features = new FeatureStore({
     source: featureFlagsRepo,
     path: featureFlagsCachePath(cfg.PEN_DATA_DIR),
     pollMs: cfg.PEN_RUNTIME_CONFIG_POLL_MS,
-    ...(opts.flags ? { overlay: opts.flags } : {}),
+    ...(Object.keys(overlay).length > 0 ? { overlay } : {}),
   });
   await features.start();
   const featureFlags = new FeatureFlagsService(

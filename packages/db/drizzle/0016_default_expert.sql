@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "default_expert_id" text;

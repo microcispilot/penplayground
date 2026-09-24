@@ -51,7 +51,7 @@ async function liveRoom(opts: { detected: string | null; noteLanguage: string | 
   const room = new SessionRoom({
     sessionId: 'sess-lang',
     topic: 'How Transformers work in LLMs',
-    host: { id: HOST, name: 'Sam', plan: 'free' },
+    host: { id: HOST, name: 'Sam', plan: 'standard' },
     expert,
     band: 'beginner',
     language: 'en-US',

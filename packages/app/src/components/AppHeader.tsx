@@ -1,7 +1,7 @@
 import { avatarHue } from '@pen/contracts';
 import { Avatar, cn, PenLogo } from '@pen/design';
 import { Menu, Moon, Sun } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
@@ -35,11 +35,10 @@ export function AppHeader({
   onToggleSidebar,
   sidebarRail = false,
 }: AppHeaderProps) {
-  const { participant } = useApp();
+  const { participant, signInOpen, openSignIn, closeSignIn } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useTheme();
-  const [naming, setNaming] = useState(false);
   const dark = isDarkTheme(theme);
   // Identity lives in one place: this chip. Anonymous is signed out — the row
   // the sidebar used to carry is gone, and a learner with a name but no Google
@@ -49,8 +48,8 @@ export function AppHeader({
   // Anything that asks for the account sheet (a deep link, a screen) routes through here.
   const wantsSignIn = (location.state as { signIn?: boolean } | null)?.signIn === true;
   useEffect(() => {
-    if (wantsSignIn) setNaming(true);
-  }, [wantsSignIn]);
+    if (wantsSignIn) openSignIn('link');
+  }, [wantsSignIn, openSignIn]);
 
   return (
     <header
@@ -159,7 +158,8 @@ export function AppHeader({
           type="button"
           aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
           title={dark ? 'Light theme' : 'Dark theme'}
-          className="state-layer grid size-9 place-items-center rounded-full text-on-surface-variant"
+          /* Below `sm` the two doors need the room (the Settings screen keeps a theme control). */
+          className="state-layer hidden size-9 place-items-center rounded-full text-on-surface-variant sm:grid"
           onClick={() => {
             trackAction('theme_changed', { theme: dark ? 'light' : 'dark', source: 'header' });
             setTheme(dark ? 'light' : 'dark');
@@ -191,17 +191,30 @@ export function AppHeader({
             <span className="max-w-[120px] truncate">{firstNameOf(participant.name)}</span>
           </button>
         ) : (
-          <button
-            type="button"
-            /* M3 filled button: for a signed-out visitor this is the highest-emphasis action on the page, and the only place the chrome carries the brand. */
-            className="state-layer ml-1 flex h-9 items-center rounded-full bg-primary-fixed px-4 text-label-large text-on-primary-fixed"
-            onClick={() => setNaming(true)}
-            data-testid="account-chip"
-          >
-            Sign in
-          </button>
+          <>
+            {/* Two doors, one sheet (ADR-0040): the quiet one for someone who
+                has an account, the brand-filled one for someone who has not —
+                the highest-emphasis action on the page for a signed-out visitor,
+                and the only place the chrome carries the brand. */}
+            <button
+              type="button"
+              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full px-2.5 text-label-large text-on-surface sm:ml-1 sm:px-3"
+              onClick={() => openSignIn('header')}
+              data-testid="account-chip"
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full bg-primary-fixed px-3.5 text-label-large text-on-primary-fixed sm:px-4"
+              onClick={() => openSignIn('header_sign_up')}
+              data-testid="sign-up-cta"
+            >
+              Sign up for free
+            </button>
+          </>
         )}
-        <AuthDialog open={naming} onClose={() => setNaming(false)} />
+        <AuthDialog open={signInOpen} onClose={closeSignIn} />
       </div>
     </header>
   );

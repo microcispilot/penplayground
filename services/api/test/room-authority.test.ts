@@ -79,8 +79,8 @@ afterAll(async () => {
 });
 
 async function caller(name: string, plan: 'free' | 'professional') {
-  const issued = await identity.issue({ name, plan, anonymous: true });
-  await services.participants.ensure({ id: issued.claims.sub, name, plan, anonymous: true });
+  const issued = await identity.issue({ name, plan, anonymous: false });
+  await services.participants.ensure({ id: issued.claims.sub, name, plan, anonymous: false });
   return {
     id: issued.claims.sub,
     token: issued.token,

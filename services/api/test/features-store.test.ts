@@ -41,7 +41,9 @@ const who = { plan: 'free' as const, platform: 'web' as const };
 describe('FeatureStore', () => {
   it('serves the compiled-in rules with nothing stored', () => {
     const store = new FeatureStore({ path: cachePath(), pollMs: 0 });
-    expect(store.enabled('prepare_new_topics', who)).toBe(false);
+    expect(store.enabled('prepare_new_topics', who)).toBe(true);
+    expect(store.enabled('prepare_new_topics', { ...who, anonymous: true })).toBe(false);
+    expect(store.enabled('ask_questions', who)).toBe(false);
     expect(store.enabled('quick_start', who)).toBe(true);
   });
 
@@ -60,6 +62,31 @@ describe('FeatureStore', () => {
     await store.refresh();
     expect(store.enabled('prepare_new_topics', who)).toBe(true);
     expect(store.storedRule('ads')).toEqual(OPEN);
+  });
+
+  it('never writes the overlay to disk: the next process, with no overlay, sees only the database’s document', async () => {
+    const path = cachePath();
+    const source = new FakeSource({
+      revision: 4,
+      rules: { ads: OPEN },
+      updatedAt: 1,
+      updatedBy: 'p',
+    });
+    const overlaid = new FeatureStore({
+      source,
+      path,
+      pollMs: 0,
+      overlay: { prepare_new_topics: { ...OPEN, anonymous: true } },
+    });
+    await overlaid.start();
+    expect(overlaid.enabled('prepare_new_topics', { ...who, anonymous: true })).toBe(true);
+    overlaid.stop();
+    // The Playwright servers keep their data directory between runs: a cache
+    // that carried the overlay would hand a previous run's pins to this one.
+    const next = new FeatureStore({ path, pollMs: 0 });
+    expect(next.storedRule('ads')).toEqual(OPEN);
+    expect(next.storedRule('prepare_new_topics')).toBeNull();
+    expect(next.enabled('prepare_new_topics', { ...who, anonymous: true })).toBe(false);
   });
 
   it('drops a rule that does not validate on its own and keeps the rest', async () => {

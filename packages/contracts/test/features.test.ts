@@ -79,10 +79,51 @@ describe('the compiled-in rules', () => {
     }
   });
 
-  it('keep the expensive path off the free plan and on for everyone who pays', () => {
-    expect(defaultFeaturesFor('free').prepare_new_topics).toBe(false);
+  it('keep the expensive path on for accounts (the free plan gets its one) and off for a visitor without one', () => {
+    expect(defaultFeaturesFor('free').prepare_new_topics).toBe(true);
+    expect(defaultFeaturesFor('free', 'web', { anonymous: true }).prepare_new_topics).toBe(false);
     expect(defaultFeaturesFor('standard').prepare_new_topics).toBe(true);
     expect(defaultFeaturesFor('professional').prepare_new_topics).toBe(true);
+  });
+
+  it('give a visitor without an account a taste and nothing to keep (ADR-0040)', () => {
+    const visitor = defaultFeaturesFor('free', 'web', { anonymous: true });
+    expect(visitor.quick_start).toBe(true);
+    expect(visitor.ads).toBe(true);
+    expect(visitor.captions).toBe(true);
+    for (const off of [
+      'history',
+      'lists',
+      'recording_playback',
+      'session_download',
+      'rooms',
+      'ask_questions',
+      'model_recap',
+    ] as const)
+      expect(visitor[off], off).toBe(false);
+  });
+
+  it('answer questions and write recaps with the model on the paid plans only', () => {
+    expect(defaultFeaturesFor('free').ask_questions).toBe(false);
+    expect(defaultFeaturesFor('free').model_recap).toBe(false);
+    for (const plan of ['standard', 'professional'] as const) {
+      expect(defaultFeaturesFor(plan).ask_questions).toBe(true);
+      expect(defaultFeaturesFor(plan).model_recap).toBe(true);
+    }
+  });
+
+  it('let a stored rule speak for the signed-out visitor, and wins over every cell for them', () => {
+    const rule = {
+      default: false,
+      plans: { free: false },
+      platforms: {},
+      cells: { 'free:web': false },
+      anonymous: true,
+    };
+    expect(resolveRule(rule, 'free', 'web', { anonymous: true })).toBe(true);
+    expect(resolveRule(rule, 'free', 'web')).toBe(false);
+    expect(rulesEqual(rule, { ...rule, anonymous: false })).toBe(false);
+    expect(normaliseRule(rule).anonymous).toBe(true);
   });
 
   it("leave a prepared lesson startable, watchable by its host, and the room's furniture on", () => {

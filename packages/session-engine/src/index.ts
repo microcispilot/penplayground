@@ -1,4 +1,10 @@
-export { acknowledgement, bridgeBack, checkFeedback, classifyLocally } from './brain.js';
+export {
+  acknowledgement,
+  bridgeBack,
+  checkFeedback,
+  classifyLocally,
+  questionsUpgrade,
+} from './brain.js';
 export { ExpertCatalog } from './experts.js';
 export {
   GRADE_CRITERIA,

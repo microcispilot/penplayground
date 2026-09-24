@@ -18,7 +18,7 @@ const DOMAIN_LABEL = new Map(TOPIC_DOMAINS.map((d) => [d.id, d.label]));
  * gesture the product is built around.
  */
 export function Experts() {
-  const { api } = useApp();
+  const { api, participant, setDefaultExpert } = useApp();
   const navigate = useNavigate();
   const [experts, setExperts] = useState<Expert[] | null>(null);
   const [domain, setDomain] = useState('all');
@@ -55,6 +55,11 @@ export function Experts() {
 
   const choose = (expert: Expert) => {
     trackAction('expert_chosen', { expertId: expert.id, source: 'experts_page' });
+    // A paying account keeps the choice for every search (ADR-0040); for
+    // anyone else it is this visit's. Never awaited: the chip is the answer,
+    // and the account catches up on its own.
+    if (participant && !participant.anonymous && participant.plan !== 'free')
+      void setDefaultExpert(expert.id).catch(() => undefined);
     // Home owns the command bar; it reads this and fills the chip in.
     navigate('/', { state: { expertId: expert.id } });
   };

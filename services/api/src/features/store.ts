@@ -73,8 +73,16 @@ export class FeatureStore {
   private readonly pollMs: number;
   private readonly now: () => number;
   private readonly overlay: FeatureRulesDocument;
-  /** Stored rules in force, already validated. Absent means the compiled-in rule. */
+  /** Stored rules in force, already validated, the overlay laid on top. Absent means the compiled-in rule. */
   private stored: FeatureRulesDocument = {};
+  /**
+   * What the database (or the disk copy of it) said, without the overlay.
+   * This is what goes back to disk: the overlay is this process's, and a
+   * cache that carried it would hand it to the next process as if the
+   * console had decided it — which is exactly what happened to the
+   * Playwright servers, whose data directory outlives a run.
+   */
+  private fromSource: FeatureRulesDocument = {};
   private timer: NodeJS.Timeout | null = null;
   private lastRevision = 0;
   private lastUpdatedAt = 0;
@@ -93,14 +101,19 @@ export class FeatureStore {
 
   // ── reading ───────────────────────────────────────────────────────────────
 
-  /** One feature, for one learner. */
-  enabled(name: FeatureName, who: { plan: PlanCode; platform: Platform }): boolean {
-    return resolveRule(effectiveRule(this.stored, name), who.plan, who.platform);
+  /** One feature, for one learner: their plan, their platform, and whether they have an account (ADR-0040). */
+  enabled(
+    name: FeatureName,
+    who: { plan: PlanCode; platform: Platform; anonymous?: boolean },
+  ): boolean {
+    return resolveRule(effectiveRule(this.stored, name), who.plan, who.platform, {
+      anonymous: who.anonymous === true,
+    });
   }
 
   /** Every feature, for one learner — what a room is built with, and what a client is told. */
-  featuresFor(plan: PlanCode, platform: Platform): FeatureSet {
-    return featuresFor(this.stored, plan, platform);
+  featuresFor(plan: PlanCode, platform: Platform, who: { anonymous?: boolean } = {}): FeatureSet {
+    return featuresFor(this.stored, plan, platform, { anonymous: who.anonymous === true });
   }
 
   /** The stored rule for a feature, or null when the document says nothing about it. */
@@ -187,6 +200,7 @@ export class FeatureStore {
       this.complainedAbout.delete(name);
       next[name] = parsed.data;
     }
+    const fromSource = { ...next };
     for (const [name, rule] of Object.entries(this.overlay))
       if (rule) next[name as FeatureName] = rule;
     const changed =
@@ -205,6 +219,7 @@ export class FeatureStore {
       }
     }
     this.stored = next;
+    this.fromSource = fromSource;
     this.lastRevision = snapshot.revision;
     this.lastUpdatedAt = snapshot.updatedAt;
     if (origin === 'database' && changed) this.saveToDisk();
@@ -254,7 +269,7 @@ export class FeatureStore {
       revision: this.lastRevision,
       updatedAt: this.lastUpdatedAt,
       savedAt: this.now(),
-      rules: this.stored,
+      rules: this.fromSource,
     };
     const temporary = `${this.path}.${process.pid}.tmp`;
     try {

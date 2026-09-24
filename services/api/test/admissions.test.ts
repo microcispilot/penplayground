@@ -96,6 +96,8 @@ beforeAll(async () => {
     PEN_LLM_PROVIDER: 'fake',
     PEN_TTS_PROVIDER: 'silent',
     PEN_MAX_SESSIONS_PER_IP: String(IP_CAP),
+    // Every start here is a topic miss; the allowance is not what is measured.
+    PEN_FREE_CUSTOM_SESSIONS: '1000',
   });
   services = await buildServices(cfg, { flags: PREPARE_FOR_EVERYONE });
   identity = new Identity(cfg.PEN_JWT_SECRET);
@@ -131,18 +133,13 @@ describe('the ceilings hold when the requests arrive together', () => {
     await endEverything(pro, responses);
   }, 120_000);
 
-  it('a free plan gets three sessions a day however many it asks for at once', async () => {
+  it('a free plan is never held to a daily count: every session it asks for at once is admitted (ADR-0040)', async () => {
     const free = await participant('free');
     // One address each, because `PEN_MAX_SESSIONS_PER_IP` is 2 here and would
-    // otherwise be the ceiling that bites — which would make this a second
-    // test of the address cap wearing the allowance's name.
+    // otherwise be the ceiling that bites.
     const responses = await allAtOnce(8, (i) => start(free, `203.0.113.${100 + i}`));
     const byStatus = tally(responses);
-
-    expect(byStatus.get(201) ?? 0, `statuses: ${[...byStatus]}`).toBe(3);
-    // The rest are refused for the allowance, not for the address: the answer
-    // a learner reads has to be the true reason.
-    expect(byStatus.get(402) ?? 0).toBe(5);
+    expect(byStatus.get(201) ?? 0, `statuses: ${[...byStatus]}`).toBe(8);
     await endEverything(free, responses);
   }, 120_000);
 

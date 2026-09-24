@@ -92,10 +92,17 @@ afterAll(async () => {
 });
 
 async function host(name: string) {
-  const auth = await fetch(`${apiUrl}/api/auth/anonymous`, {
+  const minted = await fetch(`${apiUrl}/api/auth/anonymous`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name }),
+  }).then((r) => r.json() as Promise<{ token: string }>);
+  // An account on Standard (ADR-0040): the answer to the host's question and
+  // the recording the test reads back are a paid account's.
+  const auth = await fetch(`${apiUrl}/api/dev/me/google`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${minted.token}` },
+    body: JSON.stringify({ name, plan: 'standard' }),
   }).then((r) => r.json() as Promise<{ token: string; participant: { id: string } }>);
   return {
     token: auth.token,
@@ -209,7 +216,8 @@ describe('session telemetry (integration)', () => {
     expect(res.status).toBe(200);
     const t = SessionTelemetry.parse(await res.json());
     expect(t.sessionId).toBe(sessionId);
-    expect(t.plan).toBe('free');
+    // The host is on Standard here: the answer path is a paid plan's (ADR-0040).
+    expect(t.plan).toBe('standard');
     expect(t.canonicalId).toBe('en.how-transformers-work-in-llms');
 
     const stages = new Set(t.stages.map((s) => s.stage));

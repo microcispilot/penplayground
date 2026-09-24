@@ -236,7 +236,9 @@ test.describe('brand candidates, side by side', () => {
       await page.setViewportSize({ width: WIDTH, height: HEIGHT });
       await useTheme(page, theme);
       await page.goto(`${UI_WEB}/`);
-      const signIn = page.getByRole('button', { name: 'Sign in' });
+      // Two doors since ADR-0040; the filled one — Sign up for free — is the
+      // one that carries the brand, the way Sign in did when it was alone.
+      const signIn = page.getByTestId('sign-up-cta');
       await expect(signIn).toBeVisible({ timeout: 30_000 });
       const [painted, declared] = await Promise.all([
         signIn.evaluate((el) => getComputedStyle(el).backgroundColor),

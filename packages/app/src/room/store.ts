@@ -46,6 +46,8 @@ export interface RoomUiState {
     slot: AdSlot;
   } | null;
   notice: { text: string; tone: 'neutral' | 'danger' } | null;
+  /** The room asked for the way forward to be shown (ADR-0040): a question on a plan without answers. */
+  nudge: 'questions' | null;
   /**
    * The conductor saw the room go quiet with speech still owed: the learner is
    * owed an honest line rather than stillness (docs/PRODUCT.md).
@@ -105,6 +107,7 @@ const initial: RoomUiState = {
   check: null,
   ad: null,
   notice: null,
+  nudge: null,
   waiting: false,
   soundBlocked: false,
   preparation: null,

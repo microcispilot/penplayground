@@ -115,6 +115,8 @@ const UpdateMe = z
      * playback speed holds for the next video.
      */
     pace: Pace.optional(),
+    /** The expert who starts every search for this account (ADR-0040); null clears it. */
+    defaultExpertId: z.string().min(1).max(80).nullable().optional(),
     /**
      * The board this learner chose (ADR-0034). Validated here rather than
      * taken as free-form JSON: this column is read back into the UI, and an
@@ -142,6 +144,7 @@ function participantView(row: {
   avatarUrl?: string | null;
   pace?: number | null;
   board?: unknown;
+  defaultExpertId?: string | null;
 }) {
   // Parsed, never trusted: a row written by a newer build naming a board this
   // one has never heard of degrades to the default rather than failing the
@@ -156,6 +159,7 @@ function participantView(row: {
     avatarUrl: row.avatarUrl ?? null,
     pace: clampPace(row.pace ?? PACE_DEFAULT),
     board: board.success ? board.data : null,
+    defaultExpertId: row.defaultExpertId ?? null,
   };
 }
 
@@ -450,6 +454,23 @@ export function buildApp(services: Services): App {
    * are numbers the client can show plainly — "1 session left today" — rather
    * than a refusal it has to guess the reason for.
    */
+  /**
+   * How many topics may still be prepared for this caller (ADR-0040): none
+   * without an account, the configured allowance on the free plan, no limit
+   * when paying. `null` is unlimited.
+   */
+  const customSessionsFor = (claims: Claims): { allowance: number | null } => {
+    // A visitor without an account is decided by the flag alone
+    // (`prepare_new_topics` is off for them unless a test deployment says
+    // otherwise); the counter is an account's.
+    if (claims.anonymous) return { allowance: null };
+    return {
+      allowance:
+        PLAN_LIMITS[claims.plan].customSessions === null
+          ? null
+          : services.config.get('PEN_FREE_CUSTOM_SESSIONS'),
+    };
+  };
   const usageFor = async (claims: Claims) => {
     const dayStart = utcDayStart(Date.now());
     const limits = PLAN_LIMITS[claims.plan];
@@ -457,6 +478,7 @@ export function buildApp(services: Services): App {
     const remaining = sessionsRemaining(claims.plan, sessionsToday);
     const spend = services.spend.check(claims.plan);
     const reason = remaining === 0 ? 'daily_limit' : spend.ok ? null : 'capacity';
+    const me = await services.participants.get(claims.sub);
     return {
       plan: claims.plan,
       sessionsToday,
@@ -466,7 +488,39 @@ export function buildApp(services: Services): App {
       resetsAt: dayStart + 86_400_000,
       canStart: reason === null,
       reason,
+      customSessionsUsed: me?.customSessions ?? 0,
+      customSessions: customSessionsFor(claims).allowance,
     } as const;
+  };
+  /**
+   * The routes that are a shelf — history, saves, likes, your sessions,
+   * your recording — belong to an account (ADR-0040). A visitor without one
+   * is told so in one calm sentence, with the way in; never a wall.
+   */
+  const accountRequired = (
+    claims: Claims,
+    feature: 'history' | 'lists',
+    platform: Platform,
+  ): Response | null => {
+    if (
+      services.features.enabled(feature, {
+        plan: claims.plan,
+        platform,
+        anonymous: claims.anonymous,
+      })
+    )
+      return null;
+    return Response.json(
+      {
+        error: 'ACCOUNT_REQUIRED',
+        message:
+          feature === 'lists'
+            ? 'Sign in to keep the lessons you like and save.'
+            : 'Sign in to keep your sessions and your history.',
+        upgrade: 'SignIn',
+      },
+      { status: 403 },
+    );
   };
 
   app.get('/api/health', (c) =>
@@ -718,6 +772,30 @@ export function buildApp(services: Services): App {
     }
     if (body.data.pace !== undefined)
       row = await services.participants.setPace(claims.sub, clampPace(body.data.pace));
+    if (body.data.defaultExpertId !== undefined) {
+      // A default is a paying learner's (ADR-0040): the free plan's expert is
+      // the visit's random one of its two, and a visitor without an account
+      // has nowhere to keep a choice.
+      const id = body.data.defaultExpertId;
+      if (id !== null) {
+        if (claims.anonymous)
+          return c.json(
+            { error: 'ACCOUNT_REQUIRED', message: 'Sign in to keep a default expert.' },
+            403,
+          );
+        if (!services.experts.get(id)) return c.json({ error: 'NOT_FOUND' }, 404);
+        if (!planAllowsExpert(claims.plan, id))
+          return c.json(
+            {
+              error: 'ENTITLEMENT_REQUIRED',
+              message: `${services.experts.get(id)?.displayName ?? 'This expert'} teaches on ${PLAN_NAME[requiredPlanFor(id) ?? 'standard']}.`,
+              upgrade: 'Pricing',
+            },
+            402,
+          );
+      }
+      row = await services.participants.setDefaultExpert(claims.sub, id);
+    }
     if (body.data.board !== undefined)
       row = await services.participants.setBoard(claims.sub, body.data.board);
     if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
@@ -729,12 +807,16 @@ export function buildApp(services: Services): App {
   app.get('/api/me/lists', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const refused = accountRequired(claims, 'lists', platformOf(c));
+    if (refused) return refused;
     return c.json(await services.lists.summary(claims.sub));
   });
   /** Every session this participant sat in (host or guest), most recent seat first. */
   app.get('/api/me/history', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const refused = accountRequired(claims, 'history', platformOf(c));
+    if (refused) return refused;
     const history = await services.lists.historyFor(claims.sub);
     const counts = await services.sessions.guestCounts(history.map((h) => h.session.id));
     return c.json({
@@ -748,12 +830,16 @@ export function buildApp(services: Services): App {
   app.get('/api/me/saved', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const refused = accountRequired(claims, 'lists', platformOf(c));
+    if (refused) return refused;
     const saved = await withGuests(await services.lists.savedFor(claims.sub));
     return c.json({ sessions: saved.map((r) => (r.hostId === claims.sub ? r : anonymise(r))) });
   });
   app.get('/api/me/liked', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const refused = accountRequired(claims, 'lists', platformOf(c));
+    if (refused) return refused;
     const liked = await withGuests(await services.lists.likedFor(claims.sub));
     return c.json({ sessions: liked.map((r) => (r.hostId === claims.sub ? r : anonymise(r))) });
   });
@@ -865,6 +951,8 @@ export function buildApp(services: Services): App {
   app.get('/api/sessions/mine', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const refused = accountRequired(claims, 'history', platformOf(c));
+    if (refused) return refused;
     return c.json({ sessions: await withGuests(await services.sessions.listForHost(claims.sub)) });
   });
   app.post('/api/sessions', async (c) => {
@@ -961,7 +1049,13 @@ export function buildApp(services: Services): App {
       origin: 'search' | 'replay';
     };
     if ('replayOf' in body.data) {
-      if (!services.features.enabled('quick_start', { plan: claims.plan, platform })) {
+      if (
+        !services.features.enabled('quick_start', {
+          plan: claims.plan,
+          platform,
+          anonymous: claims.anonymous,
+        })
+      ) {
         refuseSession(claims, 'feature_off', { feature: 'quick_start', platform });
         return c.json(
           {
@@ -1019,7 +1113,11 @@ export function buildApp(services: Services): App {
     // already draws the lock from the served `requiredPlan`; this is the answer
     // that actually decides, and it names the plan rather than refusing blankly.
     const asked = create.expertId;
-    if (asked && !planAllowsExpert(claims.plan, asked)) {
+    // A replay keeps the lesson's own expert whatever the plan (ADR-0040):
+    // the lesson exists, the voice is stored, and re-teaching it through
+    // another persona would be the generation the free plan does not get.
+    // The expert gate is for a session the learner is asking to be taught.
+    if (asked && create.origin !== 'replay' && !planAllowsExpert(claims.plan, asked)) {
       const needed = requiredPlanFor(asked);
       const who = services.experts.get(asked);
       refuseSession(claims, 'expert_plan', { expertId: asked, needed: needed ?? 'standard' });
@@ -1063,6 +1161,18 @@ export function buildApp(services: Services): App {
     // request in this same window counts this one.
     const admission = admissions.hold(claims.sub, ip);
     // ── awaits are safe again ───────────────────────────────────────────
+    // Whether a topic nobody has prepared may be prepared for this caller
+    // (ADR-0040): the flag for their plan and platform, then the free
+    // plan's allowance over the life of the account.
+    const custom = customSessionsFor(claims);
+    const used = me?.customSessions ?? 0;
+    const allowPreparation =
+      services.features.enabled('prepare_new_topics', {
+        plan: claims.plan,
+        platform,
+        anonymous: claims.anonymous,
+      }) &&
+      (custom.allowance === null || used < custom.allowance);
     try {
       // The room is born at the pace this learner last chose, so a signed-in
       // learner never hears the first sentence at someone else's speed (ADR-0010).
@@ -1070,7 +1180,13 @@ export function buildApp(services: Services): App {
       try {
         live = await rooms.create({
           topic: create.topic,
-          host: { id: claims.sub, name: claims.name, plan: claims.plan },
+          host: {
+            id: claims.sub,
+            name: claims.name,
+            plan: claims.plan,
+            anonymous: claims.anonymous,
+          },
+          allowPreparation,
           band: create.band,
           visibility: create.visibility,
           platform,
@@ -1088,13 +1204,29 @@ export function buildApp(services: Services): App {
          * ready — the same catalogue Home draws — so the learner has
          * somewhere to go from here rather than a closed door.
          */
-        refuseSession(claims, 'preparation_required', { platform, origin: create.origin });
+        refuseSession(claims, 'preparation_required', {
+          platform,
+          origin: create.origin,
+          anonymous: claims.anonymous,
+          used,
+        });
+        /**
+         * Three doors, one voice (ADR-0040). A visitor without an account is
+         * asked to sign in: an account brings one custom session. A free
+         * account that has had it is asked to upgrade: the way to more custom
+         * sessions is a paid plan. A plan whose flag is simply off is told so.
+         */
+        const anonymous = claims.anonymous;
+        const spent = !anonymous && custom.allowance !== null && used >= custom.allowance;
         return c.json(
           {
             error: 'PREPARATION_REQUIRED',
-            message:
-              'Nobody has prepared that topic yet. Upgrade to have it prepared for you, or start one of the lessons that are ready now.',
-            upgrade: 'Pricing',
+            message: anonymous
+              ? 'Nobody has prepared that topic yet. Sign in to have a lesson prepared for you, or start one of the lessons that are ready now.'
+              : spent
+                ? 'That would be a new lesson, prepared just for you — and your free one is used. Upgrade to keep learning anything you can name, or start one of the lessons that are ready now.'
+                : 'Nobody has prepared that topic yet. Upgrade to have it prepared for you, or start one of the lessons that are ready now.',
+            upgrade: anonymous ? 'SignIn' : 'Pricing',
             ready: (await services.sessions.listPublic(12)).map(anonymise),
           },
           402,
@@ -1126,7 +1258,10 @@ export function buildApp(services: Services): App {
     return c.json({
       plan: claims.plan,
       platform,
-      features: services.features.featuresFor(claims.plan, platform),
+      anonymous: claims.anonymous,
+      features: services.features.featuresFor(claims.plan, platform, {
+        anonymous: claims.anonymous,
+      }),
     });
   });
 
@@ -1173,10 +1308,25 @@ export function buildApp(services: Services): App {
     req: { header(name: string): string | undefined; param(name: string): string };
   }): Promise<
     | { ok: true; claims: Claims; id: string }
-    | { ok: false; status: 401 | 404; body: { error: string } }
+    | { ok: false; status: 401 | 403 | 404; body: { error: string; message?: string } }
   > => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
+    if (
+      !services.features.enabled('lists', {
+        plan: claims.plan,
+        platform: platformOf(c),
+        anonymous: claims.anonymous,
+      })
+    )
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: 'ACCOUNT_REQUIRED',
+          message: 'Sign in to keep the lessons you like and save.',
+        },
+      };
     const id = c.req.param('id');
     if (!SessionId.safeParse(id).success || !(await services.sessions.get(id)))
       return { ok: false, status: 404, body: { error: 'NOT_FOUND' } };
@@ -1240,11 +1390,13 @@ export function buildApp(services: Services): App {
       ? await services.downloadTokens.verify(token, record.id)
       : null;
     let plan: PlanCode | null = null;
+    let anonymous = false;
     if (!viewer) {
       const claims = await bearer(c.req.header('authorization'));
       if (claims) {
         viewer = claims.sub;
         plan = claims.plan;
+        anonymous = claims.anonymous;
       }
     }
     if (!viewer) return { ok: false, status: 401, body: { error: 'UNAUTHORIZED' } };
@@ -1263,12 +1415,14 @@ export function buildApp(services: Services): App {
     // could never render the file it is allowed to have.
     if (
       plan !== null &&
-      !services.features.enabled('recording_playback', { plan, platform: platformOf(c) })
+      !services.features.enabled('recording_playback', { plan, platform: platformOf(c), anonymous })
     )
       return {
         ok: false,
         status: 403,
-        body: { error: 'FEATURE_OFF', message: 'Recordings are not available on this plan here.' },
+        body: anonymous
+          ? { error: 'ACCOUNT_REQUIRED', message: 'Sign in to keep and watch your recordings.' }
+          : { error: 'FEATURE_OFF', message: 'Recordings are not available on this plan here.' },
       };
     return { ok: true, record, viewer };
   };

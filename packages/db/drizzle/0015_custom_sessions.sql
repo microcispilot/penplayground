@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "custom_sessions" integer DEFAULT 0 NOT NULL;

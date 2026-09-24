@@ -105,6 +105,11 @@ export const InteractionName = z.enum([
   'question_out_of_scope',
   /** A guest was told the room is being recorded, as Zoom tells a caller. */
   'recording_notice_shown',
+  /**
+   * A question on a plan that does not include answers (ADR-0040): the expert
+   * heard it, said so, asked for an upgrade and carried on — no model call.
+   */
+  'question_upgrade_required',
   // the floor in a room (ADR-0037)
   'hand_raised',
   'hand_lowered',
@@ -202,6 +207,8 @@ export const ActionName = z.enum([
   'say_it_clicked',
   'expert_chosen',
   'expert_cleared',
+  /** A paying learner made an expert their default for every search (ADR-0040). */
+  'default_expert_set',
   'topic_chosen',
   'session_opened',
   'join_clicked',

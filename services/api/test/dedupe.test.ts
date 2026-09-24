@@ -23,6 +23,8 @@ interface Participant {
 
 beforeAll(async () => {
   const cfg = loadConfig({
+    // Every session here is a topic miss (no packs are seeded); the free plan's allowance is not the subject.
+    PEN_FREE_CUSTOM_SESSIONS: '1000',
     NODE_ENV: 'test',
     PEN_JWT_SECRET: 'x'.repeat(40),
     PEN_DATA_DIR: dataDir,
@@ -55,6 +57,15 @@ async function anonymous(name: string): Promise<Participant> {
   return { token: body.token, id: body.participant.id };
 }
 
+/** An account (ADR-0040): the shelf and the recording are an account's, so the people here have one. */
+async function account(name: string): Promise<Participant> {
+  const p = await anonymous(name);
+  const r = await call('POST', '/api/dev/me/google', p, { name });
+  expect(r.status).toBe(200);
+  const body = (await r.json()) as { token: string; participant: { id: string } };
+  return { token: body.token, id: body.participant.id };
+}
+
 async function createEnded(host: Participant, topic: string): Promise<string> {
   const r = await call('POST', '/api/sessions', host, { topic });
   expect(r.status).toBe(201);
@@ -65,7 +76,7 @@ async function createEnded(host: Participant, topic: string): Promise<string> {
 
 describe('a link to a session that was collapsed into another', () => {
   it('opens the lesson that was kept instead of answering 404', async () => {
-    const host = await anonymous('Grace');
+    const host = await account('Grace');
     const kept = await createEnded(host, 'How Transformers work in LLMs');
     const gone = await createEnded(host, 'How Transformers work in LLMs');
 
@@ -108,8 +119,8 @@ describe('a link to a session that was collapsed into another', () => {
 
 describe('deleting a session', () => {
   it('takes its saves, likes and history with it instead of orphaning them', async () => {
-    const host = await anonymous('Ada');
-    const reader = await anonymous('Sam');
+    const host = await account('Ada');
+    const reader = await account('Sam');
     const id = await createEnded(host, 'Swift fundamentals');
     expect((await call('PUT', `/api/sessions/${id}/save`, reader)).status).toBe(200);
     expect((await call('PUT', `/api/sessions/${id}/like`, reader)).status).toBe(200);

@@ -7,10 +7,12 @@ export interface DialogProps {
   title: string;
   children: ReactNode;
   className?: string;
+  /** The sheet's width in CSS pixels, before the viewport's 92 % cap. */
+  width?: number;
 }
 
 /** Native <dialog> with the design system's surface; focus trapping and Esc come from the platform. */
-export function Dialog({ open, onClose, title, children, className }: DialogProps) {
+export function Dialog({ open, onClose, title, children, className, width = 520 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -29,9 +31,10 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
       className={cn(
         // M3 basic dialog: `surface-container-high`, `corner-extra-large`
         // (28 px), elevation level 3, over a `scrim`.
-        'm-auto w-[min(520px,92vw)] rounded-xl bg-surface-container-high p-6 text-on-surface shadow-level3 backdrop:bg-scrim/60 backdrop:backdrop-blur-[2px]',
+        'm-auto rounded-xl bg-surface-container-high p-6 text-on-surface shadow-level3 backdrop:bg-scrim/60 backdrop:backdrop-blur-[2px]',
         className,
       )}
+      style={{ width: `min(${width}px, 92vw)` }}
       aria-label={title}
     >
       {/* M3 names `headline-small` here; `title-large` keeps a modal that is

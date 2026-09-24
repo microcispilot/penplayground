@@ -44,6 +44,8 @@ interface SessionJson {
 
 beforeAll(async () => {
   const cfg = loadConfig({
+    // Every session here is a topic miss (no packs are seeded); the free plan's allowance is not the subject.
+    PEN_FREE_CUSTOM_SESSIONS: '1000',
     NODE_ENV: 'test',
     PEN_JWT_SECRET: 'x'.repeat(40),
     PEN_DATA_DIR: dataDir,
@@ -75,6 +77,15 @@ const call = (method: string, path: string, as: Participant | null, body?: unkno
 
 async function anonymous(name: string): Promise<Participant> {
   const r = await call('POST', '/api/auth/anonymous', null, { name });
+  expect(r.status).toBe(200);
+  const body = (await r.json()) as { token: string; participant: { id: string } };
+  return { token: body.token, id: body.participant.id };
+}
+
+/** A shelf belongs to an account (ADR-0040): the visitor, upgraded in place by the dev hook. */
+async function withAccount(name: string): Promise<Participant> {
+  const p = await anonymous(name);
+  const r = await call('POST', '/api/dev/me/google', p, { name });
   expect(r.status).toBe(200);
   const body = (await r.json()) as { token: string; participant: { id: string } };
   return { token: body.token, id: body.participant.id };
@@ -123,7 +134,7 @@ describe('lists API (ADR-0015)', () => {
   });
 
   it('a fresh participant has empty lists; unknown or malformed session ids are 404', async () => {
-    const p = await anonymous('Fresh');
+    const p = await withAccount('Fresh');
     expect(await summary(p)).toEqual({
       savedIds: [],
       likedIds: [],
@@ -135,8 +146,8 @@ describe('lists API (ADR-0015)', () => {
   });
 
   it('save and like are idempotent pairs; the public like count is one per person', async () => {
-    const host = await anonymous('Host');
-    const fan = await anonymous('Fan');
+    const host = await withAccount('Host');
+    const fan = await withAccount('Fan');
     const id = await createEnded(host);
 
     expect(await (await call('PUT', `/api/sessions/${id}/save`, fan)).json()).toEqual({
@@ -190,8 +201,8 @@ describe('lists API (ADR-0015)', () => {
   });
 
   it('history is what you sat in, most recent seat first, and the host role is kept', async () => {
-    const host = await anonymous('Historian');
-    const guest = await anonymous('Guest');
+    const host = await withAccount('Historian');
+    const guest = await withAccount('Guest');
     const first = await createEnded(host);
     const second = await createEnded(host);
     // Seats are recorded by the room registry when a socket attaches; simulate the guest's seat.
@@ -219,18 +230,21 @@ describe('lists API (ADR-0015)', () => {
     const ada1: Participant = { token: account.token, id: account.participant.id };
     await call('PUT', `/api/sessions/${own}/like`, ada1);
 
-    // A second device, anonymous: saved + liked the same session, hosted another, sat in a third.
+    // A second device, a visitor without an account: hosted another session,
+    // sat in a third. A visitor has no shelf (ADR-0040): a save or a like is
+    // the invitation to sign in, not a row — so nothing here can be liked
+    // twice, and what comes along on sign-in is the sessions and the visits.
     const device2 = await anonymous('Learner');
     const hostedAnon = await createEnded(device2);
-    const someone = await anonymous('Someone');
+    const someone = await withAccount('Someone');
     const visited = await createEnded(someone);
     await services.lists.visit(device2.id, visited, 'guest');
-    await call('PUT', `/api/sessions/${own}/save`, device2);
-    await call('PUT', `/api/sessions/${own}/like`, device2);
-    await call('PUT', `/api/sessions/${visited}/like`, device2);
+    const refused = await call('PUT', `/api/sessions/${own}/like`, device2);
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { error: string }).error).toBe('ACCOUNT_REQUIRED');
     expect(
       (await (await call('GET', `/api/sessions/${own}`, null)).json()) as object,
-    ).toMatchObject({ session: { likes: 2 } });
+    ).toMatchObject({ session: { likes: 1 } });
 
     const again = await call('POST', '/api/identity/google', device2, {
       idToken: 'ok:ada-0123456789abcdef',
@@ -246,23 +260,22 @@ describe('lists API (ADR-0015)', () => {
     const ada2: Participant = { token: merged.token, id: merged.participant.id };
 
     const s = await summary(ada2);
-    expect(s.savedIds).toEqual([own]);
-    expect(s.likedIds.sort()).toEqual([own, visited].sort());
-    // Sessions hosted anonymously came along (existing behaviour) and so did the visits.
-    expect(s.counts).toMatchObject({ hosted: 2, saved: 1, liked: 2 });
+    expect(s.savedIds).toEqual([]);
+    expect(s.likedIds).toEqual([own]);
+    // Sessions hosted as a visitor came along, and so did the visits.
+    expect(s.counts).toMatchObject({ hosted: 2, saved: 0, liked: 1 });
     expect((await listed('/api/me/history', ada2)).map((x) => x.id)).toEqual(
       expect.arrayContaining([own, hostedAnon, visited]),
     );
-    // The duplicate like (both devices liked `own`) is counted once in public.
     expect(
       (await (await call('GET', `/api/sessions/${own}`, null)).json()) as object,
     ).toMatchObject({ session: { likes: 1 } });
-    // Nothing stays on the abandoned anonymous row.
-    expect(await summary(device2)).toMatchObject({ savedIds: [], likedIds: [] });
+    // The abandoned visitor row has no shelf to keep.
+    expect((await call('GET', '/api/me/lists', device2)).status).toBe(403);
   });
 
   it('downloads lists only hosted, ended sessions with a rendered MP4', async () => {
-    const host = await anonymous('Downloader');
+    const host = await withAccount('Downloader');
     await createEnded(host);
     // No renderer has run in this process: nothing is ready.
     expect(await listed('/api/me/downloads', host)).toEqual([]);

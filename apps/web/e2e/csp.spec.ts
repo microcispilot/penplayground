@@ -103,7 +103,7 @@ test.describe('content security policy', () => {
       await p.getByTestId('account-chip').click();
       // The button only exists where a client id is configured; CI has no .env, and the
       // point of this step is that the CSP does not block Google's script when it is there.
-      const google = p.getByTestId('google-signin');
+      const google = p.getByTestId('auth-google');
       if (await google.count()) {
         await expect(google).toBeVisible({ timeout: 20_000 });
         await p.waitForTimeout(3_000);

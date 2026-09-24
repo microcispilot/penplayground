@@ -32,6 +32,14 @@ export const participants = pgTable(
       .notNull()
       .default('free'),
     anonymous: boolean('anonymous').notNull().default(true),
+    /**
+     * Topics prepared for this learner over the life of the account
+     * (ADR-0040): the free plan's one custom session is counted here, and the
+     * count survives an upgrade and a downgrade alike.
+     */
+    customSessions: integer('custom_sessions').notNull().default(0),
+    /** The expert a paying learner chose to start every search with (ADR-0040); null = the visit's random pick. */
+    defaultExpertId: text('default_expert_id'),
     email: text('email'),
     provider: text('provider'),
     /** Google's stable account id (`sub` in the ID token); the one key a Google sign-in is looked up by. */

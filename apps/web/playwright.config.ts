@@ -31,6 +31,31 @@ const webPort = process.env.PEN_WEB_PORT ?? '5173';
  * no spec signs in through Google.
  */
 const E2E_GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID ?? 'e2e.apps.googleusercontent.com';
+/**
+ * The flags these servers run with (ADR-0040). The suite's learners are
+ * anonymous, and what it exercises — a question answered, a shelf, a
+ * recording watched, a topic prepared — is an account's or a paid plan's in
+ * production. Pinned on for everyone here; the tier boundaries themselves are
+ * proved in services/api/test and packages/contracts/test. Refused in
+ * production by the config.
+ */
+const on = { default: true, plans: {}, platforms: {}, cells: {}, anonymous: true };
+const E2E_FEATURE_OVERLAY = JSON.stringify({
+  prepare_new_topics: on,
+  ask_questions: on,
+  model_recap: on,
+  history: on,
+  lists: on,
+  recording_playback: on,
+});
+/** The UI pair keeps preparation off for its visitors: Home's refusal is one of its subjects. */
+const E2E_UI_FEATURE_OVERLAY = JSON.stringify({
+  ask_questions: on,
+  model_recap: on,
+  history: on,
+  lists: on,
+  recording_playback: on,
+});
 
 /**
  * A second API/web pair for `rooms.spec.ts`: plan forced to professional (rooms are a
@@ -182,6 +207,9 @@ export default defineConfig({
         PEN_MAX_SESSIONS_PER_IP: '50',
         // Every request here is from 'local'; the whole suite is one address (ADR-0038).
         PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
+        PEN_FEATURE_OVERLAY: E2E_FEATURE_OVERLAY,
+        // Every start here is a topic miss; the allowance is not what is measured.
+        PEN_FREE_CUSTOM_SESSIONS: '1000',
       },
       timeout: 60_000,
     },
@@ -209,6 +237,9 @@ export default defineConfig({
         PEN_MAX_SESSIONS_PER_IP: '50',
         // Every request here is from 'local'; the whole suite is one address (ADR-0038).
         PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
+        PEN_FEATURE_OVERLAY: E2E_FEATURE_OVERLAY,
+        // Every start here is a topic miss; the allowance is not what is measured.
+        PEN_FREE_CUSTOM_SESSIONS: '1000',
         LIVEKIT_URL: process.env.PEN_E2E_LIVEKIT_URL ?? 'ws://127.0.0.1:7880',
         LIVEKIT_API_KEY: process.env.PEN_E2E_LIVEKIT_API_KEY ?? 'devkey',
         // `livekit-server --dev` uses "secret"; deploy/livekit/livekit.dev.yaml (the TURN
@@ -245,6 +276,9 @@ export default defineConfig({
         PEN_MAX_SESSIONS_PER_IP: '50',
         // Every request here is from 'local'; the whole suite is one address (ADR-0038).
         PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
+        PEN_FEATURE_OVERLAY: E2E_UI_FEATURE_OVERLAY,
+        // Every start here is a topic miss; the allowance is not what is measured.
+        PEN_FREE_CUSTOM_SESSIONS: '1000',
       },
       timeout: 60_000,
     },
@@ -273,6 +307,9 @@ export default defineConfig({
         PEN_MAX_SESSIONS_PER_IP: '50',
         // Every request here is from 'local'; the whole suite is one address (ADR-0038).
         PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: '0',
+        PEN_FEATURE_OVERLAY: E2E_FEATURE_OVERLAY,
+        // Every start here is a topic miss; the allowance is not what is measured.
+        PEN_FREE_CUSTOM_SESSIONS: '1000',
       },
       timeout: 60_000,
     },

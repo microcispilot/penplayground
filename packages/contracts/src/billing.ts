@@ -41,10 +41,15 @@ export const PLAN_ENTITLEMENTS: Record<PlanCode, readonly Entitlement[]> = {
 /**
  * What a plan may use, enforced server-side (never only in the UI).
  *
- * - `sessionsPerDay` — the free plan's "3 sessions a day" promise
- *   (docs/PRODUCT.md), counted per participant per **UTC day** so the reset is
- *   one predictable moment for everyone rather than a rolling window a learner
- *   cannot reason about. `null` means unlimited.
+ * - `sessionsPerDay` — sessions a participant may start per **UTC day**;
+ *   `null` means unlimited. Since ADR-0040 every plan is unlimited: a free
+ *   session is a prepared lesson replayed, ad-supported, and costs the house
+ *   next to nothing. The field stays so a plan can be capped again from one
+ *   table if the economics change.
+ * - `customSessions` — how many topics nobody has prepared a learner may
+ *   have prepared for them, over the life of the account (ADR-0040): one on
+ *   the free plan (`PEN_FREE_CUSTOM_SESSIONS` on the server), unlimited when
+ *   paying, none for a visitor without an account. The expensive path.
  * - `maxSessionMinutes` — how long one session may run before the room ends
  *   itself. Free is 20 because that is the session docs/COST.md budgets
  *   (≈ $0.30 of provider spend); Standard 45 and Professional 60 leave room for
@@ -56,6 +61,8 @@ export const PLAN_ENTITLEMENTS: Record<PlanCode, readonly Entitlement[]> = {
 export interface PlanLimits {
   /** Sessions a participant may start per UTC day; null = unlimited. */
   readonly sessionsPerDay: number | null;
+  /** Topics prepared for this learner over the life of the account; null = unlimited. */
+  readonly customSessions: number | null;
   /** Wall-clock ceiling for one session. */
   readonly maxSessionMinutes: number;
   /** Seats in a room, host included. */
@@ -63,9 +70,19 @@ export interface PlanLimits {
 }
 
 export const PLAN_LIMITS: Record<PlanCode, PlanLimits> = {
-  free: { sessionsPerDay: 3, maxSessionMinutes: 20, maxParticipants: 1 },
-  standard: { sessionsPerDay: null, maxSessionMinutes: 45, maxParticipants: 1 },
-  professional: { sessionsPerDay: null, maxSessionMinutes: 60, maxParticipants: 12 },
+  free: { sessionsPerDay: null, customSessions: 1, maxSessionMinutes: 20, maxParticipants: 1 },
+  standard: {
+    sessionsPerDay: null,
+    customSessions: null,
+    maxSessionMinutes: 45,
+    maxParticipants: 1,
+  },
+  professional: {
+    sessionsPerDay: null,
+    customSessions: null,
+    maxSessionMinutes: 60,
+    maxParticipants: 12,
+  },
 };
 
 export function planLimits(plan: PlanCode): PlanLimits {
@@ -112,6 +129,9 @@ export const PlanUsage = z.object({
   maxSessionMinutes: z.number().int().positive(),
   /** When the count resets (ms epoch, the next UTC midnight). */
   resetsAt: z.number().int().nonnegative(),
+  /** Topics prepared for this learner so far, and how many the plan allows; null = unlimited (ADR-0040). */
+  customSessionsUsed: z.number().int().nonnegative().optional(),
+  customSessions: z.number().int().nonnegative().nullable().optional(),
   /**
    * False while the day's spend cap is holding new free sessions back
    * (ADR-0016). Paid plans keep starting; the client says so kindly.

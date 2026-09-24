@@ -71,15 +71,32 @@ test.describe('replay and the recording', () => {
   test('a topic nobody has prepared is answered on Home with the lessons that are ready', async ({
     page,
   }) => {
-    // The UI pair's participants are free, and its deployment keeps
-    // `prepare_new_topics` off for them: the topic is a miss and Home says so.
+    // The topic carries the clock: the pair's data directory outlives a run,
+    // and a topic prepared once — by a spec, or by a deployment that allowed
+    // it — is a hit for ever after, which is the opposite of the premise.
+    // The UI pair's participants are visitors without an account, and its
+    // deployment keeps `prepare_new_topics` off for them (ADR-0040): the
+    // topic is a miss, Home says so, and the door is the account.
     await page.goto(`${UI_WEB}/`);
-    await page.getByLabel('What do you want to learn?').fill('Reading an ECG strip');
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page
+      .getByLabel('What do you want to learn?')
+      .fill(`Reading an ECG strip, take ${Date.now()}`);
+    // The server's own answer travels with the assertion, so a refusal of a
+    // different kind is named rather than guessed at.
+    const [refusal] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/api/sessions') && r.request().method() === 'POST',
+      ),
+      page.getByRole('button', { name: 'Start', exact: true }).click(),
+    ]);
+    expect(refusal.status(), await refusal.text()).toBe(402);
     const answer = page.getByTestId('home-unprepared');
     await expect(answer).toBeVisible({ timeout: 20_000 });
     await expect(answer).toContainText('Nobody has prepared that topic yet');
-    await expect(answer.getByTestId('home-upgrade')).toBeVisible();
+    await expect(answer.getByTestId('home-sign-in')).toBeVisible();
+    await answer.getByTestId('home-sign-in').click();
+    await expect(page.getByTestId('auth-email')).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(page).toHaveURL(/\/$/);
     await shot(page, 'home-unprepared');
   });
@@ -96,7 +113,9 @@ test.describe('replay and the recording', () => {
         await expect(page.getByTestId('session-replay')).toBeVisible();
         await shot(page, `session-page-host-${viewport.name}-${theme}`);
         await page.goto(`${UI_WEB}/`);
-        await page.getByLabel('What do you want to learn?').fill('Reading an ECG strip');
+        await page
+          .getByLabel('What do you want to learn?')
+          .fill(`Reading an ECG strip, take ${Date.now()}`);
         await page.getByRole('button', { name: 'Start', exact: true }).click();
         await expect(page.getByTestId('home-unprepared')).toBeVisible({ timeout: 20_000 });
         await shot(page, `home-unprepared-${viewport.name}-${theme}`);

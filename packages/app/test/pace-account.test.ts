@@ -22,6 +22,7 @@ const SIGNED_IN: Participant = {
   pace: 1,
   // Never chose a board; the device's copy is the whole preference.
   board: null,
+  defaultExpertId: null,
 };
 
 interface Rig {

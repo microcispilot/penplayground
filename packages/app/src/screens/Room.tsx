@@ -1,7 +1,8 @@
 import type { Expert, Reaction } from '@pen/contracts';
 import { Button, Pill, useToast } from '@pen/design';
+import { X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { BoardSurface, preloadBoard } from '../components/BoardSurface.js';
 import {
   BottomBar,
@@ -14,7 +15,7 @@ import {
 import { SessionPanel, useSessionPanel } from '../components/SessionPanel.js';
 import { SoloPresence } from '../components/SoloPresence.js';
 import { VideoAd } from '../components/VideoAd.js';
-import { trackInteraction } from '../lib/analytics.js';
+import { trackAction, trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useDocumentLanguage } from '../lib/locale.js';
 import { expertPresence } from '../room/presence.js';
@@ -322,6 +323,38 @@ export function Room() {
               onEnableSound={enableSound}
               onRetry={() => session?.retryConnection()}
             />
+            {ui.nudge === 'questions' ? (
+              /*
+               * The way forward, beside what the expert just said (ADR-0040):
+               * the question was heard, and answers are a paid plan's. Calm —
+               * the brand's fill on the one action, no error role — and gone
+               * with one tap or the next question.
+               */
+              <div
+                role="status"
+                data-testid="room-nudge"
+                className="animate-rise absolute right-3 bottom-3 left-3 z-[20] mx-auto flex max-w-[520px] flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-container px-4 py-3 shadow-level2 sm:left-auto"
+              >
+                <p className="min-w-0 flex-1 text-body-medium text-on-surface text-pretty">
+                  {firstName} heard you. Answering questions live comes with a paid plan.
+                </p>
+                <Link
+                  to="/pricing"
+                  onClick={() => trackAction('upgrade_clicked', { source: 'room_questions' })}
+                  className="state-layer inline-flex h-9 shrink-0 items-center rounded-full bg-primary-fixed px-4 text-label-large text-on-primary-fixed"
+                >
+                  See the plans
+                </Link>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  className="state-layer grid size-8 shrink-0 place-items-center rounded-full text-on-surface-variant"
+                  onClick={() => useRoomStore.getState().set({ nudge: null })}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : null}
             {/*
               Captions, when they are asked for — and never twice. Nothing in
               the panel repeats what was said any more, so this is the only

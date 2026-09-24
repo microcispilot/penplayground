@@ -169,7 +169,11 @@ describe('the memo on disk', () => {
     expect(
       await reread.find('en.topic-119', 'beginner', 'ada-research-mentor', 'en-US'),
     ).toBeTruthy();
-  });
+    // Sixty saves of a ~400 KB document and up to 800 reads of it: what is
+    // measured is whether a read ever sees a torn file, never how fast the
+    // disk is. Under vitest's default five seconds it timed out at 5.03 s
+    // when every package's suite ran at once on a loaded machine (2026-09-23).
+  }, 30_000);
 
   it('refuses to overwrite a file it could not read, and says so', async () => {
     const { mkdtemp, readFile, writeFile } = await import('node:fs/promises');

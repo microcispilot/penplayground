@@ -43,6 +43,8 @@ interface AppContextValue {
   authError: string | null;
   /** Rename in place; the participant keeps its id and its sessions. */
   setName(name: string): Promise<void>;
+  /** The expert who starts every search for this account (ADR-0040); null clears it. */
+  setDefaultExpert(expertId: string | null): Promise<void>;
   /** Attach a Google account (the ID token comes from Google's button). */
   signInWithGoogle(idToken: string): Promise<GoogleSignInOutcome>;
   /**
@@ -69,6 +71,16 @@ interface AppContextValue {
   setPrivacy(choice: PrivacyChoice): Promise<void>;
   /** Erase the account, its sessions and everything they recorded. */
   deleteAccount(): Promise<number>;
+  /**
+   * The sign-in sheet, from anywhere (ADR-0040): a visitor who likes a card,
+   * opens their shelf or asks for a lesson of their own is shown the way in
+   * from where they are, not sent to find the header.
+   */
+  signInOpen: boolean;
+  /** Where the sheet was asked for from, for the `sign_in_opened` event the dialog sends. */
+  signInSource: string | null;
+  openSignIn(source: string): void;
+  closeSignIn(): void;
 }
 
 const Ctx = createContext<AppContextValue | null>(null);
@@ -95,6 +107,10 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     [platform.storage],
   );
   const [participant, setParticipant] = useState<Participant | null>(null);
+  const [signIn, setSignIn] = useState<{ open: boolean; source: string | null }>({
+    open: false,
+    source: null,
+  });
   /** Every door in lands here: the account in this context, its pace, its analytics identity. */
   const adoptSignedIn = useCallback(
     (p: Participant, how: { method: 'google' | 'email'; outcome?: string }) => {
@@ -208,6 +224,10 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         setParticipant(await api.rename(name));
         trackAction('name_changed');
       },
+      setDefaultExpert: async (expertId: string | null) => {
+        setParticipant(await api.setDefaultExpert(expertId));
+        trackAction('default_expert_set', { expertId: expertId ?? 'none' });
+      },
       signInWithGoogle: async (idToken: string) => {
         const { participant: p, outcome } = await api.signInWithGoogle(idToken);
         adoptSignedIn(p, { method: 'google', outcome });
@@ -252,6 +272,10 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         setAnalyticsPerson({ anonymous: p.anonymous, plan: p.plan });
         return sessionsDeleted;
       },
+      signInOpen: signIn.open,
+      signInSource: signIn.source,
+      openSignIn: (source: string) => setSignIn({ open: true, source }),
+      closeSignIn: () => setSignIn({ open: false, source: null }),
       signOut: async () => {
         trackAction('signed_out');
         api.signOut();
@@ -263,7 +287,7 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         setAnalyticsPerson({ anonymous: p.anonymous, plan: p.plan });
       },
     }),
-    [platform, api, participant, features, authError, privacy, adoptSignedIn],
+    [platform, api, participant, features, authError, privacy, adoptSignedIn, signIn],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

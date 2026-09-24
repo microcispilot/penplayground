@@ -28,6 +28,8 @@ interface SessionJson {
 beforeAll(async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pen-anon-'));
   const cfg = loadConfig({
+    // Every session here is a topic miss (no packs are seeded); the free plan's allowance is not the subject.
+    PEN_FREE_CUSTOM_SESSIONS: '1000',
     NODE_ENV: 'test',
     PEN_JWT_SECRET: 'x'.repeat(40),
     PEN_DATA_DIR: dir,
@@ -53,6 +55,18 @@ const auth = (p: Participant | null) => (p ? { authorization: `Bearer ${p.token}
 
 async function anonymous(name: string): Promise<Participant> {
   const r = await app.request('/api/auth/anonymous', json({ name }));
+  expect(r.status).toBe(200);
+  const body = (await r.json()) as { token: string; participant: { id: string; name: string } };
+  return { token: body.token, id: body.participant.id, name: body.participant.name };
+}
+
+/** An account (ADR-0040): the recording and the shelf are an account's, so the hosts here have one. */
+async function account(name: string): Promise<Participant> {
+  const p = await anonymous(name);
+  const r = await app.request('/api/dev/me/google', {
+    ...json({ name }),
+    headers: { 'content-type': 'application/json', ...auth(p) },
+  });
   expect(r.status).toBe(200);
   const body = (await r.json()) as { token: string; participant: { id: string; name: string } };
   return { token: body.token, id: body.participant.id, name: body.participant.name };
@@ -96,8 +110,8 @@ async function ledgerStatus(id: string, as: Participant | null): Promise<number>
 
 describe('public listing anonymisation', () => {
   it('hides the host from everyone but the host across the catalog, the record and the ledger', async () => {
-    const hostA = await anonymous('Host A');
-    const other = await anonymous('Someone Else');
+    const hostA = await account('Host A');
+    const other = await account('Someone Else');
     const id = await createEnded(hostA, 'public');
     const privateId = await createEnded(hostA, 'private');
 

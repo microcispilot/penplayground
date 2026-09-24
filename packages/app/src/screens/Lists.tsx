@@ -183,6 +183,7 @@ function ListScreen({
   title,
   intro,
   load,
+  requires,
   empty,
   detailOf,
   extraOf,
@@ -192,6 +193,11 @@ function ListScreen({
   title: string;
   intro: string;
   load: () => Promise<SessionRecord[]>;
+  /**
+   * The shelf belongs to an account (ADR-0040): when the feature is off for
+   * this visitor the screen is the invitation and nothing is fetched.
+   */
+  requires: 'history' | 'lists';
   empty: EmptyProps;
   detailOf: (session: SessionRecord, expert: Expert | undefined) => string;
   extraOf?: (session: SessionRecord) => ReactNode;
@@ -202,14 +208,15 @@ function ListScreen({
    */
   shelf?: 'saved' | 'liked';
 }) {
-  const { api, participant } = useApp();
+  const { api, participant, features, openSignIn } = useApp();
+  const allowed = features[requires];
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
   const [experts, setExperts] = useState<Map<string, Expert>>(new Map());
   const onShelf = useLists((s) => (shelf === 'saved' ? s.savedIds : s.likedIds));
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `load` is a fresh closure each render; the participant is the real input
   useEffect(() => {
-    if (!participant) return;
+    if (!participant || !allowed) return;
     let cancelled = false;
     Promise.all([load(), api.listExperts()])
       .then(([s, e]) => {
@@ -223,7 +230,7 @@ function ListScreen({
     return () => {
       cancelled = true;
     };
-  }, [api, participant]);
+  }, [api, participant, allowed]);
 
   // The fetch is the starting point; membership is the truth from then on.
   const rows =
@@ -231,17 +238,41 @@ function ListScreen({
 
   return (
     <ShellPage title={title} intro={intro} actions={tag}>
-      {rows === null ? (
+      {rows === null && allowed ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 3 }, (_, i) => `sk-${i}`).map((k) => (
             <Skeleton key={k} className="h-[136px]" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
+      ) : !allowed ? (
+        // A visitor without an account: the shelf exists once they have one.
+        <Empty
+          title={
+            requires === 'lists'
+              ? 'Your saves and likes live with an account.'
+              : 'Your sessions live with an account.'
+          }
+          line={
+            requires === 'lists'
+              ? 'Sign in and every lesson you like or save is kept for you, on every device.'
+              : 'Sign in and every session you sit in — and every one you host — is kept for you, on every device.'
+          }
+          signIn={SIGN_IN_LINE}
+          action={
+            <Button
+              variant="primary"
+              onClick={() => openSignIn(requires === 'lists' ? 'shelf_lists' : 'shelf_history')}
+              data-testid="shelf-sign-in"
+            >
+              Sign in
+            </Button>
+          }
+        />
+      ) : (rows ?? []).length === 0 ? (
         <Empty {...empty} />
       ) : (
         <div className="flex flex-col gap-3" data-testid="list-rows">
-          {rows.map((s) => (
+          {(rows ?? []).map((s) => (
             <SessionRow
               key={s.id}
               session={s}
@@ -264,6 +295,7 @@ export function HistoryScreen() {
   return (
     <ListScreen
       title="History"
+      requires="history"
       intro="Every session you sat in, most recent first — the ones you hosted and the ones you joined."
       load={() => api.listHistory() as Promise<SessionRecord[]>}
       detailOf={(s, expert) => {
@@ -290,6 +322,7 @@ export function SavedScreen() {
   return (
     <ListScreen
       title="Learn later"
+      requires="lists"
       intro="Sessions you saved to come back to."
       shelf="saved"
       load={() => api.listSaved()}
@@ -311,6 +344,7 @@ export function LikedScreen() {
   return (
     <ListScreen
       title="Liked"
+      requires="lists"
       intro="The sessions you liked."
       shelf="liked"
       load={() => api.listLiked()}
@@ -334,6 +368,7 @@ export function DownloadsScreen() {
   return (
     <ListScreen
       title="Downloads"
+      requires="history"
       intro="Sessions you hosted and rendered as video."
       tag={<Pill tone="accent">Standard</Pill>}
       load={() => api.listDownloads() as Promise<SessionRecord[]>}
@@ -377,6 +412,7 @@ export function RoomsScreen() {
   return (
     <ListScreen
       title="Rooms"
+      requires="history"
       intro="Sessions you host. On Professional, anyone you invite joins by link, hears the lesson and asks their own questions."
       tag={<Pill tone="accent">Professional</Pill>}
       load={() => api.listMySessions()}

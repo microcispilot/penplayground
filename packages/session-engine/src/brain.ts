@@ -190,6 +190,67 @@ const OUT_OF_SCOPE: Record<string, string[]> = {
     '我明白你的意思，不过为了时间和今天的主题，我们先专注在这个上。关于它你随时问我；那个话题之后另开一节课，我们好好讲。',
   ],
 };
+/**
+ * What the expert says to a question on a plan that does not include answers
+ * (ADR-0040). The learner has to feel heard — the question was a good one
+ * and it was understood — and be told plainly what unlocks the answer, in
+ * one warm breath, before the lesson goes on. Never a wall, never a model
+ * call. The client draws the way to Pricing beside it (`nudge`).
+ */
+const QUESTIONS_UPGRADE: Record<string, string[]> = {
+  en: [
+    'I hear you — that’s a good question, and I’d love to take it. Answering questions live is part of the paid plans; upgrade and I’ll take every one. For now, let me keep going.',
+    'Good question. I can only take questions on a paid plan — upgrade and I’ll answer as we go. Let me carry on for now.',
+  ],
+  es: [
+    'Te escucho: es una buena pregunta y me encantaría responderla. Responder preguntas en vivo forma parte de los planes de pago; mejora tu plan y las tomaré todas. Por ahora, sigo.',
+  ],
+  fr: [
+    'Je t’entends, c’est une bonne question et j’aimerais y répondre. Répondre aux questions en direct fait partie des offres payantes ; passe à l’une d’elles et je prendrai chacune. Pour l’instant, je continue.',
+  ],
+  de: [
+    'Ich höre dich — eine gute Frage, die ich gern beantworten würde. Fragen live zu beantworten gehört zu den bezahlten Plänen; mit einem Upgrade nehme ich jede. Jetzt mache ich erst einmal weiter.',
+  ],
+  it: [
+    'Ti sento: è una bella domanda e mi piacerebbe rispondere. Rispondere alle domande dal vivo fa parte dei piani a pagamento; con un upgrade le prendo tutte. Per ora, vado avanti.',
+  ],
+  pt: [
+    'Eu te ouço — boa pergunta, e adoraria responder. Responder perguntas ao vivo faz parte dos planos pagos; faça o upgrade e eu respondo todas. Por agora, sigo em frente.',
+  ],
+  nl: [
+    'Ik hoor je — goede vraag, en ik zou hem graag beantwoorden. Vragen live beantwoorden hoort bij de betaalde plannen; upgrade en ik neem ze allemaal. Voor nu ga ik door.',
+  ],
+  tr: [
+    'Seni duyuyorum, güzel bir soru; cevaplamayı çok isterdim. Soruları canlı cevaplamak ücretli planlara dahil; yükseltirsen hepsini alırım. Şimdilik devam ediyorum.',
+  ],
+  ru: [
+    'Слышу тебя — хороший вопрос, и я бы с радостью ответил. Ответы на вопросы вживую входят в платные планы; перейди на один из них, и я отвечу на каждый. А пока продолжаю.',
+  ],
+  fa: [
+    'می‌شنوم — سؤال خوبی است و دوست داشتم جوابش را بدهم. پاسخ زندهٔ سؤال‌ها بخشی از طرح‌های پولی است؛ با ارتقا، هر سؤالی را جواب می‌دهم. فعلاً ادامه می‌دهم.',
+  ],
+  ar: [
+    'أسمعك — سؤال جيد وكنت أود الإجابة عنه. الإجابة عن الأسئلة مباشرة جزء من الخطط المدفوعة؛ بالترقية سأجيب عن كل سؤال. الآن، دعني أكمل.',
+  ],
+  hi: [
+    'मैं सुन रहा हूँ — अच्छा सवाल है, और मुझे जवाब देना अच्छा लगता। लाइव सवालों के जवाब पेड प्लान का हिस्सा हैं; अपग्रेड करें और मैं हर सवाल लूँगा। फ़िलहाल, आगे बढ़ते हैं।',
+  ],
+  ja: [
+    '聞こえていますよ。いい質問ですし、ぜひ答えたいところです。質問にその場で答えるのは有料プランの機能なので、アップグレードすればどの質問にもお答えします。今は先に進みますね。',
+  ],
+  ko: [
+    '들었어요. 좋은 질문이고, 꼭 답해 드리고 싶네요. 질문에 바로 답하는 건 유료 플랜에 포함돼 있어요. 업그레이드하시면 모든 질문에 답할게요. 지금은 계속 진행할게요.',
+  ],
+  zh: [
+    '我听到了——这是个好问题，我很想回答。现场回答问题是付费方案的一部分；升级后我会回答每一个。现在，我先继续讲。',
+  ],
+};
+export function questionsUpgrade(seed: number, language = 'en'): string {
+  const list =
+    QUESTIONS_UPGRADE[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? QUESTIONS_UPGRADE.en ?? [];
+  return list[Math.abs(seed) % list.length] ?? list[0] ?? '';
+}
+
 export function outOfScope(seed: number, language = 'en'): string {
   const list = OUT_OF_SCOPE[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? OUT_OF_SCOPE.en ?? [];
   return list[Math.abs(seed) % list.length] ?? list[0] ?? '';

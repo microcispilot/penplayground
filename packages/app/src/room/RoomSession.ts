@@ -409,6 +409,7 @@ export class RoomSession {
           if (m.kind === 'prep') set({ preparation: m.progress });
           if (m.kind === 'reaction') this.showReaction(m.participantId, m.emoji, m.at);
           if (m.kind === 'chat') this.showChat(m);
+          if (m.kind === 'nudge') set({ nudge: m.reason });
           if (m.kind === 'cue' && m.cue.event.type === 'note')
             set({ notes: [...useRoomStore.getState().notes, m.cue.event] });
           if (m.kind === 'cue' && m.cue.event.type === 'say') this.currentThread = m.cue.thread;

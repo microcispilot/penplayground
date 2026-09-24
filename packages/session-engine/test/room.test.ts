@@ -213,7 +213,7 @@ describe('SessionRoom', () => {
     const room = new SessionRoom({
       sessionId: 'sess-1',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
       expert,
       band: 'beginner',
       language: 'en',
@@ -308,7 +308,7 @@ describe('SessionRoom', () => {
     const room = new SessionRoom({
       sessionId: 'sess-barge',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
       expert,
       band: 'beginner',
       language: 'en',
@@ -361,7 +361,7 @@ describe('SessionRoom', () => {
     const room = new SessionRoom({
       sessionId: 'sess-2',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-9999', name: 'Sam', plan: 'free' },
+      host: { id: 'host-9999', name: 'Sam', plan: 'standard' },
       expert,
       band: 'beginner',
       language: 'en',
@@ -454,7 +454,7 @@ describe('SessionRoom.end', () => {
     const room = new SessionRoom({
       sessionId: 'sess-end-twice',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
       expert,
       band: 'beginner',
       language: 'en',
@@ -518,7 +518,7 @@ describe('segment lookahead', () => {
       const room = new SessionRoom({
         sessionId: 'sess-lookahead',
         topic: 'How Transformers work in LLMs',
-        host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+        host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
         expert,
         band: 'beginner',
         language: 'en',
@@ -572,7 +572,7 @@ describe('a question the material has nothing on', () => {
     const room = new SessionRoom({
       sessionId: 'sess-oos',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
       expert,
       band: 'beginner',
       language: 'en',

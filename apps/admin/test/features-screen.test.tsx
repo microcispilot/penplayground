@@ -16,7 +16,7 @@ import { AdminApi } from '../src/lib/api.js';
 
 afterEach(cleanup);
 
-function flag(name: 'prepare_new_topics' | 'google_sign_in') {
+function flag(name: 'ask_questions' | 'google_sign_in') {
   const def = FEATURES[name];
   return {
     name,
@@ -36,7 +36,7 @@ const DOC: FeatureFlagsDocument = {
   updatedBy: 'p_admin',
   updatedByName: 'Sam Owner',
   stale: false,
-  features: [flag('prepare_new_topics'), flag('google_sign_in')],
+  features: [flag('ask_questions'), flag('google_sign_in')],
 };
 
 const HISTORY: FeatureFlagsHistory = {
@@ -48,7 +48,7 @@ const HISTORY: FeatureFlagsHistory = {
       updatedByName: 'Sam Owner',
       reason: 'the launch week',
       restoredFromRevision: null,
-      rules: { prepare_new_topics: { default: true, plans: {}, platforms: {}, cells: {} } },
+      rules: { ask_questions: { default: true, plans: {}, platforms: {}, cells: {} } },
     },
   ],
   nextBeforeRevision: null,
@@ -99,10 +99,10 @@ function mount(script: Script = {}) {
 describe('the features screen', () => {
   it('draws each feature as a matrix that says what each plan gets on each platform', async () => {
     mount();
-    expect(await screen.findByRole('heading', { name: 'Prepare new topics' })).toBeTruthy();
-    const freeWeb = screen.getByTestId('feature-prepare_new_topics-cell-free-web');
+    expect(await screen.findByRole('heading', { name: 'Answer questions' })).toBeTruthy();
+    const freeWeb = screen.getByTestId('feature-ask_questions-cell-free-web');
     expect(freeWeb.getAttribute('aria-checked')).toBe('false');
-    const standardWeb = screen.getByTestId('feature-prepare_new_topics-cell-standard-web');
+    const standardWeb = screen.getByTestId('feature-ask_questions-cell-standard-web');
     expect(standardWeb.getAttribute('aria-checked')).toBe('true');
     // Google is off on the desktop by the built-in rule, and the cell says so.
     expect(
@@ -115,40 +115,38 @@ describe('the features screen', () => {
 
   it('a click on a cell, a plan or a platform changes what resolves before anything is saved', async () => {
     mount();
-    await screen.findByRole('heading', { name: 'Prepare new topics' });
+    await screen.findByRole('heading', { name: 'Answer questions' });
     // The cell: nothing → on.
-    fireEvent.click(screen.getByTestId('feature-prepare_new_topics-cell-free-web'));
+    fireEvent.click(screen.getByTestId('feature-ask_questions-cell-free-web'));
     expect(
-      screen.getByTestId('feature-prepare_new_topics-cell-free-web').getAttribute('aria-checked'),
+      screen.getByTestId('feature-ask_questions-cell-free-web').getAttribute('aria-checked'),
     ).toBe('true');
     expect(
-      screen.getByTestId('feature-prepare_new_topics-cell-free-ios').getAttribute('aria-checked'),
+      screen.getByTestId('feature-ask_questions-cell-free-ios').getAttribute('aria-checked'),
     ).toBe('false');
     // The plan head: nothing → on, for every platform of that plan.
-    fireEvent.click(screen.getByTestId('feature-prepare_new_topics-plan-free'));
+    fireEvent.click(screen.getByTestId('feature-ask_questions-plan-free'));
     expect(
-      screen.getByTestId('feature-prepare_new_topics-cell-free-ios').getAttribute('aria-checked'),
+      screen.getByTestId('feature-ask_questions-cell-free-ios').getAttribute('aria-checked'),
     ).toBe('true');
     // The platform head: on → off → nothing; off ANDs with the plan's on.
-    fireEvent.click(screen.getByTestId('feature-prepare_new_topics-platform-ios'));
-    fireEvent.click(screen.getByTestId('feature-prepare_new_topics-platform-ios'));
+    fireEvent.click(screen.getByTestId('feature-ask_questions-platform-ios'));
+    fireEvent.click(screen.getByTestId('feature-ask_questions-platform-ios'));
     expect(
-      screen.getByTestId('feature-prepare_new_topics-cell-free-ios').getAttribute('aria-checked'),
+      screen.getByTestId('feature-ask_questions-cell-free-ios').getAttribute('aria-checked'),
     ).toBe('false');
     expect(
-      screen
-        .getByTestId('feature-prepare_new_topics-cell-standard-ios')
-        .getAttribute('aria-checked'),
+      screen.getByTestId('feature-ask_questions-cell-standard-ios').getAttribute('aria-checked'),
     ).toBe('false');
-    expect(screen.getByTestId('feature-prepare_new_topics').textContent).toContain('Unsaved');
+    expect(screen.getByTestId('feature-ask_questions').textContent).toContain('Unsaved');
   });
 
   it('will not save without a reason, and sends the whole document with untouched rules as null', async () => {
     const { saves } = mount();
-    await screen.findByRole('heading', { name: 'Prepare new topics' });
+    await screen.findByRole('heading', { name: 'Answer questions' });
     const save = screen.getByTestId('save-features') as HTMLButtonElement;
     expect(save.disabled).toBe(true);
-    fireEvent.click(screen.getByTestId('feature-prepare_new_topics-plan-free'));
+    fireEvent.click(screen.getByTestId('feature-ask_questions-plan-free'));
     expect((screen.getByTestId('save-features') as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByTestId('features-save-reason'), {
       target: { value: 'launch week' },
@@ -159,11 +157,12 @@ describe('the features screen', () => {
       expectedRevision: 2,
       reason: 'launch week',
       rules: {
-        prepare_new_topics: {
+        ask_questions: {
           default: false,
           plans: { free: true, standard: true, professional: true },
           platforms: {},
           cells: {},
+          anonymous: false,
         },
         google_sign_in: null,
       },
@@ -178,15 +177,15 @@ describe('the features screen', () => {
         body: { error: 'CONFLICT', message: 'changed', current: 7 },
       }),
     });
-    await screen.findByRole('heading', { name: 'Prepare new topics' });
-    fireEvent.click(screen.getByTestId('feature-prepare_new_topics-plan-free'));
+    await screen.findByRole('heading', { name: 'Answer questions' });
+    fireEvent.click(screen.getByTestId('feature-ask_questions-plan-free'));
     fireEvent.change(screen.getByTestId('features-save-reason'), { target: { value: 'x' } });
     fireEvent.click(screen.getByTestId('save-features'));
     const alert = await screen.findByTestId('features-error');
     expect(alert.textContent).toContain('Someone else saved');
     expect(alert.textContent).toContain('Your draft is kept');
     expect(
-      screen.getByTestId('feature-prepare_new_topics-cell-free-web').getAttribute('aria-checked'),
+      screen.getByTestId('feature-ask_questions-cell-free-web').getAttribute('aria-checked'),
     ).toBe('true');
   });
 
@@ -194,7 +193,7 @@ describe('the features screen', () => {
     mount();
     const entry = await screen.findByTestId('features-revision-2');
     expect(entry.textContent).toContain('the launch week');
-    expect(entry.textContent).toContain('Prepare new topics');
+    expect(entry.textContent).toContain('Answer questions');
     expect(entry.textContent).toContain('default on');
   });
 });

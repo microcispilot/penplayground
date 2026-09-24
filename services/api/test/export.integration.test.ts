@@ -203,9 +203,15 @@ async function scriptedSession(
   h: Harness,
   wantSays: number,
 ): Promise<{ sessionId: string; token: string; completed: string[] }> {
-  const auth = await fetch(`${h.apiUrl}/api/auth/anonymous`, {
+  const minted = await fetch(`${h.apiUrl}/api/auth/anonymous`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Ada' }),
+  }).then((r) => r.json() as Promise<{ token: string }>);
+  // A recording is an account's (ADR-0040): the visitor is upgraded in place by the dev hook.
+  const auth = await fetch(`${h.apiUrl}/api/dev/me/google`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${minted.token}` },
     body: JSON.stringify({ name: 'Ada' }),
   }).then((r) => r.json() as Promise<{ token: string }>);
   const token = auth.token;

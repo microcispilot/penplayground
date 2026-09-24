@@ -135,7 +135,7 @@ async function harness(opts: { grader?: Grader; language?: string }): Promise<Ha
   const room = new SessionRoom({
     sessionId: 'sess-grade',
     topic: 'How Transformers work in LLMs',
-    host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+    host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
     expert,
     band: 'beginner',
     language,

@@ -261,7 +261,22 @@ export const Env = z.object({
     .int()
     .nonnegative()
     .max(10_000)
-    .default(12),
+    .default(0),
+  /**
+   * Topics prepared for a free-plan account over its life (ADR-0040): the one
+   * custom session a signed-in free learner may have, after which the way to
+   * more is an upgrade. A visitor without an account has none whatever this
+   * says; paid plans are unlimited. 0 gives the free plan no custom session.
+   */
+  PEN_FREE_CUSTOM_SESSIONS: z.coerce.number().int().nonnegative().max(100_000).default(1),
+  /**
+   * A feature-flag document (JSON, `FeatureRulesDocument`) laid over the
+   * stored one, for a development or test deployment whose flags must be
+   * pinned without a console — the Playwright servers turn answers on for
+   * their anonymous learners with it. Refused in production: there the
+   * console is the one place flags change, and its history the audit trail.
+   */
+  PEN_FEATURE_OVERLAY: z.string().max(20_000).optional(),
   /**
    * Statistics and reports (ADR-0027). `PEN_ADMIN_EMAILS` above is the same
    * list the operations console uses (ADR-0026) — one set of people who may
@@ -367,6 +382,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error('PEN_LLM_PROVIDER=fake is not allowed in production');
     if (cfg.PEN_DEV_PLAN) throw new Error('PEN_DEV_PLAN is not allowed in production');
     if (cfg.PEN_AD_TEST_TAGS) throw new Error('PEN_AD_TEST_TAGS is not allowed in production');
+    if (cfg.PEN_FEATURE_OVERLAY)
+      throw new Error('PEN_FEATURE_OVERLAY is not allowed in production');
   }
   return cfg;
 }

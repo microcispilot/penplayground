@@ -160,8 +160,9 @@ during preparation.
 
 | Tier | Price idea | What it buys |
 |------|-----------|--------------|
-| **Free** | $0, ad-supported (a skippable YouTube-style video ad between segments; on a topic miss one ad runs while sources are gathered, counted against the same budget) | Solo sessions on lessons that are already prepared (the topics nobody has prepared are the paid plans' — ADR-0036, flag `prepare_new_topics`), replay of any prepared lesson, watching your own recording, standard voices, 3 sessions per UTC day, 20 minutes each. |
-| **Standard** | $19/mo ($190/yr) | No ads. Unlimited solo sessions, 45 minutes each. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
+| **Visitor** (no account) | $0, ad-supported | A taste, never a cost (ADR-0040): search and start any lesson that is already prepared, as many as they like, 20 minutes each, taught by Elena Ruiz or Soren Vale — one of the two chosen at random for the visit and sitting in the search box. Check-ins, pace, the board. Questions are heard and answered with a warm line asking for an upgrade, never the model. No history, saves, likes, recording or download; every one of those is the invitation to sign in. |
+| **Free** (an account) | $0, ad-supported (a skippable YouTube-style video ad between segments; on a topic miss one ad runs while sources are gathered, counted against the same budget) | Everything the visitor has, plus history, your sessions, saved, liked and your own recording — and **one custom session**: one topic nobody has prepared, prepared for them (`PEN_FREE_CUSTOM_SESSIONS`). After it, the way to more is an upgrade, said kindly with the lessons that are ready. Same two experts; questions still ask for an upgrade. |
+| **Standard** | $19/mo ($190/yr) | No ads. The expert answers questions live, and writes the recap. Any topic, prepared for you, without limit. Every modern expert and six legends; a default expert of your own in the search box. 45 minutes a session. Export MP4 + share to YouTube/social. Premium voices. Priority preparation on topic misses. |
 | **Professional** | $38/mo ($380/yr) | Everything in Standard, 60 minutes a session. Host rooms with up to 12 participants (11 guests). The whole class recorded — every guest's questions included — for the host to watch or export, like a Zoom recording. Class transcripts. |
 
 Ads never appear inside the live lesson audio; they are a visible in-stream
@@ -184,14 +185,20 @@ is off; the server decides every time. A free learner whose topic nobody has
 prepared is told so under the box they typed into, with the way to upgrade
 and the lessons that are ready now — an answer, not a closed door.
 
-## What the limits feel like (ADR-0016, ADR-0018)
+## What the limits feel like (ADR-0016, ADR-0018, ADR-0040)
 
 The caps above are enforced on the server — `PLAN_LIMITS` in
-`packages/contracts/src/billing.ts` is the only table — and they are *explained*
-rather than sprung. Home says nothing at all while there is allowance left, and
-when it is gone it says so in one sentence with a link to Pricing: a running
-count is a meter, and a meter is a kind of pressure. There is no red box, no lock icon and no warning tone anywhere in the
-product: a limit is a fact about a plan, not a fault.
+`packages/contracts/src/billing.ts` is the only table, with the free plan's
+custom-session allowance beside it as `PEN_FREE_CUSTOM_SESSIONS` — and they are
+*explained* rather than sprung. There is no daily count any more: a free session
+is a prepared lesson replayed, and the ads pay for it. What a plan does not
+include is said where the learner reached for it, in one sentence, with the way
+in: a visitor who asks a question hears the expert say so and sees the way to
+Pricing beside the board; a visitor who likes a card is shown the sign-in sheet
+there; a free account asking for a second custom session is offered an upgrade
+under the box it typed into, with the lessons that are ready. There is no red
+box, no lock icon and no warning tone anywhere in the product: a limit is a fact
+about a plan, not a fault.
 
 On a day when the whole service has spent its budget (`PEN_DAILY_SPEND_CAP_USD`,
 ADR-0016) free sessions wait until midnight UTC while paid plans keep going,

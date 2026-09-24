@@ -183,10 +183,19 @@ export const SETTINGS = {
     min: 1,
     max: 1_000,
   },
+  PEN_FREE_CUSTOM_SESSIONS: {
+    label: 'Custom sessions on the free plan',
+    description:
+      'Topics prepared for a signed-in free learner over the life of the account (ADR-0040); after them the way to more is an upgrade. A visitor without an account has none; paid plans are unlimited. Read on every session-creation request.',
+    group: 'Limits',
+    scope: 'request',
+    min: 0,
+    max: 100_000,
+  },
   PEN_MAX_FREE_SESSIONS_PER_IP_PER_DAY: {
     label: 'Free sessions per address per day',
     description:
-      'How many free-plan sessions one address may start in a UTC day, across every participant it mints. The floor under the three-a-day promise; 0 turns it off. Read on every session-creation request.',
+      'How many free-plan sessions one address may start in a UTC day, across every participant it mints. Off (0) by default since ADR-0040 made free sessions unlimited replays; an abuse guard to switch on during an incident. Read on every session-creation request.',
     group: 'Limits',
     scope: 'request',
     min: 0,
@@ -291,6 +300,7 @@ export const NOT_SETTINGS = {
   NODE_ENV: 'environment',
   PEN_DEV_PLAN: 'development-only',
   PEN_AD_TEST_TAGS: 'development-only',
+  PEN_FEATURE_OVERLAY: 'development-only',
 
   // What the product collects about people (ADR-0027). Turning visit
   // statistics back on is a decision about the privacy policy, taken

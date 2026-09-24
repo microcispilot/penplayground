@@ -41,6 +41,8 @@ export const Participant = z.object({
    * missing field must not fail `/api/me`, which is the call sign-in waits on.
    */
   board: BoardPreference.nullish().default(null),
+  /** The expert a paying learner starts every search with (ADR-0040); null = the visit's random pick. */
+  defaultExpertId: z.string().nullish().default(null),
 });
 
 export { PlanUsage } from '@pen/contracts';
@@ -147,6 +149,8 @@ export class ApiError extends Error {
 export const PreparationRequired = z.object({
   error: z.literal('PREPARATION_REQUIRED'),
   message: z.string(),
+  /** The door: Pricing for a plan, sign-in for a visitor without an account (ADR-0040). */
+  upgrade: z.enum(['Pricing', 'SignIn']).optional(),
   ready: z.array(SessionRecord),
 });
 export type PreparationRequired = z.infer<typeof PreparationRequired>;
@@ -464,6 +468,16 @@ export class ApiClient {
   }
 
   /** Set the account's teaching pace and return the updated participant. */
+  /** The expert who sits in the search box for this account (ADR-0040); null clears it. */
+  async setDefaultExpert(expertId: string | null): Promise<Participant> {
+    const res = await this.request('/api/me', z.object({ participant: Participant }), {
+      method: 'PATCH',
+      body: JSON.stringify({ defaultExpertId: expertId }),
+    });
+    this.account = res.participant;
+    return res.participant;
+  }
+
   async setPace(pace: number): Promise<Participant> {
     const res = await this.request('/api/me', z.object({ participant: Participant }), {
       method: 'PATCH',

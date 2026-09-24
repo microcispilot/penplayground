@@ -62,12 +62,30 @@ export const LEGENDS_BY_PLAN: Record<PlanCode, number> = {
 };
 
 /**
+ * The two experts the free plan learns with (ADR-0040), signed in or not:
+ * one is chosen at random for each visit and sits in the search box, and a
+ * free session is always taught by one of them. Every other persona is a paid
+ * plan's; the modern ones from Standard, the legends as `LEGEND_MIN_PLAN` says.
+ */
+export const FREE_EXPERTS: readonly string[] = [
+  'elena-biology-professor',
+  'soren-philosophy-professor',
+];
+
+/** One of the free plan's two experts, chosen at random; `pick` is injected so a test can be exact. */
+export function randomFreeExpert(pick: () => number = Math.random): string {
+  return FREE_EXPERTS[Math.floor(pick() * FREE_EXPERTS.length)] ?? FREE_EXPERTS[0] ?? '';
+}
+
+/**
  * The plan an expert needs, or null when every plan includes them. This is
  * what the API stamps on an expert and what a client renders; a client never
  * consults `LEGEND_MIN_PLAN` itself.
  */
 export function requiredPlanFor(expertId: string): PlanCode | null {
-  return LEGEND_MIN_PLAN[expertId] ?? null;
+  const legend = LEGEND_MIN_PLAN[expertId];
+  if (legend) return legend;
+  return FREE_EXPERTS.includes(expertId) ? null : 'standard';
 }
 
 /** Whether a plan may teach with an expert. The server's answer is the only one that counts. */

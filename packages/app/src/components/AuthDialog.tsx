@@ -1,6 +1,6 @@
 import { CHALLENGE_RESEND_COOLDOWN_SECONDS, passwordProblem } from '@pen/contracts';
 import { Button, Dialog, TextField, useToast } from '@pen/design';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api/client.js';
 import { trackAction } from '../lib/analytics.js';
@@ -8,40 +8,47 @@ import { useApp } from '../lib/context.js';
 import { useGoogleButton } from '../lib/google-button.js';
 
 /**
- * Signing in, and signing up.
+ * Signing in, and signing up — one sheet, the way ChatGPT does it.
  *
- * This replaces a sheet titled "How should we call you?" that opened when you
- * pressed **Sign in** — a rename form, a privacy link and a Delete account
- * button stacked above the only thing the visitor had asked for. The owner:
- * *"it should show proper email and password and then or part which is for now
- * google auth sign in. like any other app and platform."*
+ * The owner: *"we should show both, sign in and sign up for free but they
+ * open the same dialog … see how ChatGPT shows"*. So the first step asks for
+ * nothing but the way in: **Continue with Google** on top, an address under
+ * it, one **Continue**. Whether the address has an account decides nothing
+ * visible on this step — the second step is a password box for everyone,
+ * with the two other doors under it (forgot it, or new here). What an account
+ * brings is said once, under the title, in the words of the plan (ADR-0040).
  *
- * So it is the ordinary arrangement, in the ordinary order: the form first,
- * a divider, then Google. Everything about an existing account moved to
- * `/account`.
+ * ── the steps, and why it is one dialog ────────────────────────────────────
  *
- * ── the four states, and why it is one dialog ──────────────────────────────
- *
- * Sign in, sign up, the code step, and forgotten password. They are one
- * component because they are one conversation — a person who mistypes an
- * address on step two must not lose what they typed on step one, and three
- * routes with their own state would do exactly that.
+ * start → password → (code | reset). They are one component because they
+ * are one conversation: the address typed on the first step is the address
+ * every later step uses, and three routes with their own state would lose it.
  *
  * ── what it may not say ────────────────────────────────────────────────────
  *
  * It never tells you whether an address has an account. The server is careful
  * about this (identical 202s, one 401 for every kind of failure), and the UI
- * would give it away for free if it said "no account with that email" or
- * skipped the code step for a known address. So the copy is deliberately
- * uninformative in exactly one direction, and the comments below say where.
+ * would give it away for free if it skipped the password step for an unknown
+ * address or the code step for a known one. So both doors are always there.
  */
-type Mode = 'signIn' | 'signUp' | 'code' | 'forgot' | 'reset';
+type Mode = 'start' | 'password' | 'code' | 'reset';
+
+/**
+ * Google's button is a cross-origin iframe whose document only knows the
+ * light scheme. The root declares `color-scheme: light dark`, so on a dark
+ * desktop the iframe element's used scheme is dark, and Chrome then paints a
+ * mismatched frame on an opaque canvas of the document's own scheme: a white
+ * slab behind the dark pill, seen in production on 2026-09-23. Pinning the
+ * slot to light matches the frame to its document, and the frame is
+ * transparent again. The button's own colours are unaffected: GIS draws them
+ * from the `theme` it is rendered with, not from the scheme around it.
+ */
+const GOOGLE_SLOT_STYLE = { colorScheme: 'light' } as const;
 
 const TITLES: Record<Mode, string> = {
-  signIn: 'Sign in',
-  signUp: 'Create your account',
+  start: 'Sign in or sign up',
+  password: 'Welcome',
   code: 'Check your email',
-  forgot: 'Reset your password',
   reset: 'Choose a new password',
 };
 
@@ -89,13 +96,71 @@ function PasswordField({
   );
 }
 
-/** "or" between the form and Google, the way every sign-in draws it. */
+/** "or" between Google and the address, the way every sign-in draws it. */
 function Divider() {
   return (
     <div className="flex items-center gap-3" role="presentation">
       <span className="h-px flex-1 bg-outline-variant" aria-hidden />
       <span className="text-label-small tracking-wide text-on-surface-dim uppercase">or</span>
       <span className="h-px flex-1 bg-outline-variant" aria-hidden />
+    </div>
+  );
+}
+
+/** The API's error code when there is one, else the error's class: a code, never its message. */
+function errorCode(error: unknown): string {
+  if (error instanceof ApiError) return error.code;
+  return error instanceof Error ? error.name : 'unknown';
+}
+
+/**
+ * What the sheet says when a step fails: a sentence, never a code.
+ *
+ * The client names an error by the server's code when the server sent no
+ * sentence of its own, so without this a mail outage read `MAIL_UNAVAILABLE`
+ * under the password box. Each sentence says what went wrong and what to do;
+ * the red only agrees with the words. Nothing here says whether an address
+ * has an account.
+ */
+function sentenceFor(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case 'MAIL_UNAVAILABLE':
+        return 'We can’t send email right now. Try again in a few minutes, or continue with Google.';
+      case 'RATE_LIMITED':
+        return 'Too many tries. Give it a minute, then try again.';
+      case 'BAD_CODE':
+        return 'That code isn’t right, or it has expired. Check the email, or ask for a new one.';
+      case 'NETWORK':
+        return 'We couldn’t reach Pen Playground. Check your connection and try again.';
+      default:
+        // The server's own sentence when it wrote one; its code is not one.
+        return error.message && error.message !== error.code
+          ? error.message
+          : 'Something went wrong. Try again.';
+    }
+  }
+  return 'Something went wrong. Try again.';
+}
+
+/** The address, as a chip the second step wears, with the way back. */
+function EmailChip({ email, onChange }: { email: string; onChange: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-highest px-3.5 py-2.5">
+      <span
+        className="min-w-0 truncate text-body-medium text-on-surface"
+        data-testid="auth-email-shown"
+      >
+        {email}
+      </span>
+      <button
+        type="button"
+        className="shrink-0 text-label-large text-primary"
+        onClick={onChange}
+        data-testid="auth-change-email"
+      >
+        Change
+      </button>
     </div>
   );
 }
@@ -109,13 +174,14 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
     completeRegistration,
     resetPassword,
     features,
+    signInSource,
   } = useApp();
   const toast = useToast();
   /** Google is offered where the client is configured for it and the flag says so here (ADR-0036). */
   const googleClientId = features.google_sign_in ? platform.googleClientId : null;
   const emailOffered = features.email_sign_in;
 
-  const [mode, setMode] = useState<Mode>('signIn');
+  const [mode, setMode] = useState<Mode>('start');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -128,11 +194,19 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   // Reopening should not resume a half-finished sign-up from last time.
   // Read through a ref: the served flags can arrive while the dialog is open,
   // and a re-run here would wipe a half-typed form and say "opened" twice.
-  const offered = useRef({ google: googleClientId !== null, email: emailOffered });
-  offered.current = { google: googleClientId !== null, email: emailOffered };
+  const offered = useRef({
+    google: googleClientId !== null,
+    email: emailOffered,
+    source: signInSource ?? 'header',
+  });
+  offered.current = {
+    google: googleClientId !== null,
+    email: emailOffered,
+    source: signInSource ?? 'header',
+  };
   useEffect(() => {
     if (!open) return;
-    setMode('signIn');
+    setMode('start');
     setProblem(null);
     setCode('');
     setPassword('');
@@ -158,7 +232,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
     },
   });
 
-  const strength = mode === 'signUp' || mode === 'reset' ? passwordProblem(password) : null;
+  const strength = mode === 'code' || mode === 'reset' ? passwordProblem(password) : null;
 
   async function run(what: () => Promise<void>) {
     setBusy(true);
@@ -166,7 +240,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
     try {
       await what();
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+      setProblem(sentenceFor(error));
       // Which step, and the server's code — never the address or the password.
       trackAction('sign_in_failed', { mode, code: errorCode(error) });
     } finally {
@@ -174,39 +248,56 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
     }
   }
 
+  /** New here: a code to the address, then a name and a password. */
+  const createAccount = () => {
+    trackAction('sign_in_submitted', { mode: 'signUp' });
+    void run(async () => {
+      // Always a code step, even for an address that already has an
+      // account. Skipping it for a known address would answer the one
+      // question the whole flow is built not to answer.
+      const accepted = await api.startRegistration(email);
+      setChallengeId(accepted.challengeId);
+      setCooldown(accepted.resendAvailableInSeconds);
+      setPassword('');
+      setMode('code');
+    });
+  };
+
+  /** Forgot it: a code to the address, then a new password. */
+  const forgotPassword = () => {
+    trackAction('sign_in_submitted', { mode: 'forgot' });
+    void run(async () => {
+      const accepted = await api.startPasswordReset(email);
+      setChallengeId(accepted.challengeId);
+      setCooldown(accepted.resendAvailableInSeconds);
+      setPassword('');
+      setMode('reset');
+    });
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
     trackAction('sign_in_submitted', { mode });
     void run(async () => {
       switch (mode) {
-        case 'signIn': {
+        case 'start': {
+          // The address is all this step asks; the next one is the same for
+          // everyone, so nothing here says whether it is known.
+          setProblem(null);
+          setMode('password');
+          return;
+        }
+        case 'password': {
           await signInWithEmail(email, password);
           toast('Signed in', 'success');
           onClose();
-          return;
-        }
-        case 'signUp': {
-          // Always a code step, even for an address that already has an
-          // account. Skipping it for a known address would answer the one
-          // question the whole flow is built not to answer.
-          const accepted = await api.startRegistration(email);
-          setChallengeId(accepted.challengeId);
-          setCooldown(accepted.resendAvailableInSeconds);
-          setMode('code');
           return;
         }
         case 'code': {
           await completeRegistration({ challengeId, code, name, password });
           toast('Welcome to Pen Playground', 'success');
           onClose();
-          return;
-        }
-        case 'forgot': {
-          const accepted = await api.startPasswordReset(email);
-          setChallengeId(accepted.challengeId);
-          setCooldown(accepted.resendAvailableInSeconds);
-          setMode('reset');
           return;
         }
         case 'reset': {
@@ -220,12 +311,30 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   };
 
   const codeStep = mode === 'code' || mode === 'reset';
+  const close = (
+    <button
+      type="button"
+      aria-label="Close"
+      onClick={onClose}
+      className="state-layer absolute top-4 right-4 grid size-9 place-items-center rounded-full text-on-surface-variant"
+      data-testid="auth-close"
+    >
+      <X size={18} />
+    </button>
+  );
 
   if (!emailOffered) {
     // Email sign-in is off here (ADR-0036): Google alone, or an honest line
     // when there is no way in at all — never a form the server would refuse.
     return (
-      <Dialog open={open} onClose={onClose} title="Sign in">
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title="Sign in or sign up"
+        width={448}
+        className="relative"
+      >
+        {close}
         {googleClientId ? (
           <div className="flex flex-col gap-4">
             <p className="text-body-medium text-on-surface-variant">
@@ -234,7 +343,8 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <div
               ref={googleSlot}
               className="flex min-h-[44px] justify-center"
-              data-testid="google-signin"
+              style={GOOGLE_SLOT_STYLE}
+              data-testid="auth-google"
             />
             {googleProblem ? (
               <p className="text-center text-body-medium text-error" role="alert">
@@ -252,100 +362,146 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={TITLES[mode]}>
-      <form className="flex flex-col gap-4" onSubmit={submit} data-testid="auth-form">
-        {codeStep ? (
-          <p className="text-body-medium text-on-surface-variant text-pretty">
-            {/*
-              "If there is an account" is load-bearing on the reset path: saying
-              "we sent you a code" would confirm the address is registered.
-            */}
-            {mode === 'reset'
-              ? `If there is an account for ${email}, a code is on its way. Enter it below.`
-              : `We sent an eight-digit code to ${email}.`}
-          </p>
-        ) : null}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={TITLES[mode]}
+      width={448}
+      className="relative text-center"
+    >
+      {close}
+      {mode === 'start' ? (
+        <p className="mx-auto -mt-1 mb-5 max-w-[380px] text-body-medium text-on-surface-variant text-pretty">
+          Keep your sessions, get a lesson prepared on any topic you name, and have the expert take
+          your questions.
+        </p>
+      ) : null}
 
-        {!codeStep ? (
+      {/* Google first, where the form is — never on the code step, where the
+          person is halfway through making a different kind of account. */}
+      {mode === 'start' && googleClientId ? (
+        <div className="mb-4 flex flex-col gap-4">
+          <div
+            ref={googleSlot}
+            className="flex min-h-[44px] justify-center"
+            style={GOOGLE_SLOT_STYLE}
+            data-testid="auth-google"
+          />
+          {googleProblem ? (
+            <p className="text-center text-body-medium text-error" role="alert">
+              {googleProblem}
+            </p>
+          ) : null}
+          <Divider />
+        </div>
+      ) : null}
+
+      <form className="flex flex-col gap-4 text-left" onSubmit={submit} data-testid="auth-form">
+        {mode === 'start' ? (
           <TextField
-            label="Email"
+            label="Email address"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             autoFocus
-            required
             data-testid="auth-email"
           />
-        ) : null}
+        ) : (
+          <EmailChip
+            email={email}
+            onChange={() => {
+              setMode('start');
+              setProblem(null);
+              setCode('');
+              setPassword('');
+            }}
+          />
+        )}
 
         {codeStep ? (
           <TextField
-            label="Verification code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/gu, '').slice(0, 8))}
+            label="The code we emailed you"
             inputMode="numeric"
             autoComplete="one-time-code"
-            autoFocus
-            className="font-mono tracking-[0.3em]"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/gu, '').slice(0, 8))}
+            hint={
+              mode === 'reset'
+                ? 'If that address has an account, a code is on its way. It works for 15 minutes.'
+                : 'A code is on its way. It works for 15 minutes.'
+            }
             data-testid="auth-code"
           />
         ) : null}
-
         {mode === 'code' ? (
           <TextField
             label="Your name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoComplete="name"
-            maxLength={60}
-            hint="Shown to the expert, and to anyone you invite to a room."
             data-testid="auth-name"
           />
         ) : null}
-
-        {mode !== 'forgot' && mode !== 'signUp' ? (
+        {mode !== 'start' ? (
           <PasswordField
-            label={mode === 'reset' ? 'New password' : 'Password'}
+            label={mode === 'password' ? 'Password' : 'Choose a password'}
             value={password}
             onChange={setPassword}
-            autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+            autoComplete={mode === 'password' ? 'current-password' : 'new-password'}
             testId="auth-password"
-            {...(mode !== 'signIn' && password && strength ? { error: strength } : {})}
-            {...(mode !== 'signIn'
-              ? {
-                  hint: 'At least 12 characters, mixing three of: lowercase, uppercase, numbers, symbols.',
-                }
-              : {})}
+            {...(strength && password ? { error: strength } : {})}
+            {...(mode !== 'password' ? { hint: 'At least 12 characters.' } : {})}
           />
         ) : null}
 
         {problem ? (
-          <p className="text-body-medium text-error" role="alert" data-testid="auth-error">
+          <p className="text-body-medium text-error" role="alert" data-testid="auth-problem">
             {problem}
           </p>
         ) : null}
 
         <Button
-          variant="primary"
           type="submit"
+          variant="primary"
           size="lg"
           loading={busy}
-          className="w-full"
-          data-testid="auth-submit"
+          data-testid="auth-continue"
           disabled={
+            (mode === 'start' && !email.trim()) ||
+            (mode === 'password' && !password) ||
             (mode === 'code' && (code.length !== 8 || !name.trim() || strength !== null)) ||
-            (mode === 'reset' && (code.length !== 8 || strength !== null)) ||
-            (mode === 'signIn' && (!email.trim() || !password)) ||
-            ((mode === 'signUp' || mode === 'forgot') && !email.trim())
+            (mode === 'reset' && (code.length !== 8 || strength !== null))
           }
         >
-          {mode === 'signIn' && 'Sign in'}
-          {mode === 'signUp' && 'Continue'}
+          {mode === 'start' && 'Continue'}
+          {mode === 'password' && 'Sign in'}
           {mode === 'code' && 'Create account'}
-          {mode === 'forgot' && 'Send me a code'}
           {mode === 'reset' && 'Change password'}
         </Button>
+
+        {mode === 'password' ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-body-medium">
+            <button
+              type="button"
+              className="text-primary underline decoration-outline underline-offset-4"
+              data-testid="auth-to-signup"
+              disabled={busy}
+              onClick={createAccount}
+            >
+              New here? Create your account
+            </button>
+            <button
+              type="button"
+              className="underline decoration-outline underline-offset-4 hover:text-on-surface"
+              data-testid="auth-to-forgot"
+              disabled={busy}
+              onClick={forgotPassword}
+            >
+              Forgot password?
+            </button>
+          </div>
+        ) : null}
 
         {codeStep ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-body-medium">
@@ -356,7 +512,10 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
               data-testid="auth-resend"
               onClick={() =>
                 void run(async () => {
-                  const next = await api.resendRegistrationCode(challengeId);
+                  const next =
+                    mode === 'reset'
+                      ? await api.startPasswordReset(email)
+                      : await api.resendRegistrationCode(challengeId);
                   setChallengeId(next.challengeId);
                   setCooldown(next.resendAvailableInSeconds || CHALLENGE_RESEND_COOLDOWN_SECONDS);
                 })
@@ -367,82 +526,18 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <button
               type="button"
               className="text-on-surface-variant underline decoration-outline underline-offset-4"
+              data-testid="auth-to-signin"
               onClick={() => {
-                setMode(mode === 'reset' ? 'forgot' : 'signUp');
+                setMode('password');
                 setCode('');
+                setPassword('');
               }}
             >
-              Use a different email
+              Back
             </button>
           </div>
         ) : null}
       </form>
-
-      {/* Google only where the form is, not on the code step: by then the
-          person is halfway through making a different kind of account. */}
-      {!codeStep && googleClientId ? (
-        <div className="mt-5 flex flex-col gap-4">
-          <Divider />
-          <div
-            ref={googleSlot}
-            className="flex min-h-[44px] justify-center"
-            data-testid="google-signin"
-          />
-          {googleProblem ? (
-            <p className="text-center text-body-medium text-error" role="alert">
-              {googleProblem}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="mt-5 border-t border-outline-variant pt-4 text-body-medium text-on-surface-variant">
-        {mode === 'signIn' ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              className="text-primary underline decoration-outline underline-offset-4"
-              data-testid="auth-to-signup"
-              onClick={() => {
-                setMode('signUp');
-                setProblem(null);
-              }}
-            >
-              Create an account
-            </button>
-            <button
-              type="button"
-              className="underline decoration-outline underline-offset-4 hover:text-on-surface"
-              data-testid="auth-to-forgot"
-              onClick={() => {
-                setMode('forgot');
-                setProblem(null);
-              }}
-            >
-              Forgot password?
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="text-primary underline decoration-outline underline-offset-4"
-            data-testid="auth-to-signin"
-            onClick={() => {
-              setMode('signIn');
-              setProblem(null);
-              setCode('');
-            }}
-          >
-            Back to sign in
-          </button>
-        )}
-      </div>
     </Dialog>
   );
-}
-
-/** The API's error code when there is one, else the error's class: a code, never its message. */
-function errorCode(error: unknown): string {
-  if (error instanceof ApiError) return error.code;
-  return error instanceof Error ? error.name : 'unknown';
 }

@@ -54,7 +54,7 @@ describe('the allowance banner', () => {
 
     const banner = await waitFor(() => screen.getByTestId('home-allowance'));
     // The fact, in the ordinary voice, with no plan named in it.
-    expect(banner.textContent).toContain('3 sessions for today');
+    expect(banner.textContent).toContain('allowance for today');
     expect(banner.textContent).toContain('midnight UTC');
 
     const upgrade = screen.getByTestId('home-upgrade');

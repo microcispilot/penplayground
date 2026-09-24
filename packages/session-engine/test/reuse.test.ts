@@ -45,7 +45,7 @@ async function session(
   const room = new SessionRoom({
     sessionId: id,
     topic: 'How Transformers work in LLMs',
-    host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+    host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
     expert: opts.expertId ? { ...expert, id: opts.expertId } : expert,
     band: 'beginner',
     language: 'en',

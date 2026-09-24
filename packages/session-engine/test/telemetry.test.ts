@@ -58,7 +58,7 @@ describe('session telemetry (engine)', () => {
     const room = new SessionRoom({
       sessionId: 'sess-telemetry',
       topic: 'How Transformers work in LLMs',
-      host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+      host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
       expert,
       band: 'beginner',
       language: 'en',

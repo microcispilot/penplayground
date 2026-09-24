@@ -96,6 +96,14 @@ export const FeatureName = z.enum([
   'google_sign_in',
   /** Email and password sign-in, sign-up and reset. */
   'email_sign_in',
+  /** The expert answers questions with the model; off, it hears them and asks for an upgrade (ADR-0040). */
+  'ask_questions',
+  /** History and "your sessions": the learner's own shelf. */
+  'history',
+  /** Save and like. */
+  'lists',
+  /** The recap written by the model at the end; off, the recap is the lesson's own goals. */
+  'model_recap',
 ]);
 export type FeatureName = z.infer<typeof FeatureName>;
 export const FEATURE_NAMES: readonly FeatureName[] = FeatureName.options;
@@ -116,6 +124,12 @@ export const FeatureRule = z.object({
   plans: z.partialRecord(PlanCode, z.boolean()),
   platforms: z.partialRecord(Platform, z.boolean()),
   cells: z.partialRecord(CellKey, z.boolean()),
+  /**
+   * What a visitor who has not signed in gets (ADR-0040). Set, it wins over
+   * everything above for an anonymous caller; unset, an anonymous caller is
+   * simply a learner on the free plan. Absent on older documents.
+   */
+  anonymous: z.boolean().optional(),
 });
 export type FeatureRule = z.infer<typeof FeatureRule>;
 
@@ -129,29 +143,35 @@ export interface FeatureDefinition {
 
 const rule = (
   def: boolean,
-  parts: { plans?: FeatureRule['plans']; platforms?: FeatureRule['platforms'] } = {},
+  parts: {
+    plans?: FeatureRule['plans'];
+    platforms?: FeatureRule['platforms'];
+    anonymous?: boolean;
+  } = {},
 ): FeatureRule => ({
   default: def,
   plans: parts.plans ?? {},
   platforms: parts.platforms ?? {},
   cells: {},
+  ...(parts.anonymous === undefined ? {} : { anonymous: parts.anonymous }),
 });
 
-/** A rule that says exactly what the entitlement table says, plan by plan. */
+/** A rule that says exactly what the entitlement table says, plan by plan; never for a visitor without an account. */
 const fromEntitlement = (entitlement: Parameters<typeof hasEntitlement>[1]): FeatureRule =>
   rule(false, {
     plans: Object.fromEntries(
       PlanCode.options.map((plan) => [plan, hasEntitlement(plan, entitlement)]),
     ),
+    anonymous: false,
   });
 
 export const FEATURES: Readonly<Record<FeatureName, FeatureDefinition>> = Object.freeze({
   prepare_new_topics: {
     label: 'Prepare new topics',
     description:
-      'Whether a learner whose topic nobody has prepared yet can have it prepared — sources gathered, a pack compiled, a lesson written. Off means they are offered the lessons that are ready instead, with the way to upgrade. The expensive path in the product.',
+      'Whether a learner whose topic nobody has prepared yet can have it prepared — sources gathered, a pack compiled, a lesson written. On the free plan it is one custom session per account (PEN_FREE_CUSTOM_SESSIONS); never for a visitor without an account. Off means they are offered the lessons that are ready instead, with the way in. The expensive path in the product.',
     group: 'Sessions',
-    rule: rule(false, { plans: { standard: true, professional: true } }),
+    rule: rule(true, { anonymous: false }),
   },
   quick_start: {
     label: 'Start a prepared lesson',
@@ -169,9 +189,9 @@ export const FEATURES: Readonly<Record<FeatureName, FeatureDefinition>> = Object
   recording_playback: {
     label: 'Watch your recording',
     description:
-      'The host of a session can watch its recording, with their own questions and the answers. Nobody else ever can.',
+      'The host of a session can watch its recording, with their own questions and the answers. Nobody else ever can, and a visitor without an account has no shelf to keep it on.',
     group: 'Recordings',
-    rule: rule(true),
+    rule: rule(true, { anonymous: false }),
   },
   session_download: {
     label: 'Download your recording',
@@ -226,10 +246,44 @@ export const FEATURES: Readonly<Record<FeatureName, FeatureDefinition>> = Object
     group: 'Sign-in',
     rule: rule(true),
   },
+  ask_questions: {
+    label: 'Answer questions',
+    description:
+      'The expert answers a learner’s questions with the model. Off, it still hears them: it says so warmly, asks for an upgrade, and carries on — no model call. Check-ins, commands and intent are unaffected (they are Jev’s). Paid plans only (ADR-0040).',
+    group: 'Sessions',
+    rule: rule(false, { plans: { standard: true, professional: true }, anonymous: false }),
+  },
+  history: {
+    label: 'History and your sessions',
+    description:
+      'The learner’s own shelf: history and the sessions they hosted. An account has one; a visitor does not.',
+    group: 'Account',
+    rule: rule(true, { anonymous: false }),
+  },
+  lists: {
+    label: 'Save and like',
+    description: 'Learn later and Liked. An account keeps them; a visitor is invited to sign in.',
+    group: 'Account',
+    rule: rule(true, { anonymous: false }),
+  },
+  model_recap: {
+    label: 'Model-written recap',
+    description:
+      'The recap at the end of a session written by the model. Off, the recap is the lesson’s own segment goals — no model call. Paid plans only (ADR-0040).',
+    group: 'Sessions',
+    rule: rule(false, { plans: { standard: true, professional: true }, anonymous: false }),
+  },
 });
 
 /** Group order on the screen. */
-export const FEATURE_GROUP_ORDER = ['Sessions', 'Recordings', 'Ads', 'Room', 'Sign-in'] as const;
+export const FEATURE_GROUP_ORDER = [
+  'Sessions',
+  'Account',
+  'Recordings',
+  'Ads',
+  'Room',
+  'Sign-in',
+] as const;
 
 /** Stored overrides: only the features the document says something about. */
 export const FeatureRulesDocument = z.partialRecord(FeatureName, FeatureRule);
@@ -241,7 +295,15 @@ export function effectiveRule(document: FeatureRulesDocument, name: FeatureName)
 }
 
 /** One rule, one cell. See the module comment for the order. */
-export function resolveRule(r: FeatureRule, plan: PlanCode, platform: Platform): boolean {
+export function resolveRule(
+  r: FeatureRule,
+  plan: PlanCode,
+  platform: Platform,
+  who: { anonymous?: boolean } = {},
+): boolean {
+  // A visitor without an account is decided first and alone (ADR-0040):
+  // what they get is a question about the account, not about the plan.
+  if (who.anonymous && r.anonymous !== undefined) return r.anonymous;
   const cell = r.cells[cellKey(plan, platform)];
   if (cell !== undefined) return cell;
   const byPlan = r.plans[plan];
@@ -259,15 +321,23 @@ export function featuresFor(
   document: FeatureRulesDocument,
   plan: PlanCode,
   platform: Platform,
+  who: { anonymous?: boolean } = {},
 ): FeatureSet {
   return Object.fromEntries(
-    FEATURE_NAMES.map((name) => [name, resolveRule(effectiveRule(document, name), plan, platform)]),
+    FEATURE_NAMES.map((name) => [
+      name,
+      resolveRule(effectiveRule(document, name), plan, platform, who),
+    ]),
   ) as Record<FeatureName, boolean>;
 }
 
 /** The product with no document: what every test and every fresh deployment runs on. */
-export function defaultFeaturesFor(plan: PlanCode, platform: Platform = 'web'): FeatureSet {
-  return featuresFor({}, plan, platform);
+export function defaultFeaturesFor(
+  plan: PlanCode,
+  platform: Platform = 'web',
+  who: { anonymous?: boolean } = {},
+): FeatureSet {
+  return featuresFor({}, plan, platform, who);
 }
 
 /** The whole matrix of one rule, for the screen. */
@@ -295,6 +365,7 @@ export function normaliseRule(r: FeatureRule): FeatureRule {
     plans: prune(r.plans),
     platforms: prune(r.platforms),
     cells: prune(r.cells),
+    ...(typeof r.anonymous === 'boolean' ? { anonymous: r.anonymous } : {}),
   };
 }
 
@@ -306,6 +377,7 @@ export function rulesEqual(a: FeatureRule, b: FeatureRule): boolean {
     Object.entries(x).every(([k, v]) => y[k as K] === v);
   return (
     na.default === nb.default &&
+    na.anonymous === nb.anonymous &&
     same(na.plans, nb.plans) &&
     same(na.platforms, nb.platforms) &&
     same(na.cells, nb.cells)
@@ -379,6 +451,8 @@ export type FeatureFlagsHistory = z.infer<typeof FeatureFlagsHistory>;
 export const MyFeatures = z.object({
   plan: PlanCode,
   platform: Platform,
+  /** Whether the caller has an account; absent on older servers means signed in. */
+  anonymous: z.boolean().optional(),
   features: z.record(FeatureName, z.boolean()),
 });
 export type MyFeatures = z.infer<typeof MyFeatures>;

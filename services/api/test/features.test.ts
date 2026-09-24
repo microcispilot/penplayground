@@ -49,9 +49,13 @@ interface Caller {
   headers: Record<string, string>;
 }
 
-async function participant(plan: 'free' | 'standard' | 'professional' = 'free'): Promise<Caller> {
-  const issued = await identity.issue({ name: 'Ada', plan, anonymous: true });
-  await services.participants.ensure({ id: issued.claims.sub, name: 'Ada', plan, anonymous: true });
+/** An account on a plan; `anonymous` for the visitor who has none (ADR-0040). */
+async function participant(
+  plan: 'free' | 'standard' | 'professional' = 'free',
+  anonymous = false,
+): Promise<Caller> {
+  const issued = await identity.issue({ name: 'Ada', plan, anonymous });
+  await services.participants.ensure({ id: issued.claims.sub, name: 'Ada', plan, anonymous });
   return { id: issued.claims.sub, headers: { authorization: `Bearer ${issued.token}` } };
 }
 
@@ -187,9 +191,19 @@ describe('the learner’s own cell', () => {
     const web = (await (await call('GET', '/api/me/features', free.headers)).json()) as MyFeatures;
     expect(web.platform).toBe('web');
     expect(Object.keys(web.features).sort()).toEqual([...FEATURE_NAMES].sort());
-    expect(web.features.prepare_new_topics).toBe(false);
+    expect(web.anonymous).toBe(false);
+    expect(web.features.prepare_new_topics).toBe(true);
+    expect(web.features.ask_questions).toBe(false);
     expect(web.features.google_sign_in).toBe(true);
     expect(web.features.ads).toBe(true);
+    const visitor = await participant('free', true);
+    const seen = (await (
+      await call('GET', '/api/me/features', visitor.headers)
+    ).json()) as MyFeatures;
+    expect(seen.anonymous).toBe(true);
+    expect(seen.features.prepare_new_topics).toBe(false);
+    expect(seen.features.history).toBe(false);
+    expect(seen.features.lists).toBe(false);
 
     const mac = (await (
       await call('GET', '/api/me/features', { ...free.headers, [PLATFORM_HEADER]: 'desktop-mac' })
@@ -239,8 +253,17 @@ describe('the console', () => {
     expect(doc.features.map((f) => f.name).sort()).toEqual([...FEATURE_NAMES].sort());
     const prepare = doc.features.find((f) => f.name === 'prepare_new_topics');
     expect(prepare?.storedRule).toBeNull();
-    expect(prepare?.matrix.free.web).toBe(false);
+    // An account on the free plan may have its one topic prepared (ADR-0040);
+    // a visitor without an account never may, and that is not a cell.
+    expect(prepare?.matrix.free.web).toBe(true);
     expect(prepare?.matrix.standard.web).toBe(true);
+    expect(
+      services.features.enabled('prepare_new_topics', {
+        plan: 'free',
+        platform: 'web',
+        anonymous: true,
+      }),
+    ).toBe(false);
   });
 
   it('saves a rule, records who and why, applies it at once, and stores nothing for a rule at its built-in value', async () => {
@@ -315,7 +338,7 @@ describe('the console', () => {
     const doc = (await res.json()) as FeatureFlagsDocument;
     expect(doc.revision).toBe(current.revision + 1);
     expect(doc.features.every((f) => f.storedRule === null)).toBe(true);
-    expect(services.features.enabled('prepare_new_topics', { plan: 'free', platform: 'web' })).toBe(
+    expect(services.features.enabled('ask_questions', { plan: 'free', platform: 'web' })).toBe(
       false,
     );
     const history = (await (
@@ -326,26 +349,51 @@ describe('the console', () => {
 });
 
 describe('preparing a topic nobody has prepared', () => {
-  it('is refused for a free learner with the way forward and the lessons that are ready, and costs them nothing', async () => {
-    const free = await participant('free');
+  it('is refused for a visitor without an account, with the way in and the lessons that are ready, and costs them nothing', async () => {
+    const visitor = await participant('free', true);
     const ready = await seedSession((await participant('standard')).id, 'public');
-    const before = await services.sessions.countSince(free.id, 0);
-    const res = await call('POST', '/api/sessions', free.headers, {
+    const before = await services.sessions.countSince(visitor.id, 0);
+    const res = await call('POST', '/api/sessions', visitor.headers, {
       topic: 'Reading an ECG strip',
     });
     expect(res.status).toBe(402);
     const body = (await res.json()) as {
       error: string;
       message: string;
+      upgrade: string;
       ready: Array<{ id: string; hostId: string }>;
     };
     expect(body.error).toBe('PREPARATION_REQUIRED');
-    expect(body.message).toMatch(/Upgrade/);
+    expect(body.upgrade).toBe('SignIn');
+    expect(body.message).toMatch(/Sign in/);
     expect(body.ready.some((s) => s.id === ready.id)).toBe(true);
     for (const s of body.ready) expect(s.hostId).toBe('');
-    // Not a session: nothing was written, nothing was counted against the day.
-    expect(await services.sessions.countSince(free.id, 0)).toBe(before);
+    // Not a session: nothing was written, nothing was counted.
+    expect(await services.sessions.countSince(visitor.id, 0)).toBe(before);
   });
+
+  it('gives a free account one custom session and asks for an upgrade for the next (ADR-0040)', async () => {
+    const free = await participant('free');
+    const first = await call('POST', '/api/sessions', free.headers, {
+      topic: 'Reading an ECG strip',
+    });
+    expect(first.status, await first.clone().text()).toBe(201);
+    await rooms.end(((await first.json()) as { session: { id: string } }).session.id);
+    const second = await call('POST', '/api/sessions', free.headers, {
+      topic: 'How a pendulum clock keeps time',
+    });
+    expect(second.status).toBe(402);
+    const body = (await second.json()) as { error: string; message: string; upgrade: string };
+    expect(body.error).toBe('PREPARATION_REQUIRED');
+    expect(body.upgrade).toBe('Pricing');
+    expect(body.message).toMatch(/Upgrade/);
+    // A prepared lesson is still theirs, as often as they like.
+    const prepared = await call('POST', '/api/sessions', free.headers, {
+      topic: 'How Transformers work in LLMs',
+    });
+    expect(prepared.status, await prepared.clone().text()).toBe(201);
+    await rooms.end(((await prepared.json()) as { session: { id: string } }).session.id);
+  }, 60_000);
 
   it('goes ahead for a plan the rule allows, and for a free learner once the rule is opened', async () => {
     const standard = await participant('standard');

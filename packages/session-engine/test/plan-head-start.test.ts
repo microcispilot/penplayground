@@ -102,7 +102,7 @@ function room(onten: Onten, id: string, model: LanguageModel, transport: MemoryT
   return new SessionRoom({
     sessionId: id,
     topic: 'How Transformers work in LLMs',
-    host: { id: 'host-1234', name: 'Sam', plan: 'free' },
+    host: { id: 'host-1234', name: 'Sam', plan: 'standard' },
     expert,
     band: 'beginner',
     language: 'en',
