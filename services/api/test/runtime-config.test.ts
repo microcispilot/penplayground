@@ -345,7 +345,8 @@ describe('a value this deployment must not run on', () => {
     // arrives after that check has run. Scripted lessons and a silent expert
     // are exactly what a paying learner must never get.
     expect(store.get('PEN_LLM_PROVIDER')).toBe('openai');
-    expect(store.get('PEN_TTS_PROVIDER')).toBe('fish-cloud');
+    // `fish-cloud` is the old name of `cloud` (ADR-0048): read back as what it means.
+    expect(store.get('PEN_TTS_PROVIDER')).toBe('cloud');
   });
 });
 

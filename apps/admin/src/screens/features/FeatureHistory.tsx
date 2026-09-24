@@ -1,5 +1,12 @@
-import type { FeatureFlagsHistoryEntry, FeatureRule } from '@pen/contracts';
-import { FEATURES, isFeatureName, PLAN_NAME, PLATFORM_LABEL } from '@pen/contracts';
+import type { ChoiceRule, FeatureFlagsHistoryEntry, FeatureRule } from '@pen/contracts';
+import {
+  FEATURES,
+  isFeatureName,
+  isSettingName,
+  PLAN_NAME,
+  PLATFORM_LABEL,
+  SETTINGS,
+} from '@pen/contracts';
 import { Button, Card } from '@pen/design';
 import { showMoment } from '../../lib/presenters.js';
 
@@ -21,6 +28,33 @@ export function describeRule(rule: FeatureRule): string {
         `${PLAN_NAME[plan as keyof typeof PLAN_NAME] ?? plan} on ${PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform} ${on ? 'on' : 'off'}`,
       );
     }
+  return parts.join(' · ');
+}
+
+/** A setting's rule in a sentence (ADR-0048): the default, then every answer that differs. */
+export function describeChoice(
+  rule: ChoiceRule,
+  labels: Readonly<Record<string, string>> = {},
+): string {
+  const name = (v: string) => labels[v] ?? v;
+  const parts: string[] = [`${name(rule.default)} by default`];
+  if (rule.anonymous) parts.push(`${name(rule.anonymous)} for visitors`);
+  for (const [plan, v] of Object.entries(rule.plans))
+    if (v) parts.push(`${name(v)} for ${PLAN_NAME[plan as keyof typeof PLAN_NAME] ?? plan}`);
+  for (const [platform, v] of Object.entries(rule.platforms))
+    if (v)
+      parts.push(
+        `${name(v)} on ${PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform}`,
+      );
+  for (const [cell, v] of Object.entries(rule.cells))
+    if (v) {
+      const [plan, platform] = cell.split(':');
+      parts.push(
+        `${name(v)} for ${PLAN_NAME[plan as keyof typeof PLAN_NAME] ?? plan} on ${PLATFORM_LABEL[platform as keyof typeof PLATFORM_LABEL] ?? platform}`,
+      );
+    }
+  const accounts = Object.keys(rule.participants).length;
+  if (accounts > 0) parts.push(`${accounts} account${accounts === 1 ? '' : 's'}`);
   return parts.join(' · ');
 }
 
@@ -88,6 +122,7 @@ export function FeatureHistory({
       {entries.map((entry) => {
         const when = showMoment(entry.updatedAt);
         const names = Object.keys(entry.rules).sort();
+        const settingNames = Object.keys(entry.settings).sort();
         return (
           <Card
             key={entry.revision}
@@ -117,9 +152,9 @@ export function FeatureHistory({
                     </>
                   ) : null}
                 </dl>
-                {names.length === 0 ? (
+                {names.length === 0 && settingNames.length === 0 ? (
                   <p className="text-body-medium text-on-surface-variant">
-                    Every feature at its built-in rule.
+                    Every feature and setting at its built-in rule.
                   </p>
                 ) : (
                   <ul className="divide-y divide-outline-variant rounded-sm bg-surface-container">
@@ -135,6 +170,25 @@ export function FeatureHistory({
                           </span>
                           <span className="text-on-surface-variant">
                             {rule ? describeRule(rule) : ''}
+                          </span>
+                        </li>
+                      );
+                    })}
+                    {settingNames.map((name) => {
+                      const rule = entry.settings[name as keyof typeof entry.settings];
+                      return (
+                        <li
+                          key={name}
+                          className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5 text-body-medium"
+                          data-testid={`features-revision-${entry.revision}-setting-${name}`}
+                        >
+                          <span className="text-on-surface">
+                            {isSettingName(name) ? SETTINGS[name].label : name}
+                          </span>
+                          <span className="text-on-surface-variant">
+                            {rule && isSettingName(name)
+                              ? describeChoice(rule, SETTINGS[name].valueLabels)
+                              : ''}
                           </span>
                         </li>
                       );

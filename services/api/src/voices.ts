@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { Expert } from '@pen/contracts';
+import type { Expert, VoiceEngine } from '@pen/contracts';
 import { z } from 'zod';
 
 const Voice = z.object({
@@ -16,18 +16,23 @@ const Voice = z.object({
 export type Voice = z.infer<typeof Voice>;
 
 /**
- * Chooses a Fish reference voice for an expert in a language: same gender,
- * the session's locale first, then its language, then English; flagship
- * voices weighted first; spread across personas by a stable hash so one
- * persona always sounds the same and each voice is shared by few personas.
+ * One engine's voice catalogue (ADR-0048), and how an expert gets a voice
+ * from it: same gender, the session's locale first, then its language, then
+ * English; flagship voices weighted first; spread across personas by a
+ * stable hash so one persona always sounds the same and each voice is
+ * shared by few personas. Fish's catalogue is `voices.fish.json`,
+ * Cartesia's `voices.cartesia.json`, both in the same shape.
  */
 export class ExpertVoices {
-  private constructor(private readonly voices: Voice[]) {}
+  private constructor(
+    readonly engine: VoiceEngine,
+    private readonly voices: Voice[],
+  ) {}
 
-  static load(file: string): ExpertVoices {
+  static load(file: string, engine: VoiceEngine): ExpertVoices {
     const list = z.array(Voice).parse(JSON.parse(readFileSync(file, 'utf8')));
     if (list.length === 0) throw new Error('VOICES_EMPTY');
-    return new ExpertVoices(list);
+    return new ExpertVoices(engine, list);
   }
 
   resolve(expert: Pick<Expert, 'id' | 'gender'>, language: string): Voice {
@@ -60,13 +65,15 @@ export class ExpertVoices {
   }
 
   /**
-   * The voice a persona was assigned for a language (en, es, ja …), falling
-   * back to its English voice. A deterministic pick is used only when the
-   * catalog was never assigned for that persona (the script fixes that).
+   * The voice a persona was assigned on this engine for a language (en, es,
+   * ja …), falling back to its English voice. A deterministic pick is used
+   * only when the catalog was never assigned for that persona on this engine
+   * (the script fixes that).
    */
   voiceFor(expert: Pick<Expert, 'id' | 'gender' | 'voices'>, locale: string): string {
     const lang = locale.toLowerCase().split('-')[0] ?? 'en';
-    return expert.voices[lang] ?? expert.voices.en ?? this.resolve(expert, locale).id;
+    const mine = expert.voices[this.engine] ?? {};
+    return mine[lang] ?? mine.en ?? this.resolve(expert, locale).id;
   }
 }
 

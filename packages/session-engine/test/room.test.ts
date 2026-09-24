@@ -30,7 +30,7 @@ const expert: Expert = {
   premium: false,
   requiredPlan: null,
   gender: 'woman',
-  voices: { en: 'voice-en' },
+  voices: { fish: { en: 'voice-en' } },
 };
 
 const rights = {

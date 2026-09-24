@@ -16,6 +16,8 @@ export interface FeaturesController {
   state: FeaturesEditorState;
   history: FeaturesHistoryState;
   edit: (draft: FeaturesEditorState['draft']) => void;
+  /** Edit the settings' draft (ADR-0048); the flags' draft is untouched. */
+  editSettings: (settingsDraft: FeaturesEditorState['settingsDraft']) => void;
   load: () => Promise<void>;
   loadHistory: (beforeRevision?: number) => Promise<void>;
   save: (body: FeatureFlagsMutation) => Promise<boolean>;
@@ -140,6 +142,7 @@ export function useFeatures(): FeaturesController {
     state,
     history,
     edit: (draft) => dispatch({ type: 'EDIT', draft }),
+    editSettings: (settingsDraft) => dispatch({ type: 'EDIT', draft: state.draft, settingsDraft }),
     load,
     loadHistory,
     save: (body) =>

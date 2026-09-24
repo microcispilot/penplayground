@@ -24,11 +24,21 @@ export const Expert = z.object({
   /** Legacy catalog voice profile id (e.g. af_heart), kept for the Simurgh bridge engine. */
   voiceId: z.string(),
   /**
-   * The expert's assigned Fish reference voices, keyed by language (en, es, ja …).
-   * Assigned once by `scripts/assign-voices.ts` and stored
-   * with the persona; a persona always sounds the same until re-assigned.
+   * The expert's assigned voices, per engine and per language
+   * (`{ fish: { en: id }, cartesia: { en: id } }`; ADR-0048). Assigned once
+   * by `scripts/assign-voices.ts` and stored with the persona, so a persona
+   * always sounds the same on an engine until re-assigned. Older catalogs
+   * held Fish's map alone (`{ en: id }`); it is read as Fish's.
    */
-  voices: z.record(z.string(), z.string()).default({}),
+  voices: z.preprocess(
+    (raw) => {
+      if (!raw || typeof raw !== 'object') return {};
+      const values = Object.values(raw as Record<string, unknown>);
+      const legacy = values.length > 0 && values.every((v) => typeof v === 'string');
+      return legacy ? { fish: raw } : raw;
+    },
+    z.record(z.string(), z.record(z.string(), z.string())).default({}),
+  ),
   domain: z.enum([
     'math-science-engineering',
     'computing-data',

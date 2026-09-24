@@ -450,6 +450,7 @@ cd /srv/pen-playground && docker compose up -d api && curl -s http://127.0.0.1:4
 | secret | where it comes from | rotate by | blast radius |
 | --- | --- | --- | --- |
 | `FISH_AUDIO_API_KEY` | fish.audio console | create the new key, paste it, `up -d api`, delete the old one | the expert goes silent (`health.tts`) |
+| `CARTESIA_API_KEY` | play.cartesia.ai → API keys | create the new key, paste it, `up -d api`, delete the old one | sessions bound to Cartesia fail to speak; with a Fish key present, new sessions fall to Fish (`voice.engine_fallback`) |
 | `OPENAI_API_KEY_FREE/STANDARD/PROFESSIONAL` | OpenAI dashboard, one key per plan | same; keys are independent, so rotate one plan at a time | lessons for that plan stop being generated |
 | `OPENROUTER_API_KEY` | openrouter.ai console (a separate account from OpenAI) | create the new key, paste it, `up -d api`, delete the old one | only while `PEN_INTENT_PROVIDER=jev` or `PEN_GRADE_PROVIDER=jev`: intent and check-in grading fall back to the session model, so those turns get slower, never wrong (ADR-0024, ADR-0039) |
 | `PEN_JWT_SECRET` | `openssl rand -base64 48` | **logs every learner out** — every bearer is invalidated. Do it only for a suspected leak, and at a quiet hour | anonymous learners lose their session history unless they signed in |
@@ -634,3 +635,14 @@ curl -s -H "authorization: Bearer <bearer>" http://127.0.0.1:4200/api/stats/reus
 # is anything about to fall over
 curl -s http://127.0.0.1:4200/api/ready | jq ; df -h /srv ; free -m
 ```
+
+## Switching the voice engine (ADR-0048)
+
+Console → Features → Voice → *Voice engine*. Set the default, a plan, a
+platform, a cell, the visitor's answer, or a specific account (`p_…`), give
+the reason, save. The change reaches the **next** session of whoever it
+names; a lesson in progress keeps the engine it was made with. To hear an
+engine before anyone else does, add your own account under *Specific
+accounts* and start a session. `room.voice_engine` in the API log names the
+engine every room was bound to; `voice.engine_fallback` means the host is
+missing that engine's key.

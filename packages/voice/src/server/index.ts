@@ -6,7 +6,9 @@ export {
   sayTake,
 } from './cache.js';
 export { type DeepgramOptions, DeepgramRecognizer } from './deepgram.js';
+export { CartesiaSynthesizer, type CartesiaOptions } from './cartesia.js';
 export {
+  cartesiaDelivery,
   DELIVERY_CUES,
   type DeliveryCue,
   type DeliveryTone,

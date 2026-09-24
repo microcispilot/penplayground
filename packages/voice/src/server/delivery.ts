@@ -89,3 +89,58 @@ export function deliveryText(text: string, tone?: string): string {
   const cue = tone ? (TONE_CUES[tone as DeliveryTone] ?? null) : null;
   return cue && spoken ? `[${cue}] ${spoken}` : spoken;
 }
+
+// ── Cartesia's dialect ───────────────────────────────────────────────────
+
+/**
+ * How each tone is said on Sonic 3 (docs.cartesia.ai, "Volume, Speed, and
+ * Emotion"): `generation_config.emotion` takes one word from Cartesia's own
+ * list, and the model treats it as guidance that only lands when the words
+ * agree with it. English only, by Cartesia's rule; for every other language
+ * the tone is not sent. `neutral` is no guidance at all.
+ */
+const CARTESIA_EMOTION: Record<DeliveryTone, string | null> = {
+  neutral: null,
+  warm: 'content',
+  curious: 'curious',
+  serious: 'confident',
+  playful: 'happy',
+  encouraging: 'enthusiastic',
+};
+
+/**
+ * The inline vocabulary in Sonic's terms. A laugh is Cartesia's own
+ * `[laughter]`; a beat is an ellipsis, which the model reads as one; an
+ * aside lowers the volume for the rest of the sentence with the documented
+ * `<volume ratio/>` tag. Sonic has no primitive for a stressed word or a
+ * sigh, so those cues are simply not said — never guessed at with a tag
+ * that means something else.
+ */
+const CARTESIA_CUES: Record<DeliveryCue, string> = {
+  emphasis: '',
+  break: '…',
+  'long-break': '… …',
+  'soft tone': '<volume ratio="0.7"/>',
+  whispering: '<volume ratio="0.6"/>',
+  chuckling: '[laughter]',
+  laughing: '[laughter]',
+  sighing: '',
+};
+
+/** The sentence as Cartesia should receive it, and the emotion to send beside it. */
+export function cartesiaDelivery(
+  text: string,
+  tone?: string,
+  language?: string,
+): { transcript: string; emotion: string | null } {
+  const { spoken } = splitDelivery(text);
+  const transcript = tidy(
+    spoken.replace(ANY_BRACKET, (_, inner: string) => {
+      const cue = inner.trim().toLowerCase();
+      return KNOWN.has(cue) ? ` ${CARTESIA_CUES[cue as DeliveryCue]} ` : ' ';
+    }),
+  );
+  const english = !language || language.toLowerCase().startsWith('en');
+  const emotion = english && tone ? (CARTESIA_EMOTION[tone as DeliveryTone] ?? null) : null;
+  return { transcript, emotion };
+}

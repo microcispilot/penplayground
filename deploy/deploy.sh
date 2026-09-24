@@ -396,6 +396,7 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # none of the organisation's active keys. When the operator's shell has them,
 # the host gets them.
 for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET PEN_TYPESAFE_API_KEY \
+  FISH_AUDIO_API_KEY CARTESIA_API_KEY \
   POSTHOG_PROJECT_TOKEN POSTHOG_HOST SENTRY_DSN \
   PEN_SMTP_HOST PEN_SMTP_PORT PEN_SMTP_USERNAME PEN_SMTP_PASSWORD PEN_SMTP_FROM; do
   value="${!var:-}"
@@ -416,7 +417,7 @@ for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET PEN_
     mv api.env.next api.env"
   # A client id is a credential, not a URL: say that it was set, never what it is.
   case "$var" in
-    GOOGLE_CLIENT_ID | GOOGLE_CLIENT_SECRET | PEN_TYPESAFE_API_KEY | PEN_SMTP_PASSWORD) echo "  $var=<set>" ;;
+    GOOGLE_CLIENT_ID | GOOGLE_CLIENT_SECRET | PEN_TYPESAFE_API_KEY | PEN_SMTP_PASSWORD | FISH_AUDIO_API_KEY | CARTESIA_API_KEY) echo "  $var=<set>" ;;
     *) echo "  $var=$value" ;;
   esac
 done

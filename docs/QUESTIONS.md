@@ -13,7 +13,7 @@ Round 2 lists what is still needed from you.
    development uses `s2.1-pro-free` (free until 2026-11-30). First audio chunk
    arrives in ~150–250 ms; a sample is at `.pen-data/samples/sarah-s2.1-pro-free.wav`.
 3. **Voices.** 132 Fish *official* voices (no celebrity clones, no character
-   voices) are curated in `services/api/data/experts/voices.json`. Every
+   voices) are curated in `services/api/data/experts/voices.fish.json` (and `voices.cartesia.json` for Cartesia; ADR-0048). Every
    persona has an assigned voice **per language** stored on the persona itself
    (`voices` in `catalog.json`, written once by `pnpm --filter @pen/api
    voices:assign`); it never changes unless re-assigned. English spreads 105

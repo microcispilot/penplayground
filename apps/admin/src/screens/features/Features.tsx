@@ -1,12 +1,21 @@
 import type { FeatureFlagsHistoryEntry } from '@pen/contracts';
-import { FEATURES, isFeatureName } from '@pen/contracts';
+import { FEATURES, isFeatureName, isSettingName, SETTINGS } from '@pen/contracts';
 import { Button, Card, Dialog, Pill, Skeleton } from '@pen/design';
 import { useState } from 'react';
-import { byGroup, changedFeatures, draftRule, mutationRules } from '../../lib/features-state.js';
+import {
+  bySection,
+  changedFeatures,
+  changedSettings,
+  draftRule,
+  draftSetting,
+  mutationRules,
+  mutationSettings,
+} from '../../lib/features-state.js';
 import { showMoment } from '../../lib/presenters.js';
 import { ConsolePage } from '../../shell/AdminShell.js';
-import { describeRule, FeatureHistory } from './FeatureHistory.js';
+import { describeChoice, describeRule, FeatureHistory } from './FeatureHistory.js';
 import { FeatureRow } from './FeatureRow.js';
+import { SettingRow } from './SettingRow.js';
 import { useFeatures } from './use-features.js';
 
 /**
@@ -19,7 +28,7 @@ import { useFeatures } from './use-features.js';
  * the next session, never under a lesson in progress.
  */
 export function Features() {
-  const { state, history, edit, load, loadHistory, save, rollback } = useFeatures();
+  const { state, history, edit, editSettings, load, loadHistory, save, rollback } = useFeatures();
   const [reason, setReason] = useState('');
   const [restore, setRestore] = useState<FeatureFlagsHistoryEntry | null>(null);
   const [restoreReason, setRestoreReason] = useState('');
@@ -29,6 +38,7 @@ export function Features() {
   const editable = state.phase === 'READY' && !document?.stale;
   const saving = state.phase === 'SAVING';
   const changed = changedFeatures(state);
+  const changedSettingNames = changedSettings(state);
 
   const reload = () => {
     setReason('');
@@ -44,6 +54,7 @@ export function Features() {
         expectedRevision: document.revision,
         reason: reason.trim(),
         rules: mutationRules(state),
+        settings: mutationSettings(state),
       })
     )
       setReason('');
@@ -62,7 +73,9 @@ export function Features() {
     }
   }
 
-  const setHere = document?.features.filter((f) => f.storedRule !== null).length ?? 0;
+  const setHere =
+    (document?.features.filter((f) => f.storedRule !== null).length ?? 0) +
+    (document?.settings.filter((s) => s.storedRule !== null).length ?? 0);
   const lastSave = document ? showMoment(document.updatedAt) : null;
 
   return (
@@ -135,21 +148,33 @@ export function Features() {
                   : `${lastSave?.text ?? ''}${document.updatedByName ? ` · ${document.updatedByName}` : ''}`
               }
             />
-            <Fact label="Set here" value={`${setHere} of ${document.features.length}`} />
+            <Fact
+              label="Set here"
+              value={`${setHere} of ${document.features.length + document.settings.length}`}
+            />
           </Card>
 
-          {byGroup(document.features).map(([group, features]) => (
+          {bySection(document.features, document.settings).map(([group, rows]) => (
             <section key={group} aria-labelledby={groupId(group)} className="flex flex-col">
               <h2 id={groupId(group)} className="text-title-large text-on-surface">
                 {group}
               </h2>
-              {features.map((flag) => (
+              {rows.features.map((flag) => (
                 <FeatureRow
                   key={flag.name}
                   flag={flag}
                   rule={draftRule(state.draft, flag)}
                   disabled={!editable}
                   onChange={(rule) => edit({ ...state.draft, [flag.name]: rule })}
+                />
+              ))}
+              {rows.settings.map((row) => (
+                <SettingRow
+                  key={row.name}
+                  row={row}
+                  rule={draftSetting(state.settingsDraft, row)}
+                  disabled={!editable}
+                  onChange={(rule) => editSettings({ ...state.settingsDraft, [row.name]: rule })}
                 />
               ))}
             </section>
@@ -166,11 +191,21 @@ export function Features() {
               Why are you changing this?
             </label>
             <p className="text-body-small text-on-surface-variant">
-              {changed.length === 0
+              {changed.length === 0 && changedSettingNames.length === 0
                 ? 'Nothing is changed yet.'
-                : `${changed.length} feature${changed.length === 1 ? '' : 's'}: ${changed
-                    .map((name) => FEATURES[name].label)
-                    .join(', ')}`}
+                : `${[
+                    changed.length > 0
+                      ? `${changed.length} feature${changed.length === 1 ? '' : 's'}`
+                      : null,
+                    changedSettingNames.length > 0
+                      ? `${changedSettingNames.length} setting${changedSettingNames.length === 1 ? '' : 's'}`
+                      : null,
+                  ]
+                    .filter((part) => part !== null)
+                    .join(', ')}: ${[
+                    ...changed.map((name) => FEATURES[name].label),
+                    ...changedSettingNames.map((name) => SETTINGS[name].label),
+                  ].join(', ')}`}
             </p>
             <textarea
               id="features-reason"
@@ -251,29 +286,52 @@ export function Features() {
         </p>
         {restore ? (
           <ul className="mt-4 divide-y divide-outline-variant rounded-sm bg-surface-container">
-            {Object.keys(restore.rules).length === 0 ? (
+            {Object.keys(restore.rules).length === 0 &&
+            Object.keys(restore.settings).length === 0 ? (
               <li className="px-4 py-2.5 text-body-medium text-on-surface-variant">
-                Every feature back to its built-in rule.
+                Every feature and setting back to its built-in rule.
               </li>
             ) : (
-              Object.keys(restore.rules)
-                .sort()
-                .map((name) => {
-                  const rule = restore.rules[name as keyof typeof restore.rules];
-                  return (
-                    <li
-                      key={name}
-                      className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5 text-body-medium"
-                    >
-                      <span className="text-on-surface">
-                        {isFeatureName(name) ? FEATURES[name].label : name}
-                      </span>
-                      <span className="text-on-surface-variant">
-                        {rule ? describeRule(rule) : ''}
-                      </span>
-                    </li>
-                  );
-                })
+              <>
+                {Object.keys(restore.rules)
+                  .sort()
+                  .map((name) => {
+                    const rule = restore.rules[name as keyof typeof restore.rules];
+                    return (
+                      <li
+                        key={name}
+                        className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5 text-body-medium"
+                      >
+                        <span className="text-on-surface">
+                          {isFeatureName(name) ? FEATURES[name].label : name}
+                        </span>
+                        <span className="text-on-surface-variant">
+                          {rule ? describeRule(rule) : ''}
+                        </span>
+                      </li>
+                    );
+                  })}
+                {Object.keys(restore.settings)
+                  .sort()
+                  .map((name) => {
+                    const rule = restore.settings[name as keyof typeof restore.settings];
+                    return (
+                      <li
+                        key={name}
+                        className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5 text-body-medium"
+                      >
+                        <span className="text-on-surface">
+                          {isSettingName(name) ? SETTINGS[name].label : name}
+                        </span>
+                        <span className="text-on-surface-variant">
+                          {rule && isSettingName(name)
+                            ? describeChoice(rule, SETTINGS[name].valueLabels)
+                            : ''}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </>
             )}
           </ul>
         ) : null}

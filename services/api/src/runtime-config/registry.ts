@@ -92,13 +92,20 @@ export const SETTINGS = {
   PEN_TTS_PROVIDER: {
     label: 'Voice provider',
     description:
-      'Which synthesis engine speaks. `silent` makes the expert inaudible and is refused in production. The engine is built at boot.',
+      'How the expert is voiced. `cloud` offers every cloud engine this server holds a key for, and the Voice engine setting on the Features page chooses one per session (ADR-0048). `silent` makes the expert inaudible and is refused in production. Built at boot.',
     group: 'Voice',
     scope: 'restart',
   },
   FISH_AUDIO_MODEL: {
     label: 'Fish Audio model',
     description: 'The Fish Audio synthesis model id. Built into the engine at boot.',
+    group: 'Voice',
+    scope: 'restart',
+  },
+  CARTESIA_MODEL: {
+    label: 'Cartesia model',
+    description:
+      'The Cartesia synthesis model id (sonic-3.6 today). Built into the engine at boot.',
     group: 'Voice',
     scope: 'restart',
   },
@@ -233,6 +240,7 @@ export const NOT_SETTINGS = {
   PEN_SMTP_PASSWORD: 'secret',
   PEN_AUTH_HMAC_SECRET: 'secret',
   FISH_AUDIO_API_KEY: 'secret',
+  CARTESIA_API_KEY: 'secret',
   DEEPGRAM_API_KEY: 'secret',
   ASSEMBLYAI_API_KEY: 'secret',
   TAVILY_API_KEY: 'secret',
@@ -461,8 +469,13 @@ export function refuseValue(
     if (name === 'PEN_TTS_PROVIDER' && value === 'silent')
       return 'a silent expert is refused in production.';
   }
-  if (name === 'PEN_TTS_PROVIDER' && value === 'fish-cloud' && !cfg.FISH_AUDIO_API_KEY)
-    return 'this server has no FISH_AUDIO_API_KEY, and would refuse to start.';
+  if (
+    name === 'PEN_TTS_PROVIDER' &&
+    (value === 'cloud' || value === 'fish-cloud') &&
+    !cfg.FISH_AUDIO_API_KEY &&
+    !cfg.CARTESIA_API_KEY
+  )
+    return 'this server has neither CARTESIA_API_KEY nor FISH_AUDIO_API_KEY, and would refuse to start.';
   if (name === 'PEN_TTS_PROVIDER' && value === 'fish-bridge' && !cfg.PEN_TTS_BRIDGE_URL)
     return 'this server has no PEN_TTS_BRIDGE_URL.';
   if (name === 'PEN_STT_PROVIDER') {

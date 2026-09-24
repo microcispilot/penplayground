@@ -39,8 +39,8 @@ import type { LessonIdentity, SpeechChunk, SpeechSynthesizer, SynthesisRequest }
  * ```
  *
  * The file name carries a hash of everything that decides a single sample —
- * the text, the engine and model, the voice, the speed, the sample rate and
- * the delivery tone. Re-write a sentence, change the persona's voice, move the
+ * the text, the engine and model, the voice, the speed, the sample rate, the
+ * delivery tone and the language. Re-write a sentence, change the persona's voice, move the
  * pace, switch the model: the hash changes, the old take stops being used and
  * is deleted the next time that lesson is spoken. There is no separate
  * invalidation step to forget to run, because identity *is* the version.
@@ -123,6 +123,7 @@ export function sayTake(engineId: string, request: SynthesisRequest): string {
     (request.speed ?? 1).toFixed(3),
     String(request.sampleRate),
     request.tone ?? '',
+    request.language ?? '',
     request.text,
     // A separator no field can contain, so "voice a" + "b" can never collide
     // with "voice" + "a b".

@@ -342,6 +342,8 @@ export class SessionRoom {
   private lastFloorUtterance = new Map<string, string>();
   /** Communication language: follows the learner turn by turn (RoomState.language). */
   private language: string;
+  /** The host's socket is gone and nothing from them has arrived since (ADR-0049). */
+  private hostAway = false;
   /** Arrival of the learner's last final transcript / typed answer; consumed by the next turn. */
   private turnStartedAt: number | null = null;
   /** Reports accepted per participant; a runaway client cannot grow the ledger without bound. */
@@ -470,6 +472,7 @@ export class SessionRoom {
       },
       observer: this.observer,
       pace: () => this.state.pace,
+      language: () => this.language,
       // Only the taught lesson is shared material (ADR-0017). A question, the
       // answer to it, a check-in verdict or an honest line about a failure
       // belongs to the learner who prompted it: spoken fresh, never stored,
@@ -544,6 +547,7 @@ export class SessionRoom {
     id: ParticipantId;
     name: string;
   }): { ok: true; participant: Participant } | { ok: false; code: ServerErrorCode } {
+    if (participant.id === this.state.hostId) this.hostAway = false;
     const existing = this.participants.get(participant.id);
     if (existing) return { ok: true, participant: existing };
     // The host took them out; the door stays shut (ADR-0037).
@@ -575,8 +579,20 @@ export class SessionRoom {
   leave(participantId: ParticipantId): void {
     if (!this.participants.has(participantId)) return;
     if (participantId === this.state.hostId) {
-      // The host keeps their seat; the room waits for them (host-only pause semantics).
-      if (this.state.phase === 'live' && this.state.mode === 'teaching') this.setMode('paused');
+      // The host keeps their seat; the room waits for them (host-only pause
+      // semantics). Their socket going is the only goodbye a closed tab ever
+      // says (ADR-0049): what is banked is thrown away rather than bought
+      // further for nobody, and a turn in flight ends into a pause instead
+      // of into more lesson.
+      this.hostAway = true;
+      if (
+        this.state.phase === 'live' &&
+        (this.state.mode === 'teaching' || this.state.mode === 'complete')
+      ) {
+        this.pipeline.cancel();
+        this.deferCall();
+        this.setMode('paused');
+      }
       return;
     }
     this.participants.delete(participantId);
@@ -601,6 +617,8 @@ export class SessionRoom {
   handle(participantId: ParticipantId, message: ClientMessage): void {
     const p = this.participants.get(participantId);
     if (!p) return;
+    // Anything the host sends means the host is here.
+    if (participantId === this.state.hostId) this.hostAway = false;
     switch (message.kind) {
       case 'control':
         this.control(p, message.action);
@@ -1888,6 +1906,13 @@ export class SessionRoom {
 
   /** Re-arm TTS for the lesson from the resume point (the interrupted sentence is spoken again from its start). */
   private resumeLesson(): void {
+    // The host's tab is gone (ADR-0049): whatever wanted the lesson to go on
+    // — a finished answer, a graded check-in — it goes on when they are back.
+    if (this.hostAway && this.state.phase === 'live') {
+      this.pipeline.cancel();
+      this.setMode('paused');
+      return;
+    }
     const from = this.state.resume;
     this.setMode('teaching');
     const startIndex = from?.sayId

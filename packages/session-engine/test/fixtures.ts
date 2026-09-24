@@ -29,13 +29,14 @@ export const expert: Expert = {
   premium: false,
   requiredPlan: null,
   gender: 'woman',
-  voices: { en: 'voice-en', es: 'voice-es', fa: 'voice-fa' },
+  voices: { fish: { en: 'voice-en', es: 'voice-es', fa: 'voice-fa' } },
 };
 
 /** Mirrors ExpertVoices.voiceFor: the language's assignment, else English. */
 export function voiceFor(language: string): string {
   const lang = language.toLowerCase().split('-')[0] ?? 'en';
-  return expert.voices[lang] ?? expert.voices.en ?? 'voice-en';
+  const mine = expert.voices.fish ?? {};
+  return mine[lang] ?? mine.en ?? 'voice-en';
 }
 
 export const CANONICAL_ID = 'en.how-transformers-work-in-llms';

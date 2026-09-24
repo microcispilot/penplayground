@@ -1,5 +1,12 @@
 import { createServer } from 'node:http';
-import { FEATURES, type FeatureFlagsDocument, type FeatureRule, ruleMatrix } from '@pen/contracts';
+import {
+  choiceMatrix,
+  FEATURES,
+  type FeatureFlagsDocument,
+  type FeatureRule,
+  ruleMatrix,
+  SETTINGS,
+} from '@pen/contracts';
 import { buildFixture, type Mode, sessionDetailFixture } from '../test/fixtures/reports.js';
 
 /**
@@ -76,6 +83,21 @@ function featuresDocument(): FeatureFlagsDocument {
         matrix: ruleMatrix(effectiveRule),
       };
     }),
+    settings: (Object.keys(SETTINGS) as Array<keyof typeof SETTINGS>).map((name) => {
+      const def = SETTINGS[name];
+      return {
+        name,
+        label: def.label,
+        description: def.description,
+        group: def.group,
+        values: [...def.values],
+        valueLabels: { ...def.valueLabels },
+        defaultRule: def.rule,
+        storedRule: null,
+        effectiveRule: def.rule,
+        matrix: choiceMatrix(def.rule),
+      };
+    }),
   };
 }
 function featuresHistory() {
@@ -99,6 +121,7 @@ function featuresHistory() {
         reason: 'Launch week: let free learners on the web have a topic prepared.',
         restoredFromRevision: null,
         rules: { prepare_new_topics: DECIDED.prepare_new_topics },
+        settings: {},
       },
     ],
     nextBeforeRevision: null,

@@ -109,8 +109,10 @@ export function checkProviders(
     for (const plan of ['FREE', 'STANDARD', 'PROFESSIONAL'] as const)
       if (!cfg[`OPENAI_API_KEY_${plan}`]) missing.push(`OPENAI_API_KEY_${plan}`);
   }
-  if (providers.PEN_TTS_PROVIDER === 'fish-cloud' && !cfg.FISH_AUDIO_API_KEY)
-    missing.push('FISH_AUDIO_API_KEY');
+  // The cloud voices need one engine's key, either one (ADR-0048): named as
+  // the pair, since either would do and neither is set.
+  if (providers.PEN_TTS_PROVIDER === 'cloud' && !cfg.CARTESIA_API_KEY && !cfg.FISH_AUDIO_API_KEY)
+    missing.push('CARTESIA_API_KEY|FISH_AUDIO_API_KEY');
   if (providers.PEN_STT_PROVIDER === 'deepgram' && !cfg.DEEPGRAM_API_KEY)
     missing.push('DEEPGRAM_API_KEY');
   if (providers.PEN_STT_PROVIDER === 'assemblyai' && !cfg.ASSEMBLYAI_API_KEY)

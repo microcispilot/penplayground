@@ -7,6 +7,7 @@ import type {
   Platform,
   SelectionBand,
   ServerMessage,
+  VoiceEngine,
 } from '@pen/contracts';
 import {
   encodeAudioFrame,
@@ -28,6 +29,17 @@ import { detectSpokenLanguage } from './language.js';
 import { observer, scopedObserver } from './observability.js';
 import type { Services } from './services.js';
 import type { EndReason } from './stats/derive.js';
+
+/**
+ * How long a room stays open with nobody in it (ADR-0049). Long enough for a
+ * reload, a dropped connection or a phone that was locked for a minute to
+ * come back to the same lesson; short enough that a closed tab stops
+ * holding a room, its runtime and its buffers — and buying nothing further —
+ * within a few minutes. The sweeper runs every minute, so the real bound is
+ * this plus one.
+ */
+export const ABSENT_ROOM_MS = 3 * 60_000;
+
 import {
   computeTelemetry,
   interactionProperties,
@@ -66,6 +78,14 @@ export interface LiveRoom {
   seats: Map<WebSocket, Seat>;
   record: SessionRecord;
   createdAt: number;
+  /**
+   * When the last seat emptied, or the room's birth while nobody has sat down
+   * yet; null while somebody is seated (ADR-0049). The sweeper ends a room
+   * that has been empty this long, whatever its age.
+   */
+  emptySince: number | null;
+  /** The engine the room was bound to at creation (ADR-0048), and the synthesizer's id for the books. */
+  voice: { engine: VoiceEngine; tts: string };
   plan: PlanCode;
   /** Where the host started this session from. */
   platform: Platform;
@@ -246,6 +266,18 @@ export class RoomRegistry {
     const features = services.features.featuresFor(plan, platform, {
       anonymous: args.host.anonymous === true,
     });
+    // The engine too is decided here and bound for the room's life (ADR-0048).
+    const voice = services.voice.bind({
+      plan,
+      platform,
+      anonymous: args.host.anonymous === true,
+      participantId: args.host.id,
+    });
+    observer.event('room.voice_engine', {
+      sessionId,
+      engine: voice.engine,
+      tts: voice.synthesizer.id,
+    });
     const prepared =
       resolution.match === 'hit' || (resolution.match === 'partial' && resolution.packId !== null);
     if (!prepared && !(args.allowPreparation ?? features.prepare_new_topics)) {
@@ -339,9 +371,9 @@ export class RoomRegistry {
       model: services.modelFor(args.host.plan),
       intent: services.intentFor(),
       grader: services.graderFor(),
-      synthesizer: services.synthesizer,
-      voice: services.voices.voiceFor(expert, locale),
-      voiceFor: (lang) => services.voices.voiceFor(expert, lang),
+      synthesizer: voice.synthesizer,
+      voice: voice.voiceFor(expert, locale),
+      voiceFor: (lang) => voice.voiceFor(expert, lang),
       languageOf: (text) => detectSpokenLanguage(text),
       sampleRate: 44100,
       transport,
@@ -411,6 +443,8 @@ export class RoomRegistry {
       seats,
       record,
       createdAt: Date.now(),
+      emptySince: Date.now(),
+      voice: { engine: voice.engine, tts: voice.synthesizer.id },
       plan: args.host.plan,
       platform,
       features,
@@ -508,6 +542,7 @@ export class RoomRegistry {
     for (const [s, seat] of live.seats)
       if (seat.participantId === participant.id) live.seats.delete(s);
     live.seats.set(socket, { participantId: participant.id, socket });
+    live.emptySince = null;
     // History (ADR-0015): the seat is what makes a session "attended". Off the join path;
     // a failed write costs one history row, never the join.
     this.services.lists
@@ -521,6 +556,7 @@ export class RoomRegistry {
     if (!live) return;
     const seat = live.seats.get(socket);
     live.seats.delete(socket);
+    if (live.seats.size === 0) live.emptySince = Date.now();
     if (seat) live.room.leave(seat.participantId);
   }
 
@@ -599,7 +635,7 @@ export class RoomRegistry {
           completed: state.mode === 'complete',
           providers: {
             llm: this.services.config.get('PEN_LLM_PROVIDER'),
-            tts: this.services.synthesizer.id,
+            tts: live.voice.tts,
             stt: this.services.recognizer?.id ?? 'browser',
           },
           settings: live.settings,
@@ -671,7 +707,11 @@ export class RoomRegistry {
     for (const [id, live] of this.rooms) {
       const state = live.room.getState();
       if (state.phase === 'ended') continue;
-      const idle = live.seats.size === 0 && now - live.createdAt > 10 * 60_000;
+      // A tab closed, a phone locked, a back button: nobody says goodbye, the
+      // socket just goes (ADR-0049). The room pauses the moment the host is
+      // gone; this is where it ends, and it counts absence, not age.
+      const idle =
+        live.seats.size === 0 && live.emptySince !== null && now - live.emptySince > ABSENT_ROOM_MS;
       const ceilingMs = PLAN_LIMITS[live.plan].maxSessionMinutes * 60_000;
       const tooLong = now - live.createdAt > ceilingMs;
       if (tooLong)

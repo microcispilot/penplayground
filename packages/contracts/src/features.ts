@@ -421,51 +421,6 @@ export const FeatureFlag = z.object({
 });
 export type FeatureFlag = z.infer<typeof FeatureFlag>;
 
-export const FeatureFlagsDocument = z.object({
-  revision: z.number().int().nonnegative(),
-  updatedAt: z.number().int().nonnegative(),
-  updatedBy: z.string().nullable(),
-  updatedByName: z.string().nullable(),
-  features: z.array(FeatureFlag),
-  /** Served from the last known good copy because the store could not be read; saving is refused. */
-  stale: z.boolean(),
-});
-export type FeatureFlagsDocument = z.infer<typeof FeatureFlagsDocument>;
-
-export const FeatureFlagsMutation = z.object({
-  expectedRevision: z.number().int().nonnegative(),
-  reason: z.string().trim().min(1).max(500),
-  /** The whole document. A feature mapped to null goes back to its compiled-in rule. */
-  rules: z.partialRecord(FeatureName, FeatureRule.nullable()),
-});
-export type FeatureFlagsMutation = z.infer<typeof FeatureFlagsMutation>;
-
-export const FeatureFlagsRollback = z.object({
-  expectedRevision: z.number().int().nonnegative(),
-  /** 0 restores the empty document every deployment starts on. */
-  targetRevision: z.number().int().nonnegative(),
-  reason: z.string().trim().min(1).max(500),
-});
-export type FeatureFlagsRollback = z.infer<typeof FeatureFlagsRollback>;
-
-export const FeatureFlagsHistoryEntry = z.object({
-  revision: z.number().int().positive(),
-  updatedAt: z.number().int().nonnegative(),
-  updatedBy: z.string(),
-  updatedByName: z.string(),
-  reason: z.string(),
-  restoredFromRevision: z.number().int().nonnegative().nullable(),
-  rules: FeatureRulesDocument,
-});
-export type FeatureFlagsHistoryEntry = z.infer<typeof FeatureFlagsHistoryEntry>;
-
-export const FeatureFlagsHistory = z.object({
-  entries: z.array(FeatureFlagsHistoryEntry),
-  nextBeforeRevision: z.number().int().positive().nullable(),
-});
-export type FeatureFlagsHistory = z.infer<typeof FeatureFlagsHistory>;
-
-/** What `GET /api/me/features` tells a client: its own cell of the matrix, nothing else. */
 export const MyFeatures = z.object({
   plan: PlanCode,
   platform: Platform,

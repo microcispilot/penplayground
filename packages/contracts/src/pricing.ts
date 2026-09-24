@@ -265,6 +265,15 @@ export function prepareFreshEstimateUsd(modelId: string, searchProvider: string)
  * words ≈ 12 h of speech. Self-hosted and test engines cost nothing per byte.
  */
 export const TTS_PRICING_PER_M_BYTES: Record<string, number> = {
+  /**
+   * Cartesia bills credits, one per character, on a monthly plan: Startup is
+   * $49 for 1.25M credits (cartesia.ai/pricing, 2026-09), which is $39.2 per
+   * million characters, and Scale $299 for 8M is $37.4. A byte of UTF-8 is a
+   * character or a fraction of one, so per byte this is an upper bound.
+   */
+  'cartesia:sonic-3.6': 39.2,
+  'cartesia:sonic-3.5': 39.2,
+  'cartesia:sonic-3': 39.2,
   'fish-cloud:s2.1-pro': 15,
   'fish-cloud:s2-pro': 15,
   'fish-cloud:s1': 15,
@@ -279,6 +288,7 @@ export function ttsPricePerMByte(engineId: string): number {
   const model = engineId.split('+')[0] ?? engineId;
   const known = TTS_PRICING_PER_M_BYTES[model];
   if (known !== undefined) return known;
+  if (model.startsWith('cartesia:')) return 39.2;
   return model.startsWith('fish-cloud:') ? 15 : 0;
 }
 

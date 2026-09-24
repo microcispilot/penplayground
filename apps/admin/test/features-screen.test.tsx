@@ -1,5 +1,5 @@
-import type { FeatureFlagsDocument, FeatureFlagsHistory } from '@pen/contracts';
-import { FEATURES, ruleMatrix } from '@pen/contracts';
+import type { FeatureFlagsDocument, FeatureFlagsHistory, SettingRow } from '@pen/contracts';
+import { choiceMatrix, FEATURES, ruleMatrix, SETTINGS } from '@pen/contracts';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +30,22 @@ function flag(name: 'ask_questions' | 'google_sign_in') {
   };
 }
 
+function voiceEngine(): SettingRow {
+  const def = SETTINGS.voice_engine;
+  return {
+    name: 'voice_engine',
+    label: def.label,
+    description: def.description,
+    group: def.group,
+    values: [...def.values],
+    valueLabels: { ...def.valueLabels },
+    defaultRule: def.rule,
+    storedRule: null,
+    effectiveRule: def.rule,
+    matrix: choiceMatrix(def.rule),
+  };
+}
+
 const DOC: FeatureFlagsDocument = {
   revision: 2,
   updatedAt: 1_700_000_000_000,
@@ -37,6 +53,7 @@ const DOC: FeatureFlagsDocument = {
   updatedByName: 'Sam Owner',
   stale: false,
   features: [flag('ask_questions'), flag('google_sign_in')],
+  settings: [voiceEngine()],
 };
 
 const HISTORY: FeatureFlagsHistory = {
@@ -49,6 +66,25 @@ const HISTORY: FeatureFlagsHistory = {
       reason: 'the launch week',
       restoredFromRevision: null,
       rules: { ask_questions: { default: true, plans: {}, platforms: {}, cells: {} } },
+      settings: {},
+    },
+    {
+      revision: 1,
+      updatedAt: 1_699_000_000_000,
+      updatedBy: 'p_admin',
+      updatedByName: 'Sam Owner',
+      reason: 'hearing Fish for the pros first',
+      restoredFromRevision: null,
+      rules: {},
+      settings: {
+        voice_engine: {
+          default: 'cartesia',
+          plans: { professional: 'fish' },
+          platforms: {},
+          cells: {},
+          participants: { p_owner01: 'fish' },
+        },
+      },
     },
   ],
   nextBeforeRevision: null,
@@ -166,8 +202,92 @@ describe('the features screen', () => {
         },
         google_sign_in: null,
       },
+      settings: { voice_engine: null },
     });
     expect(await screen.findByTestId('features-notice')).toBeTruthy();
+  });
+
+  it('draws the voice engine as a matrix of values, and a plan’s answer shows in its cells', async () => {
+    const { saves } = mount();
+    await screen.findByRole('heading', { name: 'Voice engine' });
+    const cell = screen.getByTestId(
+      'setting-voice_engine-cell-professional-web',
+    ) as HTMLSelectElement;
+    expect(cell.value).toBe('');
+    expect(cell.getAttribute('data-resolved')).toBe('cartesia');
+    fireEvent.change(screen.getByTestId('setting-voice_engine-plan-professional'), {
+      target: { value: 'fish' },
+    });
+    expect(
+      (
+        screen.getByTestId('setting-voice_engine-cell-professional-web') as HTMLSelectElement
+      ).getAttribute('data-resolved'),
+    ).toBe('fish');
+    expect(
+      (screen.getByTestId('setting-voice_engine-cell-free-web') as HTMLSelectElement).getAttribute(
+        'data-resolved',
+      ),
+    ).toBe('cartesia');
+    expect(screen.getByTestId('setting-voice_engine').textContent).toContain('Unsaved');
+    fireEvent.change(screen.getByTestId('features-save-reason'), {
+      target: { value: 'pros hear Fish' },
+    });
+    fireEvent.click(screen.getByTestId('save-features'));
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect((saves[0] as { settings: unknown }).settings).toEqual({
+      voice_engine: {
+        default: 'cartesia',
+        plans: { professional: 'fish' },
+        platforms: {},
+        cells: {},
+        participants: {},
+      },
+    });
+    expect((saves[0] as { rules: Record<string, unknown> }).rules).toEqual({
+      ask_questions: null,
+      google_sign_in: null,
+    });
+  });
+
+  it('adds and removes an answer for one account, and only a real id can be added', async () => {
+    mount();
+    await screen.findByRole('heading', { name: 'Voice engine' });
+    const add = screen.getByTestId('setting-voice_engine-participant-add') as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    fireEvent.change(screen.getByTestId('setting-voice_engine-participant-id'), {
+      target: { value: 'not an id' },
+    });
+    expect(
+      (screen.getByTestId('setting-voice_engine-participant-add') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.change(screen.getByTestId('setting-voice_engine-participant-id'), {
+      target: { value: 'p_owner01' },
+    });
+    fireEvent.change(screen.getByTestId('setting-voice_engine-participant-value'), {
+      target: { value: 'fish' },
+    });
+    fireEvent.click(screen.getByTestId('setting-voice_engine-participant-add'));
+    const row = screen.getByTestId('setting-voice_engine-participant-p_owner01');
+    expect(row.textContent).toContain('p_owner01');
+    expect((row.querySelector('select') as HTMLSelectElement).value).toBe('fish');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove the answer for account p_owner01' }),
+    );
+    expect(screen.queryByTestId('setting-voice_engine-participant-p_owner01')).toBeNull();
+    expect(screen.getByTestId('setting-voice_engine').textContent).not.toContain('Unsaved');
+  });
+
+  it('lists a setting in the history and in the restore dialog', async () => {
+    mount();
+    const entry = await screen.findByTestId('features-revision-1');
+    expect(entry.textContent).toContain('Voice engine');
+    expect(entry.textContent).toContain('Cartesia by default');
+    expect(entry.textContent).toContain('Fish Audio for Professional');
+    expect(entry.textContent).toContain('1 account');
+    fireEvent.click(screen.getByRole('button', { name: 'Restore feature revision 1' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('Voice engine');
+    expect(dialog.textContent).toContain('Fish Audio for Professional');
   });
 
   it('keeps the draft and says what to do when somebody else saved first', async () => {

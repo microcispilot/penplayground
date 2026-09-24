@@ -10,6 +10,8 @@ export interface SayPipelineOptions {
   sampleRate: 24000 | 44100 | 48000;
   transport: RoomTransport;
   observer: RoomObserver;
+  /** The room's language right now (BCP-47), read per sentence like the pace; engines that take it, take it. */
+  language?: () => string;
   /** How many sentences may be synthesised ahead of the last one the room finished hearing. */
   lookahead?: number;
   /**
@@ -312,6 +314,7 @@ export class SayPipeline {
         sampleRate: this.opts.sampleRate,
         speed: ttsSpeedFor(pace),
         tone: say.tone,
+        ...(this.opts.language ? { language: this.opts.language() } : {}),
         signal,
         ...(lesson ? { lesson } : {}),
       });

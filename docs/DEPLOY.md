@@ -771,3 +771,23 @@ reload nginx. Neither touches the API or the settings it is running on.
 - `/etc/nginx/conf.d/ws_upgrade.conf` already defines `$connection_upgrade`; the Pen vhost uses
   `$pen_connection_upgrade` to stay independent.
 - Certbot webroot for the onten vhosts is `/var/www/letsencrypt`; the Pen vhost uses the same.
+
+## Voice engines (ADR-0048)
+
+The API speaks with every cloud engine it holds a key for, and the *Voice
+engine* setting on the console's Features page chooses one per session
+(default Cartesia). Keys on the host's `api.env`:
+
+```
+PEN_TTS_PROVIDER=cloud
+CARTESIA_API_KEY=sk_car_…      # Cartesia, sonic-3.6 (CARTESIA_MODEL)
+FISH_AUDIO_API_KEY=…           # Fish Audio, s2.1-pro (FISH_AUDIO_MODEL)
+```
+
+`deploy/deploy.sh` forwards both from the operator's shell like the other
+secrets, masked in its log. Neither key alone is an error; neither at all
+refuses to start. A session whose setting names an engine the host has no
+key for speaks with the other and logs `voice.engine_fallback`. Each engine
+keeps its own store of taught lessons under `data/lesson-voice-<engine>`
+(the old `data/lesson-voice` is renamed to Fish's on first boot), each with
+the `PEN_TTS_CACHE_MB` ceiling.

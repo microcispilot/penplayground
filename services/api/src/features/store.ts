@@ -10,6 +10,8 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
+  ChoiceRule,
+  type ChoiceWho,
   effectiveRule,
   FEATURE_NAMES,
   type FeatureName,
@@ -20,6 +22,10 @@ import {
   type PlanCode,
   type Platform,
   resolveRule,
+  SETTING_NAMES,
+  type SettingName,
+  type SettingRulesDocument,
+  settingFor,
 } from '@pen/contracts';
 import type { FeatureFlagsSnapshot } from '@pen/db';
 import { z } from 'zod';
@@ -83,6 +89,8 @@ export class FeatureStore {
    * Playwright servers, whose data directory outlives a run.
    */
   private fromSource: FeatureRulesDocument = {};
+  /** The settings (ADR-0048) live in the same document, under their own names. */
+  private storedSettings: SettingRulesDocument = {};
   private timer: NodeJS.Timeout | null = null;
   private lastRevision = 0;
   private lastUpdatedAt = 0;
@@ -119,6 +127,27 @@ export class FeatureStore {
   /** The stored rule for a feature, or null when the document says nothing about it. */
   storedRule(name: FeatureName): FeatureRule | null {
     return this.stored[name] ?? null;
+  }
+
+  /**
+   * One setting, for one learner (ADR-0048): read once when a session is
+   * made and bound into it, never again during it.
+   */
+  setting(name: SettingName, who: { plan: PlanCode; platform: Platform } & ChoiceWho): string {
+    return settingFor(this.storedSettings, name, who.plan, who.platform, {
+      anonymous: who.anonymous === true,
+      ...(who.participantId ? { participantId: who.participantId } : {}),
+    });
+  }
+
+  /** The stored rule for a setting, or null when the document says nothing about it. */
+  storedSetting(name: SettingName): ChoiceRule | null {
+    return this.storedSettings[name] ?? null;
+  }
+
+  /** The stored settings, whole. */
+  settings(): SettingRulesDocument {
+    return { ...this.storedSettings };
   }
 
   /** The stored document, whole. */
@@ -203,10 +232,31 @@ export class FeatureStore {
     const fromSource = { ...next };
     for (const [name, rule] of Object.entries(this.overlay))
       if (rule) next[name as FeatureName] = rule;
+    const nextSettings: SettingRulesDocument = {};
+    for (const name of SETTING_NAMES) {
+      const raw = snapshot.rules[name];
+      if (raw === undefined || raw === null) continue;
+      const parsed = ChoiceRule.safeParse(raw);
+      if (!parsed.success) {
+        if (!this.complainedAbout.has(name)) {
+          this.complainedAbout.add(name);
+          logger.warn(
+            { evt: 'features.invalid_rule', feature: name, origin, revision: snapshot.revision },
+            'stored setting does not validate; keeping the last good rule for it',
+          );
+        }
+        const kept = this.storedSettings[name];
+        if (kept) nextSettings[name] = kept;
+        continue;
+      }
+      this.complainedAbout.delete(name);
+      nextSettings[name] = parsed.data;
+    }
     const changed =
       snapshot.revision !== this.lastRevision ||
       snapshot.updatedAt !== this.lastUpdatedAt ||
-      JSON.stringify(next) !== JSON.stringify(this.stored);
+      JSON.stringify(next) !== JSON.stringify(this.stored) ||
+      JSON.stringify(nextSettings) !== JSON.stringify(this.storedSettings);
     if (changed && origin === 'database') {
       for (const name of FEATURE_NAMES) {
         const was = JSON.stringify(this.stored[name] ?? null);
@@ -217,9 +267,19 @@ export class FeatureStore {
             'feature rule changed',
           );
       }
+      for (const name of SETTING_NAMES) {
+        const was = JSON.stringify(this.storedSettings[name] ?? null);
+        const now = JSON.stringify(nextSettings[name] ?? null);
+        if (was !== now)
+          logger.info(
+            { evt: 'features.changed', feature: name, revision: snapshot.revision },
+            'setting changed',
+          );
+      }
     }
     this.stored = next;
     this.fromSource = fromSource;
+    this.storedSettings = nextSettings;
     this.lastRevision = snapshot.revision;
     this.lastUpdatedAt = snapshot.updatedAt;
     if (origin === 'database' && changed) this.saveToDisk();
@@ -269,7 +329,7 @@ export class FeatureStore {
       revision: this.lastRevision,
       updatedAt: this.lastUpdatedAt,
       savedAt: this.now(),
-      rules: this.fromSource,
+      rules: { ...this.fromSource, ...this.storedSettings },
     };
     const temporary = `${this.path}.${process.pid}.tmp`;
     try {

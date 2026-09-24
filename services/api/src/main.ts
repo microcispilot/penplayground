@@ -20,7 +20,7 @@ const server = serve({ fetch: app.fetch, port: cfg.PEN_PORT }, (info) => {
   logger.info(
     {
       port: info.port,
-      tts: services.synthesizer.id,
+      tts: services.voice.available().join(','),
       llm: services.config.get('PEN_LLM_PROVIDER'),
       stt: services.recognizer?.id ?? 'browser',
       configRevision: services.config.revision,

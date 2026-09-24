@@ -1,4 +1,8 @@
 import {
+  ChoiceRule,
+  choiceMatrix,
+  choicesEqual,
+  choiceValuesValid,
   FEATURE_GROUP_ORDER,
   FEATURE_NAMES,
   FEATURES,
@@ -10,9 +14,15 @@ import {
   FeatureRule,
   type FeatureRulesDocument,
   isFeatureName,
+  isSettingName,
+  normaliseChoice,
   normaliseRule,
   ruleMatrix,
   rulesEqual,
+  SETTING_NAMES,
+  SETTINGS,
+  type SettingRow,
+  type SettingRulesDocument,
 } from '@pen/contracts';
 import type { FeatureFlagsRepository } from '@pen/db';
 import type { FeatureStore } from './store.js';
@@ -65,6 +75,7 @@ export class FeatureFlagsService {
         updatedBy: null,
         updatedByName: null,
         features: this.rows(),
+        settings: this.settingRows(),
         stale: true,
       };
     }
@@ -83,8 +94,29 @@ export class FeatureFlagsService {
       updatedBy: snapshot.updatedBy,
       updatedByName,
       features: this.rows(),
+      settings: this.settingRows(),
       stale: false,
     };
+  }
+
+  private settingRows(): SettingRow[] {
+    return SETTING_NAMES.map((name): SettingRow => {
+      const def = SETTINGS[name];
+      const stored = this.store.storedSetting(name);
+      const effective = stored ?? def.rule;
+      return {
+        name,
+        label: def.label,
+        description: def.description,
+        group: def.group,
+        values: [...def.values],
+        valueLabels: { ...def.valueLabels },
+        defaultRule: def.rule,
+        storedRule: stored,
+        effectiveRule: effective,
+        matrix: choiceMatrix(effective),
+      };
+    });
   }
 
   private rows(): FeatureFlag[] {
@@ -121,9 +153,14 @@ export class FeatureFlagsService {
     restoredFrom?: number,
   ): Promise<FeatureFlagsDocument> {
     const rules = this.validate(mutation.rules);
+    // Settings left out of the change are kept exactly as stored (ADR-0048).
+    const settings =
+      mutation.settings === undefined
+        ? this.store.settings()
+        : this.validateSettings(mutation.settings);
     const written = await this.repo.write({
       expectedRevision: mutation.expectedRevision,
-      rules,
+      rules: { ...rules, ...settings },
       updatedBy: actor.id,
       updatedByName: actor.name,
       reason: mutation.reason.trim(),
@@ -137,6 +174,7 @@ export class FeatureFlagsService {
       updatedBy: actor.id,
       updatedByName: actor.name,
       features: this.rows(),
+      settings: this.settingRows(),
       stale: false,
     };
   }
@@ -145,14 +183,17 @@ export class FeatureFlagsService {
     if (request.targetRevision >= request.expectedRevision)
       throw new FeatureFlagsInvalid('A rollback target must be older than the current revision.');
     let rules: FeatureFlagsMutation['rules'] = {};
+    let settings: NonNullable<FeatureFlagsMutation['settings']> = {};
     if (request.targetRevision > 0) {
       const prior = await this.repo.audit(request.targetRevision);
       if (!prior) throw new FeatureFlagsInvalid('That revision is not in the history.');
-      rules = prior.rules as FeatureFlagsMutation['rules'];
+      const split = splitStored(prior.rules);
+      rules = split.rules as FeatureFlagsMutation['rules'];
+      settings = split.settings as NonNullable<FeatureFlagsMutation['settings']>;
     }
     return this.mutate(
       actor,
-      { expectedRevision: request.expectedRevision, reason: request.reason, rules },
+      { expectedRevision: request.expectedRevision, reason: request.reason, rules, settings },
       request.targetRevision,
     );
   }
@@ -170,7 +211,7 @@ export class FeatureFlagsService {
         updatedByName: row.updatedByName,
         reason: row.reason,
         restoredFromRevision: row.restoredFromRevision,
-        rules: row.rules as FeatureRulesDocument,
+        ...splitStored(row.rules),
       })),
       nextBeforeRevision: page.nextBeforeRevision,
     };
@@ -193,4 +234,40 @@ export class FeatureFlagsService {
     }
     return out;
   }
+
+  private validateSettings(
+    submitted: NonNullable<FeatureFlagsMutation['settings']>,
+  ): SettingRulesDocument {
+    const out: SettingRulesDocument = {};
+    for (const [name, raw] of Object.entries(submitted)) {
+      if (!isSettingName(name)) throw new FeatureFlagsInvalid(`${name} is not a setting.`);
+      if (raw === null || raw === undefined) continue;
+      const parsed = ChoiceRule.safeParse(raw);
+      if (!parsed.success)
+        throw new FeatureFlagsInvalid(
+          `${SETTINGS[name].label}: that is not a rule this setting accepts.`,
+        );
+      const rule = normaliseChoice(parsed.data);
+      const problem = choiceValuesValid(rule, SETTINGS[name].values);
+      if (problem) throw new FeatureFlagsInvalid(`${SETTINGS[name].label}: ${problem}`);
+      // The compiled-in rule written back is no decision at all.
+      if (choicesEqual(rule, SETTINGS[name].rule)) continue;
+      out[name] = rule;
+    }
+    return out;
+  }
+}
+
+/** One stored `rules` map holds both kinds under their own names; the console sees them apart. */
+export function splitStored(rules: Record<string, unknown>): {
+  rules: FeatureRulesDocument;
+  settings: SettingRulesDocument;
+} {
+  const features: Record<string, unknown> = {};
+  const settings: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(rules)) {
+    if (isSettingName(name)) settings[name] = value;
+    else if (isFeatureName(name)) features[name] = value;
+  }
+  return { rules: features as FeatureRulesDocument, settings: settings as SettingRulesDocument };
 }

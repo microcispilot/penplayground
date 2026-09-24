@@ -1,0 +1,10643 @@
+[
+ {
+  "id": "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4",
+  "name": "Skylar",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "guide",
+   "approachable",
+   "american",
+   "female",
+   "ideal",
+   "customer",
+   "care",
+   "support"
+  ]
+ },
+ {
+  "id": "47c38ca4-5f35-497b-b1a3-415245fb35e1",
+  "name": "Daniel",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "modern",
+   "assistant",
+   "clear",
+   "crisp",
+   "male",
+   "voice",
+   "digital",
+   "assistants",
+   "system",
+   "interactions"
+  ]
+ },
+ {
+  "id": "62ae83ad-4f6a-430b-af41-a9bede9286ca",
+  "name": "Gemma",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "flagship",
+  "tags": [
+   "decisive",
+   "agent",
+   "confident",
+   "emotive",
+   "british",
+   "female",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "30894953-bcce-41fe-892c-15ce19c843ff",
+  "name": "Parker",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "supportive",
+   "casual",
+   "warmth",
+   "friendly",
+   "conversational",
+   "flows",
+   "approachable",
+   "check-ins"
+  ]
+ },
+ {
+  "id": "ef191366-f52f-447a-a398-ed8c0f2943a1",
+  "name": "Archie",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "flagship",
+  "tags": [
+   "approachable",
+   "mate",
+   "warm",
+   "conversational",
+   "british",
+   "male",
+   "casual",
+   "engaging",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+  "name": "Jacqueline",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "reassuring",
+   "agent",
+   "confident",
+   "young",
+   "adult",
+   "female",
+   "empathic",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "b24f41fd-00a3-4cd8-992a-a0c9f13f3ef1",
+  "name": "Clive",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "flagship",
+  "tags": [
+   "measured",
+   "expert",
+   "offers",
+   "composed",
+   "articulate",
+   "voice",
+   "perfect",
+   "delivering",
+   "educational",
+   "content",
+   "detailed",
+   "advice"
+  ]
+ },
+ {
+  "id": "2a12b36c-7f9b-4c3a-9f7a-72731b15323a",
+  "name": "Ella",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-au",
+  "tier": "flagship",
+  "tags": [
+   "caring",
+   "scout",
+   "approachable",
+   "presence",
+   "bright",
+   "lightweight",
+   "everyday",
+   "customer",
+   "conversations"
+  ]
+ },
+ {
+  "id": "12e85709-099c-480a-ba3e-875c41a9611a",
+  "name": "Arlo",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-au",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "specialist",
+   "arlo",
+   "friendly",
+   "mid-toned",
+   "australian",
+   "voice",
+   "excellent",
+   "customer",
+   "support",
+   "offering",
+   "clear"
+  ]
+ },
+ {
+  "id": "630ed21c-2c5c-41cf-9d82-10a7fd668370",
+  "name": "Corey",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "supportive",
+   "buddy",
+   "inviting",
+   "cheerful",
+   "young",
+   "adult",
+   "male",
+   "casual",
+   "conversation"
+  ]
+ },
+ {
+  "id": "a33f7a4c-100f-41cf-a1fd-5822e8fc253f",
+  "name": "Lauren",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "lively",
+   "narrator",
+   "expressive",
+   "female",
+   "voice",
+   "narration",
+   "storytelling",
+   "creative",
+   "content"
+  ]
+ },
+ {
+  "id": "c46cf1f6-49a1-4d67-9a57-ff859a4046d3",
+  "name": "Cora",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "specialist",
+   "cora",
+   "offers",
+   "helpful",
+   "articulate",
+   "tone",
+   "perfectly",
+   "suited",
+   "customer",
+   "support",
+   "service-oriented"
+  ]
+ },
+ {
+  "id": "aa2cafe9-97ba-4052-ac3c-875000f95212",
+  "name": "Zander",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "flagship",
+  "tags": [
+   "composed",
+   "advisor",
+   "zander",
+   "delivers",
+   "measured",
+   "calm",
+   "presence",
+   "ideal",
+   "professional",
+   "guidance",
+   "reassuring",
+   "explanations"
+  ]
+ },
+ {
+  "id": "f786b574-daa5-4673-aa0c-cbe3e8534c02",
+  "name": "Katie",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "fixer",
+   "enunciating",
+   "young",
+   "adult",
+   "female",
+   "conversational",
+   "support",
+   "cases"
+  ]
+ },
+ {
+  "id": "33d406dd-ff6f-4be7-a7f5-8b1ba183b3e4",
+  "name": "Nandi",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "flagship",
+  "tags": [
+   "poised",
+   "concierge",
+   "eloquent",
+   "delivery",
+   "ideal",
+   "corporate",
+   "presentations",
+   "documentary",
+   "narration",
+   "sophisticated",
+   "informational",
+   "content"
+  ]
+ },
+ {
+  "id": "7348f896-8516-4382-9c8f-ad2aee1ffedc",
+  "name": "Naledi",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "professional",
+  "tags": [
+   "engaging",
+   "instructor",
+   "naledi",
+   "offers",
+   "informative",
+   "tone",
+   "ideal",
+   "e-learning",
+   "clear",
+   "comprehensive",
+   "educational",
+   "narration"
+  ]
+ },
+ {
+  "id": "273f9ef7-9fc2-4def-88bb-ab108c6249ca",
+  "name": "Julia",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "gentle",
+   "guide",
+   "soft",
+   "graceful",
+   "tone",
+   "with",
+   "composed",
+   "rhythm",
+   "polished",
+   "guidance",
+   "reassurance"
+  ]
+ },
+ {
+  "id": "a5136bf9-224c-4d76-b823-52bd5efcffcc",
+  "name": "Jameson",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "flagship",
+  "tags": [
+   "easygoing",
+   "support",
+   "friendly",
+   "laid-back",
+   "male",
+   "voice",
+   "customer",
+   "onboarding"
+  ]
+ },
+ {
+  "id": "e8e5fffb-252c-436d-b842-8879b84445b6",
+  "name": "Cathy",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "coworker",
+   "nice",
+   "young",
+   "adult",
+   "female",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "8d673f7e-4a22-47fd-973a-ead9a85b7187",
+  "name": "Lindiwe",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "professional",
+  "tags": [
+   "capable",
+   "professional",
+   "offers",
+   "composed",
+   "thoughtful",
+   "approach",
+   "guiding",
+   "listeners",
+   "through",
+   "complex",
+   "information",
+   "with"
+  ]
+ },
+ {
+  "id": "8c254787-4eb4-4577-bd3d-fb3c273baea2",
+  "name": "Rowan",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "guide",
+   "provides",
+   "reliable",
+   "vocal",
+   "presence",
+   "ensuring",
+   "clarity",
+   "trust",
+   "every",
+   "piece",
+   "communication"
+  ]
+ },
+ {
+  "id": "5ee9feff-1265-424a-9d7f-8e4d431a12c7",
+  "name": "Ronald",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "thinker",
+   "intense",
+   "deep",
+   "young",
+   "adult",
+   "male",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "391f4c0a-f1a8-4c21-9aa2-7a07f0a4b0dc",
+  "name": "Bronte",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-au",
+  "tier": "professional",
+  "tags": [
+   "trusted",
+   "guide",
+   "bright",
+   "trustworthy",
+   "australian",
+   "voice",
+   "provides",
+   "approachable",
+   "guidance",
+   "making",
+   "excellent",
+   "customer"
+  ]
+ },
+ {
+  "id": "1fcd23d0-bf12-4896-8f60-4f21ef5c9b98",
+  "name": "Austin",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "conversational",
+   "guide",
+   "reliable",
+   "approachable",
+   "dependable",
+   "everyday",
+   "assistance"
+  ]
+ },
+ {
+  "id": "5241b0aa-3c09-479d-b0b8-a6ec68daef5e",
+  "name": "Brielle",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "renewal",
+   "partner",
+   "brielle",
+   "delivers",
+   "engaging",
+   "narration",
+   "with",
+   "professional",
+   "pacing",
+   "friendly",
+   "presence"
+  ]
+ },
+ {
+  "id": "5568a7df-e5ab-4442-9fae-2e9ba1b15ad8",
+  "name": "Quentin",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "refined",
+   "narrator",
+   "polished",
+   "with",
+   "measured",
+   "pace",
+   "perfect",
+   "corporate",
+   "professional",
+   "settings"
+  ]
+ },
+ {
+  "id": "d7bf7d75-64b7-4c1e-86c0-79d647366587",
+  "name": "Michelle",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "empathetic",
+   "voice",
+   "gentle",
+   "reassuring",
+   "tone",
+   "designed",
+   "offer",
+   "comfort",
+   "build",
+   "trust"
+  ]
+ },
+ {
+  "id": "25d7abcb-4d6d-4aca-adce-8a1c85620c8b",
+  "name": "Jessica",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "clear",
+   "communicator",
+   "crisp",
+   "articulate",
+   "delivery",
+   "designed",
+   "seamless",
+   "information",
+   "sharing"
+  ]
+ },
+ {
+  "id": "d1d9c946-7cfc-4378-85a4-07d09827cb7e",
+  "name": "Jolene",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "warm",
+   "storyteller",
+   "rich",
+   "honeyed",
+   "southern",
+   "female",
+   "perfect",
+   "narration"
+  ]
+ },
+ {
+  "id": "87286a8d-7ea7-4235-a41a-dd9fa6630feb",
+  "name": "Henry",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "plainspoken",
+   "relaxed",
+   "youthful",
+   "male",
+   "voice",
+   "with",
+   "monotone",
+   "matter-of-fact",
+   "attitude",
+   "ideal",
+   "casual",
+   "straightforward"
+  ]
+ },
+ {
+  "id": "86e30c1d-714b-4074-a1f2-1cb6b552fb49",
+  "name": "Carson",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "curious",
+   "conversationalist",
+   "friendly",
+   "young",
+   "adult",
+   "male",
+   "customer",
+   "support",
+   "conversations"
+  ]
+ },
+ {
+  "id": "79d2cf27-444a-4c3a-9eed-2ad5cf795a3b",
+  "name": "Fraser",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-au",
+  "tier": "professional",
+  "tags": [
+   "trusted",
+   "communicator",
+   "fraser",
+   "brings",
+   "bright",
+   "articulate",
+   "australian",
+   "voice",
+   "ensuring",
+   "messages",
+   "delivered",
+   "with"
+  ]
+ },
+ {
+  "id": "7d444628-dd13-442b-b687-71a6baf0c07e",
+  "name": "Joseph",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "empathetic",
+   "voice",
+   "gentle",
+   "reassuring",
+   "tone",
+   "designed",
+   "offer",
+   "comfort",
+   "build",
+   "trust"
+  ]
+ },
+ {
+  "id": "710feaa3-b550-42f3-b3eb-6f37f2a7cc0a",
+  "name": "Tanner",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "upbeat",
+   "assistant",
+   "english",
+   "male",
+   "adult",
+   "voice",
+   "with",
+   "energetic",
+   "tone"
+  ]
+ },
+ {
+  "id": "cfce9402-0067-458b-95a7-95846f469406",
+  "name": "Sheryl",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-sg",
+  "tier": "professional",
+  "tags": [
+   "warm",
+   "briefing",
+   "this",
+   "voice",
+   "provides",
+   "understanding",
+   "approach",
+   "fostering",
+   "trust",
+   "ensuring",
+   "every",
+   "customer"
+  ]
+ },
+ {
+  "id": "df38a4f6-5d10-4fe7-b268-952aef25d76a",
+  "name": "Justin",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-sg",
+  "tier": "professional",
+  "tags": [
+   "logistics",
+   "liaison",
+   "delivers",
+   "calm",
+   "methodical",
+   "approach",
+   "perfect",
+   "tracking",
+   "updates",
+   "ensuring",
+   "smooth",
+   "communication"
+  ]
+ },
+ {
+  "id": "4bc3cb8c-adb9-4bb8-b5d5-cbbef950b991",
+  "name": "George",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "composed",
+   "consultant",
+   "steady",
+   "british",
+   "male",
+   "voice",
+   "capable",
+   "assistance"
+  ]
+ },
+ {
+  "id": "c8f7835e-28a3-4f0c-80d7-c1302ac62aae",
+  "name": "Alistair",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "composed",
+   "consultant",
+   "sophisticated",
+   "steady",
+   "british",
+   "male",
+   "customer",
+   "interactions"
+  ]
+ },
+ {
+  "id": "dc30854e-e398-4579-9dc8-16f6cb2c19b9",
+  "name": "Victoria",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "refined",
+   "coordinator",
+   "crisp",
+   "professional",
+   "british",
+   "female",
+   "reassuring",
+   "communication"
+  ]
+ },
+ {
+  "id": "0ad65e7f-006c-47cf-bd31-52279d487913",
+  "name": "Rupert",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "caring",
+   "warm",
+   "mature",
+   "voice",
+   "reassuring",
+   "conversations"
+  ]
+ },
+ {
+  "id": "49743b08-0f5d-4741-839c-b12933853780",
+  "name": "Cooper",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-au",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "mate",
+   "warm",
+   "highly",
+   "relatable",
+   "excellent",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "263b9cc0-0d99-44e7-ae92-3d4ad5d2ad18",
+  "name": "Zanele",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "professional",
+  "tags": [
+   "vibrant",
+   "advocate",
+   "lively",
+   "positive",
+   "delivery",
+   "that",
+   "brings",
+   "authentic",
+   "energy"
+  ]
+ },
+ {
+  "id": "baf84392-fa95-4d44-8871-d32ee36b0e01",
+  "name": "Pieter",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "professional",
+  "tags": [
+   "polished",
+   "analyst",
+   "clear",
+   "articulate",
+   "south",
+   "african",
+   "male",
+   "ideal",
+   "business",
+   "briefings"
+  ]
+ },
+ {
+  "id": "692846ad-1a6b-49b8-bfc5-86421fd41a19",
+  "name": "Thandi",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-za",
+  "tier": "professional",
+  "tags": [
+   "direct",
+   "dispatcher",
+   "professional",
+   "south",
+   "african",
+   "female",
+   "structured",
+   "support"
+  ]
+ },
+ {
+  "id": "d79d2b77-9192-4e10-9407-5d43ca034803",
+  "name": "Siobhan",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-ie",
+  "tier": "professional",
+  "tags": [
+   "warm",
+   "welcomer",
+   "approachable",
+   "irish",
+   "female",
+   "friendly",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "e5d4c33a-d8f6-46e8-a10f-b5afecc35648",
+  "name": "Evie",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-gb",
+  "tier": "professional",
+  "tags": [
+   "engaging",
+   "expert",
+   "formal",
+   "british",
+   "female",
+   "high-level",
+   "corporate",
+   "interactions"
+  ]
+ },
+ {
+  "id": "1ec736fa-db96-4eea-9299-235ce2cb7a0e",
+  "name": "Conor",
+  "gender": "man",
+  "language": "en",
+  "locale": "en-ie",
+  "tier": "professional",
+  "tags": [
+   "decisive",
+   "agent",
+   "irish",
+   "male",
+   "straightforward",
+   "customer",
+   "communication"
+  ]
+ },
+ {
+  "id": "ec1e269e-9ca0-402f-8a18-58e0e022355a",
+  "name": "Ariana",
+  "gender": "woman",
+  "language": "en",
+  "locale": "en-us",
+  "tier": "professional",
+  "tags": [
+   "kind",
+   "friend",
+   "friendly",
+   "approachable",
+   "female",
+   "voice",
+   "with",
+   "warm",
+   "welcoming",
+   "tone",
+   "that",
+   "builds"
+  ]
+ },
+ {
+  "id": "526ab945-9cbf-4bd2-9c72-3833d55d4c68",
+  "name": "Fabio",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "logistics",
+   "expert",
+   "this",
+   "voice",
+   "offers",
+   "composed",
+   "articulate",
+   "delivery",
+   "ideal",
+   "clear",
+   "explanations",
+   "detailed"
+  ]
+ },
+ {
+  "id": "c8403b5c-6465-4396-9065-a440d376528a",
+  "name": "Alessio",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "anchor",
+   "this",
+   "voice",
+   "offers",
+   "calm",
+   "precise",
+   "delivery",
+   "ideal",
+   "navigating",
+   "complex",
+   "inquiries"
+  ]
+ },
+ {
+  "id": "00e9ec78-2002-41dd-8d19-6b1d3b17a461",
+  "name": "Elena",
+  "gender": "woman",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "client",
+   "liaison",
+   "offers",
+   "composed",
+   "articulate",
+   "presence",
+   "ideal",
+   "fostering",
+   "understanding",
+   "managing",
+   "relationships"
+  ]
+ },
+ {
+  "id": "ee16f140-f6dc-490e-a1ed-c1d537ea0086",
+  "name": "Lorenzo",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "hospitable",
+   "host",
+   "approachable",
+   "italian",
+   "adult",
+   "male",
+   "natural",
+   "everyday",
+   "communication"
+  ]
+ },
+ {
+  "id": "d718e944-b313-4998-b011-d1cc078d4ef3",
+  "name": "Liv",
+  "gender": "woman",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "casual",
+   "friend",
+   "female",
+   "natural",
+   "conversations"
+  ]
+ },
+ {
+  "id": "79693aee-1207-4771-a01e-20c393c89e6f",
+  "name": "Marco",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "conversationalist",
+   "professional",
+   "male",
+   "conversational",
+   "support"
+  ]
+ },
+ {
+  "id": "90c7d657-9599-4cd0-9ed2-2568359e4d1a",
+  "name": "Sofia",
+  "gender": "woman",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "methodical",
+   "moderator",
+   "polished",
+   "adult",
+   "female",
+   "efficient",
+   "transactional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "88b329db-85d7-47cc-a5c5-98225a756721",
+  "name": "Giuseppe",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "retro",
+   "vintage-style",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "nostalgic",
+   "old-radio",
+   "tone",
+   "historical",
+   "reenactments",
+   "period"
+  ]
+ },
+ {
+  "id": "36d94908-c5b9-4014-b521-e69aee5bead0",
+  "name": "Giulia",
+  "gender": "woman",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "teacherly",
+   "voice",
+   "firm",
+   "clear",
+   "adult",
+   "female",
+   "lectures",
+   "guidance",
+   "authoritative",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "e019ed7e-6079-4467-bc7f-b599a5dccf6f",
+  "name": "Luca",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "everyday",
+   "friend",
+   "casual",
+   "male",
+   "natural",
+   "conversations"
+  ]
+ },
+ {
+  "id": "d609f27f-f1a4-410f-85bb-10037b4fba99",
+  "name": "Francesca",
+  "gender": "woman",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "elegant",
+   "partner",
+   "enunciating",
+   "female",
+   "natural",
+   "conversations"
+  ]
+ },
+ {
+  "id": "408daed0-c597-4c27-aae8-fa0497d644bf",
+  "name": "Matteo",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "gentle",
+   "narrator",
+   "reassuring",
+   "male",
+   "soothing",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "0e21713a-5e9a-428a-bed4-90d410b87f13",
+  "name": "Alessandra",
+  "gender": "woman",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "melodic",
+   "guide",
+   "graceful",
+   "female",
+   "providing",
+   "instructions",
+   "guidance"
+  ]
+ },
+ {
+  "id": "029c3c7a-b6d9-44f0-814b-200d849830ff",
+  "name": "Giancarlo",
+  "gender": "man",
+  "language": "it",
+  "locale": "it-it",
+  "tier": "flagship",
+  "tags": [
+   "support",
+   "leader",
+   "deep",
+   "male",
+   "conversational"
+  ]
+ },
+ {
+  "id": "4ff0f045-c140-4aa3-9210-529083f86fca",
+  "name": "Supannee",
+  "gender": "woman",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "support",
+   "concierge",
+   "offers",
+   "composed",
+   "considerate",
+   "presence",
+   "ideal",
+   "providing",
+   "attentive",
+   "detailed",
+   "responses"
+  ]
+ },
+ {
+  "id": "d051b675-6863-44cc-b7ba-356858ed7df8",
+  "name": "Nisa",
+  "gender": "woman",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "system",
+   "navigator",
+   "delivers",
+   "information",
+   "with",
+   "composed",
+   "knowledgeable",
+   "tone",
+   "perfect",
+   "explaining",
+   "complex",
+   "processes"
+  ]
+ },
+ {
+  "id": "5de076e9-7b28-4442-b279-e7d80d573505",
+  "name": "Somchai",
+  "gender": "man",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "star",
+   "upbeat",
+   "confident",
+   "adult",
+   "male",
+   "voice",
+   "commercials",
+   "brand",
+   "promotions",
+   "lively",
+   "presentations"
+  ]
+ },
+ {
+  "id": "ccc7bb22-dcd0-42e4-822e-0731b950972f",
+  "name": "Suda",
+  "gender": "woman",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "fortune",
+   "teller",
+   "expressive",
+   "adult",
+   "female",
+   "voice",
+   "with",
+   "lively",
+   "pronunciation",
+   "storytelling",
+   "advertisements",
+   "engaging"
+  ]
+ },
+ {
+  "id": "aaa0bf6d-bc07-40f2-bc6b-66afc5fd42f6",
+  "name": "Chakrit",
+  "gender": "man",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "reliable",
+   "communicator",
+   "clear",
+   "dependable",
+   "thai",
+   "male",
+   "built",
+   "public",
+   "communications"
+  ]
+ },
+ {
+  "id": "273193f7-dbff-438e-b8af-fcc499200b1c",
+  "name": "Narin",
+  "gender": "woman",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "concierge",
+   "welcoming",
+   "delivery",
+   "concierge-style",
+   "assistance",
+   "travel",
+   "support",
+   "friendly",
+   "service",
+   "interactions"
+  ]
+ },
+ {
+  "id": "8810fbfa-b317-4503-9974-9774d08b5897",
+  "name": "Kanya",
+  "gender": "woman",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "gentle",
+   "helper",
+   "hospitable",
+   "voice",
+   "good",
+   "support",
+   "helpful",
+   "conversational",
+   "guidance"
+  ]
+ },
+ {
+  "id": "a50a04b8-35ee-487e-8b87-97f0eee68a64",
+  "name": "Krit",
+  "gender": "man",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "efficient",
+   "envoy",
+   "professional",
+   "adult",
+   "male",
+   "smooth",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "db938869-18b5-4c21-be8b-2ffdfba6d8d4",
+  "name": "Thaksin",
+  "gender": "man",
+  "language": "th",
+  "locale": "th-th",
+  "tier": "flagship",
+  "tags": [
+   "tactful",
+   "tracker",
+   "methodical",
+   "adult",
+   "male",
+   "structured",
+   "professional",
+   "interactions"
+  ]
+ },
+ {
+  "id": "3597a26f-80ef-4bd5-8101-9699bc764917",
+  "name": "Ximena",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "navigator",
+   "steady",
+   "clear",
+   "latina",
+   "female",
+   "ideal",
+   "guided",
+   "experiences"
+  ]
+ },
+ {
+  "id": "35b2cfc1-e6fb-4d69-a598-c1780612be4a",
+  "name": "Darío",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "operator",
+   "delivering",
+   "with",
+   "confidence",
+   "composed",
+   "tone",
+   "this",
+   "voice",
+   "excels",
+   "professional",
+   "advising"
+  ]
+ },
+ {
+  "id": "1cc00672-e9d4-455e-b3fb-31dfb7aad231",
+  "name": "Laura",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "trustworthy",
+   "guide",
+   "laura",
+   "provides",
+   "steady",
+   "reliable",
+   "presence",
+   "making",
+   "complex",
+   "information",
+   "accessible",
+   "with"
+  ]
+ },
+ {
+  "id": "b4b8e2af-6139-466e-a93a-30c20d2e1fc5",
+  "name": "Fernanda",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "guide",
+   "approachable",
+   "mexican",
+   "female",
+   "ideal",
+   "customer",
+   "care",
+   "support"
+  ]
+ },
+ {
+  "id": "4663e61a-a9c2-40e1-94c5-c461ed9d3d31",
+  "name": "Sofía",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "digital",
+   "concierge",
+   "this",
+   "clear",
+   "composed",
+   "voice",
+   "guides",
+   "listeners",
+   "through",
+   "processes",
+   "offering",
+   "precise"
+  ]
+ },
+ {
+  "id": "a7beff01-8f8b-4809-bfe6-e2166e57e0c2",
+  "name": "Iria",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "flagship",
+  "tags": [
+   "thoughtful",
+   "communicator",
+   "measured",
+   "delivery",
+   "creates",
+   "engaging",
+   "experience",
+   "perfect",
+   "detailed",
+   "explanations",
+   "educational",
+   "content"
+  ]
+ },
+ {
+  "id": "9b67072c-d46c-465d-87dc-f7a1c6db2bf3",
+  "name": "Ramon",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "coordinator",
+   "with",
+   "measured",
+   "pace",
+   "clear",
+   "articulation",
+   "ramon",
+   "brings",
+   "professional",
+   "voice",
+   "corporate"
+  ]
+ },
+ {
+  "id": "b0689631-eee7-4a6c-bb86-195f1d267c2e",
+  "name": "Emilio",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "optimist",
+   "upbeat",
+   "voice",
+   "with",
+   "tone",
+   "positive",
+   "customer",
+   "service",
+   "interactions"
+  ]
+ },
+ {
+  "id": "ad38904c-0ce9-42b1-9159-5ad5352ef089",
+  "name": "Celia",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "flagship",
+  "tags": [
+   "practical",
+   "analyst",
+   "with",
+   "thoughtful",
+   "analytical",
+   "tone",
+   "this",
+   "voice",
+   "simplifies",
+   "issues",
+   "provides",
+   "actionable"
+  ]
+ },
+ {
+  "id": "cbb6fdf0-30dd-49f6-af7d-bbb1185c1fa5",
+  "name": "Rafael",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "flagship",
+  "tags": [
+   "poised",
+   "advisor",
+   "composed",
+   "reliable",
+   "presence",
+   "ideal",
+   "important",
+   "updates",
+   "detailed",
+   "instructions",
+   "with",
+   "calm"
+  ]
+ },
+ {
+  "id": "2fc4f1ec-bfd0-46f1-8e6d-d4279eaaf838",
+  "name": "Mateo",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "host",
+   "warm",
+   "genuine",
+   "mexican",
+   "male",
+   "perfect",
+   "conversational",
+   "platforms"
+  ]
+ },
+ {
+  "id": "f4d6bb07-f876-4464-ba70-cd48d8701890",
+  "name": "Adriana",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "bright",
+   "entertainer",
+   "expressive",
+   "voice",
+   "promotional",
+   "entertainment"
+  ]
+ },
+ {
+  "id": "21c2f7ab-dacb-4847-a593-3cd20668c4b3",
+  "name": "Thiago",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "flagship",
+  "tags": [
+   "measured",
+   "professional",
+   "with",
+   "composed",
+   "clear",
+   "presence",
+   "this",
+   "speaker",
+   "excels",
+   "delivering",
+   "information",
+   "accurately"
+  ]
+ },
+ {
+  "id": "4b5112be-c461-44a2-a66b-0dd7f98db4a0",
+  "name": "Cesar",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "server",
+   "with",
+   "steady",
+   "clarity",
+   "warmth",
+   "cesar",
+   "fits",
+   "service",
+   "specialist",
+   "cases",
+   "that"
+  ]
+ },
+ {
+  "id": "13ff5deb-2591-42ad-a356-63a04e524411",
+  "name": "Marcos",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "advisor",
+   "calm",
+   "measured",
+   "spanish",
+   "male",
+   "suited",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "5f62aab4-c423-4ef8-ab37-5e0d7a0c430e",
+  "name": "Danna",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "flagship",
+  "tags": [
+   "operational",
+   "guide",
+   "delivering",
+   "insights",
+   "with",
+   "friendly",
+   "precision",
+   "this",
+   "voice",
+   "expertly",
+   "navigates",
+   "listeners"
+  ]
+ },
+ {
+  "id": "de38f545-c574-44e8-9b54-a7d6fec1c6b1",
+  "name": "Marta",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "guide",
+   "approachable",
+   "spanish",
+   "female",
+   "ideal",
+   "customer",
+   "care",
+   "support"
+  ]
+ },
+ {
+  "id": "ae823354-f9be-4aef-8543-f569644136b4",
+  "name": "Mariana",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-co",
+  "tier": "professional",
+  "tags": [
+   "nurturing",
+   "guide",
+   "motherly",
+   "voice",
+   "with",
+   "calm",
+   "tone"
+  ]
+ },
+ {
+  "id": "162e0f37-8504-474c-bb33-c606c01890dc",
+  "name": "Catalina",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-co",
+  "tier": "professional",
+  "tags": [
+   "neighborly",
+   "guide",
+   "natural",
+   "approachable",
+   "everyday",
+   "conversations"
+  ]
+ },
+ {
+  "id": "c4680a72-a9d5-4c16-8858-6f6caf761e7b",
+  "name": "Gerard",
+  "gender": "man",
+  "language": "es",
+  "locale": null,
+  "tier": "professional",
+  "tags": [
+   "thoughtful",
+   "explainer",
+   "provides",
+   "considerate",
+   "clear",
+   "approach",
+   "making",
+   "intricate",
+   "topics",
+   "easily",
+   "understandable",
+   "listener"
+  ]
+ },
+ {
+  "id": "e4411d96-83e8-4e3a-b336-1d55a6f5eb31",
+  "name": "Iker",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "thoughtful",
+   "advisor",
+   "delivers",
+   "information",
+   "with",
+   "warm",
+   "approach",
+   "making",
+   "complex",
+   "topics",
+   "accessible",
+   "engaging"
+  ]
+ },
+ {
+  "id": "61510db3-e266-4dfb-8dd6-e4f976b1351e",
+  "name": "Pablo",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "reliable",
+   "contact",
+   "pablo",
+   "inviting",
+   "clear",
+   "voice",
+   "offers",
+   "friendly",
+   "presence",
+   "perfect",
+   "guiding",
+   "listeners"
+  ]
+ },
+ {
+  "id": "ffd984de-0b16-49f7-8a1a-13b2806a8ad0",
+  "name": "Kenia",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "efficient",
+   "explainer",
+   "this",
+   "voice",
+   "delivers",
+   "complex",
+   "information",
+   "with",
+   "clarity",
+   "steady",
+   "pace",
+   "perfect"
+  ]
+ },
+ {
+  "id": "b738fa95-b787-4529-9170-34be41e95b95",
+  "name": "Maite",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "bridge",
+   "desk",
+   "tuned",
+   "support",
+   "desks",
+   "demos",
+   "with",
+   "feel",
+   "that",
+   "holds",
+   "clarity",
+   "across"
+  ]
+ },
+ {
+  "id": "392e340d-bf73-4199-9f46-8baca484f4cb",
+  "name": "Esteban",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "crisp",
+   "operator",
+   "esteban",
+   "holds",
+   "consistency",
+   "across",
+   "alphanumerics",
+   "sales",
+   "pitches",
+   "with",
+   "focused",
+   "feel"
+  ]
+ },
+ {
+  "id": "e5e5c8d7-3924-4ff6-981a-cb667034be29",
+  "name": "Regina",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "specialist",
+   "regina",
+   "delivers",
+   "measured",
+   "professional",
+   "support",
+   "with",
+   "calm",
+   "authority",
+   "crisp",
+   "mexican"
+  ]
+ },
+ {
+  "id": "079e3a17-5545-4bc5-93e3-e11df6fe37b8",
+  "name": "Rodrigo",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "companion",
+   "gentle",
+   "reassuring",
+   "latino",
+   "male",
+   "perfect",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "58e531e3-b212-49df-adee-c335a19c2429",
+  "name": "Gonzalo",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "grounded",
+   "storyteller",
+   "warm",
+   "authentic",
+   "spanish",
+   "male",
+   "perfect",
+   "natural",
+   "communication"
+  ]
+ },
+ {
+  "id": "d813d699-27f0-4231-83b4-6bd1bce106ba",
+  "name": "Miguel",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "route",
+   "guide",
+   "composed",
+   "soft",
+   "articulate",
+   "delivery",
+   "makes",
+   "this",
+   "voice",
+   "ideal",
+   "complex",
+   "explanations"
+  ]
+ },
+ {
+  "id": "d26313b0-ddd1-4daf-9cd1-d9b39c026a3a",
+  "name": "Nayeli",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "calculated",
+   "specialist",
+   "with",
+   "steady",
+   "clarity",
+   "warmth",
+   "nayeli",
+   "fits",
+   "service",
+   "cases",
+   "that",
+   "need"
+  ]
+ },
+ {
+  "id": "4853bafa-52cc-48c8-86a1-1edf8c76e429",
+  "name": "Alonso",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "podcast",
+   "explainer",
+   "alonso",
+   "delivers",
+   "engaging",
+   "clear",
+   "narration",
+   "with",
+   "professional",
+   "pacing",
+   "friendly",
+   "presence"
+  ]
+ },
+ {
+  "id": "a0149de0-42cd-45b6-be89-5fb7baf6c6e7",
+  "name": "Veronica",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "warm",
+   "helper",
+   "veronica",
+   "offers",
+   "clear",
+   "guide",
+   "delivery",
+   "mexican",
+   "spanish",
+   "service",
+   "sales",
+   "cases"
+  ]
+ },
+ {
+  "id": "d46e87a1-7c6d-4b18-9359-926f4a35ffdf",
+  "name": "Andres",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "trusted",
+   "voice",
+   "dependable",
+   "measured",
+   "mexican",
+   "male",
+   "ideal",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "bef24f4f-adc9-4cef-acbf-cc1ceb98224b",
+  "name": "Santiago",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "modern",
+   "navigator",
+   "crisp",
+   "approachable",
+   "mexican",
+   "male",
+   "ideal",
+   "guided",
+   "communication"
+  ]
+ },
+ {
+  "id": "e361b786-2768-4308-9369-a09793d4dd73",
+  "name": "Paola",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "expressive",
+   "performer",
+   "bold",
+   "lively",
+   "voice",
+   "performances",
+   "engaging",
+   "content"
+  ]
+ },
+ {
+  "id": "d5225a22-5ecd-4564-ac87-ab77eb5d424f",
+  "name": "Luciana",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "desk",
+   "guides",
+   "effortlessly",
+   "with",
+   "assuring",
+   "tone",
+   "perfect",
+   "navigating",
+   "customers",
+   "through",
+   "various"
+  ]
+ },
+ {
+  "id": "e52c4915-8320-4215-9c1f-81bad7ca0d5d",
+  "name": "Julia",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "loyalty",
+   "host",
+   "delivering",
+   "with",
+   "thoughtful",
+   "articulation",
+   "this",
+   "voice",
+   "simplifies",
+   "complex",
+   "information",
+   "ensuring"
+  ]
+ },
+ {
+  "id": "85b356c1-c638-404d-b986-f54a53d957d6",
+  "name": "Lara",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "customer",
+   "liaison",
+   "providing",
+   "thoughtful",
+   "support",
+   "clear",
+   "insights",
+   "this",
+   "voice",
+   "connects",
+   "effectively",
+   "customer-facing"
+  ]
+ },
+ {
+  "id": "538a8872-3799-4df5-b373-b78493b766c6",
+  "name": "Blanca",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "graceful",
+   "host",
+   "warm",
+   "welcoming",
+   "spanish",
+   "female",
+   "that",
+   "puts",
+   "listeners",
+   "ease",
+   "instantly"
+  ]
+ },
+ {
+  "id": "d4db5fb9-f44b-4bd1-85fa-192e0f0d75f9",
+  "name": "Paloma",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "clear",
+   "presenter",
+   "woman",
+   "professional",
+   "adult",
+   "reports",
+   "public",
+   "speaking",
+   "customer",
+   "assistance"
+  ]
+ },
+ {
+  "id": "23da166b-9675-425a-a56f-10d92da2e35f",
+  "name": "Eva",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "service",
+   "expert",
+   "professional",
+   "composed",
+   "presence",
+   "adept",
+   "providing",
+   "efficient",
+   "clear",
+   "responses",
+   "variety",
+   "service-oriented"
+  ]
+ },
+ {
+  "id": "b8f073cd-cb60-43ef-aa01-feb59a8b7394",
+  "name": "Flor",
+  "gender": "woman",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "hold",
+   "companion",
+   "with",
+   "steady",
+   "clarity",
+   "warmth",
+   "flor",
+   "fits",
+   "cases",
+   "that",
+   "need",
+   "confident"
+  ]
+ },
+ {
+  "id": "9aea78cb-ba89-4a82-aa15-31b55a89b75d",
+  "name": "Octavio",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "service",
+   "anchor",
+   "octavio",
+   "stays",
+   "natural",
+   "without",
+   "losing",
+   "professionalism",
+   "reliable",
+   "explainers",
+   "follow-ups"
+  ]
+ },
+ {
+  "id": "3efb11f3-4c0e-43c2-bad5-85ab99e993e2",
+  "name": "Eduardo",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "communicator",
+   "eduardo",
+   "offers",
+   "approachable",
+   "service",
+   "specialist",
+   "style",
+   "clear",
+   "natural",
+   "latin",
+   "american"
+  ]
+ },
+ {
+  "id": "b5aa8098-49ef-475d-89b0-c9262ecf33fd",
+  "name": "Luis",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-es",
+  "tier": "professional",
+  "tags": [
+   "news",
+   "caster",
+   "clear",
+   "distinctive",
+   "male",
+   "with",
+   "refined",
+   "castilian",
+   "accent",
+   "communication"
+  ]
+ },
+ {
+  "id": "60756a43-e015-4c84-927b-6a02ed32d0b4",
+  "name": "Matias",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "status",
+   "desk",
+   "engaging",
+   "articulate",
+   "voice",
+   "that",
+   "brings",
+   "stories",
+   "content",
+   "life",
+   "with",
+   "natural"
+  ]
+ },
+ {
+  "id": "f82acaf6-ee56-417f-8f7f-bcd72dad3022",
+  "name": "David",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "system",
+   "architect",
+   "with",
+   "analytical",
+   "composed",
+   "delivery",
+   "this",
+   "voice",
+   "excels",
+   "structuring",
+   "information",
+   "offering"
+  ]
+ },
+ {
+  "id": "3ca54c01-ef9a-4f44-9f73-adbde3a26ef8",
+  "name": "Jose",
+  "gender": "man",
+  "language": "es",
+  "locale": "es-mx",
+  "tier": "professional",
+  "tags": [
+   "patient",
+   "explainer",
+   "offers",
+   "calm",
+   "even",
+   "delivery",
+   "ensuring",
+   "clarity",
+   "comprehension",
+   "listeners",
+   "learning",
+   "intricate"
+  ]
+ },
+ {
+  "id": "f9f9f472-6247-4403-9abe-616f7c407c63",
+  "name": "Raed",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "workflow",
+   "analyst",
+   "delivers",
+   "precise",
+   "analytical",
+   "insights",
+   "simplifying",
+   "complex",
+   "workflows",
+   "clear",
+   "understanding"
+  ]
+ },
+ {
+  "id": "92f27ee5-d8b9-4c0a-a0c2-f401f6ab0a72",
+  "name": "Reem",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "solution",
+   "provider",
+   "delivers",
+   "information",
+   "with",
+   "assured",
+   "clarity",
+   "helpful",
+   "demeanor",
+   "perfect",
+   "guiding",
+   "users"
+  ]
+ },
+ {
+  "id": "64a941ac-07ac-462c-a81c-008e353dd83e",
+  "name": "Layan",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "clarity",
+   "provider",
+   "composed",
+   "precise",
+   "delivery",
+   "conveying",
+   "complex",
+   "details",
+   "offering",
+   "clear",
+   "actionable",
+   "insights"
+  ]
+ },
+ {
+  "id": "0528c162-5439-4dde-a4b8-a3a9cb62edf5",
+  "name": "Alia",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "poised",
+   "host",
+   "articulate",
+   "voice",
+   "providing",
+   "seamless",
+   "assistance",
+   "refined",
+   "instruction",
+   "digital",
+   "interactions"
+  ]
+ },
+ {
+  "id": "002622d8-19d0-4567-a16a-f99c7397c062",
+  "name": "Huda",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "approachable",
+   "speaker",
+   "natural",
+   "voice",
+   "clear",
+   "engaging",
+   "conversations"
+  ]
+ },
+ {
+  "id": "fc923f89-1de5-4ddf-b93c-6da2ba63428a",
+  "name": "Nour",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "engaging",
+   "speaker",
+   "smooth",
+   "expressive",
+   "voice",
+   "customer",
+   "interactions"
+  ]
+ },
+ {
+  "id": "9cbad5f7-fbf6-4416-a22f-1ecc75ad40a2",
+  "name": "Youssef",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "communicator",
+   "articulate",
+   "delivery",
+   "designed",
+   "seamless",
+   "instructional",
+   "content"
+  ]
+ },
+ {
+  "id": "98bf39ce-b44a-49d7-9794-fb9a9329fd11",
+  "name": "Rania",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "spirited",
+   "storyteller",
+   "expressive",
+   "lively",
+   "arabic",
+   "female",
+   "that",
+   "brings",
+   "scripts",
+   "life"
+  ]
+ },
+ {
+  "id": "731ace69-ee17-41bc-8c6f-665c9f1db95c",
+  "name": "Fatima",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "graceful",
+   "guide",
+   "polite",
+   "steady",
+   "arabic",
+   "female",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "40f9b5d1-bc79-43a6-b5cc-1c692b3b40d2",
+  "name": "Zain",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "dynamic",
+   "presenter",
+   "engaging",
+   "arabic",
+   "male",
+   "that",
+   "captures",
+   "attention",
+   "customer",
+   "experience"
+  ]
+ },
+ {
+  "id": "db873303-3a70-4d9d-867a-0d70a6377195",
+  "name": "Tariq",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "wise",
+   "advisor",
+   "calm",
+   "measured",
+   "arabic",
+   "male",
+   "suited",
+   "reassuring",
+   "communication"
+  ]
+ },
+ {
+  "id": "218a8026-7a26-4dc5-9753-9e75dffe1ea6",
+  "name": "Dina",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "trusted",
+   "advisor",
+   "confident",
+   "measured",
+   "delivery",
+   "that",
+   "conveys",
+   "expertise",
+   "communications"
+  ]
+ },
+ {
+  "id": "cb88df49-5c12-440b-b282-87ccb9b49245",
+  "name": "Majid",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "workflow",
+   "clarifier",
+   "clarifies",
+   "intricate",
+   "processes",
+   "with",
+   "steady",
+   "authoritative",
+   "tone",
+   "ensuring",
+   "complete",
+   "understanding"
+  ]
+ },
+ {
+  "id": "b068aef8-2c18-4a1d-bafb-e8f6d2239d60",
+  "name": "Khaled",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "keen",
+   "problem-solver",
+   "composed",
+   "fluent",
+   "delivery",
+   "clear",
+   "guidance",
+   "thoughtful",
+   "assistance",
+   "professional",
+   "support",
+   "conversations"
+  ]
+ },
+ {
+  "id": "6625760e-eab7-4ab8-aa49-9230425b5be4",
+  "name": "Nada",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "professional",
+  "tags": [
+   "diligent",
+   "teller",
+   "delivers",
+   "factual",
+   "information",
+   "with",
+   "meticulous",
+   "care",
+   "steady",
+   "presence",
+   "ideal",
+   "trustworthy"
+  ]
+ },
+ {
+  "id": "f1cdfb4a-bf7d-4e83-916e-8f0802278315",
+  "name": "Walid",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "presence",
+   "warm",
+   "confident",
+   "voice",
+   "clear",
+   "customer-facing",
+   "conversations"
+  ]
+ },
+ {
+  "id": "664aec8a-64a4-4437-8a0b-a61aa4f51fe6",
+  "name": "Hassan",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "flagship",
+  "tags": [
+   "authoritative",
+   "narrator",
+   "strong",
+   "voice",
+   "instructions",
+   "narration",
+   "news-style",
+   "delivery"
+  ]
+ },
+ {
+  "id": "b0aa4612-81d2-4df3-9730-3fc064754b1f",
+  "name": "Khalid",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "professional",
+  "tags": [
+   "bright",
+   "energy",
+   "voice",
+   "with",
+   "cheerful",
+   "tone",
+   "expressive",
+   "clarity",
+   "perfect",
+   "engaging",
+   "advertisements",
+   "lively"
+  ]
+ },
+ {
+  "id": "9825cf5f-6aff-412a-80c5-bc58a8d55bc4",
+  "name": "Maryam",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "voice",
+   "with",
+   "warm",
+   "conversational",
+   "tone",
+   "natural",
+   "rhythm",
+   "ideal",
+   "approachable",
+   "conversations"
+  ]
+ },
+ {
+  "id": "6304c635-6681-4f9e-85b6-a97f4d26461a",
+  "name": "Amira",
+  "gender": "woman",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "professional",
+  "tags": [
+   "dreamy",
+   "whisperer",
+   "calm",
+   "soft-spoken",
+   "adult",
+   "female",
+   "narrations",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "e3087ad8-7018-4154-9a87-11577f916cd4",
+  "name": "Omar",
+  "gender": "man",
+  "language": "ar",
+  "locale": "ar-sa",
+  "tier": "professional",
+  "tags": [
+   "high-energy",
+   "presenter",
+   "lively",
+   "energetic",
+   "adult",
+   "male",
+   "engaging",
+   "conversations",
+   "dynamic",
+   "narration"
+  ]
+ },
+ {
+  "id": "8a6d0b8e-8cd8-4952-a41e-b7af18662135",
+  "name": "Helena",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "solution",
+   "facilitator",
+   "articulate",
+   "even-toned",
+   "presence",
+   "enhancing",
+   "professional",
+   "communications",
+   "informational",
+   "content",
+   "with",
+   "ease"
+  ]
+ },
+ {
+  "id": "cb2694c3-715f-4da9-99f3-1c974fff2928",
+  "name": "Eloá",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "engaging",
+   "explainer",
+   "warm",
+   "articulate",
+   "voice",
+   "ideal",
+   "breaking",
+   "down",
+   "complex",
+   "topics",
+   "into",
+   "easily"
+  ]
+ },
+ {
+  "id": "9904416a-0831-44ea-b8ee-5f145e8f9bbf",
+  "name": "Alice",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "informative",
+   "speaker",
+   "delivers",
+   "information",
+   "with",
+   "measured",
+   "clarity",
+   "helpful",
+   "tone",
+   "well-suited",
+   "service-oriented",
+   "applications"
+  ]
+ },
+ {
+  "id": "616c64d7-f541-436b-9b8d-e79cfbe19ef9",
+  "name": "Felipe",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "assistant",
+   "supportive",
+   "voice",
+   "perfect",
+   "guiding",
+   "users",
+   "through",
+   "processes",
+   "with",
+   "clarity",
+   "ease"
+  ]
+ },
+ {
+  "id": "81452d3b-a5f6-4ef4-afff-542182fac725",
+  "name": "Fabiana",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "desk",
+   "provides",
+   "precise",
+   "efficient",
+   "support",
+   "ideal",
+   "navigating",
+   "services",
+   "tech",
+   "solutions"
+  ]
+ },
+ {
+  "id": "b1d18488-4aaa-47e7-9e4b-483c90a67968",
+  "name": "Matias",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "flagship",
+  "tags": [
+   "process",
+   "explainer",
+   "clearly",
+   "articulates",
+   "step-by-step",
+   "instructions",
+   "making",
+   "intricate",
+   "processes",
+   "easy",
+   "follow",
+   "listeners"
+  ]
+ },
+ {
+  "id": "07b6f895-78b9-4921-8e10-8a21c99c2e8a",
+  "name": "Rafael",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "dynamic",
+   "speaker",
+   "engaging",
+   "charismatic",
+   "brazilian",
+   "male",
+   "that",
+   "captures",
+   "attention",
+   "media"
+  ]
+ },
+ {
+  "id": "8d826d43-20ad-4c56-8d37-1048eccca1bf",
+  "name": "Larissa",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "bright",
+   "companion",
+   "friendly",
+   "approachable",
+   "brazilian",
+   "female",
+   "everyday",
+   "interactions"
+  ]
+ },
+ {
+  "id": "c9611be8-aae9-4a93-bb1c-98dd6b7d52a4",
+  "name": "Isabella",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "storyteller",
+   "rich",
+   "expressive",
+   "brazilian",
+   "female",
+   "perfect",
+   "narration"
+  ]
+ },
+ {
+  "id": "b0f46533-d4bb-493f-a26f-a99e1f2e86e3",
+  "name": "Heitor",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "easygoing",
+   "local",
+   "warm",
+   "relatable",
+   "young",
+   "adult",
+   "male",
+   "with",
+   "down-to-earth",
+   "countryside",
+   "charm"
+  ]
+ },
+ {
+  "id": "6a360542-a117-4ed5-9e09-e8bf9b05eabb",
+  "name": "Tiago",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "flagship",
+  "tags": [
+   "narration",
+   "expert",
+   "calm",
+   "clear",
+   "male",
+   "narrations"
+  ]
+ },
+ {
+  "id": "d4b44b9a-82bc-4b65-b456-763fce4c52f9",
+  "name": "Beatriz",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "flagship",
+  "tags": [
+   "support",
+   "guide",
+   "friendly",
+   "natural",
+   "female",
+   "engaging",
+   "conversation"
+  ]
+ },
+ {
+  "id": "c8750946-6b70-4dbf-b760-8cc554e98a0c",
+  "name": "Joao",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "flagship",
+  "tags": [
+   "policy",
+   "desk",
+   "tuned",
+   "support",
+   "desks",
+   "demos",
+   "with",
+   "feel",
+   "that",
+   "holds",
+   "clarity",
+   "across"
+  ]
+ },
+ {
+  "id": "250fdc17-cc1b-4ff1-8538-63988791cd3e",
+  "name": "Paulo",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "flagship",
+  "tags": [
+   "transfer",
+   "desk",
+   "natural",
+   "style",
+   "rather",
+   "than",
+   "scripted",
+   "announcer",
+   "clear",
+   "warm",
+   "efficient"
+  ]
+ },
+ {
+  "id": "e6b8bb73-2655-433d-8a10-7b8cf559d03b",
+  "name": "Gaspar",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "flagship",
+  "tags": [
+   "considerate",
+   "listener",
+   "truly",
+   "empathetic",
+   "voice",
+   "that",
+   "conveys",
+   "genuine",
+   "understanding",
+   "well-suited",
+   "sensitive",
+   "personalized"
+  ]
+ },
+ {
+  "id": "d9300964-8269-4ca8-9e8e-4ae714fcdc09",
+  "name": "Mariana",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "flagship",
+  "tags": [
+   "welcome",
+   "host",
+   "this",
+   "voice",
+   "offers",
+   "composed",
+   "steady",
+   "presence",
+   "perfect",
+   "explaining",
+   "procedures",
+   "with"
+  ]
+ },
+ {
+  "id": "b603811e-54c2-4a0a-8854-09eab9ffa63f",
+  "name": "Bruno",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "professional",
+  "tags": [
+   "reliable",
+   "communicator",
+   "clear",
+   "dependable",
+   "brazilian",
+   "male",
+   "built",
+   "corporate",
+   "communication"
+  ]
+ },
+ {
+  "id": "28a942b5-74f3-47bb-9b56-4c3f2562d3ba",
+  "name": "Gustavo",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "advisor",
+   "calm",
+   "measured",
+   "brazilian",
+   "male",
+   "suited",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "2f4d204f-a5dc-4196-81bc-155986b76ab6",
+  "name": "Mirella",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "professional",
+  "tags": [
+   "upbeat",
+   "speaker",
+   "bright",
+   "youthful",
+   "female",
+   "voice",
+   "friendly",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "f39bf583-3b3d-402f-9ffb-6179d9ec3e35",
+  "name": "Isabel",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "professional",
+  "tags": [
+   "confident",
+   "woman",
+   "clear",
+   "firm",
+   "adult",
+   "female",
+   "voice",
+   "giving",
+   "instructions",
+   "guidance",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "fbee0e7d-a83a-4082-bad1-13c70f86da4e",
+  "name": "Diogo",
+  "gender": "man",
+  "language": "pt",
+  "locale": "pt-pt",
+  "tier": "professional",
+  "tags": [
+   "promotion",
+   "lead",
+   "strong",
+   "expressive",
+   "adult",
+   "male",
+   "voice",
+   "narrations",
+   "commercials",
+   "persuasive",
+   "communication"
+  ]
+ },
+ {
+  "id": "1cf751f6-8749-43ab-98bd-230dd633abdb",
+  "name": "Ana Paula",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "professional",
+  "tags": [
+   "marketer",
+   "warm",
+   "friendly",
+   "female",
+   "natural",
+   "informal",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "700d1ee3-a641-4018-ba6e-899dcadc9e2b",
+  "name": "Luana",
+  "gender": "woman",
+  "language": "pt",
+  "locale": "pt-br",
+  "tier": "professional",
+  "tags": [
+   "public",
+   "speaker",
+   "pleasant",
+   "clear",
+   "female",
+   "casual",
+   "conversation"
+  ]
+ },
+ {
+  "id": "0f5ac064-30c7-4cf6-8748-d275f682a0d5",
+  "name": "Yu-Hsin",
+  "gender": "woman",
+  "language": "zh",
+  "locale": "zh-tw",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "facilitator",
+   "this",
+   "voice",
+   "offers",
+   "calm",
+   "precise",
+   "delivery",
+   "ideal",
+   "customer",
+   "support",
+   "detailed"
+  ]
+ },
+ {
+  "id": "453c418c-125e-4e5a-b048-03fec55d0963",
+  "name": "Feng",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-tw",
+  "tier": "flagship",
+  "tags": [
+   "taiwanese",
+   "query",
+   "specialist",
+   "offers",
+   "precise",
+   "reassuring",
+   "communication",
+   "excellent",
+   "handling",
+   "service",
+   "queries",
+   "providing"
+  ]
+ },
+ {
+  "id": "6eb8965c-e295-47bd-a9e4-3eeebb3abcff",
+  "name": "Jing",
+  "gender": "woman",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "coordinator",
+   "mandarin",
+   "female",
+   "reliable",
+   "business",
+   "communication"
+  ]
+ },
+ {
+  "id": "51afbb31-bc56-468d-b122-4f388b7c25d9",
+  "name": "Jianhao",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "helpful",
+   "anchor",
+   "delivers",
+   "engaging",
+   "narration",
+   "with",
+   "professional",
+   "pacing",
+   "friendly",
+   "presence"
+  ]
+ },
+ {
+  "id": "7a5d4663-88ae-47b7-808e-8f9b9ee4127b",
+  "name": "Hua",
+  "gender": "woman",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "sunny",
+   "support",
+   "upbeat",
+   "happy",
+   "young",
+   "adult",
+   "woman",
+   "engaging",
+   "conversations",
+   "conversational"
+  ]
+ },
+ {
+  "id": "c59c247b-6aa9-4ab6-91f9-9eabea7dc69e",
+  "name": "Tao",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "lecturer",
+   "friendly",
+   "young",
+   "adult",
+   "male",
+   "presentations",
+   "educational",
+   "content"
+  ]
+ },
+ {
+  "id": "bf32f849-7bc9-4b91-8c62-954588efcc30",
+  "name": "Lan",
+  "gender": "woman",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "instructor",
+   "firm",
+   "neutral",
+   "adult",
+   "woman",
+   "providing",
+   "guidance",
+   "instruction"
+  ]
+ },
+ {
+  "id": "653b9445-ae0c-4312-a3ce-375504cff31e",
+  "name": "Liu",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "plain",
+   "talker",
+   "casual",
+   "neutral",
+   "adult",
+   "conversational",
+   "support",
+   "cases"
+  ]
+ },
+ {
+  "id": "f9a4b3a6-b44b-469f-90e3-c8e19bd30e99",
+  "name": "Shuwen",
+  "gender": "woman",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "precision",
+   "guide",
+   "neutral",
+   "firm",
+   "female",
+   "providing",
+   "guidance",
+   "instruction"
+  ]
+ },
+ {
+  "id": "7e2a44d1-76b8-42b8-9507-fedfe3a803c8",
+  "name": "Jian",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "direct",
+   "dispatcher",
+   "formal",
+   "mandarin",
+   "male",
+   "structured",
+   "capable",
+   "support"
+  ]
+ },
+ {
+  "id": "16212f18-4955-4be9-a6cd-2196ce2c11d1",
+  "name": "Hao",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "warm",
+   "adult",
+   "male",
+   "voice",
+   "approachable",
+   "conversations",
+   "customer",
+   "support",
+   "casual",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "a53c3509-ec3f-425c-a223-977f5f7424dd",
+  "name": "Mei",
+  "gender": "woman",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "expressive",
+   "assistant",
+   "adult",
+   "female",
+   "voice",
+   "with",
+   "lively",
+   "engaging",
+   "tone",
+   "storytelling",
+   "advertisements",
+   "animated"
+  ]
+ },
+ {
+  "id": "eda5bbff-1ff1-4886-8ef1-4e69a77640a0",
+  "name": "Kai",
+  "gender": "man",
+  "language": "zh",
+  "locale": "zh-cn",
+  "tier": "flagship",
+  "tags": [
+   "commercial",
+   "deep",
+   "friendly",
+   "adult",
+   "male",
+   "commercials",
+   "advertising"
+  ]
+ },
+ {
+  "id": "c6ccfe32-6bee-484a-a8a2-7a51bee93f99",
+  "name": "Étienne",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "specialist",
+   "this",
+   "voice",
+   "offers",
+   "reassuring",
+   "presence",
+   "ideal",
+   "customer",
+   "support",
+   "detailed",
+   "instructions"
+  ]
+ },
+ {
+  "id": "7c58f4a4-a72c-42fa-a503-41b9408820f3",
+  "name": "Inès",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "poised",
+   "communicator",
+   "confident",
+   "articulate",
+   "french",
+   "female",
+   "suited",
+   "corporate",
+   "narration"
+  ]
+ },
+ {
+  "id": "b56a7171-86f0-42b6-b3fa-a316794aa4e0",
+  "name": "Zoé",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "informative",
+   "dispatcher",
+   "expertly",
+   "conveys",
+   "instructions",
+   "updates",
+   "with",
+   "clear",
+   "articulation",
+   "ensuring",
+   "timely",
+   "effective"
+  ]
+ },
+ {
+  "id": "996ec149-0dca-4389-ad08-e2d6f906b4bf",
+  "name": "Mathis",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "analytical",
+   "explanator",
+   "presents",
+   "data",
+   "insights",
+   "with",
+   "thoughtful",
+   "measured",
+   "delivery",
+   "simplifying",
+   "detailed",
+   "analyses"
+  ]
+ },
+ {
+  "id": "92579402-6868-412e-b845-3efed0be7a9e",
+  "name": "Jade",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "companion",
+   "serene",
+   "composed",
+   "voice",
+   "that",
+   "delivers",
+   "information",
+   "with",
+   "precision",
+   "creating",
+   "reassuring"
+  ]
+ },
+ {
+  "id": "f5e6c270-2aa9-463f-b48b-579a39284ce2",
+  "name": "Félix",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "helpful",
+   "professional",
+   "approachable",
+   "steady",
+   "tone",
+   "makes",
+   "this",
+   "voice",
+   "ideal",
+   "customer",
+   "service",
+   "delivering"
+  ]
+ },
+ {
+  "id": "045b0ec6-3bed-4bc8-b797-b90a7bb5b445",
+  "name": "Lise",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "concierge",
+   "delivering",
+   "information",
+   "with",
+   "polished",
+   "inviting",
+   "tone",
+   "this",
+   "voice",
+   "ideal",
+   "seamless"
+  ]
+ },
+ {
+  "id": "d9f4af15-c402-4f50-bbda-d8823d028d6a",
+  "name": "Henri",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "express",
+   "host",
+   "natural",
+   "style",
+   "rather",
+   "than",
+   "scripted",
+   "announcer",
+   "clear",
+   "warm",
+   "efficient"
+  ]
+ },
+ {
+  "id": "3b7d569e-01fc-45ef-b74b-29460956c691",
+  "name": "Josette",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "frontline",
+   "helper",
+   "josette",
+   "inviting",
+   "clear",
+   "voice",
+   "offers",
+   "friendly",
+   "presence",
+   "perfect",
+   "guiding",
+   "listeners"
+  ]
+ },
+ {
+  "id": "8f1e9d27-96ff-405e-9213-7432a784ac0b",
+  "name": "Jules",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "polished",
+   "host",
+   "delivers",
+   "information",
+   "with",
+   "confident",
+   "tone",
+   "suitable",
+   "high-level",
+   "corporate",
+   "communications",
+   "expert"
+  ]
+ },
+ {
+  "id": "fbc431c6-7d79-4ef5-b1bb-aab9f579c690",
+  "name": "Younes",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "helper",
+   "consistently",
+   "reassuring",
+   "tone",
+   "makes",
+   "this",
+   "voice",
+   "ideal",
+   "dependable",
+   "guidance",
+   "seamless"
+  ]
+ },
+ {
+  "id": "63fdecc2-4e1d-4aa3-a442-27204e3cd3b5",
+  "name": "Léonie",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "bright",
+   "host",
+   "inviting",
+   "expressive",
+   "voice",
+   "that",
+   "creates",
+   "pleasant",
+   "atmosphere",
+   "ideal",
+   "interactive",
+   "experiences"
+  ]
+ },
+ {
+  "id": "382109c0-5c85-4fd1-9d94-b3ec07a4486b",
+  "name": "Samuel",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "informative",
+   "facilitator",
+   "this",
+   "voice",
+   "provides",
+   "clear",
+   "precise",
+   "explanations",
+   "with",
+   "composed",
+   "reassuring",
+   "delivery"
+  ]
+ },
+ {
+  "id": "9d216805-e52e-4b1e-966a-6447df592a5d",
+  "name": "Fabien",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "tracking",
+   "desk",
+   "natural",
+   "style",
+   "rather",
+   "than",
+   "scripted",
+   "announcer",
+   "clear",
+   "warm",
+   "efficient"
+  ]
+ },
+ {
+  "id": "5def377d-908b-4540-8bd7-3c968fcae351",
+  "name": "Benoît",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "methodical",
+   "moderator",
+   "clear",
+   "french",
+   "male",
+   "professional",
+   "customer",
+   "assistance"
+  ]
+ },
+ {
+  "id": "c9f95851-235c-458c-acfb-67cdb2558538",
+  "name": "Solène",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "flagship",
+  "tags": [
+   "customer",
+   "champion",
+   "this",
+   "voice",
+   "embodies",
+   "helpful",
+   "confident",
+   "demeanor",
+   "perfect",
+   "guiding",
+   "users",
+   "through"
+  ]
+ },
+ {
+  "id": "0e8d318d-7b5a-49d1-9952-dc265248c12a",
+  "name": "Livia",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "flagship",
+  "tags": [
+   "customer",
+   "advocate",
+   "this",
+   "voice",
+   "combines",
+   "clarity",
+   "with",
+   "helpful",
+   "demeanor",
+   "advocating",
+   "listeners",
+   "guiding"
+  ]
+ },
+ {
+  "id": "80f117a5-5196-4b64-8b4c-efda3d3ab176",
+  "name": "Maëlle B",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "care",
+   "desk",
+   "this",
+   "voice",
+   "offers",
+   "measured",
+   "empathetic",
+   "delivery",
+   "perfect",
+   "thoughtful",
+   "guidance",
+   "detailed"
+  ]
+ },
+ {
+  "id": "7345dfa5-ee04-44d2-abf4-29262b880ab4",
+  "name": "Laurent",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "dependable",
+   "anchor",
+   "strong",
+   "definitive",
+   "french",
+   "male",
+   "providing",
+   "steady",
+   "corporate",
+   "messaging"
+  ]
+ },
+ {
+  "id": "e70cceed-576e-4fc1-9fc1-f1e137f15367",
+  "name": "Louise",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "tone",
+   "anchor",
+   "delivers",
+   "information",
+   "with",
+   "methodical",
+   "supportive",
+   "suitable",
+   "guiding",
+   "structured",
+   "tasks"
+  ]
+ },
+ {
+  "id": "57c90262-e4a1-4496-b256-98e3a92d8d82",
+  "name": "Dorian",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "supportive",
+   "analyst",
+   "thoughtful",
+   "organized",
+   "voice",
+   "that",
+   "provides",
+   "guidance",
+   "with",
+   "reassuring",
+   "clarity",
+   "suitable"
+  ]
+ },
+ {
+  "id": "93c98a2b-7d15-4f7b-8236-294b1e02b1c0",
+  "name": "Mathieu",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "assured",
+   "expert",
+   "knowledgeable",
+   "french",
+   "male",
+   "conveying",
+   "confidence",
+   "informative",
+   "readings"
+  ]
+ },
+ {
+  "id": "c606ce2f-650e-40ca-958b-e11a393cead5",
+  "name": "Alice",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "attentive",
+   "supporter",
+   "this",
+   "voice",
+   "delivers",
+   "thoughtful",
+   "composed",
+   "support",
+   "ideal",
+   "addressing",
+   "inquiries",
+   "with"
+  ]
+ },
+ {
+  "id": "2c3c8033-e2b5-4752-887b-0c591ad4521f",
+  "name": "Coralie",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "concise",
+   "explainer",
+   "this",
+   "voice",
+   "clarifies",
+   "complex",
+   "topics",
+   "with",
+   "direct",
+   "approachable",
+   "style",
+   "ensuring"
+  ]
+ },
+ {
+  "id": "500d5ceb-6a05-41a1-9cf8-e1562a03ca89",
+  "name": "Jean-Luc",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "night",
+   "desk",
+   "this",
+   "voice",
+   "conveys",
+   "capable",
+   "professional",
+   "demeanor",
+   "well-suited",
+   "consulting",
+   "roles",
+   "presenting"
+  ]
+ },
+ {
+  "id": "bf9d8264-6a49-4baa-8918-842c7b86d0d8",
+  "name": "Nora",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "attentive",
+   "assistant",
+   "this",
+   "voice",
+   "offers",
+   "calm",
+   "precise",
+   "delivery",
+   "ideal",
+   "detailed",
+   "instructions",
+   "empathetic"
+  ]
+ },
+ {
+  "id": "3143159f-07d9-4bd9-a4e4-c5dd3d7339b9",
+  "name": "Rosalie",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "attentive",
+   "helper",
+   "calm",
+   "empathetic",
+   "delivery",
+   "offers",
+   "steady",
+   "assistance",
+   "providing",
+   "comforting",
+   "guidance",
+   "every"
+  ]
+ },
+ {
+  "id": "267cd81d-ce80-43b5-996e-17ef75d2016a",
+  "name": "Delphine",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "service",
+   "desk",
+   "professional",
+   "connecting",
+   "voice",
+   "perfect",
+   "seamless",
+   "client",
+   "interactions",
+   "engaging",
+   "conversations"
+  ]
+ },
+ {
+  "id": "f44c64fe-5030-4325-ac04-1d63b74861a9",
+  "name": "Rémi",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "procedural",
+   "advisor",
+   "this",
+   "voice",
+   "offers",
+   "clear",
+   "step-by-step",
+   "guidance",
+   "with",
+   "composed",
+   "knowledgeable",
+   "tone"
+  ]
+ },
+ {
+  "id": "ce74c4da-4aee-435d-bc6d-81d1a9367e12",
+  "name": "Marc",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "conversational",
+   "buddy",
+   "friendly",
+   "adult",
+   "male",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "56df0456-8f47-4f7a-ac26-40c2f9797104",
+  "name": "Pierre",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "baritone",
+   "storyteller",
+   "deep",
+   "resonant",
+   "adult",
+   "male",
+   "voice",
+   "narration",
+   "audiobooks",
+   "authoritative",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "e2ab5462-e7c8-492d-a244-41f39444af6e",
+  "name": "Audrey",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "customer",
+   "service",
+   "this",
+   "voice",
+   "offers",
+   "clear",
+   "attentive",
+   "delivery",
+   "perfect",
+   "guiding",
+   "customers",
+   "through"
+  ]
+ },
+ {
+  "id": "bfb5c6a9-db28-40c8-8981-2904e96e69b2",
+  "name": "Léane",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "order",
+   "expeditor",
+   "this",
+   "voice",
+   "ensures",
+   "smooth",
+   "tracking",
+   "timely",
+   "updates",
+   "with",
+   "composed",
+   "reassuring"
+  ]
+ },
+ {
+  "id": "16568a79-0a3b-4032-ae17-ac0b826276fb",
+  "name": "Geneviève",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "precision",
+   "analyst",
+   "offers",
+   "meticulous",
+   "insights",
+   "with",
+   "precise",
+   "steady",
+   "tone",
+   "ideal",
+   "detailed",
+   "reports"
+  ]
+ },
+ {
+  "id": "004e0148-b251-48ae-b77a-234fbb5e2099",
+  "name": "Louis",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "methodical",
+   "inquirer",
+   "this",
+   "voice",
+   "offers",
+   "calm",
+   "analytical",
+   "approach",
+   "perfect",
+   "delving",
+   "into",
+   "details"
+  ]
+ },
+ {
+  "id": "d6f67b55-1fec-4319-8949-32ec9fa863c9",
+  "name": "Elise",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "information",
+   "steward",
+   "composed",
+   "attentive",
+   "presence",
+   "this",
+   "voice",
+   "carefully",
+   "relays",
+   "essential",
+   "details",
+   "providing"
+  ]
+ },
+ {
+  "id": "a0ad191b-2f51-4dc9-8cf3-7d1c8f5c5317",
+  "name": "Romy",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "anchor",
+   "offers",
+   "reassuring",
+   "presence",
+   "guiding",
+   "listeners",
+   "through",
+   "processes",
+   "with",
+   "empathetic",
+   "understanding"
+  ]
+ },
+ {
+  "id": "3817fdb0-7ae1-42d2-b46e-734dd9601bf2",
+  "name": "Madeleine",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "reliable",
+   "resident",
+   "warm",
+   "french",
+   "canadian",
+   "female",
+   "helpful",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "78291f16-fc9b-4f72-a21b-1ac7d767d104",
+  "name": "Nolan",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "solution",
+   "planner",
+   "bringing",
+   "methodical",
+   "reliable",
+   "presence",
+   "this",
+   "voice",
+   "ideal",
+   "planning",
+   "overseeing",
+   "detailed"
+  ]
+ },
+ {
+  "id": "03224226-ab6a-4231-92f9-953e4f758f9e",
+  "name": "Thomas",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "assistance",
+   "provider",
+   "this",
+   "voice",
+   "delivers",
+   "dependable",
+   "thoughtful",
+   "support",
+   "creating",
+   "reassuring",
+   "atmosphere",
+   "customer"
+  ]
+ },
+ {
+  "id": "6e6993ab-22b2-4a7e-9867-b40f92e01d8c",
+  "name": "Sophie",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "voice",
+   "concierge",
+   "offering",
+   "naturally",
+   "engaging",
+   "clear",
+   "delivery",
+   "this",
+   "connects",
+   "easily",
+   "providing",
+   "accessible"
+  ]
+ },
+ {
+  "id": "658607d6-26cd-4ab5-8a36-d964ee4b1051",
+  "name": "Élise",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "efficient",
+   "liaison",
+   "delivers",
+   "information",
+   "with",
+   "composed",
+   "responsive",
+   "tone",
+   "connecting",
+   "users",
+   "precise",
+   "timely"
+  ]
+ },
+ {
+  "id": "4fbf4e27-4c2f-4587-94b7-f66a574d3565",
+  "name": "Philippe",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "attentive",
+   "steward",
+   "this",
+   "voice",
+   "provides",
+   "clear",
+   "organized",
+   "explanations",
+   "with",
+   "thoughtful",
+   "supportive",
+   "demeanor"
+  ]
+ },
+ {
+  "id": "afea9efe-7b21-45d5-8e6b-0baf250b5c0a",
+  "name": "Cédric",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "process",
+   "architect",
+   "with",
+   "methodical",
+   "composed",
+   "delivery",
+   "this",
+   "voice",
+   "excels",
+   "breaking",
+   "down",
+   "intricate"
+  ]
+ },
+ {
+  "id": "5f83e88f-9b5a-4563-95c4-904f4b0036e9",
+  "name": "Inaya",
+  "gender": "woman",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "reassuring",
+   "support",
+   "providing",
+   "calm",
+   "empathetic",
+   "presence",
+   "this",
+   "voice",
+   "offers",
+   "steady",
+   "assistance",
+   "comforting"
+  ]
+ },
+ {
+  "id": "cc7d2711-69af-4072-9674-df588dd85682",
+  "name": "Maxime",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "methodical",
+   "moderator",
+   "calm",
+   "adult",
+   "male",
+   "reassuring",
+   "capable",
+   "service"
+  ]
+ },
+ {
+  "id": "cc4276e6-1ebc-429a-8c7d-930993d51abc",
+  "name": "Julien",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-ca",
+  "tier": "professional",
+  "tags": [
+   "polished",
+   "partner",
+   "professional",
+   "warm",
+   "french",
+   "male",
+   "reliable",
+   "assistance"
+  ]
+ },
+ {
+  "id": "ab636c8b-9960-4fb3-bb0c-b7b655fb9745",
+  "name": "Erwan",
+  "gender": "man",
+  "language": "fr",
+  "locale": "fr-fr",
+  "tier": "professional",
+  "tags": [
+   "everyday",
+   "speaker",
+   "clear",
+   "voice",
+   "consistent",
+   "system-driven",
+   "conversations"
+  ]
+ },
+ {
+  "id": "7ca2afba-a719-4f06-9af2-ea2b8e3cf14c",
+  "name": "Yuto",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "logistical",
+   "assistant",
+   "reliable",
+   "organized",
+   "voice",
+   "skillfully",
+   "conveying",
+   "important",
+   "updates",
+   "facilitating",
+   "smooth",
+   "processes"
+  ]
+ },
+ {
+  "id": "aa3ccc4a-cfd8-405c-acf5-1873a527b006",
+  "name": "Naoki",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "polished",
+   "professional",
+   "delivers",
+   "messages",
+   "with",
+   "articulate",
+   "tone",
+   "perfect",
+   "corporate",
+   "presentations",
+   "formal",
+   "interactions"
+  ]
+ },
+ {
+  "id": "cb21b4af-0e46-44f7-9128-51be7f898311",
+  "name": "Yuzuki",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "composed",
+   "explainer",
+   "offers",
+   "meticulous",
+   "explanations",
+   "with",
+   "steady",
+   "reassuring",
+   "tone",
+   "ideal",
+   "clarifying",
+   "complex"
+  ]
+ },
+ {
+  "id": "498e7f37-7fa3-4e2c-b8e2-8b6e9276f956",
+  "name": "Aiko",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "calming",
+   "voice",
+   "calm",
+   "composed",
+   "clear",
+   "conversational",
+   "interactions"
+  ]
+ },
+ {
+  "id": "579dc63a-1c19-4512-866a-1295dff18f0f",
+  "name": "Sakura",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "host",
+   "this",
+   "voice",
+   "offers",
+   "reassuring",
+   "information",
+   "with",
+   "composed",
+   "articulate",
+   "delivery",
+   "ideal"
+  ]
+ },
+ {
+  "id": "861213b7-f057-45c8-9527-0f4c144f1a03",
+  "name": "Haruka",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "gracious",
+   "guide",
+   "clear",
+   "polite",
+   "japanese",
+   "female",
+   "welcoming",
+   "customer",
+   "assistance"
+  ]
+ },
+ {
+  "id": "33658a29-5982-44c5-9114-0b2c31e100b4",
+  "name": "Kyo",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "lead",
+   "professional",
+   "reassuring",
+   "voice",
+   "offering",
+   "clear",
+   "resolutions",
+   "trusted",
+   "assistance",
+   "interactions"
+  ]
+ },
+ {
+  "id": "14c639be-eccb-447c-949e-112bd6dd326a",
+  "name": "Ryota",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "lead",
+   "articulate",
+   "engaging",
+   "voice",
+   "ideal",
+   "professional",
+   "presentations",
+   "instructional",
+   "content",
+   "explanations"
+  ]
+ },
+ {
+  "id": "e7296ced-7f95-49fa-9ece-5852c15f58ff",
+  "name": "Yuna",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "methodical",
+   "narrator",
+   "delivers",
+   "complex",
+   "information",
+   "with",
+   "systematic",
+   "composed",
+   "approach",
+   "ensuring",
+   "every",
+   "detail"
+  ]
+ },
+ {
+  "id": "75599e98-4d9b-4f1a-947f-67495c087091",
+  "name": "Keiko",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "clinic",
+   "desk",
+   "holds",
+   "consistency",
+   "across",
+   "alphanumerics",
+   "sales",
+   "pitches",
+   "with",
+   "focused",
+   "feel"
+  ]
+ },
+ {
+  "id": "882079ce-8513-4a0e-8c0c-c7b8995b12f4",
+  "name": "Aoi",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "order",
+   "coordinator",
+   "manages",
+   "inquiries",
+   "with",
+   "poised",
+   "clear",
+   "voice",
+   "offering",
+   "helpful",
+   "support",
+   "transactional"
+  ]
+ },
+ {
+  "id": "9436e723-612d-4114-aeb0-fa00d4d639bf",
+  "name": "Katsuya",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "promo",
+   "host",
+   "lively",
+   "confident",
+   "male",
+   "advertising",
+   "announcing"
+  ]
+ },
+ {
+  "id": "e63d7d05-76b0-4ff5-b8fb-503a82688bfe",
+  "name": "Miki",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "customer",
+   "concierge",
+   "offers",
+   "warm",
+   "efficient",
+   "assistance",
+   "expertly",
+   "guiding",
+   "listeners",
+   "through",
+   "service",
+   "inquiries"
+  ]
+ },
+ {
+  "id": "295cc815-c869-4a5a-b2b2-a4f2272ffccb",
+  "name": "Mio",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "explainer",
+   "delivers",
+   "intricate",
+   "information",
+   "with",
+   "meticulous",
+   "clarity",
+   "ensuring",
+   "complete",
+   "understanding",
+   "listeners"
+  ]
+ },
+ {
+  "id": "049de96c-781a-4728-8365-82899c178a43",
+  "name": "Rina",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "concierge",
+   "composed",
+   "reassuring",
+   "vocal",
+   "presence",
+   "perfect",
+   "delivering",
+   "instructions",
+   "explanations",
+   "with",
+   "trustworthy"
+  ]
+ },
+ {
+  "id": "dd610410-2b01-426e-b673-2c69bcf5f93b",
+  "name": "Yua",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "structured",
+   "facilitator",
+   "guides",
+   "listeners",
+   "through",
+   "processes",
+   "with",
+   "organized",
+   "methodical",
+   "approach",
+   "ensuring",
+   "clear"
+  ]
+ },
+ {
+  "id": "02009efe-320b-43e4-9b2f-8a20153d32c5",
+  "name": "Hana",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "procedural",
+   "verifier",
+   "this",
+   "voice",
+   "clearly",
+   "guides",
+   "listeners",
+   "through",
+   "processes",
+   "ensuring",
+   "understanding",
+   "with"
+  ]
+ },
+ {
+  "id": "dd10411e-a9f9-49fd-83bf-199c624352c4",
+  "name": "Yui",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "precise",
+   "presenter",
+   "delivers",
+   "presentations",
+   "with",
+   "meticulous",
+   "clarity",
+   "professional",
+   "poise",
+   "commanding",
+   "attention",
+   "accuracy"
+  ]
+ },
+ {
+  "id": "a935f15c-4b24-41dd-ba82-b90035720d16",
+  "name": "Kaito",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "polite",
+   "advisor",
+   "calm",
+   "clear",
+   "voice",
+   "perfect",
+   "navigating",
+   "complex",
+   "information",
+   "with",
+   "reassuring",
+   "accuracy"
+  ]
+ },
+ {
+  "id": "1d210168-d764-462c-8ab6-288a6d5a9579",
+  "name": "Hiroshi",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "flagship",
+  "tags": [
+   "dependable",
+   "director",
+   "steady",
+   "japanese",
+   "male",
+   "clear",
+   "transactional",
+   "support"
+  ]
+ },
+ {
+  "id": "63d6f469-8c2c-489d-b53f-d36f0bbdcd4b",
+  "name": "Ayako",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "calm",
+   "adult",
+   "female",
+   "providing",
+   "instructions",
+   "conversational",
+   "support"
+  ]
+ },
+ {
+  "id": "d1708217-3c6f-46c5-a46f-d47abdcd59e5",
+  "name": "Kenta",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "resourceful",
+   "coordinator",
+   "expertly",
+   "coordinates",
+   "information",
+   "with",
+   "patient",
+   "tone",
+   "ensuring",
+   "smooth",
+   "effective",
+   "communication"
+  ]
+ },
+ {
+  "id": "7be83d14-4707-43ad-9774-e24eb38320f0",
+  "name": "Rin",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "engaging",
+   "communicator",
+   "attentive",
+   "voice",
+   "that",
+   "delivers",
+   "content",
+   "with",
+   "friendly",
+   "professional",
+   "approach",
+   "perfect"
+  ]
+ },
+ {
+  "id": "6b92f628-be90-497c-8f4c-3b035002df71",
+  "name": "Kenji",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "deep",
+   "male",
+   "news",
+   "narration",
+   "formal",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "177df681-25b1-48c2-bb47-03ca5fa27f0a",
+  "name": "Ren",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "navigator",
+   "japanese",
+   "male",
+   "suited",
+   "professional",
+   "reassuring",
+   "communication"
+  ]
+ },
+ {
+  "id": "d0ff6870-dd30-420d-8568-d756d806ea62",
+  "name": "Hinata\t- Graceful Guide",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "polished",
+   "japanese",
+   "female",
+   "polite",
+   "reassuring",
+   "assistance"
+  ]
+ },
+ {
+  "id": "49e02441-83ea-4c77-bda8-79fdd7f07e92",
+  "name": "Tohru",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "career",
+   "coach",
+   "young",
+   "professional",
+   "male",
+   "providing",
+   "guidance",
+   "instruction"
+  ]
+ },
+ {
+  "id": "31c55968-a9f4-4115-8831-3a16952179c8",
+  "name": "Ayumi",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "sales",
+   "guide",
+   "upbeat",
+   "enthusiastic",
+   "adult",
+   "female",
+   "voice",
+   "promotions",
+   "engaging",
+   "customer",
+   "interactions"
+  ]
+ },
+ {
+  "id": "b8e1169c-f16a-4064-a6e0-95054169e553",
+  "name": "Takashi",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "professional",
+   "conversationalist",
+   "serious",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "steady",
+   "approachable",
+   "tone",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "59d4fd2f-f5eb-4410-8105-58db7661144f",
+  "name": "Yuki",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "woman",
+   "more",
+   "serious",
+   "female",
+   "news",
+   "narration",
+   "formal",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "2b568345-1d48-4047-b25f-7baccf842eb0",
+  "name": "Yumiko",
+  "gender": "woman",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "agent",
+   "professional",
+   "upbeat",
+   "woman",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "e8a863c6-22c7-4671-86ca-91cacffc038d",
+  "name": "Daisuke",
+  "gender": "man",
+  "language": "ja",
+  "locale": "ja-jp",
+  "tier": "professional",
+  "tags": [
+   "businessman",
+   "business-like",
+   "clear",
+   "male",
+   "professional",
+   "cases"
+  ]
+ },
+ {
+  "id": "4459a9a5-69d6-4680-b970-e13dc51845b6",
+  "name": "Siya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "bright",
+   "conversationalist",
+   "breathes",
+   "life",
+   "into",
+   "words",
+   "with",
+   "gentle",
+   "expressive",
+   "quality",
+   "perfect",
+   "engaging"
+  ]
+ },
+ {
+  "id": "cb9c954d-bcaa-43ed-82bf-aeb5e88a3cb5",
+  "name": "Kabir",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "integrator",
+   "offering",
+   "composed",
+   "structured",
+   "delivery",
+   "this",
+   "voice",
+   "seamlessly",
+   "connects",
+   "information",
+   "perfect"
+  ]
+ },
+ {
+  "id": "32b0f12b-67c3-421d-8850-b46c019ced91",
+  "name": "Anika",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "system",
+   "facilitator",
+   "presents",
+   "information",
+   "with",
+   "composed",
+   "clarity",
+   "ideal",
+   "facilitating",
+   "complex",
+   "processes",
+   "delivering"
+  ]
+ },
+ {
+  "id": "a631bc8b-ea1c-49bb-8dab-7a118afd11b8",
+  "name": "Riva",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "coordinator",
+   "delivers",
+   "with",
+   "composed",
+   "structured",
+   "approach",
+   "ideal",
+   "seamless",
+   "information",
+   "flow",
+   "customer"
+  ]
+ },
+ {
+  "id": "4cd9f881-58f7-4969-876a-00983214c362",
+  "name": "Varun",
+  "gender": "man",
+  "language": "hi",
+  "locale": null,
+  "tier": "flagship",
+  "tags": [
+   "query",
+   "resolver",
+   "offers",
+   "steady",
+   "articulate",
+   "presence",
+   "adept",
+   "resolving",
+   "inquiries",
+   "providing",
+   "confident",
+   "helpful"
+  ]
+ },
+ {
+  "id": "4877b818-c7fe-4c89-b1cf-eadf8e23da72",
+  "name": "Rohan",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "communicator",
+   "clear",
+   "measured",
+   "hindi",
+   "male",
+   "suited",
+   "corporate",
+   "communication"
+  ]
+ },
+ {
+  "id": "6b02ffe5-e3cb-48c0-a023-c72f85953375",
+  "name": "Sneha",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "empathetic",
+   "voice",
+   "gentle",
+   "reassuring",
+   "tone",
+   "designed",
+   "offer",
+   "comfort",
+   "build",
+   "trust"
+  ]
+ },
+ {
+  "id": "910fb75e-1d20-4840-ac63-ac6b26a71bdc",
+  "name": "Dev",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "host",
+   "warm",
+   "genuine",
+   "hindi",
+   "male",
+   "perfect",
+   "conversational",
+   "platforms"
+  ]
+ },
+ {
+  "id": "0f14d8cb-f039-41fe-a813-a9b4bee7eed8",
+  "name": "Nisha",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "elegant",
+   "speaker",
+   "refined",
+   "composed",
+   "hindi",
+   "female",
+   "perfect",
+   "formal",
+   "announcements"
+  ]
+ },
+ {
+  "id": "a81fccdc-5595-4dfc-ae76-4de6a515b8a2",
+  "name": "Meera",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "bright",
+   "companion",
+   "friendly",
+   "approachable",
+   "hindi",
+   "female",
+   "perfect",
+   "everyday",
+   "interactions"
+  ]
+ },
+ {
+  "id": "7e8cb11d-37af-476b-ab8f-25da99b18644",
+  "name": "Anuj",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "engaging",
+   "narrator",
+   "expressive",
+   "male",
+   "voice",
+   "storytelling",
+   "conversational",
+   "content"
+  ]
+ },
+ {
+  "id": "47f3bbb1-e98f-4e0c-92c5-5f0325e1e206",
+  "name": "Neha",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "virtual",
+   "assistant",
+   "clear",
+   "composed",
+   "female",
+   "voice",
+   "assistants",
+   "system",
+   "prompts"
+  ]
+ },
+ {
+  "id": "6303e5fb-a0a7-48f9-bb1a-dd42c216dc5d",
+  "name": "Sagar",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "helpful",
+   "friend",
+   "energetic",
+   "adult",
+   "male",
+   "engaging",
+   "customer",
+   "support",
+   "conversations"
+  ]
+ },
+ {
+  "id": "5283efe8-07d1-4e3a-b615-2ae4a81c1b73",
+  "name": "Kriti",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "explainer",
+   "inviting",
+   "voice",
+   "offers",
+   "friendly",
+   "presence",
+   "perfect",
+   "guiding",
+   "listeners",
+   "through",
+   "content"
+  ]
+ },
+ {
+  "id": "205fc552-2cce-4307-baa1-598b9dc3dd01",
+  "name": "Rehan",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "explainer",
+   "combines",
+   "clarity",
+   "with",
+   "demeanor",
+   "ideal",
+   "engaging",
+   "listeners",
+   "narratives",
+   "educational",
+   "content"
+  ]
+ },
+ {
+  "id": "53199cc1-d10d-4fe0-9129-af434b8dde20",
+  "name": "Atharv",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "flagship",
+  "tags": [
+   "measured",
+   "professional",
+   "with",
+   "pace",
+   "clear",
+   "articulation",
+   "atharv",
+   "brings",
+   "reliable",
+   "voice",
+   "corporate",
+   "educational"
+  ]
+ },
+ {
+  "id": "00a472d9-32a2-4648-a733-f53e484a381e",
+  "name": "Harsh",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "approachable",
+   "analyst",
+   "with",
+   "steady",
+   "clarity",
+   "warmth",
+   "harsh",
+   "fits",
+   "cases",
+   "that",
+   "need",
+   "confident"
+  ]
+ },
+ {
+  "id": "72656902-fb4b-4c31-af52-c3b68e2cae26",
+  "name": "Esha",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "guide",
+   "esha",
+   "offers",
+   "soft",
+   "reassuring",
+   "hindi",
+   "that",
+   "works",
+   "well",
+   "appointment",
+   "reminders"
+  ]
+ },
+ {
+  "id": "911d97fc-e9f5-4249-bf11-50d4edb7b8d8",
+  "name": "Mehak",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "reschedule",
+   "host",
+   "mehak",
+   "works",
+   "especially",
+   "well",
+   "appointment",
+   "account",
+   "journeys",
+   "delivering",
+   "tone",
+   "with"
+  ]
+ },
+ {
+  "id": "d2d3584d-1b44-428e-aab1-30255d28d978",
+  "name": "Diya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "service",
+   "specialist",
+   "diya",
+   "pairs",
+   "welcoming",
+   "tone",
+   "with",
+   "precise",
+   "hindi",
+   "delivery",
+   "ideal",
+   "troubleshooting"
+  ]
+ },
+ {
+  "id": "ffa0d297-8cf9-4ec9-8e4e-99a59e939b02",
+  "name": "Ananya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": null,
+  "tier": "professional",
+  "tags": [
+   "process",
+   "facilitator",
+   "presents",
+   "steps",
+   "with",
+   "composed",
+   "articulation",
+   "helpful",
+   "manner",
+   "excellent",
+   "guiding",
+   "through"
+  ]
+ },
+ {
+  "id": "00218a9c-4b3e-49a1-8c88-f30daf6929f3",
+  "name": "Anaya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": null,
+  "tier": "professional",
+  "tags": [
+   "keen",
+   "support",
+   "offers",
+   "clear",
+   "composed",
+   "delivery",
+   "adept",
+   "guiding",
+   "users",
+   "through",
+   "processes",
+   "providing"
+  ]
+ },
+ {
+  "id": "9bde82b6-70e6-4df6-b964-e897cc526b2b",
+  "name": "Aryan",
+  "gender": "man",
+  "language": "hi",
+  "locale": null,
+  "tier": "professional",
+  "tags": [
+   "narrator",
+   "provides",
+   "clear",
+   "composed",
+   "guidance",
+   "digital",
+   "interactions",
+   "offering",
+   "reassuring",
+   "systematic",
+   "approach",
+   "assistance"
+  ]
+ },
+ {
+  "id": "126a0835-beea-4e77-a883-f66eabcf6dd4",
+  "name": "Swati",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "bright",
+   "professional",
+   "swati",
+   "offers",
+   "clear",
+   "approachable",
+   "hindi",
+   "read",
+   "that",
+   "makes",
+   "complex",
+   "information"
+  ]
+ },
+ {
+  "id": "f5a7e270-a91b-463e-8997-8ed08b6a6a77",
+  "name": "Samar",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "engaging",
+   "guide",
+   "warm",
+   "natural",
+   "sound",
+   "makes",
+   "this",
+   "voice",
+   "perfect",
+   "interactive",
+   "tutorials",
+   "friendly"
+  ]
+ },
+ {
+  "id": "b3610b4c-0fd6-4912-89d1-ace6cb6054dd",
+  "name": "Shailika",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "clear",
+   "explainer",
+   "approachable",
+   "hindi",
+   "female",
+   "voice",
+   "customer",
+   "support",
+   "guided",
+   "assistance",
+   "conversational",
+   "assistant"
+  ]
+ },
+ {
+  "id": "9b953e7b-86a8-42f0-b625-1434fb15392b",
+  "name": "Neeraj",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "tour",
+   "guide",
+   "deep",
+   "male",
+   "excellent",
+   "storytelling",
+   "providing",
+   "instructions"
+  ]
+ },
+ {
+  "id": "b5fbb8ab-ef8c-4b92-b040-31b5ec2ec2e9",
+  "name": "Soham",
+  "gender": "man",
+  "language": "hi",
+  "locale": null,
+  "tier": "professional",
+  "tags": [
+   "transaction",
+   "verifier",
+   "meticulous",
+   "reassuring",
+   "presence",
+   "this",
+   "voice",
+   "ensures",
+   "accurate",
+   "validation",
+   "provides",
+   "clear"
+  ]
+ },
+ {
+  "id": "c6bbc7d5-4b35-4d49-b1c6-4417019a61c1",
+  "name": "Lavanya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "assistant",
+   "approachable",
+   "upbeat",
+   "strong",
+   "match",
+   "routine",
+   "updates",
+   "account",
+   "guidance",
+   "everyday",
+   "prompts"
+  ]
+ },
+ {
+  "id": "97303aad-1a66-4edf-870a-58e6ba545005",
+  "name": "Amrit",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "helpful",
+   "guide",
+   "warm",
+   "conversational",
+   "hindi",
+   "male",
+   "voice",
+   "customer",
+   "support",
+   "guided",
+   "assistance",
+   "assistant"
+  ]
+ },
+ {
+  "id": "c7be5dde-c1e6-4ebe-9096-ddc4b4edb1cc",
+  "name": "Shreeraj",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "professional",
+   "server",
+   "neutral",
+   "conversational",
+   "hindi",
+   "male",
+   "voice",
+   "customer",
+   "support",
+   "guided",
+   "assistance",
+   "assistant"
+  ]
+ },
+ {
+  "id": "4e1a8eca-d53a-45ea-bb73-5c00be75f03e",
+  "name": "Paar",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "explainer",
+   "warm",
+   "conversational",
+   "hindi",
+   "male",
+   "voice",
+   "customer",
+   "support",
+   "guided",
+   "assistance",
+   "assistant"
+  ]
+ },
+ {
+  "id": "92da9281-7cf3-4c61-be0f-face03a3312f",
+  "name": "Preeti",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "advisor",
+   "clear",
+   "approachable",
+   "hindi",
+   "female",
+   "voice",
+   "customer",
+   "support",
+   "guided",
+   "assistance",
+   "conversational"
+  ]
+ },
+ {
+  "id": "bc4324cb-08c4-4869-8fed-58436d02fdc2",
+  "name": "Kaira",
+  "gender": "woman",
+  "language": "hi",
+  "locale": null,
+  "tier": "professional",
+  "tags": [
+   "operational",
+   "specialist",
+   "offers",
+   "focused",
+   "articulate",
+   "delivery",
+   "bringing",
+   "precision",
+   "instructions",
+   "clarity",
+   "briefings"
+  ]
+ },
+ {
+  "id": "78e608e9-7258-464d-83c0-badcef173bab",
+  "name": "Ritesh",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "easy-going",
+   "assistant",
+   "ritesh",
+   "provides",
+   "measured",
+   "confident",
+   "hindi",
+   "delivery",
+   "suited",
+   "professional",
+   "updates",
+   "support"
+  ]
+ },
+ {
+  "id": "14008c51-fbf4-418e-ae23-9316a03dcfa2",
+  "name": "Ishani",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "thoughtful",
+   "responder",
+   "reassuring",
+   "articulate",
+   "presence",
+   "delivering",
+   "support",
+   "confirmations",
+   "with",
+   "calm",
+   "considered",
+   "approach"
+  ]
+ },
+ {
+  "id": "993981f6-28bd-4325-bde7-428afd33ad7f",
+  "name": "Vihaan",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "relaxed",
+   "solutionist",
+   "vihaan",
+   "brings",
+   "warm",
+   "reassuring",
+   "hindi",
+   "presence",
+   "ideal",
+   "guided",
+   "assistance",
+   "customer"
+  ]
+ },
+ {
+  "id": "f3222e9e-2798-4b2e-9830-e3f0393f8cc2",
+  "name": "Nikhil",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "service",
+   "specialist",
+   "nikhil",
+   "provides",
+   "precise",
+   "efficient",
+   "support",
+   "ideal",
+   "navigating",
+   "services",
+   "tech",
+   "solutions"
+  ]
+ },
+ {
+  "id": "098fb15d-2597-4186-8b74-25340050b6e7",
+  "name": "Vishal",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "assured",
+   "expert",
+   "grounded",
+   "knowledgeable",
+   "delivery",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "432fc642-6a83-4975-b77a-c605903b5ba6",
+  "name": "Sanya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "modern",
+   "communicator",
+   "crisp",
+   "approachable",
+   "hindi",
+   "female",
+   "built",
+   "digital",
+   "assistance"
+  ]
+ },
+ {
+  "id": "791d5162-d5eb-40f0-8189-f19db44611d8",
+  "name": "Ayush",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "neighbor",
+   "confident",
+   "young",
+   "indian",
+   "male",
+   "delivering",
+   "demos",
+   "instructions"
+  ]
+ },
+ {
+  "id": "56e35e2d-6eb6-4226-ab8b-9776515a7094",
+  "name": "Kavita",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "customer",
+   "care",
+   "agent",
+   "mature",
+   "indian",
+   "female",
+   "cases"
+  ]
+ },
+ {
+  "id": "20e68f5c-08e5-42d0-8e9b-6e716fd1ae66",
+  "name": "Vivek",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "composed",
+   "voice",
+   "low-pitched",
+   "grounded",
+   "male",
+   "formal",
+   "communication"
+  ]
+ },
+ {
+  "id": "6b7468f5-d6b0-4d6b-b38a-46f6d6e5bac7",
+  "name": "Rakesh",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "thoughtful",
+   "speaker",
+   "expressive",
+   "male",
+   "voice",
+   "informative",
+   "narration",
+   "explanations"
+  ]
+ },
+ {
+  "id": "adf97b9d-905c-41de-9fe9-afb387116d06",
+  "name": "Vikas",
+  "gender": "man",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "approachable",
+   "voice",
+   "polite",
+   "friendly",
+   "male",
+   "customer",
+   "support",
+   "service",
+   "conversations"
+  ]
+ },
+ {
+  "id": "209d9a43-03eb-40d8-a7b7-51a6d54c052f",
+  "name": "Anita",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "meditation",
+   "guide",
+   "soft-spoken",
+   "adult",
+   "female",
+   "voice",
+   "casual",
+   "conversations",
+   "calming",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "f91ab3e6-5071-4e15-b016-cde6f2bcd222",
+  "name": "Aadhya",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "soother",
+   "slow",
+   "female",
+   "voice",
+   "casual",
+   "conversation"
+  ]
+ },
+ {
+  "id": "9cebb910-d4b7-4a4a-85a4-12c79137724c",
+  "name": "Aarti",
+  "gender": "woman",
+  "language": "hi",
+  "locale": "hi-in",
+  "tier": "professional",
+  "tags": [
+   "conversationalist",
+   "indian",
+   "accented",
+   "female",
+   "relatable",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "57a3a9e0-a91c-4c94-a2bb-e6cbab3ae649",
+  "name": "Clemens",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "instructor",
+   "this",
+   "voice",
+   "offers",
+   "clear",
+   "articulate",
+   "guidance",
+   "perfect",
+   "detailed",
+   "instructions",
+   "educational"
+  ]
+ },
+ {
+  "id": "b7187e84-fe22-4344-ba4a-bc013fcb533e",
+  "name": "Sebastian",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "orator",
+   "warm",
+   "male",
+   "audiobooks",
+   "clear",
+   "communication"
+  ]
+ },
+ {
+  "id": "4ad22058-7cb6-402c-a115-196cbfc25dce",
+  "name": "Moritz",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "modern",
+   "communicator",
+   "crisp",
+   "approachable",
+   "german",
+   "male",
+   "ideal",
+   "digital",
+   "assistants"
+  ]
+ },
+ {
+  "id": "d1cbea67-e4d3-47cd-be2a-2bd4e646b002",
+  "name": "Henrik",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "analyst",
+   "articulate",
+   "dependable",
+   "german",
+   "male",
+   "perfect",
+   "business",
+   "briefings"
+  ]
+ },
+ {
+  "id": "9b4d08b6-0494-4301-ab92-9150f4ee2718",
+  "name": "Marlene",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "elegant",
+   "speaker",
+   "refined",
+   "composed",
+   "german",
+   "female",
+   "built",
+   "formal",
+   "announcements"
+  ]
+ },
+ {
+  "id": "40e0f496-a220-46bb-975a-7ef465b3d92b",
+  "name": "Vreni",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-ch",
+  "tier": "flagship",
+  "tags": [
+   "diligent",
+   "advisor",
+   "composed",
+   "swiss-german",
+   "female",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "4ab1ff51-476d-42bb-8019-4d315f7c0c05",
+  "name": "Lena",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "muse",
+   "cool",
+   "german",
+   "female",
+   "clear",
+   "communication",
+   "audiobooks"
+  ]
+ },
+ {
+  "id": "cd7b67f4-22a4-49a0-a197-3fa16f7e64d4",
+  "name": "Alexander",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "reliable",
+   "advisor",
+   "steady",
+   "assured",
+   "delivery",
+   "clear",
+   "instructions",
+   "dependable",
+   "support",
+   "conversations"
+  ]
+ },
+ {
+  "id": "2578354e-4b18-4d28-832c-5943344b7085",
+  "name": "Klara",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "empathetic",
+   "voice",
+   "gentle",
+   "reassuring",
+   "tone",
+   "designed",
+   "offer",
+   "comfort",
+   "build",
+   "trust"
+  ]
+ },
+ {
+  "id": "c0c52199-e35f-4681-b68a-949ee499617e",
+  "name": "Eleni",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-ch",
+  "tier": "flagship",
+  "tags": [
+   "troubleshooter",
+   "warm",
+   "approachable",
+   "swiss-german",
+   "female",
+   "technical",
+   "assistance"
+  ]
+ },
+ {
+  "id": "f6f315e4-4fb3-4440-92ea-2edb01f9bf1b",
+  "name": "Hermann",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "businessman",
+   "warm",
+   "confident",
+   "approachable",
+   "voice",
+   "perfect",
+   "customer",
+   "support",
+   "business",
+   "conversations"
+  ]
+ },
+ {
+  "id": "ac197a78-cec7-4c50-93e5-93bdc1910b11",
+  "name": "Jennifer",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "approachable",
+   "adult",
+   "female",
+   "great",
+   "conversational",
+   "support"
+  ]
+ },
+ {
+  "id": "42f14755-88c3-4124-aae3-5cc3a9618e8f",
+  "name": "Jan",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "adult",
+   "male",
+   "great",
+   "providing",
+   "guidance",
+   "instruction"
+  ]
+ },
+ {
+  "id": "de07efe3-b309-418b-bdca-42827223efd2",
+  "name": "Rena",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "emotive",
+   "energetic",
+   "young",
+   "adult",
+   "female",
+   "great",
+   "engaging",
+   "conversations"
+  ]
+ },
+ {
+  "id": "3264ada2-4a79-4666-badc-49e2267be692",
+  "name": "Christian",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "high",
+   "energy",
+   "adult",
+   "male",
+   "great",
+   "engaging",
+   "emotive",
+   "conversations"
+  ]
+ },
+ {
+  "id": "43a317e9-f1b9-45bf-bbdb-1d4a52e46f0d",
+  "name": "Emi",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "neutral",
+   "adult",
+   "female",
+   "great",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "758a5cff-af0b-4bdf-84bd-4c1b5525c249",
+  "name": "Leander",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "warm",
+   "approachable",
+   "voice",
+   "ideal",
+   "lifestyle",
+   "content",
+   "social",
+   "media",
+   "casual",
+   "explainers"
+  ]
+ },
+ {
+  "id": "b629d743-2b5a-4ffd-b5bb-9de9b969a690",
+  "name": "Sibylle",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "clear",
+   "confident",
+   "voice",
+   "ideal",
+   "announcements",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "dff81230-ff75-49a4-af44-f6b2f43500d8",
+  "name": "Jonas",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "casual",
+   "male",
+   "voice",
+   "thats",
+   "warm",
+   "friendly",
+   "conversational"
+  ]
+ },
+ {
+  "id": "d42fc8d7-efdd-44df-bb2e-a6e093601917",
+  "name": "Oskar",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "advisor",
+   "seasoned",
+   "composed",
+   "voice",
+   "with",
+   "calm",
+   "confident",
+   "tone",
+   "ideal",
+   "guidance",
+   "thoughtful"
+  ]
+ },
+ {
+  "id": "24c61c42-b538-468e-a9ad-16c7a032c9cb",
+  "name": "Klaus",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "archivist",
+   "deep",
+   "grounded",
+   "male",
+   "voice",
+   "narration",
+   "storytelling",
+   "impactful",
+   "brand",
+   "content"
+  ]
+ },
+ {
+  "id": "adc919b3-6ebf-47fd-8a46-27c5169d6d94",
+  "name": "Leni",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "daymaker",
+   "bright",
+   "cheerful",
+   "voice",
+   "with",
+   "clear",
+   "articulation",
+   "natural",
+   "enthusiasm",
+   "ideal",
+   "upbeat",
+   "narration"
+  ]
+ },
+ {
+  "id": "0b66a153-548f-4f2c-b734-09a13b0bd163",
+  "name": "Lorelei",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "helpful",
+   "guide",
+   "calm",
+   "clearly",
+   "enunciated",
+   "voice",
+   "ideal",
+   "informative",
+   "narration",
+   "mindfulness",
+   "instructional",
+   "content"
+  ]
+ },
+ {
+  "id": "2be00b67-d53f-4eb5-89e7-96c224d56fbc",
+  "name": "Dieter",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "commercial",
+   "loud",
+   "expressive",
+   "adult",
+   "male",
+   "voice",
+   "storytelling",
+   "commercials",
+   "energetic",
+   "announcements"
+  ]
+ },
+ {
+  "id": "6d4b1416-8d54-4d94-a788-8a802c086544",
+  "name": "Sabine",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "firm",
+   "newscaster",
+   "soft",
+   "commanding",
+   "adult",
+   "female",
+   "voice",
+   "customer",
+   "support",
+   "clear",
+   "communication",
+   "giving"
+  ]
+ },
+ {
+  "id": "afa425cf-5489-4a09-8a3f-d3cb1f82150d",
+  "name": "Nico",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "friendly",
+   "agent",
+   "casual",
+   "male",
+   "phone",
+   "calls",
+   "conversational",
+   "agents"
+  ]
+ },
+ {
+  "id": "1ade29fc-6b82-4607-9e70-361720139b12",
+  "name": "Lea",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "breezy",
+   "voice",
+   "smooth",
+   "female",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+  "name": "Alina",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "engaging",
+   "assistant",
+   "warm",
+   "female",
+   "phone",
+   "systems",
+   "virtual",
+   "assistants",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "e00dd3df-19e7-4cd4-827a-7ff6687b6954",
+  "name": "Lukas",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "professional",
+   "confident",
+   "male",
+   "phone",
+   "systems",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "b9de4a89-2257-424b-94c2-db18ba68c81a",
+  "name": "Viktoria",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "phone",
+   "conversationalist",
+   "clear",
+   "smooth",
+   "female",
+   "conversations"
+  ]
+ },
+ {
+  "id": "384b625b-da5d-49e8-a76d-a2855d4f31eb",
+  "name": "Thomas",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "anchor",
+   "earnest",
+   "male",
+   "conversations",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "db229dfe-f5de-4be4-91fd-7b077c158578",
+  "name": "Andreas",
+  "gender": "man",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "recorder",
+   "smooth",
+   "male",
+   "story",
+   "narration"
+  ]
+ },
+ {
+  "id": "3f4ade23-6eb4-4279-ab05-6a144947c4d5",
+  "name": "Karin",
+  "gender": "woman",
+  "language": "de",
+  "locale": "de-de",
+  "tier": "professional",
+  "tags": [
+   "companion",
+   "friendly",
+   "female",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "998c6d1b-0bd0-4d27-bce7-ed030e3c9e6c",
+  "name": "Sarthak",
+  "gender": "man",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "trustworthy",
+   "communicator",
+   "provides",
+   "confident",
+   "consistent",
+   "vocal",
+   "presence",
+   "ensuring",
+   "clarity",
+   "build",
+   "trust",
+   "communication"
+  ]
+ },
+ {
+  "id": "0046dfd7-171b-4442-9eb7-0712fa712a7a",
+  "name": "Smruti",
+  "gender": "woman",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "anchor",
+   "articulate",
+   "tone",
+   "ensures",
+   "accuracy",
+   "making",
+   "this",
+   "voice",
+   "excellent",
+   "delivering",
+   "complex"
+  ]
+ },
+ {
+  "id": "cc71692b-f326-499b-8f8f-90a415b4d3fb",
+  "name": "Akash",
+  "gender": "man",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "structured",
+   "presenter",
+   "composed",
+   "articulate",
+   "tone",
+   "ideal",
+   "delivering",
+   "organized",
+   "content",
+   "such",
+   "educational",
+   "modules"
+  ]
+ },
+ {
+  "id": "37eb1575-353e-44f4-855d-894b4f003642",
+  "name": "Alok",
+  "gender": "man",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "navigator",
+   "delivers",
+   "information",
+   "with",
+   "precise",
+   "clarity",
+   "reassuring",
+   "presence",
+   "ideal",
+   "guiding",
+   "listeners"
+  ]
+ },
+ {
+  "id": "b2a31ee9-7373-4122-852d-eec9576e2fa6",
+  "name": "Rian",
+  "gender": "woman",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "supportive",
+   "communicator",
+   "steady",
+   "approachable",
+   "presence",
+   "ensures",
+   "clarity",
+   "trust",
+   "every",
+   "interaction"
+  ]
+ },
+ {
+  "id": "29fae03b-356a-4c74-9441-c5341d5557d4",
+  "name": "Debashish",
+  "gender": "man",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "directive",
+   "caller",
+   "direct",
+   "clear",
+   "voice",
+   "delivering",
+   "essential",
+   "instructions",
+   "alerts",
+   "time-sensitive",
+   "announcements"
+  ]
+ },
+ {
+  "id": "53e3dafc-dff6-4c81-9dc7-58aa9d73a51d",
+  "name": "Disha",
+  "gender": "woman",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "digital",
+   "support",
+   "provides",
+   "helpful",
+   "direct",
+   "presence",
+   "perfectly",
+   "suited",
+   "interactive",
+   "voice",
+   "systems",
+   "clear"
+  ]
+ },
+ {
+  "id": "3cd7da94-509d-4a2a-b0f0-67fd39fe4e8e",
+  "name": "Geeta",
+  "gender": "woman",
+  "language": "or",
+  "locale": "or-in",
+  "tier": "flagship",
+  "tags": [
+   "informative",
+   "curator",
+   "this",
+   "articulate",
+   "resourceful",
+   "presence",
+   "expertly",
+   "organizes",
+   "delivers",
+   "essential",
+   "information",
+   "with"
+  ]
+ },
+ {
+  "id": "ebc02c0d-61fd-48f2-a6c9-0d6683b7d466",
+  "name": "Ayala",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "expert",
+   "narrator",
+   "ayala",
+   "expressive",
+   "controlled",
+   "delivery",
+   "makes",
+   "perfect",
+   "engaging",
+   "narrations",
+   "insightful",
+   "presentations"
+  ]
+ },
+ {
+  "id": "3e32f3c5-9ac0-4192-9994-87fdb277120f",
+  "name": "Noam",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "broadcaster",
+   "clear",
+   "authoritative",
+   "adult",
+   "male",
+   "voice",
+   "announcements",
+   "broadcasts",
+   "formal",
+   "presentations"
+  ]
+ },
+ {
+  "id": "ff857c8e-e7f9-4afd-af42-dce9f3c5ab02",
+  "name": "Yarden",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "trusted",
+   "advisor",
+   "composed",
+   "hebrew",
+   "female",
+   "reliable",
+   "customer",
+   "assistance"
+  ]
+ },
+ {
+  "id": "84b969ad-19c7-428d-b742-48d387f7f138",
+  "name": "Gil",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "host",
+   "warm",
+   "genuine",
+   "hebrew",
+   "male",
+   "perfect",
+   "conversational",
+   "experiences"
+  ]
+ },
+ {
+  "id": "431b7e77-b46d-4eda-8362-db430ac0913c",
+  "name": "Oren",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "advisor",
+   "calm",
+   "measured",
+   "hebrew",
+   "male",
+   "suited",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "daa4d6bb-da62-4e16-8065-76cd87942475",
+  "name": "Eitan",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "modern",
+   "communicator",
+   "strong",
+   "hebrew",
+   "male",
+   "providing",
+   "clear",
+   "tone",
+   "corporate",
+   "messaging"
+  ]
+ },
+ {
+  "id": "2821fd0c-35c7-4adf-9c42-32e394bf85cb",
+  "name": "Adi",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "efficient",
+   "expert",
+   "articulate",
+   "professional",
+   "hebrew",
+   "female",
+   "customer",
+   "assistance"
+  ]
+ },
+ {
+  "id": "32a91a5d-05d2-4c1e-bd5a-ff5fd0c413f2",
+  "name": "Tehila",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "specialist",
+   "precise",
+   "sound",
+   "careful",
+   "guidance",
+   "sensitive",
+   "support",
+   "focused",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "731d8feb-5eb8-4e2b-b6b3-723dfccdcd18",
+  "name": "Neta",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "professional",
+   "delivers",
+   "information",
+   "with",
+   "measured",
+   "articulate",
+   "tone",
+   "perfect",
+   "e-learning",
+   "guidance"
+  ]
+ },
+ {
+  "id": "33124162-0d74-48af-ab1c-c1c01bac0247",
+  "name": "Ido",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "communicator",
+   "mid-pitched",
+   "voice",
+   "offers",
+   "reassuring",
+   "composed",
+   "delivery",
+   "perfect",
+   "customer",
+   "support",
+   "detailed"
+  ]
+ },
+ {
+  "id": "921f4026-af53-4761-ac56-1c32e44856e8",
+  "name": "Ronen",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "consultant",
+   "consultative",
+   "composed",
+   "delivery",
+   "expert",
+   "guidance",
+   "decision",
+   "support",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "1cd6668f-84b9-41a2-adbd-b7328f8d6ef4",
+  "name": "Hila",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "guide",
+   "hila",
+   "clear",
+   "voice",
+   "perfect",
+   "guiding",
+   "providing",
+   "reassuring",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "4ff88d85-28a2-4870-bdc4-cd9697fd5af5",
+  "name": "Aviva",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "patient",
+   "guide",
+   "reassuring",
+   "delivery",
+   "careful",
+   "explanations",
+   "scheduling",
+   "support",
+   "step-by-step",
+   "guidance"
+  ]
+ },
+ {
+  "id": "a976c076-3e31-4bf2-a178-8c3ce3d52b2a",
+  "name": "Eyal",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "grounded",
+   "guide",
+   "calm",
+   "presence",
+   "professional",
+   "help",
+   "issue",
+   "resolution",
+   "confident",
+   "next-step",
+   "guidance"
+  ]
+ },
+ {
+  "id": "db3dc8a6-d8f8-4ca5-add9-559c849a6fa0",
+  "name": "Itai",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "measured",
+   "advisor",
+   "thoughtful",
+   "tone",
+   "structured",
+   "support",
+   "careful",
+   "explanations",
+   "calm",
+   "customer",
+   "interactions"
+  ]
+ },
+ {
+  "id": "43300c5e-f925-4cd2-adf7-0a031c0e242e",
+  "name": "Alma",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "advisor",
+   "crisp",
+   "advisory",
+   "tone",
+   "concise",
+   "directions",
+   "customer",
+   "answers",
+   "well-structured",
+   "support",
+   "flows"
+  ]
+ },
+ {
+  "id": "b54dc7e4-afca-4877-aa67-2c725419b600",
+  "name": "Liora",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "gentle",
+   "guide",
+   "delivery",
+   "confident",
+   "assistance",
+   "structured",
+   "support",
+   "professional",
+   "conversations"
+  ]
+ },
+ {
+  "id": "8193c793-825c-4bb1-b522-13d458ce8d68",
+  "name": "Nava",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "warm",
+   "specialist",
+   "supportive",
+   "service",
+   "patient",
+   "explanations",
+   "approachable",
+   "customer",
+   "care"
+  ]
+ },
+ {
+  "id": "858c98dc-db9e-4d1a-9435-557cdf77685c",
+  "name": "Avi",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "calm",
+   "consultant",
+   "consultative",
+   "presence",
+   "thoughtful",
+   "guidance",
+   "account",
+   "help",
+   "clear",
+   "next-step",
+   "support"
+  ]
+ },
+ {
+  "id": "3a1546bd-6781-4376-984d-70b4e9f3d2c4",
+  "name": "Dafna",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "supportive",
+   "guide",
+   "composed",
+   "tone",
+   "guided",
+   "onboarding",
+   "service",
+   "reassurance",
+   "clear",
+   "assistance"
+  ]
+ },
+ {
+  "id": "d179b385-3cd4-4972-b155-e7cb2445776f",
+  "name": "Rina",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "articulate",
+   "coordinator",
+   "clear",
+   "composed",
+   "delivery",
+   "direct",
+   "guidance",
+   "support",
+   "tasks",
+   "practical",
+   "assistant",
+   "interactions"
+  ]
+ },
+ {
+  "id": "52271edb-c161-4c76-9e33-c5c1d39de6e3",
+  "name": "Asaf",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "steady",
+   "advisor",
+   "grounded",
+   "delivery",
+   "reliable",
+   "guidance",
+   "account",
+   "assistance",
+   "clear",
+   "service",
+   "conversations"
+  ]
+ },
+ {
+  "id": "95d91579-a3f1-4bb3-b5e1-9a97ef401628",
+  "name": "Yonatan",
+  "gender": "man",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "measured",
+   "professional",
+   "steady",
+   "even",
+   "pacing",
+   "that",
+   "offers",
+   "grounding",
+   "presence",
+   "script"
+  ]
+ },
+ {
+  "id": "c5bc902c-bc31-40a8-b81f-7d3a1e1920bd",
+  "name": "Yardena",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "expert",
+   "facilitator",
+   "hebrew",
+   "female",
+   "efficient",
+   "customer",
+   "communication"
+  ]
+ },
+ {
+  "id": "e8e2079b-b690-40e6-8e21-02721d3d56bc",
+  "name": "Maayan\t- Refined Speaker",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "elegant",
+   "precise",
+   "articulation",
+   "suited",
+   "sophisticated",
+   "brand",
+   "communications"
+  ]
+ },
+ {
+  "id": "94c2e193-a498-44e4-b958-174478734c3f",
+  "name": "Tamar",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "crisp",
+   "announcer",
+   "clean",
+   "authoritative",
+   "articulation",
+   "perfect",
+   "clear",
+   "public-facing",
+   "statements"
+  ]
+ },
+ {
+  "id": "d0be495c-5e23-4b88-b12d-bc42d38be9a5",
+  "name": "Shira",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "comforting",
+   "presence",
+   "deeply",
+   "warm",
+   "steady",
+   "tone",
+   "designed",
+   "soothe",
+   "reassure",
+   "listener"
+  ]
+ },
+ {
+  "id": "bd05edd9-cec9-4600-9af4-c9ba4e032ff9",
+  "name": "Talia",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "approachable",
+   "guide",
+   "friendly",
+   "clear",
+   "voice",
+   "that",
+   "makes",
+   "detailed",
+   "information",
+   "easy",
+   "digest"
+  ]
+ },
+ {
+  "id": "1daba551-67af-465e-a189-f91495aa2347",
+  "name": "Yael",
+  "gender": "woman",
+  "language": "he",
+  "locale": "he-il",
+  "tier": "professional",
+  "tags": [
+   "casual",
+   "presence",
+   "voice",
+   "with",
+   "relaxed",
+   "tone",
+   "friendly",
+   "warmth",
+   "ideal",
+   "conversational",
+   "dialogue",
+   "everyday"
+  ]
+ },
+ {
+  "id": "f4d8ad0e-ad3a-4c37-b99d-ff28e366781b",
+  "name": "Ludvig",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "insightful",
+   "guide",
+   "provides",
+   "explanations",
+   "with",
+   "reassuring",
+   "helpful",
+   "demeanor"
+  ]
+ },
+ {
+  "id": "bcdcad6d-4eb6-4a71-89fd-1ae2ce9f95d8",
+  "name": "Freja",
+  "gender": "woman",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "informative",
+   "host",
+   "bright",
+   "articulate",
+   "voice",
+   "ideal",
+   "presenting",
+   "information",
+   "with",
+   "clarity",
+   "warmth"
+  ]
+ },
+ {
+  "id": "ebe0038b-1790-40bd-98cd-924313e58d3b",
+  "name": "Vidar",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "supportive",
+   "voice",
+   "warm",
+   "understanding",
+   "presence",
+   "perfect",
+   "empathetic",
+   "customer",
+   "service",
+   "interactions"
+  ]
+ },
+ {
+  "id": "8c889eba-5b31-4179-8fb2-37bbee22db64",
+  "name": "Nils",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "host",
+   "warm",
+   "genuine",
+   "swedish",
+   "male",
+   "podcasts",
+   "conversational",
+   "platforms"
+  ]
+ },
+ {
+  "id": "eede54e1-c038-4b4d-b655-809eeaa45c4c",
+  "name": "Henrik",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "refined",
+   "narrator",
+   "smooth",
+   "polished",
+   "swedish",
+   "male",
+   "suited",
+   "premium",
+   "content"
+  ]
+ },
+ {
+  "id": "573ad84b-f4bf-49cb-908d-d4a939aef147",
+  "name": "Filip",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "lead",
+   "this",
+   "voice",
+   "delivers",
+   "details",
+   "with",
+   "approachable",
+   "service-oriented",
+   "demeanor",
+   "clear",
+   "instructions"
+  ]
+ },
+ {
+  "id": "922e8304-2630-4779-8a86-effedfa99a79",
+  "name": "Albin",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "information",
+   "steward",
+   "this",
+   "thoughtful",
+   "voice",
+   "offers",
+   "measured",
+   "analytical",
+   "delivery",
+   "ideal",
+   "detailed",
+   "explanations"
+  ]
+ },
+ {
+  "id": "6384afc4-3731-4260-91dc-62e52bc793c3",
+  "name": "Olle",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "poised",
+   "helper",
+   "this",
+   "voice",
+   "provides",
+   "polite",
+   "experience",
+   "ensuring",
+   "every",
+   "interaction",
+   "feels",
+   "supported"
+  ]
+ },
+ {
+  "id": "f72246fe-1c80-4afc-9db2-54bb905da1e3",
+  "name": "Saga",
+  "gender": "woman",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "keen",
+   "specialist",
+   "delivering",
+   "information",
+   "with",
+   "captivating",
+   "clarity",
+   "pleasant",
+   "timbre",
+   "this",
+   "voice",
+   "ideal"
+  ]
+ },
+ {
+  "id": "d3cc405c-a812-489b-afe5-f3d50a7a8310",
+  "name": "August",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "narrator",
+   "this",
+   "voice",
+   "provides",
+   "professional",
+   "link",
+   "ensuring",
+   "smooth",
+   "interactions",
+   "helpful",
+   "understanding"
+  ]
+ },
+ {
+  "id": "6c6b05bf-ae5f-4013-82ab-7348e99ffdb2",
+  "name": "Freja",
+  "gender": "woman",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "nordic",
+   "reader",
+   "expressive",
+   "female",
+   "clear",
+   "communication"
+  ]
+ },
+ {
+  "id": "0caedb75-417f-4e36-9b64-c21354cb94c8",
+  "name": "Cees",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "professional",
+  "tags": [
+   "nordic",
+   "narrator",
+   "enunciating",
+   "male",
+   "smooth",
+   "conversations"
+  ]
+ },
+ {
+  "id": "b576c504-cbd1-4224-af06-04067c5a5e3e",
+  "name": "Astrid",
+  "gender": "woman",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "direct",
+   "director",
+   "polished",
+   "swedish",
+   "female",
+   "efficient",
+   "corporate",
+   "assistance"
+  ]
+ },
+ {
+  "id": "32a806e8-894e-41ad-a4d5-6d9154d7b1e6",
+  "name": "Erik",
+  "gender": "man",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "professional",
+  "tags": [
+   "social",
+   "speaker",
+   "relaxed",
+   "approachable",
+   "adult",
+   "male",
+   "voice",
+   "casual",
+   "conversations",
+   "natural",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "00510a15-4216-4fdc-a0ab-05d74cd9f795",
+  "name": "Elina",
+  "gender": "woman",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "presenter",
+   "woman",
+   "firm",
+   "professional",
+   "adult",
+   "female",
+   "voice",
+   "news",
+   "delivery",
+   "announcements",
+   "formal"
+  ]
+ },
+ {
+  "id": "f852eb8d-a177-48cd-bf63-7e4dcab61a36",
+  "name": "Ingrid",
+  "gender": "woman",
+  "language": "sv",
+  "locale": "sv-se",
+  "tier": "flagship",
+  "tags": [
+   "peaceful",
+   "guide",
+   "serene",
+   "female",
+   "relaxing",
+   "narrations"
+  ]
+ },
+ {
+  "id": "41e97793-a58d-40b7-8430-83465e186f94",
+  "name": "Aryan",
+  "gender": "man",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "order",
+   "verifier",
+   "this",
+   "voice",
+   "offers",
+   "calm",
+   "meticulous",
+   "approach",
+   "perfect",
+   "ensuring",
+   "accuracy",
+   "guiding"
+  ]
+ },
+ {
+  "id": "01fc5e31-71e9-40dc-a220-06dbd4b4ed7e",
+  "name": "Zara",
+  "gender": "woman",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "customer",
+   "guide",
+   "clear",
+   "empathetic",
+   "voice",
+   "perfect",
+   "guiding",
+   "users",
+   "through",
+   "processes",
+   "providing",
+   "helpful"
+  ]
+ },
+ {
+  "id": "66d882f5-3076-4b4c-a30f-e1db8b01ed6b",
+  "name": "Danish",
+  "gender": "man",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "tone",
+   "anchor",
+   "delivers",
+   "composed",
+   "articulate",
+   "well-suited",
+   "precise",
+   "instructions",
+   "insightful",
+   "explanations"
+  ]
+ },
+ {
+  "id": "10c66789-dbc8-4759-ae3f-161c717bee10",
+  "name": "Imran",
+  "gender": "man",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "support",
+   "clear",
+   "voice",
+   "offering",
+   "reliable",
+   "guidance",
+   "everyday",
+   "tasks"
+  ]
+ },
+ {
+  "id": "862e933f-b21c-457b-8df8-8e35c6923ef8",
+  "name": "Nida",
+  "gender": "woman",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "thoughtful",
+   "listener",
+   "conveys",
+   "genuine",
+   "understanding",
+   "helpful",
+   "guidance",
+   "creating",
+   "supportive",
+   "environment",
+   "interaction"
+  ]
+ },
+ {
+  "id": "b913ef45-3fbb-4fd0-9564-7746cc7119ea",
+  "name": "Saqib",
+  "gender": "man",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "systematic",
+   "partner",
+   "voice",
+   "offering",
+   "steady",
+   "methodical",
+   "assistance",
+   "ideal",
+   "fostering",
+   "trust",
+   "complex",
+   "support"
+  ]
+ },
+ {
+  "id": "47651485-d776-4cc9-872f-e2c28120b7fb",
+  "name": "Sana",
+  "gender": "woman",
+  "language": "ur",
+  "locale": "ur-pk",
+  "tier": "flagship",
+  "tags": [
+   "organized",
+   "assistant",
+   "offers",
+   "articulate",
+   "systematic",
+   "approach",
+   "making",
+   "complex",
+   "processes",
+   "easy",
+   "understand",
+   "user"
+  ]
+ },
+ {
+  "id": "19f28c21-ae34-499f-b64a-f7b09cd9b516",
+  "name": "Karthik",
+  "gender": "man",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "customer",
+   "assistant",
+   "clear",
+   "helpful",
+   "voice",
+   "with",
+   "calm",
+   "demeanor",
+   "ideal",
+   "support",
+   "informational",
+   "announcements"
+  ]
+ },
+ {
+  "id": "fb7d8d97-9730-4165-bd79-36b5ce61b5f2",
+  "name": "Janani",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "professional",
+   "janani",
+   "delivers",
+   "content",
+   "with",
+   "composed",
+   "reassuring",
+   "tone",
+   "perfect",
+   "explanations",
+   "reliable"
+  ]
+ },
+ {
+  "id": "96e6974d-57a9-4325-89c8-43f065f8bd95",
+  "name": "Akshara",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "resourceful",
+   "assistant",
+   "voice",
+   "that",
+   "navigates",
+   "support",
+   "interactions",
+   "with",
+   "bright",
+   "intelligence",
+   "helpful",
+   "organized"
+  ]
+ },
+ {
+  "id": "80e4e2b3-ec54-4930-97ac-667eba950352",
+  "name": "Nithya",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "polished",
+   "presence",
+   "refined",
+   "smooth",
+   "articulation",
+   "suited",
+   "corporate",
+   "messaging"
+  ]
+ },
+ {
+  "id": "d4470f50-295e-4e11-82a2-158d45bf6abc",
+  "name": "Anitha",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "guide",
+   "inviting",
+   "approachable",
+   "tone",
+   "perfect",
+   "providing",
+   "friendly",
+   "guidance"
+  ]
+ },
+ {
+  "id": "4014f0c9-d3eb-4eca-af2b-fd6004f526be",
+  "name": "Meena",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "measured",
+   "professional",
+   "steady",
+   "even",
+   "pacing",
+   "that",
+   "offers",
+   "grounding",
+   "presence",
+   "script"
+  ]
+ },
+ {
+  "id": "01d7796d-ac10-4ea3-8df0-3cc04f2d25ff",
+  "name": "Kavitha",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "communicator",
+   "crisp",
+   "articulate",
+   "delivery",
+   "designed",
+   "seamless",
+   "information",
+   "sharing"
+  ]
+ },
+ {
+  "id": "25d2c432-139c-4035-bfd6-9baaabcdd006",
+  "name": "Kavya",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "presence",
+   "friendly",
+   "voice",
+   "with",
+   "natural",
+   "tone",
+   "smooth",
+   "flow",
+   "ideal",
+   "everyday",
+   "conversations"
+  ]
+ },
+ {
+  "id": "d2870b91-1b4c-47ab-81a8-3718d8e9c222",
+  "name": "Arun",
+  "gender": "man",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "lively",
+   "voice",
+   "expressive",
+   "adult",
+   "with",
+   "tone",
+   "storytelling",
+   "narrations",
+   "engaging",
+   "cultural",
+   "content"
+  ]
+ },
+ {
+  "id": "7f98e662-142d-41ba-89a2-12452640ce6d",
+  "name": "Lakshmi",
+  "gender": "woman",
+  "language": "ta",
+  "locale": "ta-in",
+  "tier": "flagship",
+  "tags": [
+   "everyday",
+   "voice",
+   "casual",
+   "upbeat",
+   "adult",
+   "female",
+   "friendly",
+   "conversations",
+   "dialogue",
+   "lighthearted",
+   "interactions"
+  ]
+ },
+ {
+  "id": "1a602be4-3b57-4bef-a270-dfa5efed0541",
+  "name": "Yeji",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "clarity",
+   "desk",
+   "with",
+   "balanced",
+   "articulate",
+   "cadence",
+   "this",
+   "voice",
+   "brings",
+   "warmth",
+   "instructional",
+   "descriptive"
+  ]
+ },
+ {
+  "id": "4dd4630e-19e0-4243-bca0-676ff85119b7",
+  "name": "Haeun",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "polished",
+   "presence",
+   "refined",
+   "smooth",
+   "articulation",
+   "high-quality",
+   "corporate",
+   "messaging"
+  ]
+ },
+ {
+  "id": "e1717dc3-b87b-4720-aa7f-b6db290e0609",
+  "name": "Taehyun",
+  "gender": "man",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "host",
+   "warm",
+   "genuine",
+   "korean",
+   "podcasts",
+   "conversational",
+   "platforms"
+  ]
+ },
+ {
+  "id": "89f4372f-1f73-4b85-8e1e-5d24ed8bc826",
+  "name": "Jaewon",
+  "gender": "man",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "advisor",
+   "calm",
+   "measured",
+   "korean",
+   "male",
+   "suited",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "304fdbd8-65e6-40d6-ab78-f9d18b9efdf9",
+  "name": "Jihyun",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "anchorwoman",
+   "relaxing",
+   "female",
+   "narrations",
+   "announcements"
+  ]
+ },
+ {
+  "id": "ce9ca2b6-2bed-4452-99bb-052e1ec0b534",
+  "name": "Seoyun",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "guide",
+   "inviting",
+   "approachable",
+   "tone",
+   "perfect",
+   "providing",
+   "friendly",
+   "guidance"
+  ]
+ },
+ {
+  "id": "a0fc16d3-01af-482b-910f-ed063c3d79d3",
+  "name": "Subin",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "elegant",
+   "speaker",
+   "refined",
+   "composed",
+   "korean",
+   "female",
+   "suited",
+   "formal",
+   "announcements"
+  ]
+ },
+ {
+  "id": "7706804e-ea85-443a-968a-b9bf363bdde8",
+  "name": "Minji",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "modern",
+   "communicator",
+   "crisp",
+   "natural",
+   "korean",
+   "female",
+   "built",
+   "platforms",
+   "digital",
+   "assistants"
+  ]
+ },
+ {
+  "id": "90dba946-774b-40ed-98d9-ac3835117827",
+  "name": "Hyerin",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "graceful",
+   "host",
+   "warm",
+   "welcoming",
+   "korean",
+   "female",
+   "that",
+   "puts",
+   "listeners",
+   "ease",
+   "instantly"
+  ]
+ },
+ {
+  "id": "15628352-2ede-4f1b-89e6-ceda0c983fbc",
+  "name": "Jiwoo",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "specialist",
+   "professional",
+   "polite",
+   "adult",
+   "female",
+   "voice",
+   "customer",
+   "support",
+   "clear",
+   "communication"
+  ]
+ },
+ {
+  "id": "d6d687b4-5d1e-4eb7-8c5a-1eb608532772",
+  "name": "Junho",
+  "gender": "man",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "precise",
+   "communicator",
+   "this",
+   "voice",
+   "delivers",
+   "information",
+   "with",
+   "precision",
+   "measured",
+   "pace",
+   "ensuring",
+   "every"
+  ]
+ },
+ {
+  "id": "69c18e1d-fab0-4747-b9da-58617cd8b9e4",
+  "name": "Soyeon",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "professional",
+  "tags": [
+   "bright",
+   "companion",
+   "confident",
+   "friendly",
+   "korean",
+   "female",
+   "suited",
+   "conversation"
+  ]
+ },
+ {
+  "id": "537a82ae-4926-4bfb-9aec-aff0b80a12a5",
+  "name": "Minho",
+  "gender": "man",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "spirit",
+   "laidback",
+   "voice",
+   "with",
+   "smooth",
+   "approachable",
+   "tone",
+   "that",
+   "feels",
+   "natural",
+   "conversation"
+  ]
+ },
+ {
+  "id": "f7755efb-1848-4321-aa22-5e5be5d32486",
+  "name": "Ryeowook",
+  "gender": "man",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "flagship",
+  "tags": [
+   "easygoing",
+   "relaxed",
+   "voice",
+   "with",
+   "calm",
+   "natural",
+   "pacing",
+   "ideal",
+   "everyday",
+   "conversations"
+  ]
+ },
+ {
+  "id": "cd6c48a9-774b-4397-98b4-9948c0a790f0",
+  "name": "Soojin",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "professional",
+  "tags": [
+   "helpful",
+   "tone",
+   "casual",
+   "voice",
+   "with",
+   "natural",
+   "friendly",
+   "that",
+   "feels",
+   "relaxed",
+   "approachable",
+   "conversation"
+  ]
+ },
+ {
+  "id": "cac92886-4b7c-4bc1-a524-e0f79c0381be",
+  "name": "Yuna",
+  "gender": "woman",
+  "language": "ko",
+  "locale": "ko-kr",
+  "tier": "professional",
+  "tags": [
+   "kind",
+   "unnie",
+   "cheerful",
+   "voice",
+   "with",
+   "bright",
+   "gentle",
+   "tone",
+   "perfect",
+   "empathetic",
+   "friendly",
+   "customer"
+  ]
+ },
+ {
+  "id": "82c2afc8-ebbc-4802-8ccf-036dc0fa1e3b",
+  "name": "Charan",
+  "gender": "man",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "concierge",
+   "composed",
+   "voice",
+   "perfect",
+   "conveying",
+   "information",
+   "providing",
+   "guidance",
+   "with",
+   "precision"
+  ]
+ },
+ {
+  "id": "4418bb06-8329-49a1-bb11-53bb64ca0547",
+  "name": "Shanti",
+  "gender": "woman",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "authority",
+   "grounded",
+   "soothing",
+   "voice",
+   "that",
+   "conveys",
+   "confidence"
+  ]
+ },
+ {
+  "id": "3a8e6fea-81e5-4d4d-8755-86093146cdb8",
+  "name": "Vidya",
+  "gender": "woman",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "empathetic",
+   "voice",
+   "gentle",
+   "reassuring",
+   "tone",
+   "designed",
+   "offer",
+   "comfort",
+   "build",
+   "trust"
+  ]
+ },
+ {
+  "id": "76961778-5ce4-4aa9-9cdf-66a029d61a8f",
+  "name": "Bhavani",
+  "gender": "woman",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "reassuring",
+   "companion",
+   "soft",
+   "understanding",
+   "tone",
+   "conveying",
+   "genuine",
+   "care",
+   "empathy"
+  ]
+ },
+ {
+  "id": "cf061d8b-a752-4865-81a2-57570a6e0565",
+  "name": "Ramya",
+  "gender": "woman",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "graceful",
+   "host",
+   "warm",
+   "welcoming",
+   "telugu",
+   "female",
+   "that",
+   "puts",
+   "listeners",
+   "ease",
+   "instantly"
+  ]
+ },
+ {
+  "id": "07bc462a-c644-49f1-baf7-82d5599131be",
+  "name": "Sindhu",
+  "gender": "woman",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "conversational",
+   "partner",
+   "clear",
+   "natural",
+   "adult",
+   "female",
+   "voice",
+   "casual",
+   "conversations",
+   "everyday",
+   "interactions"
+  ]
+ },
+ {
+  "id": "ebecd063-10f4-422e-a8ff-556ce5c4d4e4",
+  "name": "Pavan",
+  "gender": "man",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "bright",
+   "voice",
+   "with",
+   "energetic",
+   "clarity",
+   "upbeat",
+   "tone",
+   "ideal",
+   "customer",
+   "support",
+   "engaging",
+   "communication"
+  ]
+ },
+ {
+  "id": "330c4fa0-1da3-4c55-8e97-951bfd724e20",
+  "name": "Sarika",
+  "gender": "woman",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "spirit",
+   "voice",
+   "with",
+   "laidback",
+   "tone",
+   "gentle",
+   "rhythm",
+   "perfect",
+   "relaxed",
+   "friendly",
+   "conversational"
+  ]
+ },
+ {
+  "id": "38bded0a-3ab4-42d1-8e47-2e0b6b10ced9",
+  "name": "Vikram",
+  "gender": "man",
+  "language": "te",
+  "locale": "te-in",
+  "tier": "flagship",
+  "tags": [
+   "folk",
+   "narrator",
+   "expressive",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "colorful",
+   "tone",
+   "storytelling",
+   "narrations",
+   "engaging"
+  ]
+ },
+ {
+  "id": "6d14ac2a-4dda-46f8-bd6f-0722db08ec00",
+  "name": "Mae",
+  "gender": "woman",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "authority",
+   "grounded",
+   "soothing",
+   "voice",
+   "that",
+   "conveys",
+   "confidence"
+  ]
+ },
+ {
+  "id": "42332792-6e9f-4b2c-a106-3ff97e34a79d",
+  "name": "Jerome",
+  "gender": "man",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "empathetic",
+   "voice",
+   "gentle",
+   "reassuring",
+   "tone",
+   "designed",
+   "offer",
+   "comfort",
+   "build",
+   "trust"
+  ]
+ },
+ {
+  "id": "d1c819ba-0384-496b-b63b-eb57a96a43cc",
+  "name": "Angel",
+  "gender": "woman",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "welcoming",
+   "host",
+   "hospitable",
+   "warm",
+   "articulation",
+   "that",
+   "puts",
+   "listener",
+   "ease"
+  ]
+ },
+ {
+  "id": "8bfb1d08-a77a-4a7c-a4b7-af377380c6eb",
+  "name": "Joy",
+  "gender": "woman",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "crisp",
+   "narrator",
+   "sharp",
+   "precise",
+   "delivery",
+   "ideal",
+   "clearly",
+   "explaining",
+   "complex",
+   "topics"
+  ]
+ },
+ {
+  "id": "21d8f579-b69c-42f0-8313-c50c6be05531",
+  "name": "Liezel",
+  "gender": "woman",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "informer",
+   "reliable",
+   "consistent",
+   "tone",
+   "general",
+   "communication"
+  ]
+ },
+ {
+  "id": "5cd73b8e-703e-4f73-9e30-56876c620204",
+  "name": "Juan",
+  "gender": "man",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "communicator",
+   "crisp",
+   "articulate",
+   "delivery",
+   "designed",
+   "seamless",
+   "information",
+   "sharing"
+  ]
+ },
+ {
+  "id": "c4cbcb7d-d9fa-4eac-b547-46831718ef58",
+  "name": "Angelo",
+  "gender": "man",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "narrator",
+   "gentle",
+   "young",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "approachable",
+   "tone",
+   "casual",
+   "conversations"
+  ]
+ },
+ {
+  "id": "9261664a-c3d0-4200-9038-5466bcf3a09c",
+  "name": "Luz",
+  "gender": "woman",
+  "language": "tl",
+  "locale": "tl-ph",
+  "tier": "flagship",
+  "tags": [
+   "casual",
+   "speaker",
+   "natural",
+   "conversational",
+   "adult",
+   "female",
+   "voice",
+   "everyday",
+   "dialogue",
+   "friendly",
+   "interactions",
+   "support"
+  ]
+ },
+ {
+  "id": "2835e382-643b-4ac6-8f6c-74df549a7ad0",
+  "name": "Milla",
+  "gender": "woman",
+  "language": "fi",
+  "locale": "fi-fi",
+  "tier": "flagship",
+  "tags": [
+   "modern",
+   "communicator",
+   "crisp",
+   "natural",
+   "finnish",
+   "female",
+   "customer",
+   "assistance"
+  ]
+ },
+ {
+  "id": "7849a11e-4107-44ae-bc7e-77bea41ec019",
+  "name": "Matti",
+  "gender": "man",
+  "language": "fi",
+  "locale": "fi-fi",
+  "tier": "flagship",
+  "tags": [
+   "measured",
+   "manager",
+   "steady",
+   "adult",
+   "male",
+   "structured",
+   "professional",
+   "interactions"
+  ]
+ },
+ {
+  "id": "8ccd7fcd-846a-4594-bde2-5feec2cba73a",
+  "name": "Jari",
+  "gender": "man",
+  "language": "fi",
+  "locale": "fi-fi",
+  "tier": "flagship",
+  "tags": [
+   "reliable",
+   "representative",
+   "steady",
+   "adult",
+   "male",
+   "direct",
+   "efficient",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "ae1a833b-0d95-4b7f-8d05-d6418c6f8049",
+  "name": "Mikko",
+  "gender": "man",
+  "language": "fi",
+  "locale": "fi-fi",
+  "tier": "flagship",
+  "tags": [
+   "narration",
+   "expert",
+   "firm",
+   "strong",
+   "adult",
+   "male",
+   "voice",
+   "audiobooks",
+   "authoritative",
+   "communication"
+  ]
+ },
+ {
+  "id": "65c34eec-42c9-4a75-a8bd-b676fb847b72",
+  "name": "Helmi",
+  "gender": "woman",
+  "language": "fi",
+  "locale": "fi-fi",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "friend",
+   "friendly",
+   "adult",
+   "female",
+   "voice",
+   "casual",
+   "conversations",
+   "everyday",
+   "chat"
+  ]
+ },
+ {
+  "id": "d358377a-cd1d-45c5-abd0-701314e36cbe",
+  "name": "Marcin",
+  "gender": "man",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "charismatic",
+   "presenter",
+   "bright",
+   "energetic",
+   "polish",
+   "male",
+   "that",
+   "brings",
+   "scripts",
+   "life"
+  ]
+ },
+ {
+  "id": "43e52207-96fc-4e01-aaf8-cae317e43fdb",
+  "name": "Kacper",
+  "gender": "man",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "diligent",
+   "detailer",
+   "methodical",
+   "polish",
+   "male",
+   "precise",
+   "efficient",
+   "support"
+  ]
+ },
+ {
+  "id": "2a3503b2-b6b6-4534-a224-e8c0679cec4a",
+  "name": "Jakub",
+  "gender": "man",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "gentle",
+   "guide",
+   "clear",
+   "male",
+   "narrations"
+  ]
+ },
+ {
+  "id": "f8aacd6e-1ac2-42d3-bcbf-125336ecd0f2",
+  "name": "Ewa\t- Efficient Envoy",
+  "gender": "woman",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "professional",
+   "polish",
+   "female",
+   "efficient",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "6bc7c014-022b-42ce-8b53-a5ec878a7ca7",
+  "name": "Agnieszka",
+  "gender": "woman",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "coordinator",
+   "formal",
+   "adult",
+   "female",
+   "direct",
+   "capable",
+   "assistance"
+  ]
+ },
+ {
+  "id": "887149a8-4616-42ad-b2ce-c3819176f45d",
+  "name": "Andrzej",
+  "gender": "man",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "elder",
+   "voice",
+   "wise-sounding",
+   "elderly",
+   "male",
+   "with",
+   "calm",
+   "casual",
+   "tone",
+   "storytelling",
+   "guidance",
+   "everyday"
+  ]
+ },
+ {
+  "id": "ea7b5eee-39d9-40b0-b241-1910cbca9c62",
+  "name": "Kasia",
+  "gender": "woman",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "natural",
+   "conversationalist",
+   "approachable",
+   "adult",
+   "female",
+   "voice",
+   "with",
+   "casual",
+   "tone",
+   "everyday",
+   "conversations",
+   "friendly"
+  ]
+ },
+ {
+  "id": "dcf62f33-7cff-4f20-85b2-2efaa68cbc32",
+  "name": "Zofia",
+  "gender": "woman",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "audiobook",
+   "muse",
+   "expressive",
+   "female",
+   "clear",
+   "communication"
+  ]
+ },
+ {
+  "id": "575a5d29-1fdc-4d4e-9afa-5a9a71759864",
+  "name": "Katarzyna",
+  "gender": "woman",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "melodic",
+   "storyteller",
+   "female",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "3d335974-4c4a-400a-84dc-ebf4b73aada6",
+  "name": "Piotr",
+  "gender": "man",
+  "language": "pl",
+  "locale": "pl-pl",
+  "tier": "flagship",
+  "tags": [
+   "corporate",
+   "lead",
+   "confident",
+   "male",
+   "providing",
+   "instructions"
+  ]
+ },
+ {
+  "id": "1e4176b1-3db9-44d6-a601-4fe68b041942",
+  "name": "Sergei",
+  "gender": "man",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "supporter",
+   "reliable",
+   "russian",
+   "male",
+   "clear",
+   "efficient",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "064b17af-d36b-4bfb-b003-be07dba1b649",
+  "name": "Tatiana",
+  "gender": "woman",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "storyteller",
+   "female",
+   "audiobooks",
+   "clear",
+   "communication"
+  ]
+ },
+ {
+  "id": "7a62541e-5492-410e-95ff-3abd096fce87",
+  "name": "Natalia",
+  "gender": "woman",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "strategist",
+   "measured",
+   "russian",
+   "female",
+   "highly",
+   "structured",
+   "communication"
+  ]
+ },
+ {
+  "id": "25b7aaa6-1670-42dc-b791-419322400803",
+  "name": "Daria",
+  "gender": "woman",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "decisive",
+   "dispatcher",
+   "confident",
+   "adult",
+   "female",
+   "direct",
+   "capable",
+   "assistance"
+  ]
+ },
+ {
+  "id": "069ff31a-5524-4945-a403-f746ee617507",
+  "name": "Alexei\t- Articulate Analyst",
+  "gender": "man",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "polished",
+   "russian",
+   "voice",
+   "capable",
+   "transactional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "9ed9f7e7-3ef6-4773-9dd3-ffcb479ca1f0",
+  "name": "Olga",
+  "gender": "woman",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "confident",
+   "saleswoman",
+   "upbeat",
+   "adult",
+   "female",
+   "voice",
+   "presentations",
+   "engaging",
+   "customer",
+   "interactions"
+  ]
+ },
+ {
+  "id": "888b7df4-e165-4852-bfec-0ab2b96aaa46",
+  "name": "Dmitri",
+  "gender": "man",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "gentle",
+   "voice",
+   "approachable",
+   "adult",
+   "male",
+   "with",
+   "relaxed",
+   "tone",
+   "casual",
+   "chats",
+   "everyday",
+   "conversations"
+  ]
+ },
+ {
+  "id": "642014de-c0e3-4133-adc0-36b5309c23e6",
+  "name": "Irina",
+  "gender": "woman",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "poetic",
+   "voice",
+   "graceful",
+   "female",
+   "narrations",
+   "audiobooks"
+  ]
+ },
+ {
+  "id": "779673f3-895f-4935-b6b5-b031dc78b319",
+  "name": "Natalya",
+  "gender": "woman",
+  "language": "ru",
+  "locale": "ru-ru",
+  "tier": "flagship",
+  "tags": [
+   "soothing",
+   "guide",
+   "serene",
+   "female",
+   "relaxing",
+   "audio"
+  ]
+ },
+ {
+  "id": "a466f9e2-28eb-4bb7-925c-8e8984950700",
+  "name": "Søren",
+  "gender": "man",
+  "language": "da",
+  "locale": "da-dk",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "strategist",
+   "danish",
+   "male",
+   "voice",
+   "reassuring",
+   "professional",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "eb929394-68e7-4e08-bd2f-e7055728a5e1",
+  "name": "Mette",
+  "gender": "woman",
+  "language": "da",
+  "locale": "da-dk",
+  "tier": "flagship",
+  "tags": [
+   "polished",
+   "facilitator",
+   "bright",
+   "professional",
+   "danish",
+   "female",
+   "welcoming",
+   "customer",
+   "service"
+  ]
+ },
+ {
+  "id": "926e0766-f380-4d77-aeb0-9aa4ebb16b38",
+  "name": "Soren",
+  "gender": "man",
+  "language": "da",
+  "locale": "da-dk",
+  "tier": "flagship",
+  "tags": [
+   "executive",
+   "voice",
+   "with",
+   "confident",
+   "businesslike",
+   "tone",
+   "clear",
+   "precision",
+   "perfect",
+   "professional",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "c323c793-41f9-47b8-99dc-9b44b0440b84",
+  "name": "Katrine",
+  "gender": "woman",
+  "language": "da",
+  "locale": "da-dk",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "caregiver",
+   "soft",
+   "adult",
+   "female",
+   "voice",
+   "meditation",
+   "relaxation",
+   "gentle",
+   "conversations"
+  ]
+ },
+ {
+  "id": "da743a82-ddf2-4d9b-8eb8-ff67ca0b138e",
+  "name": "Stijn",
+  "gender": "man",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "helpful",
+   "handler",
+   "approachable",
+   "dutch",
+   "male",
+   "professional",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "95e9fdaf-cf0b-4739-b1de-3350ca50774a",
+  "name": "Thijs",
+  "gender": "man",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "confident",
+   "coordinator",
+   "clear",
+   "methodical",
+   "dutch",
+   "male",
+   "reassuring",
+   "professional",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "96355f3d-0179-4c9a-a8d8-11ef0779a9b8",
+  "name": "Noa",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "reassuring",
+   "responder",
+   "soft",
+   "clear",
+   "dutch",
+   "female",
+   "empathetic",
+   "customer",
+   "communication"
+  ]
+ },
+ {
+  "id": "de075c71-b2dd-4723-848d-ea9aa9cd010b",
+  "name": "Fleur",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "vibrant",
+   "voice",
+   "youthful",
+   "spirited",
+   "dutch",
+   "female",
+   "friendly",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "225ba8cf-9fc2-4371-a78c-fe38ba38898a",
+  "name": "Anneliese",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "methodical",
+   "guide",
+   "clear",
+   "articulate",
+   "dutch",
+   "female",
+   "efficient",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "4fbae271-89c4-494d-8181-6eddca393453",
+  "name": "Femke",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "global",
+   "host",
+   "femke",
+   "holds",
+   "consistency",
+   "across",
+   "alphanumerics",
+   "sales",
+   "pitches",
+   "with",
+   "focused",
+   "feel"
+  ]
+ },
+ {
+  "id": "0eb213fe-4658-45bc-9442-33a48b24b133",
+  "name": "Sanne",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "companion",
+   "cheerful",
+   "female",
+   "engaging",
+   "conversations"
+  ]
+ },
+ {
+  "id": "af482421-80f4-4379-b00c-a118def29cde",
+  "name": "Lucas",
+  "gender": "man",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "storyteller",
+   "enunciating",
+   "male",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "60e94cf5-8069-459f-a91e-3ff852a51107",
+  "name": "Isa",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "empathetic",
+   "warm",
+   "expressive",
+   "dutch",
+   "female",
+   "supportive",
+   "customer",
+   "interactions"
+  ]
+ },
+ {
+  "id": "ac317dac-1b8f-434f-b198-a490e2a4914d",
+  "name": "Anneke",
+  "gender": "woman",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "trusted",
+   "guide",
+   "soft-spoken",
+   "adult",
+   "female",
+   "voice",
+   "with",
+   "warm",
+   "caring",
+   "tone",
+   "supportive",
+   "conversations"
+  ]
+ },
+ {
+  "id": "4b250449-c635-4b63-bd1d-b654b12ffcd4",
+  "name": "Jeroen",
+  "gender": "man",
+  "language": "nl",
+  "locale": "nl-nl",
+  "tier": "flagship",
+  "tags": [
+   "clear",
+   "storyteller",
+   "firm",
+   "adult",
+   "male",
+   "voice",
+   "scientific",
+   "reporting",
+   "documentaries",
+   "professional",
+   "presentations"
+  ]
+ },
+ {
+  "id": "9bf2ddcd-bb35-4e90-81b3-21c8183b24f4",
+  "name": "Navjot",
+  "gender": "woman",
+  "language": "pa",
+  "locale": "pa-in",
+  "tier": "flagship",
+  "tags": [
+   "data",
+   "relayer",
+   "delivers",
+   "complex",
+   "information",
+   "with",
+   "clear",
+   "enunciation",
+   "precise",
+   "efficient",
+   "manner",
+   "technical"
+  ]
+ },
+ {
+  "id": "991c62ce-631f-48b0-8060-2a0ebecbd15b",
+  "name": "Jaspreet",
+  "gender": "woman",
+  "language": "pa",
+  "locale": "pa-in",
+  "tier": "flagship",
+  "tags": [
+   "commercial",
+   "woman",
+   "expressive",
+   "adult",
+   "female",
+   "voice",
+   "with",
+   "engaging",
+   "tone",
+   "commercials",
+   "promotions",
+   "lively"
+  ]
+ },
+ {
+  "id": "8bacd442-a107-4ec1-b6f1-2fcb3f6f4d56",
+  "name": "Gurpreet",
+  "gender": "man",
+  "language": "pa",
+  "locale": "pa-in",
+  "tier": "flagship",
+  "tags": [
+   "companion",
+   "soft",
+   "caring",
+   "adult",
+   "male",
+   "voice",
+   "empathetic",
+   "conversations",
+   "support",
+   "reassuring",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "59ba7dee-8f9a-432f-a6c0-ffb33666b654",
+  "name": "Pooja",
+  "gender": "woman",
+  "language": "bn",
+  "locale": "bn-bd",
+  "tier": "flagship",
+  "tags": [
+   "everyday",
+   "assistant",
+   "soft-spoken",
+   "adult",
+   "female",
+   "voice",
+   "casual",
+   "conversations",
+   "natural",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "48b9e1de-e2fa-4914-8b32-31c437813548",
+  "name": "Ananya",
+  "gender": "woman",
+  "language": "bn",
+  "locale": "bn-bd",
+  "tier": "flagship",
+  "tags": [
+   "paced",
+   "helper",
+   "clear",
+   "steady",
+   "tone",
+   "with",
+   "delivery",
+   "perfect",
+   "smooth",
+   "customer",
+   "service",
+   "experience"
+  ]
+ },
+ {
+  "id": "2ba861ea-7cdc-43d1-8608-4045b5a41de5",
+  "name": "Rubel",
+  "gender": "man",
+  "language": "bn",
+  "locale": "bn-bd",
+  "tier": "flagship",
+  "tags": [
+   "city",
+   "guide",
+   "casual",
+   "adult",
+   "male",
+   "voice",
+   "everyday",
+   "conversations",
+   "relatable",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "fa7bfcdc-603c-4bf1-a600-a371400d2f8c",
+  "name": "Leyla",
+  "gender": "woman",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "story",
+   "companion",
+   "expressive",
+   "female",
+   "conversational",
+   "support"
+  ]
+ },
+ {
+  "id": "c1cfee3d-532d-47f8-8dd2-8e5b2b66bf1d",
+  "name": "Taylan",
+  "gender": "man",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "expressive",
+   "voice",
+   "versatile",
+   "articulate",
+   "male",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "8036098f-cff4-401e-bfba-f0a6a6e5e49b",
+  "name": "Elif",
+  "gender": "woman",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "structured",
+   "supporter",
+   "methodical",
+   "adult",
+   "female",
+   "precise",
+   "reliable",
+   "assistance"
+  ]
+ },
+ {
+  "id": "91e91d74-8eb4-43cd-97d3-7466c21db00d",
+  "name": "Aykut",
+  "gender": "man",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "companion",
+   "relaxed",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "natural",
+   "approachable",
+   "tone",
+   "casual",
+   "chats"
+  ]
+ },
+ {
+  "id": "0f95596c-09c4-4418-99fe-5c107e0713c0",
+  "name": "Azra",
+  "gender": "woman",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "service",
+   "specialist",
+   "firm",
+   "clear",
+   "adult",
+   "voice",
+   "with",
+   "professional",
+   "tone",
+   "instructions",
+   "customer",
+   "formal"
+  ]
+ },
+ {
+  "id": "bb2347fe-69e9-4810-873f-ffd759fe8420",
+  "name": "Aylin",
+  "gender": "woman",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "warm",
+   "guide",
+   "friendly",
+   "female",
+   "narrations",
+   "explainer",
+   "videos"
+  ]
+ },
+ {
+  "id": "5a31e4fb-f823-4359-aa91-82c0ae9a991c",
+  "name": "Murat",
+  "gender": "man",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "anatolian",
+   "storyteller",
+   "deep",
+   "male",
+   "narrations",
+   "audiobooks"
+  ]
+ },
+ {
+  "id": "39f753ef-b0eb-41cd-aa53-2f3c284f948f",
+  "name": "Emre",
+  "gender": "man",
+  "language": "tr",
+  "locale": "tr-tr",
+  "tier": "flagship",
+  "tags": [
+   "calming",
+   "speaker",
+   "soothing",
+   "male",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "8e8f222d-c817-4cc5-822b-8bf76ca7e98d",
+  "name": "Lien",
+  "gender": "woman",
+  "language": "vi",
+  "locale": "vi-vn",
+  "tier": "flagship",
+  "tags": [
+   "gentle",
+   "coordinator",
+   "clear",
+   "delivery",
+   "attentive",
+   "guidance",
+   "careful",
+   "explanations",
+   "friendly",
+   "support",
+   "conversations"
+  ]
+ },
+ {
+  "id": "935a9060-373c-49e4-b078-f4ea6326987a",
+  "name": "Linh",
+  "gender": "woman",
+  "language": "vi",
+  "locale": "vi-vn",
+  "tier": "flagship",
+  "tags": [
+   "soft",
+   "presence",
+   "voice",
+   "with",
+   "gentle",
+   "tone",
+   "natural",
+   "warmth",
+   "perfect",
+   "conversations",
+   "friendly",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "0e58d60a-2f1a-4252-81bd-3db6af45fb41",
+  "name": "Minh",
+  "gender": "man",
+  "language": "vi",
+  "locale": "vi-vn",
+  "tier": "flagship",
+  "tags": [
+   "conversational",
+   "partner",
+   "easygoing",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "friendly",
+   "tone",
+   "light",
+   "conversation",
+   "casual"
+  ]
+ },
+ {
+  "id": "b8cd71e3-bc14-4538-a530-d6314731c036",
+  "name": "Xia",
+  "gender": "woman",
+  "language": "vi",
+  "locale": "vi-vn",
+  "tier": "flagship",
+  "tags": [
+   "calm",
+   "companion",
+   "soft-spoken",
+   "adult",
+   "female",
+   "voice",
+   "conversations",
+   "customer",
+   "support"
+  ]
+ },
+ {
+  "id": "4f7b1820-6263-4615-87a7-b105768d8f64",
+  "name": "Kari",
+  "gender": "woman",
+  "language": "no",
+  "locale": "no-no",
+  "tier": "flagship",
+  "tags": [
+   "crisp",
+   "coordinator",
+   "polished",
+   "norwegian",
+   "voice",
+   "efficient",
+   "transactional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "d6dca1b6-cdd8-4e9c-823c-e03979261740",
+  "name": "Lars",
+  "gender": "man",
+  "language": "no",
+  "locale": "no-no",
+  "tier": "flagship",
+  "tags": [
+   "casual",
+   "conversationalist",
+   "approachable",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "relaxed",
+   "tone",
+   "conversations",
+   "everyday",
+   "interactions"
+  ]
+ },
+ {
+  "id": "82db1f84-5b96-4364-b04a-4c7ff80e2f8a",
+  "name": "Jan",
+  "gender": "man",
+  "language": "cs",
+  "locale": "cs-cz",
+  "tier": "flagship",
+  "tags": [
+   "capable",
+   "coordinator",
+   "clear",
+   "professional",
+   "czech",
+   "male",
+   "trustworthy",
+   "customer",
+   "communication"
+  ]
+ },
+ {
+  "id": "0b6d3ccb-f421-4e49-80f7-4bfa39f6eb8e",
+  "name": "Marek",
+  "gender": "man",
+  "language": "cs",
+  "locale": "cs-cz",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "specialist",
+   "resonant",
+   "czech",
+   "male",
+   "with",
+   "calm",
+   "presence",
+   "expert",
+   "support"
+  ]
+ },
+ {
+  "id": "b66b3a19-31b3-401f-8b08-40d46a61e4f1",
+  "name": "Milena\t- Composed Clarifier",
+  "gender": "woman",
+  "language": "cs",
+  "locale": "cs-cz",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "czech",
+   "voice",
+   "capable",
+   "professional",
+   "assistance"
+  ]
+ },
+ {
+  "id": "f8685385-96f6-4c12-8520-49e4914bcbfe",
+  "name": "Tereza\t- Decisive Agent",
+  "gender": "woman",
+  "language": "cs",
+  "locale": "cs-cz",
+  "tier": "flagship",
+  "tags": [
+   "professional",
+   "adult",
+   "female",
+   "highly",
+   "structured",
+   "customer",
+   "communication"
+  ]
+ },
+ {
+  "id": "bdc4a3ce-2e22-4398-8cd6-76b7160d2298",
+  "name": "Jana",
+  "gender": "woman",
+  "language": "cs",
+  "locale": "cs-cz",
+  "tier": "flagship",
+  "tags": [
+   "crisp",
+   "conversationalist",
+   "clear",
+   "female",
+   "voice",
+   "with",
+   "casual",
+   "commanding",
+   "tone",
+   "customer",
+   "support",
+   "guidance"
+  ]
+ },
+ {
+  "id": "89266bab-6e15-455d-8654-e18c440b0656",
+  "name": "Petr",
+  "gender": "man",
+  "language": "cs",
+  "locale": "cs-cz",
+  "tier": "flagship",
+  "tags": [
+   "pastor",
+   "resonant",
+   "adult",
+   "male",
+   "voice",
+   "reminiscent",
+   "priest",
+   "delivering",
+   "sermon",
+   "narrations",
+   "formal",
+   "reading"
+  ]
+ },
+ {
+  "id": "4c5c7be8-6b3b-4c62-b915-c54d049c198f",
+  "name": "Bence",
+  "gender": "man",
+  "language": "hu",
+  "locale": "hu-hu",
+  "tier": "flagship",
+  "tags": [
+   "focused",
+   "facilitator",
+   "professional",
+   "adult",
+   "male",
+   "highly",
+   "structured",
+   "communication"
+  ]
+ },
+ {
+  "id": "e97c3b37-1aa5-46af-afb7-9545086aaa92",
+  "name": "Eszter",
+  "gender": "woman",
+  "language": "hu",
+  "locale": "hu-hu",
+  "tier": "flagship",
+  "tags": [
+   "customer",
+   "companion",
+   "clear",
+   "cheerful",
+   "adult",
+   "female",
+   "voice",
+   "support",
+   "friendly",
+   "interactions"
+  ]
+ },
+ {
+  "id": "36e0c00b-1bfd-4ad7-a0e8-928d4cadca00",
+  "name": "Gabor",
+  "gender": "man",
+  "language": "hu",
+  "locale": "hu-hu",
+  "tier": "flagship",
+  "tags": [
+   "reassuring",
+   "voice",
+   "firm",
+   "well-paced",
+   "adult",
+   "male",
+   "customer",
+   "support",
+   "guidance",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "374b80da-e622-4dfc-90f6-1eeb13d331c9",
+  "name": "Vijay",
+  "gender": "man",
+  "language": "ml",
+  "locale": "ml-in",
+  "tier": "flagship",
+  "tags": [
+   "comfort",
+   "voice",
+   "friendly",
+   "easygoing",
+   "male",
+   "casual",
+   "conversations",
+   "everyday",
+   "support"
+  ]
+ },
+ {
+  "id": "b426013c-002b-4e89-8874-8cd20b68373a",
+  "name": "Latha",
+  "gender": "woman",
+  "language": "ml",
+  "locale": "ml-in",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "host",
+   "bright",
+   "clear",
+   "adult",
+   "female",
+   "voice",
+   "customer",
+   "support",
+   "greetings",
+   "welcoming",
+   "guests"
+  ]
+ },
+ {
+  "id": "7c6219d2-e8d2-462c-89d8-7ecba7c75d65",
+  "name": "Divya",
+  "gender": "woman",
+  "language": "kn",
+  "locale": "kn-in",
+  "tier": "flagship",
+  "tags": [
+   "joyful",
+   "narrator",
+   "lively",
+   "cheerful",
+   "adult",
+   "female",
+   "voice",
+   "product",
+   "advertisements",
+   "upbeat",
+   "promotions",
+   "happy"
+  ]
+ },
+ {
+  "id": "6baae46d-1226-45b5-a976-c7f9b797aae2",
+  "name": "Prakash",
+  "gender": "man",
+  "language": "kn",
+  "locale": "kn-in",
+  "tier": "flagship",
+  "tags": [
+   "instructor",
+   "firm",
+   "articulate",
+   "middle-aged",
+   "male",
+   "voice",
+   "lectures",
+   "presentations",
+   "instructional",
+   "content"
+  ]
+ },
+ {
+  "id": "f227bc18-3704-47fe-b759-8c78a450fdfa",
+  "name": "Suresh",
+  "gender": "man",
+  "language": "mr",
+  "locale": "mr-in",
+  "tier": "flagship",
+  "tags": [
+   "instruction",
+   "voice",
+   "clear",
+   "well-enunciated",
+   "adult",
+   "male",
+   "instructions",
+   "narrations",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "5c32dce6-936a-4892-b131-bafe474afe5f",
+  "name": "Anika",
+  "gender": "woman",
+  "language": "mr",
+  "locale": "mr-in",
+  "tier": "flagship",
+  "tags": [
+   "enthusiastic",
+   "seller",
+   "energetic",
+   "approachable",
+   "adult",
+   "female",
+   "voice",
+   "sales",
+   "conversations",
+   "casual",
+   "chat",
+   "customer"
+  ]
+ },
+ {
+  "id": "ca590fdc-df56-4d2e-94a4-ef5b423c7ddf",
+  "name": "Peter",
+  "gender": "man",
+  "language": "sk",
+  "locale": "sk-sk",
+  "tier": "flagship",
+  "tags": [
+   "narrator",
+   "steady",
+   "articulate",
+   "adult",
+   "male",
+   "voice",
+   "narrations",
+   "audiobooks",
+   "professional",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "abf68668-6549-462c-8426-1fa7b466b91d",
+  "name": "Katarina",
+  "gender": "woman",
+  "language": "sk",
+  "locale": "sk-sk",
+  "tier": "flagship",
+  "tags": [
+   "friendly",
+   "sales",
+   "warm",
+   "approachable",
+   "adult",
+   "female",
+   "voice",
+   "customer",
+   "service",
+   "support",
+   "communication"
+  ]
+ },
+ {
+  "id": "50849023-76e9-46c7-af52-9ec39888a165",
+  "name": "Despina",
+  "gender": "woman",
+  "language": "el",
+  "locale": "el-gr",
+  "tier": "flagship",
+  "tags": [
+   "motherly",
+   "woman",
+   "warm",
+   "authoritative",
+   "middle-aged",
+   "female",
+   "voice",
+   "with",
+   "tone",
+   "guidance",
+   "reassurance",
+   "clear"
+  ]
+ },
+ {
+  "id": "b45eba5b-2215-4da7-9c7c-121c95ed7b81",
+  "name": "Nikos",
+  "gender": "man",
+  "language": "el",
+  "locale": "el-gr",
+  "tier": "flagship",
+  "tags": [
+   "radio",
+   "storyteller",
+   "nostalgic",
+   "middle-aged",
+   "male",
+   "voice",
+   "with",
+   "old-radio",
+   "tone",
+   "historical",
+   "reenactments",
+   "vintage"
+  ]
+ },
+ {
+  "id": "a053f6bc-7df4-40de-96d4-de026bc47ce8",
+  "name": "Andi",
+  "gender": "man",
+  "language": "id",
+  "locale": "id-id",
+  "tier": "flagship",
+  "tags": [
+   "dynamic",
+   "presenter",
+   "expressive",
+   "adult",
+   "male",
+   "voice",
+   "with",
+   "upbeat",
+   "tone",
+   "advertisements",
+   "promotions",
+   "lively"
+  ]
+ },
+ {
+  "id": "b441c4fd-4910-4c55-ae56-f0291057e2cc",
+  "name": "Siti",
+  "gender": "woman",
+  "language": "id",
+  "locale": "id-id",
+  "tier": "flagship",
+  "tags": [
+   "narrator",
+   "cheerful",
+   "optimistic",
+   "adult",
+   "female",
+   "voice",
+   "brand",
+   "placements",
+   "advertisements",
+   "engaging",
+   "storytelling"
+  ]
+ },
+ {
+  "id": "34acfaee-c556-41ee-a5f6-c687fb20357c",
+  "name": "Andrada",
+  "gender": "woman",
+  "language": "ro",
+  "locale": "ro-ro",
+  "tier": "flagship",
+  "tags": [
+   "steady",
+   "speaker",
+   "clear",
+   "monotone",
+   "adult",
+   "female",
+   "voice",
+   "instructions",
+   "formal",
+   "announcements",
+   "straightforward",
+   "communication"
+  ]
+ },
+ {
+  "id": "3f64ef99-d87b-4b51-b217-df7351f7886a",
+  "name": "Andrei",
+  "gender": "man",
+  "language": "ro",
+  "locale": "ro-ro",
+  "tier": "flagship",
+  "tags": [
+   "conversationalist",
+   "casual",
+   "firm",
+   "middle-aged",
+   "male",
+   "voice",
+   "everyday",
+   "conversations",
+   "guidance",
+   "professional",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "dbebd077-80cb-4bcf-b43b-4552f96341bb",
+  "name": "Levan",
+  "gender": "man",
+  "language": "ka",
+  "locale": "ka-ge",
+  "tier": "flagship",
+  "tags": [
+   "support",
+   "guide",
+   "casual",
+   "approachable",
+   "adult",
+   "male",
+   "voice",
+   "customer",
+   "everyday",
+   "conversations"
+  ]
+ },
+ {
+  "id": "0bfbea6c-2f8f-4f86-b411-aa2316561e36",
+  "name": "Tamara",
+  "gender": "woman",
+  "language": "ka",
+  "locale": "ka-ge",
+  "tier": "flagship",
+  "tags": [
+   "support",
+   "specialist",
+   "professional",
+   "clear",
+   "adult",
+   "female",
+   "voice",
+   "customer",
+   "service",
+   "guidance",
+   "supportive",
+   "interactions"
+  ]
+ },
+ {
+  "id": "8281db18-6ac5-47bb-91a8-ce23a1f1d951",
+  "name": "Faiz",
+  "gender": "man",
+  "language": "ms",
+  "locale": "ms-my",
+  "tier": "flagship",
+  "tags": [
+   "family",
+   "guide",
+   "warm",
+   "fatherly",
+   "adult",
+   "male",
+   "voice",
+   "casual",
+   "conversations",
+   "comforting",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "83604597-55fa-4ccc-8357-730b313f353f",
+  "name": "Aisyah",
+  "gender": "woman",
+  "language": "ms",
+  "locale": "ms-my",
+  "tier": "flagship",
+  "tags": [
+   "chat",
+   "partner",
+   "friendly",
+   "upbeat",
+   "adult",
+   "female",
+   "voice",
+   "casual",
+   "conversations",
+   "engaging",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "fcbecbcc-0cef-4615-8b5a-712fe1b39dd0",
+  "name": "Ivana",
+  "gender": "woman",
+  "language": "bg",
+  "locale": "bg-bg",
+  "tier": "flagship",
+  "tags": [
+   "instruction",
+   "provider",
+   "clear",
+   "authoritative",
+   "adult",
+   "female",
+   "voice",
+   "giving",
+   "instructions",
+   "professional",
+   "communication"
+  ]
+ },
+ {
+  "id": "d132064c-b931-4a80-bf0d-02a331ec4572",
+  "name": "Georgi",
+  "gender": "man",
+  "language": "bg",
+  "locale": "bg-bg",
+  "tier": "flagship",
+  "tags": [
+   "conversationalist",
+   "friendly",
+   "adult",
+   "male",
+   "with",
+   "casual",
+   "tone",
+   "everyday",
+   "conversations",
+   "relatable",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "4590a461-bc68-4a50-8d14-ac04f5923d22",
+  "name": "Isha",
+  "gender": "woman",
+  "language": "gu",
+  "locale": "gu-in",
+  "tier": "flagship",
+  "tags": [
+   "learner",
+   "youthful",
+   "female",
+   "voice",
+   "with",
+   "clear",
+   "approachable",
+   "tone",
+   "narration",
+   "educational",
+   "content",
+   "voiceover"
+  ]
+ },
+ {
+  "id": "91925fe5-42ee-4ebe-96c1-c84b12a85a32",
+  "name": "Amit",
+  "gender": "man",
+  "language": "gu",
+  "locale": "gu-in",
+  "tier": "flagship",
+  "tags": [
+   "sports",
+   "student",
+   "friendly",
+   "young",
+   "adult",
+   "male",
+   "voice",
+   "casual",
+   "conversations",
+   "natural",
+   "everyday",
+   "dialogue"
+  ]
+ },
+ {
+  "id": "a1a16724-b1f3-4b27-9e47-8a175115e93c",
+  "name": "Ivan",
+  "gender": "man",
+  "language": "hr",
+  "locale": "hr-hr",
+  "tier": "flagship",
+  "tags": [
+   "companion",
+   "relaxed",
+   "adult",
+   "male",
+   "voice",
+   "easygoing",
+   "conversations"
+  ]
+ },
+ {
+  "id": "2a2624ad-bd06-4563-81fd-0519742e25d2",
+  "name": "Petra",
+  "gender": "woman",
+  "language": "hr",
+  "locale": "hr-hr",
+  "tier": "flagship",
+  "tags": [
+   "strict",
+   "lecturer",
+   "firm",
+   "adult",
+   "female",
+   "voice",
+   "storytelling",
+   "guidance",
+   "instructional",
+   "cases"
+  ]
+ }
+]

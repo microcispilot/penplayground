@@ -250,6 +250,19 @@ const MAX_TRANSCRIPT_CHARS = 200_000;
 /** Stripe events are bigger than anything the product posts, and are signed. */
 const WEBHOOK_MAX_BYTES = 256 * 1024;
 
+/**
+ * What speaks, for the health page: each distinct synthesizer behind the
+ * engines this server offers (ADR-0048). One id when a development provider
+ * answers to every engine name; one per cloud engine otherwise.
+ */
+function voiceEngineIds(services: Services): string {
+  const ids = services.voice
+    .available()
+    .map((engine) => services.voice.engine(engine)?.synthesizer.id ?? '')
+    .filter(Boolean);
+  return [...new Set(ids)].join(',');
+}
+
 export function buildApp(services: Services): App {
   const app = new Hono();
   const identity = new Identity(services.cfg.PEN_JWT_SECRET);
@@ -534,7 +547,7 @@ export function buildApp(services: Services): App {
   app.get('/api/health', (c) =>
     c.json({
       ok: true,
-      tts: services.synthesizer.id,
+      tts: voiceEngineIds(services),
       llm: services.llmProvider,
       stt: services.recognizer?.id ?? 'browser',
       // What a room being built right now would actually classify with — not
@@ -550,7 +563,7 @@ export function buildApp(services: Services): App {
       googleCode: services.google?.exchangesCodes ?? false,
       rooms: services.livekit !== null,
       ads: services.ads.demand.source,
-      ttsCache: services.ttsCache !== null,
+      ttsCache: Object.keys(services.ttsCaches).length > 0,
       spendCap: services.spend.enabled,
     }),
   );
@@ -2480,7 +2493,9 @@ export function buildApp(services: Services): App {
       // What the circuit breaker is looking at, and what the synthesis cache
       // has saved from having to be bought twice.
       spend: services.spend.snapshot(),
-      tts: services.ttsCache?.snapshot() ?? null,
+      tts: Object.fromEntries(
+        Object.entries(services.ttsCaches).map(([e, c]) => [e, c.snapshot()]),
+      ),
     });
   });
 

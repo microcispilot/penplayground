@@ -1,8 +1,16 @@
-import type { FeatureFlag, FeatureFlagsDocument, FeatureRule } from '@pen/contracts';
-import { FEATURES, ruleMatrix } from '@pen/contracts';
+import type {
+  ChoiceRule,
+  FeatureFlag,
+  FeatureFlagsDocument,
+  FeatureRule,
+  SettingRow,
+} from '@pen/contracts';
+import { choiceMatrix, FEATURES, ruleMatrix, SETTINGS } from '@pen/contracts';
 import { describe, expect, it } from 'vitest';
 import {
+  bySection,
   changedFeatures,
+  changedSettings,
   draftFrom,
   type FeaturesEditorState,
   featuresHistoryReducer,
@@ -10,11 +18,19 @@ import {
   initialFeaturesHistory,
   initialFeaturesState,
   mutationRules,
+  mutationSettings,
   nextAnswer,
   setCellAnswer,
+  setChoiceAnonymous,
+  setChoiceCellAnswer,
+  setChoiceDefault,
+  setChoiceParticipant,
+  setChoicePlanAnswer,
+  setChoicePlatformAnswer,
   setDefault,
   setPlanAnswer,
   setPlatformAnswer,
+  settingsDraftFrom,
 } from '../src/lib/features-state.js';
 
 /**
@@ -40,6 +56,24 @@ function flag(name: keyof typeof FEATURES, over: Partial<FeatureFlag> = {}): Fea
   };
 }
 
+function setting(over: Partial<SettingRow> = {}): SettingRow {
+  const def = SETTINGS.voice_engine;
+  const rule = over.effectiveRule ?? def.rule;
+  return {
+    name: 'voice_engine',
+    label: def.label,
+    description: def.description,
+    group: def.group,
+    values: [...def.values],
+    valueLabels: { ...def.valueLabels },
+    defaultRule: def.rule,
+    storedRule: null,
+    effectiveRule: rule,
+    matrix: choiceMatrix(rule),
+    ...over,
+  };
+}
+
 function document(over: Partial<FeatureFlagsDocument> = {}): FeatureFlagsDocument {
   return {
     revision: 4,
@@ -47,10 +81,19 @@ function document(over: Partial<FeatureFlagsDocument> = {}): FeatureFlagsDocumen
     updatedBy: 'p_admin',
     updatedByName: 'Sam Owner',
     features: [flag('prepare_new_topics'), flag('ads')],
+    settings: [setting()],
     stale: false,
     ...over,
   };
 }
+
+const fishByDefault: ChoiceRule = {
+  default: 'fish',
+  plans: {},
+  platforms: {},
+  cells: {},
+  participants: {},
+};
 
 function ready(doc = document()): FeaturesEditorState {
   const loading = featuresReducer(initialFeaturesState, { type: 'LOAD', requestId: 1 });
@@ -86,6 +129,95 @@ describe('the draft', () => {
       draft: { prepare_new_topics: open, ads: FEATURES.ads.rule },
     });
     expect(mutationRules(state)).toEqual({ prepare_new_topics: open, ads: null });
+  });
+});
+
+describe('the settings draft (ADR-0048)', () => {
+  it('arrives as every setting’s rule in force, beside the flags, and is not dirty', () => {
+    const state = ready();
+    expect(state.settingsDraft.voice_engine).toEqual(SETTINGS.voice_engine.rule);
+    expect(settingsDraftFrom(document()).voice_engine?.default).toBe('cartesia');
+    expect(state.dirty).toBe(false);
+  });
+
+  it('a flag edit leaves the settings draft alone; a settings edit makes the state dirty', () => {
+    const state = ready();
+    const flagsOnly = featuresReducer(state, {
+      type: 'EDIT',
+      draft: { ...state.draft, prepare_new_topics: open },
+    });
+    expect(flagsOnly.settingsDraft).toEqual(state.settingsDraft);
+    const settingsOnly = featuresReducer(state, {
+      type: 'EDIT',
+      draft: state.draft,
+      settingsDraft: { voice_engine: fishByDefault },
+    });
+    expect(settingsOnly.dirty).toBe(true);
+    expect(changedFeatures(settingsOnly)).toEqual([]);
+    expect(changedSettings(settingsOnly)).toEqual(['voice_engine']);
+    const same = featuresReducer(state, {
+      type: 'EDIT',
+      draft: state.draft,
+      settingsDraft: { voice_engine: { ...SETTINGS.voice_engine.rule } },
+    });
+    expect(same.dirty).toBe(false);
+  });
+
+  it('sends every setting, with one back at its compiled-in rule sent as null', () => {
+    const state = ready();
+    expect(mutationSettings(state)).toEqual({ voice_engine: null });
+    const changed = featuresReducer(state, {
+      type: 'EDIT',
+      draft: state.draft,
+      settingsDraft: { voice_engine: fishByDefault },
+    });
+    expect(mutationSettings(changed)).toEqual({ voice_engine: fishByDefault });
+    // A stored rule the draft moves back to the built-in one is a decision to store nothing.
+    const stored = ready(
+      document({
+        settings: [setting({ storedRule: fishByDefault, effectiveRule: fishByDefault })],
+      }),
+    );
+    const back = featuresReducer(stored, {
+      type: 'EDIT',
+      draft: stored.draft,
+      settingsDraft: { voice_engine: SETTINGS.voice_engine.rule },
+    });
+    expect(back.dirty).toBe(true);
+    expect(mutationSettings(back)).toEqual({ voice_engine: null });
+  });
+
+  it('sets and clears the default, the visitor, a plan, a platform, a cell and an account', () => {
+    const base = SETTINGS.voice_engine.rule;
+    expect(setChoiceDefault(base, 'fish').default).toBe('fish');
+    expect(setChoiceAnonymous(base, 'fish').anonymous).toBe('fish');
+    expect(
+      setChoiceAnonymous(setChoiceAnonymous(base, 'fish'), undefined).anonymous,
+    ).toBeUndefined();
+    const plan = setChoicePlanAnswer(base, 'professional', 'fish');
+    expect(plan.plans).toEqual({ professional: 'fish' });
+    expect(setChoicePlanAnswer(plan, 'professional', '').plans).toEqual({});
+    expect(setChoicePlatformAnswer(base, 'ios', 'fish').platforms).toEqual({ ios: 'fish' });
+    const cell = setChoiceCellAnswer(base, 'free', 'web', 'fish');
+    expect(cell.cells).toEqual({ 'free:web': 'fish' });
+    expect(setChoiceCellAnswer(cell, 'free', 'web', undefined).cells).toEqual({});
+    const account = setChoiceParticipant(base, 'p_owner01', 'fish');
+    expect(account.participants).toEqual({ p_owner01: 'fish' });
+    expect(setChoiceParticipant(account, 'p_owner01', 'cartesia').participants).toEqual({
+      p_owner01: 'cartesia',
+    });
+    expect(setChoiceParticipant(account, 'p_owner01', undefined).participants).toEqual({});
+    // Nothing above touched the rest of the rule.
+    expect(account.default).toBe('cartesia');
+    expect(account.plans).toEqual({});
+  });
+
+  it('buckets settings with the features by group, known groups first, new groups after', () => {
+    const sections = bySection([flag('ads'), flag('prepare_new_topics')], [setting()]);
+    expect(sections.map(([group]) => group)).toEqual(['Sessions', 'Ads', 'Voice']);
+    const voice = sections.find(([group]) => group === 'Voice')?.[1];
+    expect(voice?.features).toEqual([]);
+    expect(voice?.settings.map((s) => s.name)).toEqual(['voice_engine']);
   });
 });
 
@@ -180,6 +312,7 @@ describe('history', () => {
               reason: 'r',
               restoredFromRevision: null,
               rules: {},
+              settings: {},
             },
           ],
           nextBeforeRevision: 4,

@@ -128,9 +128,20 @@ export const Env = z.object({
    */
   PEN_AUTH_HMAC_SECRET: z.string().min(32).optional(),
 
-  PEN_TTS_PROVIDER: z.enum(['fish-cloud', 'fish-bridge', 'silent']).default('fish-cloud'),
+  /**
+   * `cloud` speaks with the cloud engines this server holds keys for, and the
+   * `voice_engine` setting picks one per session (ADR-0048); `fish-cloud` is
+   * the old name for the same thing. `fish-bridge` and `silent` are single
+   * engines for development, offered to every session whatever the setting.
+   */
+  PEN_TTS_PROVIDER: z
+    .enum(['cloud', 'fish-cloud', 'fish-bridge', 'silent'])
+    .default('cloud')
+    .transform((v) => (v === 'fish-cloud' ? 'cloud' : v)),
   FISH_AUDIO_API_KEY: z.string().optional(),
   FISH_AUDIO_MODEL: z.string().trim().min(1).max(120).default('s2.1-pro'),
+  CARTESIA_API_KEY: z.string().optional(),
+  CARTESIA_MODEL: z.string().trim().min(1).max(120).default('sonic-3.6'),
   PEN_TTS_BRIDGE_URL: z.string().url().default('http://127.0.0.1:8310'),
 
   PEN_STT_PROVIDER: z.enum(['browser', 'ws-relay', 'deepgram', 'assemblyai']).default('browser'),

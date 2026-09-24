@@ -1,71 +1,74 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Expert } from '@pen/contracts';
+import type { Expert, VoiceEngine } from '@pen/contracts';
+import { VOICE_ENGINES } from '@pen/contracts';
 import { ExpertCatalog } from '@pen/session-engine';
 import { describe, expect, it } from 'vitest';
 import { ExpertVoices, type Voice } from '../src/voices.js';
 
+/**
+ * The shipped voice catalogues, one per engine (ADR-0048), against the
+ * shipped personas: every persona has a voice on every engine, of its own
+ * gender, in the engine's own library, shared by few others.
+ */
 const here = dirname(fileURLToPath(import.meta.url));
 const expertsDir = join(here, '..', 'data', 'experts');
 
-const voices = ExpertVoices.load(join(expertsDir, 'voices.json'));
 const catalog = ExpertCatalog.fromJson(
   JSON.parse(readFileSync(join(expertsDir, 'catalog.json'), 'utf8')),
 );
 const personas = catalog.all();
-const voiceById = new Map<string, Voice>(voices.all().map((v) => [v.id, v]));
 
-/** The persona without an assignment for a language (the catalog assigns every language today). */
-function without(expert: Expert, language: string): Expert {
-  const { [language]: _dropped, ...rest } = expert.voices;
-  return { ...expert, voices: rest };
+/** The persona without an assignment for a language on an engine. */
+function without(expert: Expert, engine: VoiceEngine, language: string): Expert {
+  const { [language]: _dropped, ...rest } = expert.voices[engine] ?? {};
+  return { ...expert, voices: { ...expert.voices, [engine]: rest } };
 }
 
-describe('ExpertVoices with the shipped catalog', () => {
+describe.each(VOICE_ENGINES)('%s catalogue with the shipped personas', (engine) => {
+  const voices = ExpertVoices.load(join(expertsDir, `voices.${engine}.json`), engine);
+  const voiceById = new Map<string, Voice>(voices.all().map((v) => [v.id, v]));
+
   it('loads a non-empty voice list and a non-empty persona catalog', () => {
+    expect(voices.engine).toBe(engine);
     expect(voices.all().length).toBeGreaterThan(0);
     expect(personas.length).toBeGreaterThan(0);
   });
 
-  it('gives every persona an English voice that exists in voices.json', () => {
+  it('gives every persona an English voice that exists in the catalogue', () => {
     for (const e of personas) {
-      expect(e.voices.en, `${e.id} has no en voice`).toBeTruthy();
-      const v = voiceById.get(e.voices.en ?? '');
-      expect(v, `${e.id}: en voice ${e.voices.en} is not in voices.json`).toBeDefined();
+      const en = e.voices[engine]?.en;
+      expect(en, `${e.id} has no en voice on ${engine}`).toBeTruthy();
+      const v = voiceById.get(en ?? '');
+      expect(v, `${e.id}: en voice ${en} is not in voices.${engine}.json`).toBeDefined();
       expect(v?.language, `${e.id}: en voice is not an English voice`).toBe('en');
     }
   });
 
-  it("voiceFor(expert, 'es-ES') returns the persona's Spanish assignment", () => {
+  it("voiceFor(expert, 'es-ES') returns the persona's Spanish assignment, whatever the region", () => {
     for (const e of personas) {
-      expect(e.voices.es, `${e.id} has no es voice`).toBeTruthy();
-      expect(voices.voiceFor(e, 'es-ES')).toBe(e.voices.es);
-      // The locale's region never matters: the assignment is keyed by language.
-      expect(voices.voiceFor(e, 'es-MX')).toBe(e.voices.es);
-      expect(voices.voiceFor(e, 'ES')).toBe(e.voices.es);
+      const es = e.voices[engine]?.es;
+      expect(es, `${e.id} has no es voice on ${engine}`).toBeTruthy();
+      expect(voices.voiceFor(e, 'es-ES')).toBe(es);
+      expect(voices.voiceFor(e, 'es-MX')).toBe(es);
+      expect(voices.voiceFor(e, 'ES')).toBe(es);
     }
   });
 
-  it("voiceFor(expert, 'fa-IR') falls back to the English voice when no fa assignment exists", () => {
+  it('falls back to the English voice when a language has no assignment', () => {
     for (const e of personas) {
-      const stripped = without(e, 'fa');
-      expect(stripped.voices.fa).toBeUndefined();
-      expect(voices.voiceFor(stripped, 'fa-IR')).toBe(e.voices.en);
+      const stripped = without(e, engine, 'fa');
+      expect(stripped.voices[engine]?.fa).toBeUndefined();
+      expect(voices.voiceFor(stripped, 'fa-IR')).toBe(e.voices[engine]?.en);
     }
-  });
-
-  it('uses the fa assignment when it exists rather than the English fallback', () => {
-    const assigned = personas.filter((e) => e.voices.fa && e.voices.fa !== e.voices.en);
-    expect(assigned.length).toBeGreaterThan(0);
-    for (const e of assigned) expect(voices.voiceFor(e, 'fa-IR')).toBe(e.voices.fa);
   });
 
   it('assigns each gendered persona an English voice of the same gender', () => {
     const gendered = personas.filter((e) => e.gender === 'woman' || e.gender === 'man');
     expect(gendered.length).toBeGreaterThan(0);
     const mismatches = gendered.flatMap((e) => {
-      const v = voiceById.get(e.voices.en ?? '');
+      const v = voiceById.get(e.voices[engine]?.en ?? '');
       return v && v.gender !== e.gender ? [`${e.id}: ${e.gender} → ${v.name} (${v.gender})`] : [];
     });
     expect(mismatches).toEqual([]);
@@ -74,41 +77,42 @@ describe('ExpertVoices with the shipped catalog', () => {
   it('shares no English voice among more than 12 personas', () => {
     const count = new Map<string, number>();
     for (const e of personas) {
-      const id = e.voices.en ?? '';
+      const id = e.voices[engine]?.en ?? '';
       count.set(id, (count.get(id) ?? 0) + 1);
     }
     const crowded = [...count].filter(([, n]) => n > 12);
     expect(crowded).toEqual([]);
   });
 
-  it('resolve() is deterministic for the same expert id and respects gender and language pools', () => {
-    for (const e of personas) {
-      const first = voices.resolve(e, 'en-US');
-      for (let i = 0; i < 25; i++) expect(voices.resolve(e, 'en-US').id).toBe(first.id);
-      expect(first.language).toBe('en');
-      if (e.gender === 'woman' || e.gender === 'man') expect(first.gender).toBe(e.gender);
-      const spanish = voices.resolve(e, 'es-ES');
-      expect(spanish.language).toBe('es');
-      expect(voices.resolve(e, 'es-ES').id).toBe(spanish.id);
-    }
-    // A different id lands on a (possibly) different voice; the same id never moves.
-    const a = voices.resolve({ id: 'persona-a', gender: 'woman' }, 'en');
-    const b = voices.resolve({ id: 'persona-a', gender: 'woman' }, 'en');
-    expect(a.id).toBe(b.id);
+  it('picks a same-gender voice from the catalogue for a persona never assigned on this engine', () => {
+    const fresh = { id: 'never-assigned', gender: 'man' as const, voices: {} };
+    const picked = voiceById.get(voices.voiceFor(fresh, 'en-US'));
+    expect(picked?.gender).toBe('man');
+    expect(picked?.language).toBe('en');
+    // Deterministic: the same persona always gets the same voice for the same locale.
+    expect(voices.voiceFor(fresh, 'en-US')).toBe(voices.voiceFor(fresh, 'en-US'));
+    // Another region may get that region's own voice; it is still English and still a man.
+    const gb = voiceById.get(voices.voiceFor(fresh, 'en-GB'));
+    expect(gb?.gender).toBe('man');
+    expect(gb?.language).toBe('en');
+  });
+});
+
+describe('the two catalogues', () => {
+  it('never share an id, so a voice can never be sent to the wrong engine', () => {
+    const fish = new Set(
+      ExpertVoices.load(join(expertsDir, 'voices.fish.json'), 'fish')
+        .all()
+        .map((v) => v.id),
+    );
+    const cartesia = ExpertVoices.load(join(expertsDir, 'voices.cartesia.json'), 'cartesia').all();
+    expect(cartesia.filter((v) => fish.has(v.id))).toEqual([]);
   });
 
-  it('resolve() falls back to an English voice of the right gender for an unknown language', () => {
-    const e = personas[0];
-    if (!e) throw new Error('empty catalog');
-    const v = voices.resolve(e, 'xx-XX');
-    expect(v.language).toBe('en');
-    if (e.gender === 'woman' || e.gender === 'man') expect(v.gender).toBe(e.gender);
-  });
-
-  it('voiceFor() falls back to resolve() when a persona has no assignments at all', () => {
-    const e = personas[0];
-    if (!e) throw new Error('empty catalog');
-    const bare: Expert = { ...e, voices: {} };
-    expect(voices.voiceFor(bare, 'en-US')).toBe(voices.resolve(bare, 'en-US').id);
+  it('reads an older catalog’s single map as Fish’s', () => {
+    const legacy = ExpertCatalog.fromJson([
+      { ...(personas[0] as Expert), voices: { en: 'legacy-en' } },
+    ]).all()[0] as Expert;
+    expect(legacy.voices).toEqual({ fish: { en: 'legacy-en' } });
   });
 });

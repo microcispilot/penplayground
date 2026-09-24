@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyOwner, PlanCode } from '@pen/contracts';
-import { FeatureRulesDocument } from '@pen/contracts';
+import { FeatureRulesDocument, type VoiceEngine } from '@pen/contracts';
 import {
   AuthChallengeRepository,
   CommentRepository,
@@ -38,6 +38,7 @@ import {
 } from '@pen/session-engine';
 import {
   CachingSynthesizer,
+  CartesiaSynthesizer,
   FishBridgeSynthesizer,
   FishCloudSynthesizer,
   SilentSynthesizer,
@@ -73,6 +74,7 @@ import { VisitIngest } from './stats/visits.js';
 import { createRecognizer } from './stt.js';
 import { FileThumbnailImageCache } from './thumbnail-cache.js';
 import { createSessionMetaJobs, ThumbnailStore } from './thumbnails.js';
+import { type VoiceEngineParts, VoiceService } from './voice/service.js';
 import { ExpertVoices } from './voices.js';
 
 export interface Services {
@@ -110,9 +112,10 @@ export interface Services {
    */
   memo: LessonMemo;
   experts: ExpertCatalog;
-  synthesizer: SpeechSynthesizer;
-  /** The synthesis cache in front of the engine (ADR-0017); null when disabled. */
-  ttsCache: CachingSynthesizer | null;
+  /** The engines this server speaks with, and the one a session gets (ADR-0048). */
+  voice: VoiceService;
+  /** The synthesis cache in front of each engine (ADR-0017); empty when disabled. */
+  ttsCaches: Partial<Record<VoiceEngine, CachingSynthesizer>>;
   /** Server-side STT; null when clients transcribe on-device (`PEN_STT_PROVIDER=browser`). */
   recognizer: SpeechRecognizerFactory | null;
   /**
@@ -127,7 +130,6 @@ export interface Services {
   intentFor(): IntentClassifier | null;
   /** The hosted check-in grader for a room being built now (ADR-0039), or null for the model path. */
   graderFor(): Grader | null;
-  voices: ExpertVoices;
   ledger: FileLedger;
   db: Connection;
   sessions: SessionRepository;
@@ -353,47 +355,109 @@ export async function buildServices(
 
   const ads = new AdEconomics(cfg, config, costs);
 
-  const engine: SpeechSynthesizer = (() => {
-    switch (config.get('PEN_TTS_PROVIDER')) {
-      case 'fish-cloud': {
-        if (!cfg.FISH_AUDIO_API_KEY)
-          throw new Error('PEN_TTS_PROVIDER=fish-cloud requires FISH_AUDIO_API_KEY');
-        return new FishCloudSynthesizer({
-          apiKey: cfg.FISH_AUDIO_API_KEY,
-          model: config.get('FISH_AUDIO_MODEL'),
-          onFirstChunk: (ms) => observer.event('tts.first_chunk_ms', { ms }),
-        });
-      }
-      case 'fish-bridge':
-        return new FishBridgeSynthesizer({ baseUrl: cfg.PEN_TTS_BRIDGE_URL });
-      case 'silent':
-        logger.warn('PEN_TTS_PROVIDER=silent: the expert will not be audible (development only)');
-        return new SilentSynthesizer({ realtime: true });
-    }
-  })();
-
   /**
-   * Zero redundant work (ADR-0017): a lesson served from the memo says the very
-   * same sentences, so they are synthesised once and replayed from disk after
-   * that. The cache is a wrapper, so the pipeline above it is unchanged.
+   * The voices (ADR-0048). Each cloud engine this server holds a key for is
+   * built once, behind its own store of taught lessons (ADR-0017: a lesson
+   * served from the memo says the very same sentences, so they are
+   * synthesised once and replayed from disk after that — per engine, since
+   * a take is one engine's audio). The `voice_engine` setting then picks one
+   * per session. The single-engine development providers answer to every
+   * engine name, so the setting resolves without a fallback in a checkout.
    */
   const ttsCacheMb = config.get('PEN_TTS_CACHE_MB');
-  const ttsCache =
-    ttsCacheMb > 0
-      ? new CachingSynthesizer({
-          inner: engine,
-          dir: join(cfg.PEN_DATA_DIR, 'lesson-voice'),
-          maxBytes: ttsCacheMb * 1024 * 1024,
-          onEvent: (name, data) => observer.event(name, data),
-        })
-      : null;
-  const synthesizer: SpeechSynthesizer = ttsCache ?? engine;
-  if (ttsCache)
+  const ttsCaches: Partial<Record<VoiceEngine, CachingSynthesizer>> = {};
+  const voiceStore = (engine: VoiceEngine, inner: SpeechSynthesizer): SpeechSynthesizer => {
+    if (ttsCacheMb <= 0) return inner;
+    const dir = join(cfg.PEN_DATA_DIR, `lesson-voice-${engine}`);
+    // Before ADR-0048 the one store was Fish's, at `lesson-voice`: it keeps its takes under its own name.
+    if (engine === 'fish' && !existsSync(dir) && existsSync(join(cfg.PEN_DATA_DIR, 'lesson-voice')))
+      renameSync(join(cfg.PEN_DATA_DIR, 'lesson-voice'), dir);
+    const cache = new CachingSynthesizer({
+      inner,
+      dir,
+      maxBytes: ttsCacheMb * 1024 * 1024,
+      onEvent: (name, data) => observer.event(name, { ...data, engine }),
+    });
+    ttsCaches[engine] = cache;
     logger.info(
-      { evt: 'tts.cache_on', maxMb: ttsCacheMb, says: ttsCache.snapshot().says },
+      { evt: 'tts.cache_on', engine, maxMb: ttsCacheMb, says: cache.snapshot().says },
       'lesson voice store ready',
     );
-  else logger.info({ evt: 'tts.cache_off' }, 'lesson voice store disabled (PEN_TTS_CACHE_MB=0)');
+    return cache;
+  };
+  const fishVoices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.fish.json'), 'fish');
+  const cartesiaVoices = ExpertVoices.load(
+    join(DATA_DIR, 'experts', 'voices.cartesia.json'),
+    'cartesia',
+  );
+  const engines: Partial<Record<VoiceEngine, VoiceEngineParts>> = {};
+  switch (config.get('PEN_TTS_PROVIDER')) {
+    case 'cloud': {
+      if (cfg.CARTESIA_API_KEY)
+        engines.cartesia = {
+          synthesizer: voiceStore(
+            'cartesia',
+            new CartesiaSynthesizer({
+              apiKey: cfg.CARTESIA_API_KEY,
+              model: config.get('CARTESIA_MODEL'),
+              onFirstChunk: (ms) =>
+                observer.event('tts.first_chunk_ms', { ms, engine: 'cartesia' }),
+            }),
+          ),
+          voices: cartesiaVoices,
+        };
+      if (cfg.FISH_AUDIO_API_KEY)
+        engines.fish = {
+          synthesizer: voiceStore(
+            'fish',
+            new FishCloudSynthesizer({
+              apiKey: cfg.FISH_AUDIO_API_KEY,
+              model: config.get('FISH_AUDIO_MODEL'),
+              onFirstChunk: (ms) => observer.event('tts.first_chunk_ms', { ms, engine: 'fish' }),
+            }),
+          ),
+          voices: fishVoices,
+        };
+      if (!engines.cartesia && !engines.fish)
+        throw new Error('PEN_TTS_PROVIDER=cloud requires CARTESIA_API_KEY or FISH_AUDIO_API_KEY');
+      break;
+    }
+    case 'fish-bridge': {
+      const bridge = {
+        synthesizer: new FishBridgeSynthesizer({ baseUrl: cfg.PEN_TTS_BRIDGE_URL }),
+        voices: fishVoices,
+      };
+      engines.fish = bridge;
+      engines.cartesia = bridge;
+      break;
+    }
+    case 'silent': {
+      logger.warn('PEN_TTS_PROVIDER=silent: the expert will not be audible (development only)');
+      const silent = { synthesizer: new SilentSynthesizer({ realtime: true }), voices: fishVoices };
+      engines.fish = silent;
+      engines.cartesia = silent;
+      break;
+    }
+  }
+  const voice = new VoiceService({
+    engines,
+    policy: (who) => features.setting('voice_engine', who),
+    onFallback: ({ wanted, used, who }) => {
+      logger.warn(
+        { evt: 'voice.engine_fallback', wanted, used, plan: who.plan, platform: who.platform },
+        'the voice engine the setting names is not configured here; speaking with another',
+      );
+      observer.event('voice.engine_fallback', {
+        wanted,
+        used,
+        plan: who.plan,
+        platform: who.platform,
+      });
+    },
+  });
+  logger.info({ evt: 'voice.ready', engines: voice.available() }, 'voice engines ready');
+  if (ttsCacheMb <= 0)
+    logger.info({ evt: 'tts.cache_off' }, 'lesson voice store disabled (PEN_TTS_CACHE_MB=0)');
 
   // Both read per decision, so the cap can be raised or dropped during an
   // incident without a deploy (ADR-0025).
@@ -424,7 +488,6 @@ export async function buildServices(
   // Memoised per (provider, model), so a room being built pays a map lookup.
   const intentFor = createIntentClassifier(cfg, config, costs);
   const graderFor = createGrader(cfg, config, costs);
-  const voices = ExpertVoices.load(join(DATA_DIR, 'experts', 'voices.json'));
   /** Which of the four keys a call runs on (`KeyOwner` in contracts says why they never fall back). */
   const keyFor = (owner: KeyOwner): string | undefined =>
     owner === 'platform'
@@ -671,12 +734,11 @@ export async function buildServices(
     memo,
     searchProvider,
     experts,
-    synthesizer,
-    ttsCache,
+    voice,
+    ttsCaches,
     recognizer,
     intentFor,
     graderFor,
-    voices,
     ledger,
     db,
     sessions,

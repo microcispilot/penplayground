@@ -25,7 +25,8 @@
     "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts",
     "thumbnails:backfill": "node --env-file=../../.env --import tsx scripts/thumbnails-backfill.ts",
     "thumbnails:probe": "node --env-file=../../.env --import tsx scripts/thumbnail-probe.ts",
-    "plan:grant": "node --env-file=../../.env --import tsx scripts/grant-plan.ts"
+    "plan:grant": "node --env-file=../../.env --import tsx scripts/grant-plan.ts",
+    "voices:cartesia": "node --import tsx scripts/build-cartesia-voices.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",

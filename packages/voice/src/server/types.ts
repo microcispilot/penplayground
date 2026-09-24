@@ -47,6 +47,8 @@ export interface SynthesisRequest {
   speed?: number;
   /** Delivery hint the engine may honour ("warm", "curious"). */
   tone?: string;
+  /** BCP-47 of the words, for engines that take it and for cues that are language-bound (ADR-0048). */
+  language?: string;
   signal?: AbortSignal;
   /**
    * Present only for the taught lesson. Its absence is what keeps a learner's
