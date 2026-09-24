@@ -168,7 +168,7 @@ server {
     # API (LIVEKIT_URL=wss://TEST_DOMAIN/livekit), not by the bundle, so it is a host path like
     # it is in production. Media itself flows over 7881/tcp + 7882/udp, not through nginx.
     location /livekit/ {
-        proxy_pass http://127.0.0.1:7880/;
+        proxy_pass http://LIVEKIT_UPSTREAM/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $pen_test_connection_upgrade;

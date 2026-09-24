@@ -552,21 +552,26 @@ notification (`deploy/uptime.md`) is the backstop that tells you first.
 
 ## 10. LiveKit ports
 
-Rooms audio needs two public ports; everything else is loopback.
+The media server is on its own host, prod-livekit-01 (ADR-0043): `ssh root@100.95.64.21`,
+stack in `/srv/pen-livekit`. Signalling reaches it from the app host over the private network;
+media and TURN reach it on its public addresses.
 
 ```sh
-ufw status | grep -E '7881|7882'      # both must be allowed
-ss -lntup | grep -E '7881|7882'
-docker compose logs --tail=50 livekit
+# on the media host
+ss -lntup | grep -E '7880|7881|7882|3478|:443'
+cd /srv/pen-livekit && docker compose logs --tail=50 livekit
+ufw status | grep -E '7881|7882|3478|30000|443'
+sysctl net.core.rmem_max               # 4194304 (/etc/sysctl.d/90-pen-livekit.conf)
+# on the app host
+curl -s http://10.10.0.4:7880/         # OK
 curl -sI https://penplayground.com/livekit/ | head -1     # 200 through nginx
-sysctl net.core.rmem_max               # ≥ 5000000, else LiveKit warns
 ```
 
-Also check the **Hetzner Cloud firewall** if one is attached to the server —
-the rules are separate from `ufw` and a missing rule there looks identical.
-There is no TURN yet: clients behind a proxy that blocks UDP *and* TCP 7881
-cannot get participant audio and see "Voice between participants dropped".
-They keep the lesson; only human-to-human voice is lost.
+Also check the **Hetzner Cloud firewall** `fw-livekit` — the rules are separate from `ufw` and
+a missing rule there looks identical from a client. (The old single-host layout ran for months
+with the media ports open in ufw and closed in the cloud firewall; only TURN/TLS on 443 ever
+got through.) A deploy of the app host must carry `PEN_LIVEKIT_HOST=10.10.0.4`, or it starts a
+second media server locally and points the API at that one.
 
 ---
 

@@ -46,7 +46,8 @@ services:
       # reaches its HTTP API directly. Keys are generated once by deploy.sh into .env and shared
       # with the livekit service below, so they are never typed twice.
       LIVEKIT_URL: ${LIVEKIT_URL:-}
-      LIVEKIT_API_URL: http://livekit:7880
+      # The media server: the local container, or the media host over the private network (ADR-0043).
+      LIVEKIT_API_URL: ${PEN_LIVEKIT_API_URL:-http://livekit:7880}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
     # Headless Chromium needs more than Docker's 64 MB default /dev/shm (the image also passes
@@ -75,8 +76,8 @@ services:
         condition: service_healthy
       searxng:
         condition: service_started
-      livekit:
-        condition: service_started
+      # Not the media server: it may live on another host (ADR-0043), and the API only calls it
+      # once a room is opened.
     logging:
       driver: json-file
       options:
@@ -137,6 +138,9 @@ services:
     # Tag verified on Docker Hub (livekit/livekit-server) on 2026-09-17.
     image: livekit/livekit-server:v1.9.12
     restart: unless-stopped
+    # Only when the media server lives on this host. With PEN_LIVEKIT_HOST set, deploy.sh leaves
+    # this profile off and the API talks to the media host instead (ADR-0043).
+    profiles: ["livekit"]
     command: --config /etc/livekit.yaml
     environment:
       # "<api key>: <api secret>" — the same pair the API signs join tokens with.

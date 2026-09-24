@@ -1,0 +1,35 @@
+# Pen Playground — the media server on its own host (ADR-0043).
+#
+# One service, host networking. On a dedicated machine there is nothing for the media ports to
+# collide with, and host networking is what a media server wants: no docker-proxy process per
+# relay port (the app host ran two hundred of them for 30000-30200/udp), no NAT between LiveKit
+# and the wire, and `use_external_ip` sees the machine's real address. The same livekit.yaml as
+# the single-host stack (deploy/livekit/livekit.yaml) is mounted unchanged; the cert-sync hook
+# copies the TURN certificate beside it exactly as it does on the app host.
+#
+#   /srv/pen-livekit/.env          LIVEKIT_API_KEY / LIVEKIT_API_SECRET — the same pair the API
+#                                  signs join tokens with (deploy/livekit-host/deploy.sh copies
+#                                  them from the app host so the two can never drift)
+#   /srv/pen-livekit/livekit.yaml  from deploy/livekit/livekit.yaml
+#   /srv/pen-livekit/certs/        fullchain.pem + privkey.pem for turn.penplayground.com
+#
+# Reached by the app host over the private network: signalling on 7880 is proxied by the app
+# host's nginx (`/livekit/` → http://10.10.0.4:7880/) and called by the API
+# (LIVEKIT_API_URL=http://10.10.0.4:7880). Media and TURN go straight to this host's public
+# address and to the floating address that carries turn.penplayground.com.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.9.12
+    restart: unless-stopped
+    network_mode: host
+    command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?set in .env}: ${LIVEKIT_API_SECRET:?set in .env}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - ./certs:/etc/livekit/certs:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

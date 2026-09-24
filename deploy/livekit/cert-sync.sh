@@ -19,12 +19,14 @@
 # Environment (all optional):
 #   PEN_TURN_DOMAIN   certificate to copy      (default turn.penplayground.com)
 #   PEN_DEPLOY_ROOT   stack directory          (default /srv/pen-playground)
+#   PEN_CERT_DIR      where the container reads (default $PEN_DEPLOY_ROOT/livekit/certs; the
+#                     media host's stack keeps them at $PEN_DEPLOY_ROOT/certs, ADR-0043)
 set -Eeuo pipefail
 
 PEN_TURN_DOMAIN="${PEN_TURN_DOMAIN:-turn.penplayground.com}"
 PEN_DEPLOY_ROOT="${PEN_DEPLOY_ROOT:-/srv/pen-playground}"
 LIVE_DIR="/etc/letsencrypt/live/${PEN_TURN_DOMAIN}"
-CERT_DIR="${PEN_DEPLOY_ROOT}/livekit/certs"
+CERT_DIR="${PEN_CERT_DIR:-${PEN_DEPLOY_ROOT}/livekit/certs}"
 
 log() { printf '%s pen-livekit cert-sync: %s\n' "$(date -u +%FT%TZ)" "$*"; }
 

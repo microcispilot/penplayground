@@ -109,6 +109,11 @@ WEB_IMAGE="pen-playground-web:${PEN_IMAGE_TAG}"
 # under compose's `admin` profile. Off, every step below behaves exactly as it always has.
 ADMIN_IMAGE="pen-playground-admin:${PEN_IMAGE_TAG}"
 WITH_ADMIN="${PEN_WITH_ADMIN:-0}"
+# The media server (ADR-0043): empty, LiveKit runs on this host under compose's `livekit`
+# profile; set to the media host's private address (10.10.0.4), the profile stays off, nginx
+# proxies signalling there and the API calls it there.
+LIVEKIT_HOST="${PEN_LIVEKIT_HOST:-}"
+LIVEKIT_UPSTREAM="${LIVEKIT_HOST:-127.0.0.1}:7880"
 
 SSH_OPTS=(
   -i "$PEN_DEPLOY_SSH_IDENTITY_FILE"
@@ -316,11 +321,11 @@ remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '
 # Both templates land on the host either way; only the chosen one is rendered.
 if [ "$PEN_VHOST" = "test" ]; then
   VHOST_NAME="pen-playground-test"
-  remote "sed -e 's/TEST_DOMAIN/$PEN_DOMAIN/g' -e 's/BASE_PATH/$BASE_NAME/g' \
+  remote "sed -e 's/TEST_DOMAIN/$PEN_DOMAIN/g' -e 's/BASE_PATH/$BASE_NAME/g' -e 's/LIVEKIT_UPSTREAM/$LIVEKIT_UPSTREAM/g' \
     '$PEN_DEPLOY_ROOT/nginx/pen-playground-test.conf.example' > '$PEN_DEPLOY_ROOT/nginx/$VHOST_NAME.conf'"
 else
   VHOST_NAME="pen-playground"
-  remote "sed 's/DOMAIN/$PEN_DOMAIN/g' '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf.example' > '$PEN_DEPLOY_ROOT/nginx/$VHOST_NAME.conf'"
+  remote "sed -e 's/DOMAIN/$PEN_DOMAIN/g' -e 's/LIVEKIT_UPSTREAM/$LIVEKIT_UPSTREAM/g' '$PEN_DEPLOY_ROOT/nginx/pen-playground.conf.example' > '$PEN_DEPLOY_ROOT/nginx/$VHOST_NAME.conf'"
 fi
 echo "  vhost: $VHOST_NAME.conf (PEN_VHOST=$PEN_VHOST)"
 
@@ -344,9 +349,10 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
   if ! grep -q '^LIVEKIT_API_SECRET=..*' .env; then
     printf 'LIVEKIT_API_SECRET=%s\n' \"\$(openssl rand -base64 48 | tr -d '/+=\n')\" >> .env
   fi
-  grep -v -e '^PEN_IMAGE_TAG=' -e '^LIVEKIT_URL=' .env > .env.next || true
+  grep -v -e '^PEN_IMAGE_TAG=' -e '^LIVEKIT_URL=' -e '^PEN_LIVEKIT_API_URL=' .env > .env.next || true
   printf 'PEN_IMAGE_TAG=%s\n' '$PEN_IMAGE_TAG' >> .env.next
   printf 'LIVEKIT_URL=wss://%s/livekit\n' '$PEN_DOMAIN' >> .env.next
+  if [ -n '$LIVEKIT_HOST' ]; then printf 'PEN_LIVEKIT_API_URL=http://%s:7880\n' '$LIVEKIT_HOST' >> .env.next; fi
   chmod 600 .env.next
   mv .env.next .env"
 
@@ -440,6 +446,13 @@ else
   # the profile compose would leave it stopped and backups would silently not run.
   profiles="--profile backup"
   if [ "$WITH_ADMIN" = 1 ]; then profiles="$profiles --profile admin"; fi
+  if [ -z "$LIVEKIT_HOST" ]; then
+    profiles="$profiles --profile livekit"
+  else
+    # A profile that is off is ignored by `up`, not stopped: the local media server has to be
+    # taken down by name, once, when the media host takes over.
+    remote "cd '$PEN_DEPLOY_ROOT' && docker compose --profile livekit rm -sf livekit >/dev/null 2>&1 || true"
+  fi
   remote "cd '$PEN_DEPLOY_ROOT' && docker compose $profiles config -q \
     && docker compose $profiles up -d --remove-orphans"
 

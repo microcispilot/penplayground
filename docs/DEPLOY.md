@@ -264,45 +264,47 @@ missing).
 ## Rooms audio (LiveKit)
 
 Professional hosts can run rooms where up to 12 participants hear each other
-(ADR-0012). The media server is a self-hosted `livekit/livekit-server` in the same compose
-stack; the API only mints join tokens and relays the host's mute requests.
+(ADR-0012). The media server is a self-hosted `livekit/livekit-server`; the API only mints
+join tokens and relays the host's mute requests.
 
-**Ports and firewall.** Signalling (WebSocket + HTTP API) listens on `127.0.0.1:7880` and is
-reached by browsers through the host nginx at `wss://DOMAIN/livekit` (the vhost template has
-the `/livekit/` location). Everything else is public and fixed, so the container needs no host
-networking: `7881/tcp` (ICE over TCP, the fallback for networks that block UDP), `7882/udp`
-(every stream, multiplexed on one port), and for TURN `3478/udp` plus the relay range
-`30000-30200/udp`. On the Hetzner host:
+**Where it runs (ADR-0043).** On its own host, prod-livekit-01 (`100.95.64.21` over Tailscale,
+`10.10.0.4` on the private network, public `5.78.195.213`), from `deploy/livekit-host/`:
 
 ```sh
-ufw allow 7881/tcp comment 'livekit ice-tcp'
-ufw allow 7882/udp comment 'livekit media'
-ufw allow 3478/udp comment 'livekit turn+stun'
-ufw allow 30000:30200/udp comment 'livekit turn relay'
-# Hetzner Cloud firewall (if one is attached to the server): add the same inbound rules.
-# Kernel UDP buffers: LiveKit warns below ~5 MB; make it permanent in /etc/sysctl.d/90-livekit.conf
-sysctl -w net.core.rmem_max=5000000 net.core.wmem_max=5000000
+deploy/livekit-host/deploy.sh          # copies the compose file, livekit.yaml and the cert hook,
+                                       # takes the API key pair from the app host, issues or keeps
+                                       # the TURN certificate, starts the server, waits for 7880
 ```
 
-`use_external_ip: true` in `livekit.yaml` makes the server discover the host's public address
-with STUN and advertise it in ICE candidates (inside Docker it only sees the bridge address).
+and the app host is deployed with `PEN_LIVEKIT_HOST=10.10.0.4`, which makes `deploy/deploy.sh`
+render the vhost's `/livekit/` location to `http://10.10.0.4:7880/`, write
+`PEN_LIVEKIT_API_URL=http://10.10.0.4:7880` into the stack's `.env`, and leave the stack's own
+`livekit` service (compose profile `livekit`) off. Without `PEN_LIVEKIT_HOST` the single-host
+layout is what you get: the profile is on and the API talks to the local container.
+
+**Ports and firewall, media host.** Signalling `7880/tcp` from the private network only;
+public `7881/tcp` (ICE over TCP), `7882/udp` (every stream, one port), `3478/udp` (TURN+STUN),
+`30000-30200/udp` (relay), `443/tcp` (TURN/TLS) and `80/tcp` (ACME). Both `ufw` on the host and
+the Hetzner Cloud firewall `fw-livekit` carry these; a rule missing from either looks identical
+from a client. Kernel UDP buffers are raised in `/etc/sysctl.d/90-pen-livekit.conf`.
+`use_external_ip: true` in `livekit.yaml` makes the server discover its public address with
+STUN and advertise it in ICE candidates.
 
 **Secrets.** `deploy.sh` writes the key pair once into `/srv/pen-playground/.env`
 (`LIVEKIT_API_KEY=API…`, `LIVEKIT_API_SECRET=…`) and sets `LIVEKIT_URL=wss://DOMAIN/livekit`
-on every run; compose injects them into both the `livekit` container (`LIVEKIT_KEYS`) and the
-`api` container, together with `LIVEKIT_API_URL=http://livekit:7880`. Nothing to copy into
-`api.env`. If any of the three is missing the feature is off: `/api/health` answers
-`"rooms":false`, `POST /api/rooms/:id/token` answers `503 ROOMS_UNAVAILABLE`, and rooms fall
-back to the phase-1 behaviour (expert voice + captions, no voice between participants).
+on every run; `deploy/livekit-host/deploy.sh` copies the same two lines to the media host's
+`/srv/pen-livekit/.env`, so the pair can never drift. If any of it is missing the feature is
+off: `/api/health` answers `"rooms":false`, `POST /api/rooms/:id/token` answers
+`503 ROOMS_UNAVAILABLE`, and rooms fall back to expert voice + captions with no voice between
+participants.
 
-**Check it on the host:**
+**Check it:**
 
 ```sh
-curl -s http://127.0.0.1:4200/api/health | grep -o '"rooms":[a-z]*'      # "rooms":true
-curl -s http://127.0.0.1:7880/                                            # OK
-curl -sI https://DOMAIN/livekit/ | head -1                                # 200 through nginx
-docker compose logs --tail=20 livekit                                     # "starting LiveKit server"
-docker compose logs api | grep rooms.audio.                               # token / mute events
+curl -s http://127.0.0.1:4200/api/health | grep -o '"rooms":[a-z]*'   # on the app host: "rooms":true
+curl -s http://10.10.0.4:7880/                                         # on the app host: OK
+curl -sI https://DOMAIN/livekit/ | head -1                             # 200 through nginx
+ssh root@100.95.64.21 'cd /srv/pen-livekit && docker compose logs --tail=20 livekit'
 ```
 
 Failures land in Sentry under `rooms.audio.mute` (media server unreachable); token minting
@@ -316,37 +318,22 @@ short-lived per-participant credential **in the join response** — the app conf
 (and must not: livekit-client only fills in the server's ICE servers while the app has set
 none). Verified end to end by `apps/web/e2e/rooms-turn.spec.ts`.
 
-**What is on:** TURN/UDP on `3478` (it is also the STUN server), relaying media out of
-`30000-30200/udp`. That covers a network that blocks `7882/udp` but allows UDP elsewhere.
+**What is on:** TURN/UDP on `3478` (also the STUN server), relaying out of `30000-30200/udp`,
+and TURN/TLS on `443` of `turn.penplayground.com` — LiveKit advertises the TLS candidate as
+`turns:<turn.domain>:443` whatever `turn.tls_port` says, so 443 of that name has to be the
+media server's. On the media host nothing else wants 443, which is the point of the host.
 
-**What is not, and why:** TURN/TLS. LiveKit advertises the TLS candidate as
-`turns:<turn.domain>:443` — the port is hardcoded to 443 in `iceServersForParticipant`
-(`livekit/pkg/service/roommanager.go`), whatever `turn.tls_port` is set to. So TURN/TLS only
-works when **443 of that hostname** reaches the container, and on prod-app-01 port 443 of the
-one public address belongs to the host nginx, which also serves the onten vhosts. Sharing it
-with an nginx `stream` + `ssl_preread` demux would mean moving every other vhost on this host
-to another port: not worth the blast radius for one feature. The clean upgrade, when a network
-that blocks everything but 443 shows up in the wild:
+**The address.** `turn.penplayground.com` currently resolves to the floating address
+`5.78.25.5`, moved to the media host with the server (ADR-0043). TURN/TLS works through it.
+TURN/UDP does not reliably: the UDP listener answers from the host's primary address, and a
+client's NAT drops the reply. The fix is one DNS change — `turn.penplayground.com` → the
+primary address `5.78.195.213` — then `deploy/livekit-host/deploy.sh` (it issues the
+certificate standalone on port 80 of whatever the name resolves to) and releasing the floating
+address at Hetzner.
 
-1. Add a second public address (Hetzner floating IP) to the server, and an `A` record
-   `turn.penplayground.com` → that address.
-2. `certbot certonly --webroot -w /var/www/letsencrypt -d turn.penplayground.com`
-   (the Pen vhost already answers `/.well-known/acme-challenge/` on port 80).
-3. Install the certificate hook, which copies the two files where the container can read them
-   (`/etc/letsencrypt/live/*` are symlinks into `archive/`, which is not mounted) and restarts
-   the container on renewal:
-
-   ```sh
-   cp /srv/pen-playground/livekit/cert-sync.sh /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
-   chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
-   /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh      # once, for the first copy
-   ```
-
-4. In `deploy/livekit/livekit.yaml`, uncomment `tls_port: 443`, `cert_file` and `key_file`
-   (the block above `turn:` spells them out), and put
-   `PEN_TURN_TLS_BIND=<floating ip>:443` in `/srv/pen-playground/.env`.
-5. `ufw allow 443/tcp` is already open; the Hetzner Cloud firewall needs the floating address
-   allowed. Redeploy, then check a client is offered `turns:` (below).
+**The certificate** is certbot's, standalone, on the media host; the deploy hook
+`/etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh` is a two-line wrapper that copies the
+files beside `livekit.yaml` and restarts the container on renewal.
 
 **Check TURN on the host:**
 
@@ -779,8 +766,9 @@ reload nginx. Neither touches the API or the settings it is running on.
 
 ## Known host facts (2026-09-16)
 
-- Port 4100 is taken on prod-app-01 by an unrelated `node ./src/app.js` bound to all interfaces;
-  4000 by the onten backend. Pen Playground therefore uses 4200/4201.
+- Pen Playground uses 4200/4201 on prod-app-01 (4000/4100 were Onten's backends until Onten was
+  removed on 2026-09-24, ADR-0043). Simurgh and idemi are paused on the host, not removed:
+  `/root/PAUSED-SERVICES-README.md` there and on prod-db-01 says how to turn them back on.
 - `/etc/nginx/conf.d/ws_upgrade.conf` already defines `$connection_upgrade`; the Pen vhost uses
   `$pen_connection_upgrade` to stay independent.
 - Certbot webroot for the onten vhosts is `/var/www/letsencrypt`; the Pen vhost uses the same.
