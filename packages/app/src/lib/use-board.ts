@@ -1,9 +1,11 @@
 import {
   type BoardPreference,
   type BoardSurface,
+  type BoardTool,
   type InkId,
-  resolveInkId,
+  resolveInk,
   resolveSurface,
+  resolveTool,
 } from '@pen/contracts';
 import { useEffect, useSyncExternalStore } from 'react';
 import {
@@ -22,6 +24,7 @@ export interface ResolvedBoard {
   /** What is actually painted, after the theme and the plan have had their say. */
   surface: BoardSurface;
   ink: InkId;
+  tool: BoardTool;
   /** Replace the whole preference. Persists to the device and tells every reader. */
   choose: (next: BoardPreference) => void;
 }
@@ -56,15 +59,14 @@ export function useBoard(): ResolvedBoard {
 
   const plan = participant?.plan ?? 'free';
   const surface = resolveSurface(plan, preference.surface, isDarkTheme(theme) ? 'dark' : 'light');
-  // `surface.kind` is only null for `auto`, and `resolveSurface` never returns
-  // `auto` — it resolves it. The fallback is for the type, not for a real case.
-  const ink = resolveInkId(plan, preference, surface.kind ?? 'marker');
+  const ink = resolveInk(plan, preference.ink, surface);
+  const tool = resolveTool(plan, preference.tool, surface);
 
   // Stamped in an effect rather than during render: writing to `document`
   // while rendering is a side effect React is allowed to run twice.
   useEffect(() => {
-    applyBoardAttributes(surface.id, ink);
-  }, [surface.id, ink]);
+    applyBoardAttributes(surface.id, ink, tool);
+  }, [surface.id, ink, tool]);
 
   /*
    * A machine that has never chosen adopts the account's board, once.
@@ -87,6 +89,7 @@ export function useBoard(): ResolvedBoard {
     preference,
     surface,
     ink,
+    tool,
     choose: (next) => {
       // The device write is the one that counts and cannot fail; the account
       // write is a courtesy that never blocks and never reports (see

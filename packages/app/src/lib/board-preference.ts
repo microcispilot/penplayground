@@ -12,10 +12,11 @@ import type { KeyValueStorage } from '../platform/types.js';
  * who use it most.
  *
  * Stored as one JSON object rather than three keys because the three values
- * are one decision: a surface and the two colours that go with it. Reading a
- * half-written preference — a surface from today and a chalk from a build that
- * spelled it differently — is the failure mode that costs an afternoon, and a
- * single parse either succeeds or falls back whole.
+ * are one decision: a surface, the tool and the ink. Reading a half-written
+ * preference — a surface from today and an ink from a build that spelled it
+ * differently — is the failure mode that costs an afternoon, and a single
+ * parse either succeeds, migrates whole (the pre-ADR-0041 shape is accepted
+ * by the schema itself) or falls back whole.
  */
 export const BOARD_PREFERENCE_KEY = 'pen.board';
 
@@ -52,21 +53,23 @@ export function writeBoardPreference(storage: KeyValueStorage, value: BoardPrefe
 /**
  * Stamp the resolved board on `<html>`.
  *
- * Two attributes, because they are two independent axes: the surface decides
- * the paper, the frame and every ink role, and the chosen colour then
- * overrides the body ink alone. `tokens.css` declares `[data-ink]` after
- * `[data-board]` so that override lands — see the banner there, where the
- * source ordering is explained and is load-bearing.
+ * Three attributes, because they are three independent axes (ADR-0041): the
+ * surface decides the paper, the frame and every ink role; the chosen ink
+ * then overrides the body ink alone; the tool says how the writing is laid
+ * down. `tokens.css` declares `[data-ink]` after `[data-board]` so that
+ * override lands — see the banner there, where the source ordering is
+ * explained and is load-bearing.
  *
- * Both are always set, never removed. An absent `data-board` would fall back
- * to the `:root` block, which happens to be the whiteboard — correct by
+ * All three are always set, never removed. An absent `data-board` would fall
+ * back to the `:root` block, which happens to be the whiteboard — correct by
  * accident today and wrong the first time somebody reorders that file.
  */
-export function applyBoardAttributes(surface: string, ink: string): void {
+export function applyBoardAttributes(surface: string, ink: string, tool: string): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   root.setAttribute('data-board', surface);
   root.setAttribute('data-ink', ink);
+  root.setAttribute('data-tool', tool);
 }
 
 // ── the store ───────────────────────────────────────────────────────────────

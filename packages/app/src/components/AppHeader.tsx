@@ -192,13 +192,13 @@ export function AppHeader({
           </button>
         ) : (
           <>
-            {/* Two doors, one sheet (ADR-0040): the quiet one for someone who
-                has an account, the brand-filled one for someone who has not —
-                the highest-emphasis action on the page for a signed-out visitor,
-                and the only place the chrome carries the brand. */}
+            {/* Two doors, one sheet (ADR-0040). Sign in is the filled one — the
+                owner's call on 2026-09-23 — and the only place the chrome carries
+                the brand; Sign up for free is outlined in the same red with no
+                fill, so the pair reads as one offer with two ways in. */}
             <button
               type="button"
-              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full px-2.5 text-label-large text-on-surface sm:ml-1 sm:px-3"
+              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full bg-primary-fixed px-3.5 text-label-large text-on-primary-fixed sm:ml-1 sm:px-4"
               onClick={() => openSignIn('header')}
               data-testid="account-chip"
             >
@@ -206,7 +206,7 @@ export function AppHeader({
             </button>
             <button
               type="button"
-              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full bg-primary-fixed px-3.5 text-label-large text-on-primary-fixed sm:px-4"
+              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full border border-primary-fixed px-3.5 text-label-large text-primary sm:px-4"
               onClick={() => openSignIn('header_sign_up')}
               data-testid="sign-up-cta"
             >

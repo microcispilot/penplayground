@@ -13,18 +13,25 @@ import { ANONYMOUS, memoryStorage, renderWithApp, SIGNED_IN } from './harness.js
 afterEach(cleanup);
 beforeEach(() => {
   resetBoardPreferenceForTests();
-  document.documentElement.removeAttribute('data-board');
-  document.documentElement.removeAttribute('data-ink');
+  for (const attr of ['data-board', 'data-ink', 'data-tool'])
+    document.documentElement.removeAttribute(attr);
+});
+
+const html = () => ({
+  board: document.documentElement.getAttribute('data-board'),
+  ink: document.documentElement.getAttribute('data-ink'),
+  tool: document.documentElement.getAttribute('data-tool'),
 });
 
 /**
  * The board a learner chooses, from storage through to the attributes the
  * whole product paints from.
  *
- * The rule under test is the owner's and it has two halves: **choosing is the
- * paid act**, so a free learner gets the default and nothing else; and **a
- * chalk cannot go on a marker board**, so the colours on offer change with the
- * surface rather than being greyed out.
+ * The rules under test are the owner's (ADR-0041): **choosing is the paid
+ * act**, so a free learner gets the default and nothing else; **the surface,
+ * the tool and the colour are three separate choices**, so chalk goes on a
+ * whiteboard; and **the one colour refused is the board's own**, disabled in
+ * the picker and never painted, without the stored choice being touched.
  */
 describe('the stored preference', () => {
   it('returns the default for empty, corrupt, and foreign-vocabulary storage', () => {
@@ -36,11 +43,7 @@ describe('the stored preference', () => {
     expect(
       readBoardPreference(
         memoryStorage({
-          [BOARD_PREFERENCE_KEY]: JSON.stringify({
-            surface: 'holographic',
-            marker: 'x',
-            chalk: 'y',
-          }),
+          [BOARD_PREFERENCE_KEY]: JSON.stringify({ surface: 'holographic', tool: 'x', ink: 'y' }),
         }),
       ),
     ).toEqual(BOARD_PREFERENCE_DEFAULT);
@@ -48,20 +51,33 @@ describe('the stored preference', () => {
 
   it('round-trips a whole choice, because the three values are one decision', () => {
     const storage = memoryStorage();
-    const chosen = { surface: 'greenboard', marker: 'marker-red', chalk: 'chalk-yellow' } as const;
+    const chosen = { surface: 'greenboard', tool: 'marker', ink: 'red' } as const;
     writeBoardPreference(storage, chosen);
     expect(readBoardPreference(storage)).toEqual(chosen);
+  });
+
+  it('reads what a build before ADR-0041 wrote, as the colour that board used', () => {
+    // One colour per kind, the kind decided by the board: the blackboard
+    // wrote in its chalk colour, so that is the colour that survives.
+    const storage = memoryStorage({
+      [BOARD_PREFERENCE_KEY]: JSON.stringify({
+        surface: 'blackboard',
+        marker: 'marker-red',
+        chalk: 'chalk-yellow',
+      }),
+    });
+    expect(readBoardPreference(storage)).toEqual({
+      surface: 'blackboard',
+      tool: 'auto',
+      ink: 'yellow',
+    });
   });
 
   it('does not consult the plan, so a lapsed subscriber gets their board back', () => {
     // Storage holds what the learner picked; `resolveSurface` decides what they
     // may have today. Erasing it on downgrade would lose the choice for good.
     const storage = memoryStorage();
-    writeBoardPreference(storage, {
-      surface: 'smoked',
-      marker: 'marker-black',
-      chalk: 'chalk-blue',
-    });
+    writeBoardPreference(storage, { surface: 'smoked', tool: 'chalk', ink: 'blue' });
     expect(readBoardPreference(storage).surface).toBe('smoked');
   });
 });
@@ -89,6 +105,10 @@ describe('the picker', () => {
       expect(card.tagName, `${id} should route a free learner to Pricing`).toBe('A');
       expect(card.getAttribute('href')).toContain('/pricing');
     }
+    // The tool follows the board for free; choosing one is Standard.
+    expect(screen.getByTestId('tool-auto').tagName).toBe('BUTTON');
+    expect(screen.getByTestId('tool-chalk').tagName).toBe('A');
+    expect(screen.getByTestId('tool-marker').tagName).toBe('A');
     // Calm: a plan's name, never a padlock and never "locked".
     expect(screen.queryByText(/locked|upgrade required/i)).toBeNull();
     expect(screen.getAllByText('Standard').length).toBeGreaterThan(0);
@@ -101,6 +121,9 @@ describe('the picker', () => {
     for (const id of ['auto', 'whiteboard', 'blackboard', 'greenboard', 'ivory']) {
       expect(screen.getByTestId(`board-${id}`).tagName, id).toBe('BUTTON');
     }
+    for (const id of ['auto', 'chalk', 'marker']) {
+      expect(screen.getByTestId(`tool-${id}`).tagName, id).toBe('BUTTON');
+    }
     // Smoked is Professional, and still just carries its plan's name.
     const smoked = screen.getByTestId('board-smoked');
     expect(smoked.tagName).toBe('A');
@@ -108,50 +131,76 @@ describe('the picker', () => {
   });
 
   /**
-   * The compatibility rule, as the learner meets it. A chalk on a whiteboard
-   * is not a disabled option — it is not an option, so it is not rendered.
+   * The one rule, as the learner meets it: every colour is on offer on every
+   * board, and the board's own colour is disabled — not hidden, not a link.
    */
-  it('offers markers on a marker board and chalks on a chalk board, never both', async () => {
+  it('offers every colour on every board, with the board’s own colour disabled', async () => {
     const storage = memoryStorage();
-    writeBoardPreference(storage, {
-      surface: 'whiteboard',
-      marker: 'marker-black',
-      chalk: 'chalk-white',
-    });
+    writeBoardPreference(storage, { surface: 'whiteboard', tool: 'auto', ink: 'auto' });
     renderWithApp(<Settings />, { participant: SIGNED_IN, storage });
     await paidBoardsReady('blackboard');
 
-    expect(screen.getByTestId('ink-marker-black')).toBeTruthy();
-    expect(screen.getByTestId('ink-marker-red')).toBeTruthy();
-    expect(screen.queryByTestId('ink-chalk-white')).toBeNull();
-    expect(screen.queryByTestId('ink-chalk-yellow')).toBeNull();
+    const white = screen.getByTestId('ink-white') as HTMLButtonElement;
+    expect(white.tagName).toBe('BUTTON');
+    expect(white.disabled).toBe(true);
+    expect(white.textContent).toContain('The board’s colour');
+    for (const id of ['black', 'red', 'blue', 'green', 'yellow', 'pink']) {
+      const dot = screen.getByTestId(`ink-${id}`) as HTMLButtonElement;
+      expect(dot.tagName, id).toBe('BUTTON');
+      expect(dot.disabled, id).toBe(false);
+    }
 
-    // Move to a chalk board and the whole set swaps.
+    // Move to the blackboard and the refusal moves with it.
     fireEvent.click(screen.getByTestId('board-blackboard'));
-    expect(await screen.findByTestId('ink-chalk-white')).toBeTruthy();
-    expect(screen.queryByTestId('ink-marker-black')).toBeNull();
+    await waitFor(() =>
+      expect((screen.getByTestId('ink-black') as HTMLButtonElement).disabled).toBe(true),
+    );
+    expect((screen.getByTestId('ink-white') as HTMLButtonElement).disabled).toBe(false);
+    // And on the green board it is the green.
+    fireEvent.click(screen.getByTestId('board-greenboard'));
+    await waitFor(() =>
+      expect((screen.getByTestId('ink-green') as HTMLButtonElement).disabled).toBe(true),
+    );
+    expect(screen.getAllByText('The board’s colour')).toHaveLength(1);
   });
 
-  it('keeps the other kind’s colour when the board changes and changes back', async () => {
+  it('puts chalk on a whiteboard, because the tool is not the board’s to decide', async () => {
     const storage = memoryStorage();
-    writeBoardPreference(storage, {
-      surface: 'whiteboard',
-      marker: 'marker-black',
-      chalk: 'chalk-white',
-    });
+    writeBoardPreference(storage, { surface: 'whiteboard', tool: 'auto', ink: 'auto' });
     renderWithApp(<Settings />, { participant: SIGNED_IN, storage });
     await paidBoardsReady('blackboard');
+    expect(html().tool).toBe('marker');
 
-    fireEvent.click(screen.getByTestId('ink-marker-red'));
+    fireEvent.click(screen.getByTestId('tool-chalk'));
+    await waitFor(() => expect(html().tool).toBe('chalk'));
+    expect(html().board).toBe('whiteboard');
+    expect(readBoardPreference(storage).tool).toBe('chalk');
+
+    // Back to following the board, and a dark board brings its own chalk.
+    fireEvent.click(screen.getByTestId('tool-auto'));
+    await waitFor(() => expect(html().tool).toBe('marker'));
+    fireEvent.click(screen.getByTestId('board-smoked'));
+    // Smoked is Professional: a Standard learner's click is a link, so nothing changes.
+    expect(html().board).toBe('whiteboard');
     fireEvent.click(screen.getByTestId('board-blackboard'));
-    fireEvent.click(await screen.findByTestId('ink-chalk-pink'));
-    fireEvent.click(screen.getByTestId('board-whiteboard'));
+    await waitFor(() => expect(html().tool).toBe('chalk'));
+  });
 
-    // The marker survived the round trip: this is why the preference keeps one
-    // colour per kind rather than a single "ink".
-    const saved = readBoardPreference(storage);
-    expect(saved.marker).toBe('marker-red');
-    expect(saved.chalk).toBe('chalk-pink');
+  it('keeps a colour the current board refuses, and paints it again on the next board that takes it', async () => {
+    const storage = memoryStorage();
+    writeBoardPreference(storage, { surface: 'blackboard', tool: 'auto', ink: 'auto' });
+    renderWithApp(<Settings />, { participant: SIGNED_IN, storage });
+    await paidBoardsReady('whiteboard');
+
+    fireEvent.click(screen.getByTestId('ink-white'));
+    await waitFor(() => expect(html().ink).toBe('white'));
+    fireEvent.click(screen.getByTestId('board-whiteboard'));
+    // White cannot be written on the whiteboard, so the board's own default is painted…
+    await waitFor(() => expect(html().ink).toBe('black'));
+    // …and the choice is still there, untouched.
+    expect(readBoardPreference(storage).ink).toBe('white');
+    fireEvent.click(screen.getByTestId('board-greenboard'));
+    await waitFor(() => expect(html().ink).toBe('white'));
   });
 
   it('paints the document with what was chosen', async () => {
@@ -160,8 +209,14 @@ describe('the picker', () => {
     fireEvent.click(await paidBoardsReady('greenboard'));
     // The attributes are what every board token keys off; without them the
     // choice is stored and invisible.
-    expect(document.documentElement.getAttribute('data-board')).toBe('greenboard');
-    expect(document.documentElement.getAttribute('data-ink')).toBe('chalk-white');
+    await waitFor(() =>
+      expect(html()).toEqual({ board: 'greenboard', ink: 'white', tool: 'chalk' }),
+    );
+    fireEvent.click(screen.getByTestId('ink-yellow'));
+    fireEvent.click(screen.getByTestId('tool-marker'));
+    await waitFor(() =>
+      expect(html()).toEqual({ board: 'greenboard', ink: 'yellow', tool: 'marker' }),
+    );
   });
 });
 
@@ -178,27 +233,24 @@ describe('the picker', () => {
 describe('the account copy', () => {
   const withBoard = {
     ...SIGNED_IN,
-    board: { surface: 'greenboard', marker: 'marker-red', chalk: 'chalk-pink' },
+    board: { surface: 'greenboard', tool: 'marker', ink: 'pink' },
   } as const;
 
   it('fills in on a machine that has never chosen', async () => {
     const storage = memoryStorage();
     renderWithApp(<Settings />, { participant: withBoard, storage });
     await waitFor(() => expect(readBoardPreference(storage).surface).toBe('greenboard'));
-    expect(readBoardPreference(storage).chalk).toBe('chalk-pink');
+    expect(readBoardPreference(storage).ink).toBe('pink');
+    expect(readBoardPreference(storage).tool).toBe('marker');
   });
 
   it('never overwrites a choice this device already holds', async () => {
     const storage = memoryStorage();
-    writeBoardPreference(storage, {
-      surface: 'ivory',
-      marker: 'marker-blue',
-      chalk: 'chalk-white',
-    });
+    writeBoardPreference(storage, { surface: 'ivory', tool: 'auto', ink: 'blue' });
     renderWithApp(<Settings />, { participant: withBoard, storage });
     await waitFor(() => expect(screen.getByTestId('board-ivory')).toBeTruthy());
     // Still the device's, not the account's.
     expect(readBoardPreference(storage).surface).toBe('ivory');
-    expect(readBoardPreference(storage).marker).toBe('marker-blue');
+    expect(readBoardPreference(storage).ink).toBe('blue');
   });
 });

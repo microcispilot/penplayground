@@ -236,9 +236,9 @@ test.describe('brand candidates, side by side', () => {
       await page.setViewportSize({ width: WIDTH, height: HEIGHT });
       await useTheme(page, theme);
       await page.goto(`${UI_WEB}/`);
-      // Two doors since ADR-0040; the filled one — Sign up for free — is the
-      // one that carries the brand, the way Sign in did when it was alone.
-      const signIn = page.getByTestId('sign-up-cta');
+      // Two doors since ADR-0040; Sign in is the filled one and carries the
+      // brand, and Sign up for free is outlined in the same red beside it.
+      const signIn = page.getByTestId('account-chip');
       await expect(signIn).toBeVisible({ timeout: 30_000 });
       const [painted, declared] = await Promise.all([
         signIn.evaluate((el) => getComputedStyle(el).backgroundColor),

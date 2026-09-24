@@ -1232,43 +1232,67 @@
  * The chosen colour is the *body* ink only. `accent`, `warn` and `muted` stay
  * with the board, so a teacher still reaches for a second colour to emphasise
  * something — which is what the four roles were always for, and what a real
- * board looks like. Each block is written to be legible on the surfaces of its
- * own kind and nowhere else; a chalk on a whiteboard is prevented in
- * `resolveInkId`, not here.
+ * board looks like.
+ *
+ * One palette, seven names, tuned twice (ADR-0041). The same "red" has to be
+ * a deep marker red on cream and a warm chalk red on slate, so each surface
+ * declares its own seven `--ink-*` values above and `[data-ink]` only picks
+ * one. The board decides legibility; the name decides which. A colour that
+ * *is* the surface — white on the whiteboard — is refused in `resolveInk`,
+ * not here: it is still declared so a swatch of it can be drawn disabled.
  * ────────────────────────────────────────────────────────────────────────── */
-:root[data-ink="marker-black"],
-[data-ink="marker-black"] {
-  --color-ink: oklch(0.28 0.02 250);
+:root,
+:root[data-board="whiteboard"],
+:root[data-board="ivory"],
+[data-board="whiteboard"],
+[data-board="ivory"] {
+  --ink-black: oklch(0.28 0.02 250);
+  --ink-white: oklch(0.975 0.006 85);
+  --ink-red: oklch(0.52 0.2 28);
+  --ink-blue: oklch(0.5 0.15 250);
+  --ink-green: oklch(0.5 0.13 155);
+  --ink-yellow: oklch(0.66 0.15 80);
+  --ink-pink: oklch(0.6 0.18 350);
 }
-:root[data-ink="marker-red"],
-[data-ink="marker-red"] {
-  --color-ink: oklch(0.52 0.2 28);
+:root[data-board="blackboard"],
+:root[data-board="greenboard"],
+:root[data-board="smoked"],
+[data-board="blackboard"],
+[data-board="greenboard"],
+[data-board="smoked"] {
+  --ink-black: oklch(0.25 0.016 250);
+  --ink-white: oklch(0.945 0.012 85);
+  --ink-red: oklch(0.74 0.16 25);
+  --ink-blue: oklch(0.86 0.07 235);
+  --ink-green: oklch(0.87 0.08 150);
+  --ink-yellow: oklch(0.9 0.09 95);
+  --ink-pink: oklch(0.85 0.08 10);
 }
-:root[data-ink="marker-blue"],
-[data-ink="marker-blue"] {
-  --color-ink: oklch(0.5 0.15 250);
+:root[data-ink="black"],
+[data-ink="black"] {
+  --color-ink: var(--ink-black);
 }
-:root[data-ink="marker-green"],
-[data-ink="marker-green"] {
-  --color-ink: oklch(0.5 0.13 155);
+:root[data-ink="white"],
+[data-ink="white"] {
+  --color-ink: var(--ink-white);
 }
-:root[data-ink="chalk-white"],
-[data-ink="chalk-white"] {
-  --color-ink: oklch(0.945 0.012 85);
+:root[data-ink="red"],
+[data-ink="red"] {
+  --color-ink: var(--ink-red);
 }
-:root[data-ink="chalk-yellow"],
-[data-ink="chalk-yellow"] {
-  --color-ink: oklch(0.9 0.09 95);
+:root[data-ink="blue"],
+[data-ink="blue"] {
+  --color-ink: var(--ink-blue);
 }
-:root[data-ink="chalk-pink"],
-[data-ink="chalk-pink"] {
-  --color-ink: oklch(0.85 0.08 10);
+:root[data-ink="green"],
+[data-ink="green"] {
+  --color-ink: var(--ink-green);
 }
-:root[data-ink="chalk-green"],
-[data-ink="chalk-green"] {
-  --color-ink: oklch(0.87 0.08 150);
+:root[data-ink="yellow"],
+[data-ink="yellow"] {
+  --color-ink: var(--ink-yellow);
 }
-:root[data-ink="chalk-blue"],
-[data-ink="chalk-blue"] {
-  --color-ink: oklch(0.86 0.07 235);
+:root[data-ink="pink"],
+[data-ink="pink"] {
+  --color-ink: var(--ink-pink);
 }

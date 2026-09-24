@@ -1,4 +1,4 @@
-import { BOARDS_BY_PLAN, LEGENDS_BY_PLAN } from '@pen/contracts';
+import { BOARDS_BY_PLAN, INKS_BY_PLAN, LEGENDS_BY_PLAN } from '@pen/contracts';
 import { Button, cn, Pill, SegmentedButtons, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -60,7 +60,7 @@ const PLANS = [
       'Ask anything, any time — the expert answers live',
       `${LEGENDS_BY_PLAN.standard} legendary teachers, Socrates and Ada Lovelace among them`,
       'Premium voices, with the range to carry a long explanation',
-      `${BOARDS_BY_PLAN.standard} boards to be taught on \u2014 whiteboard, blackboard, green board \u2014 and the chalk or marker to match`,
+      `${BOARDS_BY_PLAN.standard} boards to be taught on \u2014 whiteboard, blackboard, green board \u2014 written in chalk or marker, in ${INKS_BY_PLAN.standard} colours`,
       'Any topic you can name: nobody has prepared it yet, so it is prepared for you',
       'Your recording as video, with or without your questions, yours to keep',
       'Share a link to any lesson',
@@ -76,7 +76,7 @@ const PLANS = [
     features: [
       'Everything in Standard',
       `All ${LEGENDS_BY_PLAN.professional} legendary teachers — Newton and Shakespeare among them`,
-      'Every board, smoked glass and the full chalk set included',
+      'Every board, smoked glass included',
       'Rooms for up to 12 people, taught live',
       'The expert hears the whole room and takes each question by name',
       'Who asked what, in the chat, so nobody is talked over',

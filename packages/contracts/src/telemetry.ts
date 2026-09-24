@@ -253,6 +253,7 @@ export const ActionName = z.enum([
   // the shell
   'theme_changed',
   'board_chosen',
+  'tool_chosen',
   'ink_chosen',
   'sidebar_toggled',
   'menu_opened',

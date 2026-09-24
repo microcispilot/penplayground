@@ -1,3 +1,4 @@
+import { FEATURE_NAMES } from '@pen/contracts';
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Sidebar } from '../src/components/Sidebar.js';
@@ -26,19 +27,35 @@ describe('Sidebar rows', () => {
     expect(screen.queryByText(/sign in/i)).toBeNull();
   });
 
-  it('shows the same rows to someone who has not signed in, and no identity of its own', async () => {
-    renderWithApp(<Sidebar />, { participant: ANONYMOUS });
-    for (const label of [...LEARN_ROWS, ...YOU_ROWS])
-      expect(await screen.findByText(label)).toBeTruthy();
-    // Identity lives in the header's account chip; the sidebar never asks.
+  /**
+   * A visitor without an account has no shelf (ADR-0040), and the sidebar
+   * says nothing about it: no "You", no rows, no invitation — the owner on
+   * 2026-09-23: *"that entire block for the sidebar should be gone in
+   * anonymous."* The way in is the header's two doors. The served features
+   * are what tell the sidebar it is a visitor, so this test serves them.
+   */
+  it('shows a visitor Learn and Settings, and nothing about a shelf', async () => {
+    const visitor = {
+      plan: 'free',
+      platform: 'web',
+      anonymous: true,
+      features: Object.fromEntries(
+        FEATURE_NAMES.map((name) => [name, !['history', 'lists', 'rooms'].includes(name)]),
+      ),
+    };
+    renderWithApp(<Sidebar />, {
+      participant: ANONYMOUS,
+      routes: { '/api/me/features': visitor },
+    });
+    for (const label of LEARN_ROWS) expect(await screen.findByText(label)).toBeTruthy();
+    expect(await screen.findByText('Settings')).toBeTruthy();
+    // Served, not defaulted: wait for the shelf to go, then check nothing else stays.
+    await waitFor(() => expect(screen.queryByText('History')).toBeNull());
+    for (const label of YOU_ROWS) expect(screen.queryByText(label), label).toBeNull();
+    expect(screen.queryByText('You')).toBeNull();
+    expect(screen.queryByTestId('sidebar-sign-in')).toBeNull();
     expect(screen.queryByTestId('sidebar-signin')).toBeNull();
     expect(screen.queryByText(/sign in/i)).toBeNull();
-    // Nothing is disabled or greyed out: every "You" row is a live link.
-    for (const label of YOU_ROWS) {
-      const row = screen.getByText(label).closest('a');
-      expect(row, label).not.toBeNull();
-      expect(row?.getAttribute('aria-disabled')).toBeNull();
-    }
   });
 
   /**

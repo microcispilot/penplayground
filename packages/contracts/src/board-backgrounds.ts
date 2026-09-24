@@ -3,40 +3,44 @@ import type { PlanCode } from './billing.js';
 import { PLAN_NAME, PLAN_RANK } from './expert-access.js';
 
 /**
- * The board a lesson is taught on, and the thing it is written with.
+ * The board a lesson is taught on, the thing it is written with, and the
+ * colour it is written in.
  *
- * ADR-0007 said the board is always light paper, in both themes and under
- * every brand. ADR-0034 supersedes it. Read that ADR before changing anything
- * here — in particular the part about what *survives*, which is that a
- * rendered file is still one picture and not a per-viewer render.
+ * ADR-0007 said the board is always light paper. ADR-0034 gave it a catalogue
+ * of surfaces, and tied the writing implement to the surface: a chalk board
+ * took chalk, a marker board took marker, and the colours came in two sets.
+ * ADR-0041 supersedes that half. The owner: *"it doesn't make sense to have
+ * chalk for dark mode and marker for the white mode. A chalk can be used for
+ * different board colors and same with markers. The only thing that should
+ * not be pickable is the same chalk/marker color as the selected board
+ * background."*
  *
- * ── the two kinds, which is the whole model ────────────────────────────────
+ * ── three axes, one rule ───────────────────────────────────────────────────
  *
- * A board is either a **marker** board or a **chalk** board, and that single
- * fact decides everything else. The owner: *"a chalk should not be usable on a
- * marker board and vice versa."* So the kinds are not decoration — they are a
- * compatibility rule, and `inksFor()` and `resolveInkId()` are where they are
- * enforced rather than remembered.
+ * A **surface** (the board itself), a **tool** (chalk or marker) and an
+ * **ink** (one colour) are chosen independently. The one rule is that an ink
+ * may not be the surface's own colour — black on a blackboard, white on a
+ * whiteboard, green on the green board — because writing that cannot be seen
+ * is not writing. `inkUsableOn()` says it once; the picker disables the dot
+ * and `resolveInk()` refuses to paint it, so a stored white ink survives a
+ * visit to the whiteboard and is back the moment a dark board is chosen.
  *
- * It is also why the preference is stored as **two** colours rather than one.
- * A learner who likes yellow chalk and a black marker should not have to
- * re-choose every time they switch boards, and a single "ink colour" would
- * have to be silently discarded whenever the kind changed — which is the kind
- * of quiet data loss nobody reports and everybody notices. `BoardPreference`
- * keeps one colour per kind and `resolveInkId()` picks whichever the board in
- * use calls for.
+ * `auto` on any axis means "what the surface would have": a whiteboard by
+ * day and a blackboard at night, a marker on a light board and chalk on a
+ * dark one, black ink on a light board and white on a dark one. That is what
+ * everybody gets before they choose, and choosing is the paid act.
  *
  * ── where the colours are ──────────────────────────────────────────────────
  *
- * Not here. Every value lives in `packages/design/src/styles/tokens.css` under
- * `[data-board]` and `[data-ink]`, the same way a brand family is a
- * `[data-brand]` block. A swatch is drawn by putting the attribute on a
- * preview element, never by reading a hex out of this file. Contracts owns the
- * set, the kinds and who may use them; the design system owns what they look
- * like.
+ * Not here. Every value lives in `packages/design/src/styles/tokens.css`:
+ * each `[data-board]` block carries the seven inks tuned to read on that
+ * surface, and `[data-ink]` picks one of them. A swatch is drawn by putting
+ * the attributes on a preview element, never by reading a hex out of this
+ * file. Contracts owns the set, the rule and who may use what; the design
+ * system owns what it looks like.
  */
-export const BoardKind = z.enum(['marker', 'chalk']);
-export type BoardKind = z.infer<typeof BoardKind>;
+export const BoardTool = z.enum(['marker', 'chalk']);
+export type BoardTool = z.infer<typeof BoardTool>;
 
 /**
  * `auto` is not a board. It is "whichever of the two default boards matches
@@ -58,18 +62,28 @@ export type BoardSurfaceId = z.infer<typeof BoardSurfaceId>;
 
 export const BOARD_SURFACE_DEFAULT: BoardSurfaceId = 'auto';
 
+/**
+ * What the expert writes in. One palette for both tools: the tool is how the
+ * stroke is laid down, the ink is its colour, and the board decides how each
+ * colour is tuned to stay legible on it (tokens.css).
+ */
+export const InkId = z.enum(['black', 'white', 'red', 'blue', 'green', 'yellow', 'pink']);
+export type InkId = z.infer<typeof InkId>;
+
 export interface BoardSurface {
   id: BoardSurfaceId;
   name: string;
   /** One line under the swatch: the real-world thing it is. */
   note: string;
-  /**
-   * `null` only for `auto`, which has no kind of its own — it borrows the kind
-   * of whichever board the theme resolves to.
-   */
-  kind: BoardKind | null;
-  /** True when the lesson is written in something pale. `null` for `auto`. */
+  /** True when the surface is dark and the lesson is written in something pale. `null` for `auto`. */
   dark: boolean | null;
+  /**
+   * The surface's own colour, in the ink palette's terms: the one ink that
+   * cannot be written on it. `null` for `auto`, which has no colour until the
+   * theme resolves it. Ivory counts as white and smoked glass as black — white
+   * ink on cream is as invisible as on white.
+   */
+  colour: InkId | null;
   /**
    * The lowest plan that may *choose* it. `null` is everybody.
    *
@@ -93,99 +107,88 @@ export const BOARD_SURFACES: readonly BoardSurface[] = [
     id: 'auto',
     name: 'Follow the theme',
     note: 'A whiteboard by day, a blackboard at night.',
-    kind: null,
     dark: null,
+    colour: null,
     minPlan: null,
   },
   {
     id: 'whiteboard',
     name: 'Whiteboard',
-    note: 'Creamy white, written in marker.',
-    kind: 'marker',
+    note: 'Creamy white, never pure.',
     dark: false,
+    colour: 'white',
     minPlan: 'standard',
   },
   {
     id: 'blackboard',
     name: 'Blackboard',
-    note: 'Smoked near-black, written in chalk.',
-    kind: 'chalk',
+    note: 'Smoked near-black with a navy cast.',
     dark: true,
+    colour: 'black',
     minPlan: 'standard',
   },
   {
     id: 'greenboard',
     name: 'Green board',
     note: 'The green board from every classroom.',
-    kind: 'chalk',
     dark: true,
+    colour: 'green',
     minPlan: 'standard',
   },
   {
     id: 'ivory',
     name: 'Ivory',
     note: 'Aged cream, easy over a long session.',
-    kind: 'marker',
     dark: false,
+    colour: 'white',
     minPlan: 'standard',
   },
   {
     id: 'smoked',
     name: 'Smoked glass',
-    note: 'Warm and very dark; only the chalk is left.',
-    kind: 'chalk',
+    note: 'Warm and very dark; only the writing is left.',
     dark: true,
+    colour: 'black',
     minPlan: 'professional',
   },
 ] as const;
 
-/**
- * What the expert writes with.
- *
- * The id carries its kind, and that is deliberate: `chalk-yellow` can never be
- * mistaken for a marker at a glance, in a log line, or in a stored preference
- * from an older build.
- */
-export const InkId = z.enum([
-  'marker-black',
-  'marker-red',
-  'marker-blue',
-  'marker-green',
-  'chalk-white',
-  'chalk-yellow',
-  'chalk-pink',
-  'chalk-green',
-  'chalk-blue',
-]);
-export type InkId = z.infer<typeof InkId>;
-
 export interface Ink {
   id: InkId;
   name: string;
-  kind: BoardKind;
   minPlan: PlanCode | null;
 }
 
-/** The one each kind falls back to, and what a free learner always gets. */
-export const INK_DEFAULT: Record<BoardKind, InkId> = {
-  marker: 'marker-black',
-  chalk: 'chalk-white',
-};
-
+/**
+ * The inks, in the order the picker draws them. Black and white are free
+ * because between them they are the default on every surface; the rest are
+ * the paid act of choosing.
+ */
 export const INKS: readonly Ink[] = [
-  { id: 'marker-black', name: 'Black', kind: 'marker', minPlan: null },
-  { id: 'marker-red', name: 'Red', kind: 'marker', minPlan: 'standard' },
-  { id: 'marker-blue', name: 'Blue', kind: 'marker', minPlan: 'standard' },
-  { id: 'marker-green', name: 'Green', kind: 'marker', minPlan: 'standard' },
-  { id: 'chalk-white', name: 'White', kind: 'chalk', minPlan: null },
-  { id: 'chalk-yellow', name: 'Yellow', kind: 'chalk', minPlan: 'standard' },
-  { id: 'chalk-pink', name: 'Pink', kind: 'chalk', minPlan: 'standard' },
-  { id: 'chalk-green', name: 'Green', kind: 'chalk', minPlan: 'standard' },
-  { id: 'chalk-blue', name: 'Blue', kind: 'chalk', minPlan: 'professional' },
+  { id: 'black', name: 'Black', minPlan: null },
+  { id: 'white', name: 'White', minPlan: null },
+  { id: 'red', name: 'Red', minPlan: 'standard' },
+  { id: 'blue', name: 'Blue', minPlan: 'standard' },
+  { id: 'green', name: 'Green', minPlan: 'standard' },
+  { id: 'yellow', name: 'Yellow', minPlan: 'standard' },
+  { id: 'pink', name: 'Pink', minPlan: 'standard' },
+] as const;
+
+export interface ToolChoice {
+  id: BoardTool;
+  name: string;
+  minPlan: PlanCode | null;
+}
+
+/** The two tools. Either is a choice, and choosing is the paid act. */
+export const TOOLS: readonly ToolChoice[] = [
+  { id: 'marker', name: 'Marker', minPlan: 'standard' },
+  { id: 'chalk', name: 'Chalk', minPlan: 'standard' },
 ] as const;
 
 const SURFACE_BY_ID = new Map<string, BoardSurface>(BOARD_SURFACES.map((b) => [b.id, b]));
 const INK_BY_ID = new Map<string, Ink>(INKS.map((i) => [i.id, i]));
+const TOOL_BY_ID = new Map<string, ToolChoice>(TOOLS.map((t) => [t.id, t]));
 
 export function boardSurface(id: string): BoardSurface | undefined {
   return SURFACE_BY_ID.get(id);
@@ -195,9 +198,22 @@ export function ink(id: string): Ink | undefined {
   return INK_BY_ID.get(id);
 }
 
-/** The inks that may be used on a board of this kind, in catalogue order. */
-export function inksFor(kind: BoardKind): readonly Ink[] {
-  return INKS.filter((i) => i.kind === kind);
+/** The tool a surface naturally takes: chalk on a dark board, marker on a light one. */
+export function defaultToolFor(surface: Pick<BoardSurface, 'dark'>): BoardTool {
+  return surface.dark ? 'chalk' : 'marker';
+}
+
+/** The ink a surface is written in before anyone chooses: white on dark, black on light. */
+export function defaultInkFor(surface: Pick<BoardSurface, 'dark'>): InkId {
+  return surface.dark ? 'white' : 'black';
+}
+
+/**
+ * The one rule. An ink is usable on every surface except the one whose own
+ * colour it is: black on a blackboard is not a choice, it is a blank board.
+ */
+export function inkUsableOn(surface: Pick<BoardSurface, 'colour'>, inkId: string): boolean {
+  return surface.colour !== inkId;
 }
 
 function allows(plan: PlanCode, minPlan: PlanCode | null): boolean {
@@ -216,15 +232,21 @@ export function planAllowsInk(plan: PlanCode, id: string): boolean {
   return found ? allows(plan, found.minPlan) : false;
 }
 
+/** May this plan choose this tool? An unknown id is refused, never allowed. */
+export function planAllowsTool(plan: PlanCode, id: string): boolean {
+  const found = TOOL_BY_ID.get(id);
+  return found ? allows(plan, found.minPlan) : false;
+}
+
 /** "Standard" / "Professional" for the tag beside something this plan lacks. */
 export function planNameFor(minPlan: PlanCode | null): string | null {
   return minPlan ? PLAN_NAME[minPlan] : null;
 }
 
 /**
- * How many surfaces and inks each plan can choose from. Read by the Pricing
- * card rather than written down there, exactly as `LEGENDS_BY_PLAN` is, so a
- * board added above changes the marketing copy without anybody editing it.
+ * How many surfaces each plan can choose from. Read by the Pricing card
+ * rather than written down there, exactly as `LEGENDS_BY_PLAN` is, so a board
+ * added above changes the marketing copy without anybody editing it.
  */
 export const BOARDS_BY_PLAN: Record<PlanCode, number> = {
   free: BOARD_SURFACES.filter((b) => allows('free', b.minPlan)).length,
@@ -232,18 +254,51 @@ export const BOARDS_BY_PLAN: Record<PlanCode, number> = {
   professional: BOARD_SURFACES.length,
 };
 
-/** What a learner has chosen. Both colours are kept; see the header. */
-export const BoardPreference = z.object({
-  surface: BoardSurfaceId.default(BOARD_SURFACE_DEFAULT),
-  marker: InkId.default(INK_DEFAULT.marker),
-  chalk: InkId.default(INK_DEFAULT.chalk),
-});
+/** The inks a plan may choose, for the same card. */
+export const INKS_BY_PLAN: Record<PlanCode, number> = {
+  free: INKS.filter((i) => allows('free', i.minPlan)).length,
+  standard: INKS.filter((i) => allows('standard', i.minPlan)).length,
+  professional: INKS.length,
+};
+
+const LIGHT_KIND_SURFACES = new Set<string>(['whiteboard', 'ivory']);
+
+/**
+ * A preference written by a build before ADR-0041: `{ surface, marker, chalk }`,
+ * one colour per kind, with the kind decided by the surface. It becomes the
+ * colour that surface would have used, with the prefix dropped and the tool
+ * left to follow the board — so nobody's blackboard turns black-on-black and
+ * nobody's yellow chalk is quietly forgotten.
+ */
+function fromLegacy(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null) return value;
+  const v = value as Record<string, unknown>;
+  if ('ink' in v || 'tool' in v || !('marker' in v || 'chalk' in v)) return value;
+  const surface = typeof v.surface === 'string' ? v.surface : 'auto';
+  const kind = surface === 'auto' ? null : LIGHT_KIND_SURFACES.has(surface) ? 'marker' : 'chalk';
+  const stored = kind ? v[kind] : null;
+  const colour =
+    typeof stored === 'string' && stored.startsWith(`${kind}-`)
+      ? stored.slice(`${kind}-`.length)
+      : 'auto';
+  return { surface, tool: 'auto', ink: colour };
+}
+
+/** What a learner has chosen. `auto` on any axis is "what the surface would have". */
+export const BoardPreference = z.preprocess(
+  fromLegacy,
+  z.object({
+    surface: BoardSurfaceId.default(BOARD_SURFACE_DEFAULT),
+    tool: z.enum(['auto', ...BoardTool.options]).default('auto'),
+    ink: z.enum(['auto', ...InkId.options]).default('auto'),
+  }),
+);
 export type BoardPreference = z.infer<typeof BoardPreference>;
 
 export const BOARD_PREFERENCE_DEFAULT: BoardPreference = {
   surface: BOARD_SURFACE_DEFAULT,
-  marker: INK_DEFAULT.marker,
-  chalk: INK_DEFAULT.chalk,
+  tool: 'auto',
+  ink: 'auto',
 };
 
 /**
@@ -266,24 +321,36 @@ export function resolveSurface(
   const fallback = SURFACE_BY_ID.get(AUTO_SURFACE[theme]) as BoardSurface;
   if (!chosen || chosen === 'auto') return fallback;
   const surface = SURFACE_BY_ID.get(chosen);
-  if (!surface || surface.kind === null) return fallback;
+  if (!surface || surface.colour === null) return fallback;
   return planAllowsSurface(plan, chosen) ? surface : fallback;
 }
 
 /**
- * The ink to write with on a given surface. Picks the colour belonging to that
- * surface's kind, so a chalk choice is never applied to a marker board, and
- * falls back to the kind's default when the stored colour is unknown, of the
- * wrong kind, or above the learner's plan.
+ * The tool to write with on a resolved surface: the chosen one when the plan
+ * covers it, else what the surface would take.
  */
-export function resolveInkId(
+export function resolveTool(
   plan: PlanCode,
-  preference: Pick<BoardPreference, 'marker' | 'chalk'> | null | undefined,
-  kind: BoardKind,
+  chosen: string | null | undefined,
+  surface: Pick<BoardSurface, 'dark'>,
+): BoardTool {
+  if (!chosen || chosen === 'auto') return defaultToolFor(surface);
+  return planAllowsTool(plan, chosen) ? (chosen as BoardTool) : defaultToolFor(surface);
+}
+
+/**
+ * The ink to write in on a resolved surface. The chosen colour, unless it is
+ * unknown, above the plan, or the surface's own colour — in each case the
+ * surface's default, so the lesson is always legible and the stored choice is
+ * never touched: a white ink chosen for the blackboard is back the moment a
+ * dark board is.
+ */
+export function resolveInk(
+  plan: PlanCode,
+  chosen: string | null | undefined,
+  surface: Pick<BoardSurface, 'dark' | 'colour'>,
 ): InkId {
-  const chosen = kind === 'marker' ? preference?.marker : preference?.chalk;
-  if (!chosen) return INK_DEFAULT[kind];
-  const found = INK_BY_ID.get(chosen);
-  if (!found || found.kind !== kind) return INK_DEFAULT[kind];
-  return planAllowsInk(plan, chosen) ? found.id : INK_DEFAULT[kind];
+  if (!chosen || chosen === 'auto') return defaultInkFor(surface);
+  if (!INK_BY_ID.has(chosen) || !inkUsableOn(surface, chosen)) return defaultInkFor(surface);
+  return planAllowsInk(plan, chosen) ? (chosen as InkId) : defaultInkFor(surface);
 }

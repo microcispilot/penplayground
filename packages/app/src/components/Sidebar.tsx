@@ -11,7 +11,6 @@ import {
   Settings2,
   Sparkles,
   Tag,
-  UserRound,
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -191,9 +190,8 @@ function Divider() {
  *
  * The shell's left sidebar (ADR-0015): what the platform has, in the order a
  * learner reaches for it. Learn is for everyone; You is the learner's own
- * shelf — the same rows whether or not they have signed in, because an
- * anonymous participant really does have sessions, saves and likes on this
- * device.
+ * shelf, and it exists only once they have an account (ADR-0040) — a visitor
+ * sees Learn and Settings and nothing that asks them for anything.
  *
  * It is navigation and nothing else. Identity belongs to the header's account
  * chip, the one place a learner looks for themselves; pace belongs to the
@@ -204,7 +202,7 @@ function Divider() {
 export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { features, openSignIn } = useApp();
+  const { features } = useApp();
   const counts = useLists((s) => s.counts);
   const [topicsOpen, setTopicsOpen] = useState(() =>
     new URLSearchParams(location.search).has('topic'),
@@ -308,28 +306,16 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
           onNavigate={onNavigate}
         />
 
-        <Divider />
-        <SectionLabel rail={rail}>You</SectionLabel>
-        {!features.history ? (
-          // A visitor without an account has no shelf yet (ADR-0040): one
-          // row, the way in, where the shelf will be.
-          <button
-            type="button"
-            className={rowClass(rail, false)}
-            onClick={() => {
-              openSignIn('sidebar');
-              onNavigate?.();
-            }}
-            data-testid="sidebar-sign-in"
-          >
-            <span className="grid shrink-0 place-items-center">
-              <UserRound size={19} />
-            </span>
-            <RowLabel rail={rail}>{rail ? 'Sign in' : 'Sign in to keep your sessions'}</RowLabel>
-          </button>
-        ) : null}
+        {/*
+          A visitor without an account has no shelf, and no section about one
+          (ADR-0040, the owner on 2026-09-23: "that entire block for the
+          sidebar should be gone in anonymous"). The way in is the header's
+          two doors; the shelf appears the moment they are through.
+        */}
         {features.history ? (
           <>
+            <Divider />
+            <SectionLabel rail={rail}>You</SectionLabel>
             <Row
               to="/history"
               icon={<History size={19} />}

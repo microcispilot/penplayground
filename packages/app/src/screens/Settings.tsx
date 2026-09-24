@@ -1,12 +1,16 @@
 import {
   BOARD_SURFACES,
   type BoardSurface,
+  type BoardTool,
+  defaultToolFor,
+  INKS,
   type Ink,
-  type InkId,
-  inksFor,
+  inkUsableOn,
   planAllowsInk,
   planAllowsSurface,
+  planAllowsTool,
   planNameFor,
+  TOOLS,
 } from '@pen/contracts';
 import { cn } from '@pen/design';
 import { Check } from 'lucide-react';
@@ -34,10 +38,12 @@ import { CHALK_HANDWRITING, MARKER_HANDWRITING } from './board-handwriting.js';
  * Two different kinds of "you cannot have this", and they are deliberately not
  * drawn the same way:
  *
- *   **Wrong kind** — chalk while a whiteboard is selected — is *filtered out*.
- *   A chalk cannot go on a marker board, so offering it greyed would be
- *   offering a thing that is never available; the colours simply change when
- *   the board does.
+ *   **The board's own colour** — white on the whiteboard, black on the
+ *   blackboard — is *disabled*, with the reason under it. It is the one ink
+ *   that can never be written on that surface (ADR-0041), it is the same dot
+ *   in the same place on every board, and the owner asked for exactly this:
+ *   *"they should just get disabled."* Nothing else about the writing is
+ *   tied to the board: chalk goes on the whiteboard and a marker on slate.
  *
  *   **Above your plan** is *shown*, with the plan's name beside it, and it
  *   goes to Pricing when chosen. Never a padlock, never a disabled control the
@@ -88,9 +94,11 @@ function PlanTag({ name }: { name: string }) {
  * lesson on it. It is an alpha mask (`board-handwriting.ts`, drawn once in
  * chalk and once in marker) laid over the surface and filled with
  * `--color-ink`, so the same drawing appears in white chalk on slate, in
- * black marker on cream, and in whichever colour the learner picks below.
+ * black marker on cream, and in whichever tool and colour the learner picks
+ * below. A board's own preview is written with the tool in use, so choosing
+ * chalk re-writes every swatch in chalk.
  */
-function Handwriting({ kind, className }: { kind: 'chalk' | 'marker'; className?: string }) {
+function Handwriting({ tool, className }: { tool: BoardTool; className?: string }) {
   return (
     <span
       aria-hidden
@@ -99,8 +107,8 @@ function Handwriting({ kind, className }: { kind: 'chalk' | 'marker'; className?
         className,
       )}
       style={{
-        maskImage: `url("${kind === 'chalk' ? CHALK_HANDWRITING : MARKER_HANDWRITING}")`,
-        WebkitMaskImage: `url("${kind === 'chalk' ? CHALK_HANDWRITING : MARKER_HANDWRITING}")`,
+        maskImage: `url("${tool === 'chalk' ? CHALK_HANDWRITING : MARKER_HANDWRITING}")`,
+        WebkitMaskImage: `url("${tool === 'chalk' ? CHALK_HANDWRITING : MARKER_HANDWRITING}")`,
         maskSize: 'contain',
         WebkitMaskSize: 'contain',
         maskRepeat: 'no-repeat',
@@ -114,11 +122,14 @@ function Handwriting({ kind, className }: { kind: 'chalk' | 'marker'; className?
 
 function SurfaceCard({
   surface,
+  tool,
   chosen,
   locked,
   onChoose,
 }: {
   surface: BoardSurface;
+  /** The tool the writing on the preview is in: the one in use, or the board's own. */
+  tool: BoardTool | null;
   chosen: boolean;
   locked: string | null;
   onChoose: () => void;
@@ -134,13 +145,13 @@ function SurfaceCard({
             data-board="whiteboard"
             className="absolute inset-0 bg-[var(--color-paper)] [clip-path:polygon(0_0,58%_0,42%_100%,0_100%)]"
           >
-            <Handwriting kind="marker" />
+            <Handwriting tool={tool ?? 'marker'} />
           </span>
           <span
             data-board="blackboard"
             className="absolute inset-0 bg-[var(--color-paper)] [clip-path:polygon(58%_0,100%_0,100%_100%,42%_100%)]"
           >
-            <Handwriting kind="chalk" />
+            <Handwriting tool={tool ?? 'chalk'} />
           </span>
         </span>
       ) : (
@@ -148,7 +159,7 @@ function SurfaceCard({
           data-board={surface.id}
           className="relative block h-[112px] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
         >
-          <Handwriting kind={surface.kind ?? 'marker'} />
+          <Handwriting tool={tool ?? defaultToolFor(surface)} />
         </span>
       )}
       <span className="mt-2.5 flex items-start gap-2">
@@ -192,18 +203,96 @@ function SurfaceCard({
   );
 }
 
-/** One colour, drawn in itself on the board it belongs to. */
+/**
+ * The two tools, each drawn as itself on the board in use. "Follow the board"
+ * is the default and what a free learner has: marker on a light board, chalk
+ * on a dark one.
+ */
+function ToolCard({
+  id,
+  name,
+  note,
+  surfaceId,
+  tool,
+  chosen,
+  locked,
+  onChoose,
+}: {
+  id: 'auto' | BoardTool;
+  name: string;
+  note: string;
+  surfaceId: string;
+  tool: BoardTool;
+  chosen: boolean;
+  locked: string | null;
+  onChoose: () => void;
+}) {
+  const body = (
+    <>
+      <span
+        data-board={surfaceId}
+        className="relative block h-[72px] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
+      >
+        <Handwriting tool={tool} />
+      </span>
+      {/* Wraps rather than squeezes: on a phone's third of a column "Marker"
+          beside its plan tag is "Mark", so the tag drops under the name instead. */}
+      <span className="mt-2.5 flex flex-wrap items-start gap-x-2 gap-y-1">
+        <span className="flex-1 text-label-large font-semibold leading-tight">{name}</span>
+        {chosen ? <Check size={15} className="shrink-0 text-primary" aria-hidden /> : null}
+        {locked ? <PlanTag name={locked} /> : null}
+      </span>
+      <span className="mt-0.5 block text-body-small text-on-surface-variant">{note}</span>
+    </>
+  );
+  const shell = cn(
+    'state-layer group rounded-lg p-2 text-left transition-colors',
+    chosen && 'bg-secondary-container',
+  );
+  return locked ? (
+    <Link
+      to="/pricing"
+      className={shell}
+      data-testid={`tool-${id}`}
+      onClick={() => trackAction('upgrade_clicked', { source: 'settings_tool' })}
+    >
+      {body}
+    </Link>
+  ) : (
+    <button
+      type="button"
+      onClick={onChoose}
+      className={shell}
+      aria-pressed={chosen}
+      data-testid={`tool-${id}`}
+    >
+      {body}
+    </button>
+  );
+}
+
+/**
+ * One colour, drawn in itself on the board in use.
+ *
+ * Three states, and they are not drawn alike. Chosen and choosable are a
+ * button. Above the plan is a link to Pricing with the plan's name under it.
+ * The board's own colour is a disabled button with "the board's colour" under
+ * it: not a limit, not a lock — a fact about paint.
+ */
 function InkDot({
   ink,
   surfaceId,
   chosen,
   locked,
+  unusable,
   onChoose,
 }: {
   ink: Ink;
   surfaceId: string;
   chosen: boolean;
   locked: string | null;
+  /** True when this is the surface's own colour and cannot be written on it. */
+  unusable: boolean;
   onChoose: () => void;
 }) {
   const body = (
@@ -215,13 +304,19 @@ function InkDot({
         className={cn(
           'block size-7 rounded-full border-2 bg-[var(--color-ink)]',
           chosen ? 'border-primary' : 'border-outline-variant',
+          unusable && 'opacity-disabled',
         )}
       />
-      <span className="mt-1.5 flex items-center justify-center gap-1 text-label-small font-semibold">
+      <span
+        className={cn(
+          'mt-1.5 flex items-center justify-center gap-1 text-label-small font-semibold',
+          unusable && 'text-on-surface-variant',
+        )}
+      >
         {ink.name}
       </span>
-      <span className="block min-h-[1em] text-label-tiny text-on-surface-variant">
-        {locked ?? ''}
+      <span className="block max-w-[64px] min-h-[1em] text-label-tiny text-on-surface-variant text-balance">
+        {unusable ? 'The board’s colour' : (locked ?? '')}
       </span>
     </>
   );
@@ -231,6 +326,20 @@ function InkDot({
   const shell = cn(
     'state-layer grid grid-rows-subgrid row-span-3 justify-items-center rounded-lg px-1.5 pt-1.5 pb-1 text-center',
   );
+  if (unusable) {
+    return (
+      <button
+        type="button"
+        className={cn(shell, 'cursor-not-allowed')}
+        disabled
+        aria-disabled
+        title={`${ink.name} is the board’s own colour`}
+        data-testid={`ink-${ink.id}`}
+      >
+        {body}
+      </button>
+    );
+  }
   return locked ? (
     <Link
       to="/pricing"
@@ -257,13 +366,8 @@ export function Settings() {
   useSeo({ title: 'Settings', description: 'The board you learn on, and how Pen looks.' });
   const { participant } = useApp();
   const [theme, setTheme] = useTheme();
-  const { preference, surface, ink, choose } = useBoard();
+  const { preference, surface, ink, tool, choose } = useBoard();
   const plan = participant?.plan ?? 'free';
-
-  // Only the colours that belong on the board actually in use. A chalk on a
-  // whiteboard is not a disabled option, it is not an option.
-  const colours = inksFor(surface.kind ?? 'marker');
-  const chosenForKind: InkId = ink;
 
   return (
     <ShellPage title="Settings" intro="The board you learn on, and how Pen looks.">
@@ -283,6 +387,10 @@ export function Settings() {
               <SurfaceCard
                 key={s.id}
                 surface={s}
+                // The writing on every preview is in the tool in use, unless
+                // the learner has left it to the board — then each board
+                // shows its own.
+                tool={preference.tool === 'auto' ? null : tool}
                 chosen={preference.surface === s.id}
                 locked={planAllowsSurface(plan, s.id) ? null : planNameFor(s.minPlan)}
                 onChoose={() => {
@@ -295,32 +403,67 @@ export function Settings() {
         </Section>
 
         <Section
-          title={surface.kind === 'chalk' ? 'Chalk' : 'Marker'}
-          intro={
-            surface.kind === 'chalk'
-              ? 'What the expert writes with. Chalk belongs on a chalk board; pick a marker board and the markers appear instead.'
-              : 'What the expert writes with. Markers belong on a marker board; pick a chalk board and the chalks appear instead.'
-          }
+          title="Writing"
+          intro="Chalk or marker, on any board. Follow the board for a marker on a light surface and chalk on a dark one."
         >
-          <fieldset className="grid grid-cols-[repeat(auto-fill,minmax(60px,max-content))] grid-rows-[auto_auto_auto] items-start gap-x-0.5 border-0 p-0">
-            <legend className="sr-only">
-              {surface.kind === 'chalk' ? 'Chalk colour' : 'Marker colour'}
-            </legend>
-            {colours.map((c) => (
+          <fieldset className="grid grid-cols-3 gap-2 border-0 p-0">
+            <legend className="sr-only">Writing tool</legend>
+            <ToolCard
+              id="auto"
+              name="Follow the board"
+              note={surface.dark ? 'Chalk, on this board.' : 'Marker, on this board.'}
+              surfaceId={surface.id}
+              tool={defaultToolFor(surface)}
+              chosen={preference.tool === 'auto'}
+              locked={null}
+              onChoose={() => {
+                trackAction('tool_chosen', { tool: 'auto', surface: surface.id });
+                choose({ ...preference, tool: 'auto' });
+              }}
+            />
+            {TOOLS.map((t) => (
+              <ToolCard
+                key={t.id}
+                id={t.id}
+                name={t.name}
+                note={t.id === 'chalk' ? 'Dusty, soft-edged writing.' : 'Solid, even lines.'}
+                surfaceId={surface.id}
+                tool={t.id}
+                chosen={preference.tool === t.id}
+                locked={planAllowsTool(plan, t.id) ? null : planNameFor(t.minPlan)}
+                onChoose={() => {
+                  trackAction('tool_chosen', { tool: t.id, surface: surface.id });
+                  choose({ ...preference, tool: t.id });
+                }}
+              />
+            ))}
+          </fieldset>
+        </Section>
+
+        <Section
+          title="Colour"
+          intro="What the expert writes in. Every colour goes on every board, except the board’s own."
+        >
+          {/*
+            One line, at every width. Seven colours no longer fit a phone's
+            column, and the owner's rule is that the dots share a line — so
+            the row is a column-flow grid that scrolls sideways rather than
+            one that wraps. The three rows (dot, name, note) stay a subgrid so
+            a dot with a note under it keeps its dot level with the others.
+          */}
+          <fieldset className="-mx-1 grid grid-flow-col auto-cols-[minmax(64px,max-content)] grid-rows-[auto_auto_auto] items-start gap-x-0.5 overflow-x-auto border-0 px-1 pt-0 pb-1">
+            <legend className="sr-only">Ink colour</legend>
+            {INKS.map((c) => (
               <InkDot
                 key={c.id}
                 ink={c}
                 surfaceId={surface.id}
-                chosen={chosenForKind === c.id}
+                chosen={ink === c.id}
                 locked={planAllowsInk(plan, c.id) ? null : planNameFor(c.minPlan)}
+                unusable={!inkUsableOn(surface, c.id)}
                 onChoose={() => {
                   trackAction('ink_chosen', { ink: c.id, surface: surface.id });
-                  choose({
-                    ...preference,
-                    // Written to the field for its own kind, so the other
-                    // colour survives a trip to a different board and back.
-                    [c.kind]: c.id,
-                  });
+                  choose({ ...preference, ink: c.id });
                 }}
               />
             ))}

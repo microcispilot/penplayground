@@ -37,6 +37,16 @@ for (const theme of ['light', 'dark'] as const) {
           );
         }
 
+        // The tool is its own choice, on any board (ADR-0041): three cards.
+        expect(await page.locator('[data-testid^="tool-"]').count()).toBe(3);
+
+        // Every colour is offered on every board except the board's own,
+        // which is disabled rather than hidden: a whiteboard by day refuses
+        // white, a blackboard at night refuses black.
+        const own = theme === 'light' ? 'white' : 'black';
+        await expect(page.getByTestId(`ink-${own}`)).toBeDisabled();
+        expect(await page.locator('[data-testid^="ink-"][disabled]').count()).toBe(1);
+
         // The dots are one row: every dot's top edge is the first dot's top edge.
         const tops = await page.evaluate(() =>
           [...document.querySelectorAll('[data-testid^="ink-"]')].map((el) =>
