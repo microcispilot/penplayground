@@ -5,15 +5,15 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api/client.js';
 import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
-import { useGoogleButton } from '../lib/google-button.js';
+import { useGoogleSignIn } from '../lib/google-sign-in.js';
 
 /**
  * Signing in, and signing up — one sheet, the way ChatGPT does it.
  *
  * The owner: *"we should show both, sign in and sign up for free but they
  * open the same dialog … see how ChatGPT shows"*. So the first step asks for
- * nothing but the way in: **Continue with Google** on top, an address under
- * it, one **Continue**. Whether the address has an account decides nothing
+ * nothing but the way in: **Continue with Google** on top — our own button,
+ * Google's popup behind it (ADR-0042) — an address under it, one **Continue**. Whether the address has an account decides nothing
  * visible on this step — the second step is a password box for everyone,
  * with the two other doors under it (forgot it, or new here). What an account
  * brings is said once, under the title, in the words of the plan (ADR-0040).
@@ -33,17 +33,62 @@ import { useGoogleButton } from '../lib/google-button.js';
  */
 type Mode = 'start' | 'password' | 'code' | 'reset';
 
-/**
- * Google's button is a cross-origin iframe whose document only knows the
- * light scheme. The root declares `color-scheme: light dark`, so on a dark
- * desktop the iframe element's used scheme is dark, and Chrome then paints a
- * mismatched frame on an opaque canvas of the document's own scheme: a white
- * slab behind the dark pill, seen in production on 2026-09-23. Pinning the
- * slot to light matches the frame to its document, and the frame is
- * transparent again. The button's own colours are unaffected: GIS draws them
- * from the `theme` it is rendered with, not from the scheme around it.
- */
-const GOOGLE_SLOT_STYLE = { colorScheme: 'light' } as const;
+/** Google's mark, the four-colour G, at the size a button's leading icon is. */
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden focusable="false">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
+
+/** Our own button, the way the rest of the sheet is drawn (ADR-0042). */
+function GoogleButton({
+  onClick,
+  busy,
+  problem,
+}: {
+  onClick: () => void;
+  busy: boolean;
+  problem: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Button
+        type="button"
+        variant="neutral"
+        size="lg"
+        className="w-full"
+        leading={<GoogleMark />}
+        loading={busy}
+        onClick={onClick}
+        data-testid="auth-google"
+      >
+        Continue with Google
+      </Button>
+      {problem ? (
+        <p className="text-center text-body-medium text-error" role="alert">
+          {problem}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 const TITLES: Record<Mode, string> = {
   start: 'Sign in or sign up',
@@ -220,13 +265,11 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  const googleSlot = useRef<HTMLDivElement>(null);
-  const googleProblem = useGoogleButton({
+  const google = useGoogleSignIn({
     open,
-    slot: googleSlot,
     clientId: googleClientId,
-    onToken: async (idToken) => {
-      await signInWithGoogle(idToken);
+    onCode: async (code) => {
+      await signInWithGoogle({ code });
       toast('Signed in', 'success');
       onClose();
     },
@@ -331,26 +374,18 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
         open={open}
         onClose={onClose}
         title="Sign in or sign up"
-        width={448}
+        width={520}
+        padding="roomy"
         className="relative"
       >
         {close}
         {googleClientId ? (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             <p className="text-body-medium text-on-surface-variant">
-              Continue with your Google account to keep your sessions everywhere.
+              Keep your sessions, get a lesson prepared on any topic you name, and have the expert
+              take your questions.
             </p>
-            <div
-              ref={googleSlot}
-              className="flex min-h-[44px] justify-center"
-              style={GOOGLE_SLOT_STYLE}
-              data-testid="auth-google"
-            />
-            {googleProblem ? (
-              <p className="text-center text-body-medium text-error" role="alert">
-                {googleProblem}
-              </p>
-            ) : null}
+            <GoogleButton onClick={google.start} busy={google.busy} problem={google.problem} />
           </div>
         ) : (
           <p className="text-body-medium text-on-surface-variant" data-testid="auth-unavailable">
@@ -366,12 +401,13 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
       open={open}
       onClose={onClose}
       title={TITLES[mode]}
-      width={448}
+      width={520}
+      padding="roomy"
       className="relative text-center"
     >
       {close}
       {mode === 'start' ? (
-        <p className="mx-auto -mt-1 mb-5 max-w-[380px] text-body-medium text-on-surface-variant text-pretty">
+        <p className="mx-auto mb-7 max-w-[400px] text-body-medium text-on-surface-variant text-pretty">
           Keep your sessions, get a lesson prepared on any topic you name, and have the expert take
           your questions.
         </p>
@@ -380,23 +416,13 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
       {/* Google first, where the form is — never on the code step, where the
           person is halfway through making a different kind of account. */}
       {mode === 'start' && googleClientId ? (
-        <div className="mb-4 flex flex-col gap-4">
-          <div
-            ref={googleSlot}
-            className="flex min-h-[44px] justify-center"
-            style={GOOGLE_SLOT_STYLE}
-            data-testid="auth-google"
-          />
-          {googleProblem ? (
-            <p className="text-center text-body-medium text-error" role="alert">
-              {googleProblem}
-            </p>
-          ) : null}
+        <div className="mb-5 flex flex-col gap-5">
+          <GoogleButton onClick={google.start} busy={google.busy} problem={google.problem} />
           <Divider />
         </div>
       ) : null}
 
-      <form className="flex flex-col gap-4 text-left" onSubmit={submit} data-testid="auth-form">
+      <form className="flex flex-col gap-5 text-left" onSubmit={submit} data-testid="auth-form">
         {mode === 'start' ? (
           <TextField
             label="Email address"

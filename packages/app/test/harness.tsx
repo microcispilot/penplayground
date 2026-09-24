@@ -77,6 +77,8 @@ export interface HarnessOptions {
   route?: string;
   /** What `fetch` answers, by path; anything else 404s. */
   routes?: Record<string, unknown>;
+  /** Overrides on the test platform: a Google client id, a different host name. */
+  platform?: Partial<Platform>;
 }
 
 /**
@@ -117,7 +119,7 @@ export function renderWithApp(
   globalThis.fetch = fetchMock as typeof fetch;
 
   useLists.getState().reset();
-  const platform = testPlatform(storage);
+  const platform = { ...testPlatform(storage), ...options.platform };
   const result = render(
     <AppProvider platform={platform}>
       <ToastProvider>

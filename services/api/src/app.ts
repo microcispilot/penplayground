@@ -95,7 +95,11 @@ const CreateSession = z.union([
 ]);
 
 const Anonymous = z.object({ name: z.string().max(60).optional() });
-const GoogleBody = z.object({ idToken: z.string().min(16).max(4096) });
+/** An ID token from Google's own button, or the popup code from ours (ADR-0042). */
+const GoogleBody = z.union([
+  z.object({ idToken: z.string().min(16).max(4096) }),
+  z.object({ code: z.string().min(16).max(2048) }),
+]);
 const DevGoogleBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   email: z.string().email().optional(),
@@ -538,6 +542,8 @@ export function buildApp(services: Services): App {
       acquirer: services.acquirer !== null,
       render: services.renderUnavailable === null,
       google: services.google !== null,
+      /** The app's own Continue with Google needs the secret as well (ADR-0042). */
+      googleCode: services.google?.exchangesCodes ?? false,
       rooms: services.livekit !== null,
       ads: services.ads.demand.source,
       ttsCache: services.ttsCache !== null,
@@ -684,9 +690,17 @@ export function buildApp(services: Services): App {
       );
     const body = GoogleBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    if ('code' in body.data && !services.google.exchangesCodes)
+      return c.json(
+        { error: 'GOOGLE_DISABLED', message: 'Google sign-in is not configured here.' },
+        503,
+      );
     const caller = claims ? await services.participants.get(claims.sub) : null;
     try {
-      const result = await services.google.signIn(body.data.idToken, caller);
+      const result =
+        'code' in body.data
+          ? await services.google.signInWithCode(body.data.code, caller)
+          : await services.google.signIn(body.data.idToken, caller);
       const plan = services.cfg.PEN_DEV_PLAN ?? result.participant.plan;
       const issued = await identity.issue({
         sub: result.participant.id,

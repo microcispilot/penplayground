@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppHeader } from '../src/components/AppHeader.js';
 import { AuthDialog } from '../src/components/AuthDialog.js';
-import { ANONYMOUS, renderWithApp } from './harness.js';
+import { ANONYMOUS, renderWithApp, SIGNED_IN } from './harness.js';
 
 /**
  * The sign-in sheet (ADR-0040): two doors in the header, one dialog, and
@@ -104,5 +104,104 @@ describe('the sign-in sheet', () => {
         'Too many tries. Give it a minute, then try again.',
       ),
     );
+  });
+});
+
+/**
+ * The app's own Continue with Google (ADR-0042): a real button the sheet
+ * draws, Google's popup behind it, and the code it returns sent to the API.
+ * GIS is stubbed on `window.google` — the script never loads here — and the
+ * request the API receives is what is held.
+ */
+describe('Continue with Google', () => {
+  type CodeConfig = {
+    callback: (r: { code?: string }) => void;
+    error_callback?: (e: { type: string }) => void;
+    client_id: string;
+    scope: string;
+    ux_mode: string;
+  };
+  let configs: CodeConfig[];
+  let requested: number;
+  beforeEach(() => {
+    configs = [];
+    requested = 0;
+    (window as { google?: unknown }).google = {
+      accounts: {
+        id: { disableAutoSelect: () => undefined },
+        oauth2: {
+          initCodeClient: (config: CodeConfig) => {
+            configs.push(config);
+            return {
+              requestCode: () => {
+                requested += 1;
+              },
+            };
+          },
+        },
+      },
+    };
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'google');
+  });
+
+  it('is the sheet’s own button, and the popup’s code is what the API receives', async () => {
+    const posts: unknown[] = [];
+    const through = globalThis.fetch;
+    renderWithApp(<AuthDialog open onClose={() => undefined} />, {
+      participant: ANONYMOUS,
+      platform: { googleClientId: '123.apps.googleusercontent.com' },
+    });
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString(), 'http://api.test');
+      if (url.pathname === '/api/identity/google') {
+        posts.push(JSON.parse(String(init?.body)));
+        return new Response(
+          JSON.stringify({ token: 'account-token', participant: SIGNED_IN, outcome: 'linked' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return through(input, init);
+    }) as typeof fetch;
+
+    const button = await waitFor(() => screen.getByTestId('auth-google'));
+    // Ours: a button in the sheet's own type, not a slot for an iframe.
+    expect(button.tagName).toBe('BUTTON');
+    expect(button.textContent).toContain('Continue with Google');
+    expect(button.querySelector('iframe')).toBeNull();
+
+    fireEvent.click(button);
+    await waitFor(() => expect(requested).toBe(1));
+    expect(configs[0]).toMatchObject({
+      client_id: '123.apps.googleusercontent.com',
+      ux_mode: 'popup',
+      scope: 'openid email profile',
+    });
+
+    configs[0]?.callback({ code: '4/0AbCdEfGhIjKlMnOpQrStUvWxYz' });
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({ code: '4/0AbCdEfGhIjKlMnOpQrStUvWxYz' });
+  });
+
+  it('says nothing when the person closes Google’s window, and is ready again', async () => {
+    renderWithApp(<AuthDialog open onClose={() => undefined} />, {
+      participant: ANONYMOUS,
+      platform: { googleClientId: '123.apps.googleusercontent.com' },
+    });
+    const button = await waitFor(() => screen.getByTestId('auth-google'));
+    fireEvent.click(button);
+    await waitFor(() => expect(configs).toHaveLength(1));
+    configs[0]?.error_callback?.({ type: 'popup_closed' });
+    await waitFor(() =>
+      expect((screen.getByTestId('auth-google') as HTMLButtonElement).disabled).toBe(false),
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    // A blocked popup is worth a sentence.
+    fireEvent.click(screen.getByTestId('auth-google'));
+    await waitFor(() => expect(configs).toHaveLength(2));
+    configs[1]?.error_callback?.({ type: 'popup_failed_to_open' });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Allow pop-ups'));
   });
 });

@@ -51,7 +51,13 @@ import type { Config } from './config.js';
 import { demoScripts } from './demo-scripts.js';
 import { DownloadTokens, ExportJobs, PlaywrightRenderer } from './export/index.js';
 import { FeatureFlagsService, FeatureStore, featureFlagsCachePath } from './features/index.js';
-import { GoogleLibraryVerifier, GoogleSignIn, type GoogleTokenVerifier } from './google.js';
+import {
+  type GoogleCodeExchanger,
+  GoogleLibraryExchanger,
+  GoogleLibraryVerifier,
+  GoogleSignIn,
+  type GoogleTokenVerifier,
+} from './google.js';
 import { createGrader, createIntentClassifier } from './intent.js';
 import { loadLanguageId, TopicIntake } from './language.js';
 import { FileLedger } from './ledger.js';
@@ -240,6 +246,7 @@ export async function buildServices(
     acquirerFactory?: (s: Omit<Services, 'acquirer'>) => KnowledgeAcquirer | null;
     /** Google ID-token verification seam (tests inject a fake; production uses Google's library). */
     googleVerifier?: GoogleTokenVerifier;
+    googleExchanger?: GoogleCodeExchanger;
     /**
      * Feature rules this process starts on, over whatever the store holds
      * (ADR-0036). A seam for tests and scripts that need a deployment whose
@@ -524,10 +531,25 @@ export async function buildServices(
   const googleVerifier =
     opts.googleVerifier ??
     (cfg.GOOGLE_CLIENT_ID ? new GoogleLibraryVerifier(cfg.GOOGLE_CLIENT_ID) : null);
+  const googleExchanger =
+    opts.googleExchanger ??
+    (cfg.GOOGLE_CLIENT_ID && cfg.GOOGLE_CLIENT_SECRET
+      ? new GoogleLibraryExchanger(cfg.GOOGLE_CLIENT_ID, cfg.GOOGLE_CLIENT_SECRET)
+      : null);
   const google = googleVerifier
-    ? new GoogleSignIn(googleVerifier, participants, lists, cfg.PEN_DEV_PLAN ?? 'free')
+    ? new GoogleSignIn(
+        googleVerifier,
+        participants,
+        lists,
+        cfg.PEN_DEV_PLAN ?? 'free',
+        googleExchanger,
+      )
     : null;
   if (!google) logger.info('google sign-in disabled: set GOOGLE_CLIENT_ID');
+  else if (!googleExchanger)
+    logger.warn(
+      'google sign-in: GOOGLE_CLIENT_SECRET is not set, so the app’s own Continue with Google (the code flow) will be refused; only ID tokens are accepted',
+    );
   const analytics = new Analytics(cfg);
   // Finished sessions are queued here and derived by `main`'s drain loop,
   // never inline with a room's own teardown (ADR-0027).

@@ -10,7 +10,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ApiClient, type GoogleSignInOutcome, type Participant } from '../api/client.js';
+import {
+  ApiClient,
+  type GoogleCredential,
+  type GoogleSignInOutcome,
+  type Participant,
+} from '../api/client.js';
 import type { Platform } from '../platform/types.js';
 import {
   applyPrivacyChoice,
@@ -45,8 +50,8 @@ interface AppContextValue {
   setName(name: string): Promise<void>;
   /** The expert who starts every search for this account (ADR-0040); null clears it. */
   setDefaultExpert(expertId: string | null): Promise<void>;
-  /** Attach a Google account (the ID token comes from Google's button). */
-  signInWithGoogle(idToken: string): Promise<GoogleSignInOutcome>;
+  /** Attach a Google account: the popup's code from our own button, or an ID token. */
+  signInWithGoogle(credential: GoogleCredential): Promise<GoogleSignInOutcome>;
   /**
    * The email flows land here too, so a sign-in by any door is the same
    * event: the participant in this context, the analytics identity, the
@@ -228,8 +233,8 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
         setParticipant(await api.setDefaultExpert(expertId));
         trackAction('default_expert_set', { expertId: expertId ?? 'none' });
       },
-      signInWithGoogle: async (idToken: string) => {
-        const { participant: p, outcome } = await api.signInWithGoogle(idToken);
+      signInWithGoogle: async (credential: GoogleCredential) => {
+        const { participant: p, outcome } = await api.signInWithGoogle(credential);
         adoptSignedIn(p, { method: 'google', outcome });
         return outcome;
       },

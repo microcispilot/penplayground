@@ -145,6 +145,8 @@ export const Env = z.object({
 
   /** Google Identity Services web client id; sign-in is off (and `/api/health` says `google:false`) until set. */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  /** The other half of the app's own Continue with Google: exchanges the popup's code for the ID token (ADR-0042). */
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 
   /**
    * Who may read and change the runtime configuration (ADR-0025): a

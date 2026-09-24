@@ -369,6 +369,9 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # nothing says so except a single log line. Leaving it out of a deploy is a
 # slower product that looks healthy.
 #
+# `GOOGLE_CLIENT_SECRET` rides along with the id since ADR-0042: the app's own
+# Continue with Google returns a popup code the API can only exchange with it.
+#
 # `GOOGLE_CLIENT_ID` rides along for a reason learned the hard way: the web
 # build takes its half of sign-in from `VITE_GOOGLE_CLIENT_ID` as a build arg,
 # so setting only that ships a button the API cannot honour — it verifies the
@@ -386,7 +389,7 @@ remote "set -e; cd '$PEN_DEPLOY_ROOT'
 # `SENTRY_DSN` too, found the same day the same way: the host's DSN matched
 # none of the organisation's active keys. When the operator's shell has them,
 # the host gets them.
-for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY \
+for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET PEN_TYPESAFE_API_KEY \
   POSTHOG_PROJECT_TOKEN POSTHOG_HOST SENTRY_DSN \
   PEN_SMTP_HOST PEN_SMTP_PORT PEN_SMTP_USERNAME PEN_SMTP_PASSWORD PEN_SMTP_FROM; do
   value="${!var:-}"
@@ -407,7 +410,7 @@ for var in PEN_PUBLIC_URL PEN_API_URL GOOGLE_CLIENT_ID PEN_TYPESAFE_API_KEY \
     mv api.env.next api.env"
   # A client id is a credential, not a URL: say that it was set, never what it is.
   case "$var" in
-    GOOGLE_CLIENT_ID | PEN_TYPESAFE_API_KEY | PEN_SMTP_PASSWORD) echo "  $var=<set>" ;;
+    GOOGLE_CLIENT_ID | GOOGLE_CLIENT_SECRET | PEN_TYPESAFE_API_KEY | PEN_SMTP_PASSWORD) echo "  $var=<set>" ;;
     *) echo "  $var=$value" ;;
   esac
 done
@@ -419,6 +422,13 @@ if [ -n "${VITE_GOOGLE_CLIENT_ID:-}" ] && [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
 elif [ -z "${VITE_GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   log "sign-in: GOOGLE_CLIENT_ID is set but VITE_GOOGLE_CLIENT_ID is not"
   log "         → the API can verify a token no button will ever produce"
+fi
+# The app draws its own Continue with Google and hands the API a popup code
+# (ADR-0042); exchanging it needs the client secret on the host. Without it the
+# button renders, the popup opens, and the API answers 503 GOOGLE_DISABLED.
+if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ -z "${GOOGLE_CLIENT_SECRET:-}" ]; then
+  log "sign-in: GOOGLE_CLIENT_ID is set but GOOGLE_CLIENT_SECRET is not"
+  log "         → Continue with Google opens Google's window and the API refuses the code"
 fi
 
 # ── 5. up ────────────────────────────────────────────────────────────────────

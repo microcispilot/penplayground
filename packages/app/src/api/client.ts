@@ -50,6 +50,8 @@ export type Participant = z.infer<typeof Participant>;
 
 export const GoogleSignInOutcome = z.enum(['linked', 'existing', 'created']);
 export type GoogleSignInOutcome = z.infer<typeof GoogleSignInOutcome>;
+/** The popup's code (our button) or an ID token (Google's), never both. */
+export type GoogleCredential = { code: string } | { idToken: string };
 
 export const SessionRecord = z.object({
   id: z.string(),
@@ -311,18 +313,19 @@ export class ApiClient {
   }
 
   /**
-   * Trade a Google ID token for the account's bearer. Sent with the current
+   * Trade what Google handed the client — the popup's one-time code from the
+   * app's own button (ADR-0042), or an ID token — for the account's bearer. Sent with the current
    * (anonymous) bearer so the server can upgrade this very row; the token that
    * comes back replaces it either way.
    */
-  async signInWithGoogle(idToken: string): Promise<{
+  async signInWithGoogle(credential: GoogleCredential): Promise<{
     participant: Participant;
     outcome: GoogleSignInOutcome;
   }> {
     const res = await this.request(
       '/api/identity/google',
       z.object({ token: z.string(), participant: Participant, outcome: GoogleSignInOutcome }),
-      { method: 'POST', body: JSON.stringify({ idToken }) },
+      { method: 'POST', body: JSON.stringify(credential) },
     );
     return { participant: this.adopt(res), outcome: res.outcome };
   }

@@ -238,6 +238,7 @@ export const NOT_SETTINGS = {
   TAVILY_API_KEY: 'secret',
   EXA_API_KEY: 'secret',
   GOOGLE_CLIENT_ID: 'secret',
+  GOOGLE_CLIENT_SECRET: 'secret',
   STRIPE_SECRET_KEY: 'secret',
   STRIPE_WEBHOOK_SECRET: 'secret',
   STRIPE_PORTAL_CONFIGURATION_ID: 'secret',

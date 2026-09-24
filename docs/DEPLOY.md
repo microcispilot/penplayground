@@ -26,7 +26,7 @@ signalling 7880); only the host nginx and LiveKit's media and TURN ports (7881/t
 | --- | --- |
 | `deploy/deploy.sh` | build → ship → sync → `compose up` → health check, idempotent |
 | `deploy/docker-compose.yml` | the stack (`/srv/pen-playground/docker-compose.yml` on the host) |
-| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env`. `deploy.sh` overwrites `PEN_PUBLIC_URL`, `PEN_API_URL`, `GOOGLE_CLIENT_ID`, `PEN_TYPESAFE_API_KEY`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `SENTRY_DSN` and `PEN_SMTP_*` from the operator's shell whenever they are set there, so those never drift from the workstation's `.env` |
+| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env`. `deploy.sh` overwrites `PEN_PUBLIC_URL`, `PEN_API_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PEN_TYPESAFE_API_KEY`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `SENTRY_DSN` and `PEN_SMTP_*` from the operator's shell whenever they are set there, so those never drift from the workstation's `.env` |
 | `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-playground/postgres.env` |
 | `deploy/searxng/` | SearXNG compose + `settings.yml` (included by the stack) |
 | `deploy/livekit/livekit.yaml` | LiveKit server config (ports, TURN, room limits; no secrets) |
@@ -150,16 +150,21 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
 Accounts live on the same `participants` row as anonymous learners: signing in upgrades the row
 in place (same id, so every session and the current bearer stay valid), a Google account that
 already has a row gets that row back on any device (and adopts the anonymous caller's sessions),
-and a fresh Google identity gets a new row. The ID token is minted by Google Identity Services in
-the browser (button only, One Tap off) and verified server-side by `google-auth-library` against
-`GOOGLE_CLIENT_ID` (`services/api/src/google.ts`; `POST /api/identity/google`).
+and a fresh Google identity gets a new row. The sheet draws its own **Continue with Google**;
+on click Google Identity Services opens its popup and hands back a one-time authorization code
+(ADR-0042), the API exchanges it for the ID token with `GOOGLE_CLIENT_SECRET`, and that token is
+verified by `google-auth-library` against `GOOGLE_CLIENT_ID` (`services/api/src/google.ts`;
+`POST /api/identity/google`, which still accepts an ID token directly).
 
 1. Google Cloud Console → APIs & Services → Credentials → **OAuth client ID**, type *Web
    application*. Authorised JavaScript origins: `https://DOMAIN`, `https://www.DOMAIN`
    (and `http://localhost:5173` for dev). No redirect URI is needed (GIS popup mode).
 2. Put the client id in **both** places — it is one value with two consumers:
-   - `api.env`: `GOOGLE_CLIENT_ID=…` (the verifier's audience). Unset = feature off;
-     `/api/health` reports `google:false` and the endpoint answers 503.
+   - `api.env`: `GOOGLE_CLIENT_ID=…` (the verifier's audience) **and** `GOOGLE_CLIENT_SECRET=…`
+     (the exchange). Id unset = feature off; `/api/health` reports `google:false` and the
+     endpoint answers 503. Secret unset = the button opens Google's window and the code is
+     refused with 503; `/api/health` reports `googleCode:false`. `deploy.sh` writes both from
+     the operator's shell and says so when only one is set.
    - web build arg `VITE_GOOGLE_CLIENT_ID=…` (`deploy.sh` passes it when exported; the button is
      hidden when the build has no value).
 3. `cd /srv/pen-playground && docker compose up -d api`, redeploy the web image, then check

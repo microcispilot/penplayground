@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import {
+  type GoogleCodeExchanger,
   type GoogleProfile,
   GoogleSignIn,
   GoogleTokenError,
@@ -37,6 +38,22 @@ class FakeVerifier implements GoogleTokenVerifier {
   }
 }
 
+/**
+ * Stands in for the exchange (ADR-0042): a popup code is looked up by value
+ * and becomes the ID token the verifier above knows; anything unknown fails
+ * the way Google's `invalid_grant` does.
+ */
+class FakeExchanger implements GoogleCodeExchanger {
+  readonly calls: string[] = [];
+  constructor(private readonly known: Record<string, string>) {}
+  async exchange(code: string): Promise<string> {
+    this.calls.push(code);
+    const idToken = this.known[code];
+    if (!idToken) throw new GoogleTokenError('invalid', 'invalid_grant');
+    return idToken;
+  }
+}
+
 const ada: GoogleProfile = {
   sub: '1000-ada',
   email: 'ada@example.com',
@@ -52,11 +69,21 @@ const grace: GoogleProfile = {
   avatarUrl: null,
 };
 
+/** A Google identity nobody above has used: the code path's own, so its outcome is its own. */
+const lin: GoogleProfile = {
+  sub: '1000-lin',
+  email: 'lin@example.com',
+  emailVerified: true,
+  name: 'Lin Zhao',
+  avatarUrl: null,
+};
+
 const dataDir = mkdtempSync(join(tmpdir(), 'pen-google-'));
 let services: Services;
 let app: Hono;
 let identity: Identity;
 let verifier: FakeVerifier;
+let exchanger: FakeExchanger;
 
 beforeAll(async () => {
   const cfg = loadConfig({
@@ -68,8 +95,9 @@ beforeAll(async () => {
     PEN_TTS_PROVIDER: 'silent',
     GOOGLE_CLIENT_ID: '123.apps.googleusercontent.com',
   });
-  verifier = new FakeVerifier({ 'ok:ada': ada, 'ok:grace': grace });
-  services = await buildServices(cfg, { googleVerifier: verifier });
+  verifier = new FakeVerifier({ 'ok:ada': ada, 'ok:grace': grace, 'ok:lin': lin });
+  exchanger = new FakeExchanger({ 'code:lin-4/0AbCdEfGhIjKlMnOp': 'ok:lin' });
+  services = await buildServices(cfg, { googleVerifier: verifier, googleExchanger: exchanger });
   identity = new Identity(cfg.PEN_JWT_SECRET);
   ({ app } = buildApp(services));
 }, 60_000);
@@ -347,5 +375,101 @@ describe('config', () => {
     expect(loadConfig(base).GOOGLE_CLIENT_ID).toBeUndefined();
     expect(loadConfig({ ...base, GOOGLE_CLIENT_ID: '' }).GOOGLE_CLIENT_ID).toBeUndefined();
     expect(loadConfig({ ...base, GOOGLE_CLIENT_ID: 'abc' }).GOOGLE_CLIENT_ID).toBe('abc');
+  });
+});
+
+describe('the app’s own button: a popup code, exchanged (ADR-0042)', () => {
+  // A test above swaps in a Google service of its own without the exchanger
+  // and leaves it there; this block installs the one it is about, and puts
+  // back whatever it found.
+  let before: Services['google'];
+  beforeAll(() => {
+    before = services.google;
+    services.google = new GoogleSignIn(
+      verifier,
+      services.participants,
+      services.lists,
+      'free',
+      exchanger,
+    );
+  });
+  afterAll(() => {
+    services.google = before;
+  });
+
+  it('signs in with a code exactly as with the ID token behind it', async () => {
+    const anon = await anonymous('Learner');
+    const res = await json(
+      '/api/identity/google',
+      { code: 'code:lin-4/0AbCdEfGhIjKlMnOp' },
+      anon.token,
+    );
+    expect(res.status, await res.clone().text()).toBe(200);
+    const body = (await res.json()) as {
+      outcome: string;
+      participant: { id: string; anonymous: boolean; email: string | null };
+    };
+    // The same row, upgraded in place: the code path ends where the token path does.
+    expect(body.outcome).toBe('linked');
+    expect(body.participant.id).toBe(anon.participant.id);
+    expect(body.participant.anonymous).toBe(false);
+    expect(body.participant.email).toBe('lin@example.com');
+    expect(exchanger.calls.at(-1)).toBe('code:lin-4/0AbCdEfGhIjKlMnOp');
+    expect(verifier.calls.at(-1)).toBe('ok:lin');
+  });
+
+  it('refuses a code Google will not exchange with "try again", never a 500', async () => {
+    const anon = await anonymous();
+    const res = await json(
+      '/api/identity/google',
+      { code: 'code:used-or-forged-0000' },
+      anon.token,
+    );
+    expect(res.status).toBe(401);
+    expect((await res.json()) as object).toMatchObject({
+      error: 'INVALID_TOKEN',
+      reason: 'invalid',
+    });
+  });
+
+  it('says so when the host has the id but not the secret', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pen-google-nosecret-'));
+    const cfg = loadConfig({
+      NODE_ENV: 'test',
+      PEN_JWT_SECRET: 'x'.repeat(40),
+      PEN_DATA_DIR: dir,
+      DATABASE_URL: 'pglite://memory',
+      PEN_LLM_PROVIDER: 'fake',
+      PEN_TTS_PROVIDER: 'silent',
+      GOOGLE_CLIENT_ID: '123.apps.googleusercontent.com',
+    });
+    const bare = await buildServices(cfg, {
+      googleVerifier: new FakeVerifier({ 'ok:ada-0123456789abcdef': ada }),
+    });
+    try {
+      const { app: bareApp } = buildApp(bare);
+      const health = (await (await bareApp.request('/api/health')).json()) as {
+        google: boolean;
+        googleCode: boolean;
+      };
+      expect(health.google).toBe(true);
+      expect(health.googleCode).toBe(false);
+      const post = (body: unknown) =>
+        bareApp.request('/api/identity/google', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      const res = await post({ code: 'code:lin-4/0AbCdEfGhIjKlMnOp' });
+      expect(res.status).toBe(503);
+      expect((await res.json()) as object).toMatchObject({ error: 'GOOGLE_DISABLED' });
+      // The token path is untouched by the missing secret.
+      const viaToken = await post({ idToken: 'ok:ada-0123456789abcdef' });
+      expect(viaToken.status, await viaToken.clone().text()).toBe(200);
+    } finally {
+      bare.exports.close();
+      await bare.db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

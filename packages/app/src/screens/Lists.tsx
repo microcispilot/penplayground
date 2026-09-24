@@ -1,7 +1,7 @@
 import type { Expert } from '@pen/contracts';
 import { Button, Pill, Skeleton } from '@pen/design';
 import { Play } from 'lucide-react';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { DownloadRecord, HistoryRecord, SessionRecord } from '../api/client.js';
 import { ShellPage } from '../components/AppShell.js';
@@ -9,10 +9,8 @@ import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
 import { trackAction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
-import { mountGoogleButton } from '../lib/google.js';
 import { useLists } from '../lib/lists.js';
 import { useQuickStart } from '../lib/quick-start.js';
-import { isDarkTheme, useTheme } from '../lib/theme.js';
 
 /**
  * The one action a shelf row carries: back into a session that is still
@@ -64,34 +62,16 @@ export function StartAgain({ session, live }: { session: SessionRecord; live: bo
 }
 
 /**
- * The invitation an empty personal list ends with — one calm line and Google's
- * own button. It is never a wall: an anonymous learner's lists work on this
- * device, and signing in only makes them follow along.
+ * The invitation an empty personal list ends with — one calm line and the
+ * way in. It is never a wall: an anonymous learner's lists work on this
+ * device, and signing in only makes them follow along. The button opens the
+ * one sign-in sheet (ADR-0040) rather than mounting Google's own button
+ * here: one door, drawn one way, everywhere (ADR-0042).
  */
 export function SignInInvite({ line }: { line: string }) {
-  const { platform, signInWithGoogle, participant, features } = useApp();
-  const [theme] = useTheme();
-  const slot = useRef<HTMLDivElement>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const { openSignIn, participant, features } = useApp();
   const offered =
-    features.google_sign_in && platform.googleClientId !== null && participant?.anonymous !== false;
-
-  useEffect(() => {
-    const el = slot.current;
-    if (!offered || !el || !platform.googleClientId) return;
-    return mountGoogleButton(el, {
-      clientId: platform.googleClientId,
-      theme: isDarkTheme(theme) ? 'dark' : 'light',
-      width: 280,
-      onCredential: (idToken) => {
-        signInWithGoogle(idToken).catch((error: unknown) =>
-          setProblem(error instanceof Error ? error.message : 'Could not sign in with Google.'),
-        );
-      },
-      onError: (error) => setProblem(error.message),
-    });
-  }, [offered, platform.googleClientId, theme, signInWithGoogle]);
-
+    (features.google_sign_in || features.email_sign_in) && participant?.anonymous !== false;
   if (!offered) return null;
   return (
     <div
@@ -99,12 +79,15 @@ export function SignInInvite({ line }: { line: string }) {
       data-testid="sign-in-invite"
     >
       <p className="max-w-[420px] text-label-large text-on-surface-variant text-pretty">{line}</p>
-      <div ref={slot} className="flex min-h-[44px] justify-center" data-testid="google-signin" />
-      {problem ? (
-        <p className="text-body-medium text-error" role="alert">
-          {problem}
-        </p>
-      ) : null}
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={() => openSignIn('shelf')}
+        data-testid="sign-in-invite-button"
+      >
+        Sign in
+      </Button>
     </div>
   );
 }

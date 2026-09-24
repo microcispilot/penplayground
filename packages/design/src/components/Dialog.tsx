@@ -9,10 +9,20 @@ export interface DialogProps {
   className?: string;
   /** The sheet's width in CSS pixels, before the viewport's 92 % cap. */
   width?: number;
+  /** `roomy` for a sheet that is a whole conversation (sign-in) rather than one question. */
+  padding?: 'regular' | 'roomy';
 }
 
 /** Native <dialog> with the design system's surface; focus trapping and Esc come from the platform. */
-export function Dialog({ open, onClose, title, children, className, width = 520 }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  title,
+  children,
+  className,
+  width = 520,
+  padding = 'regular',
+}: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -31,7 +41,8 @@ export function Dialog({ open, onClose, title, children, className, width = 520 
       className={cn(
         // M3 basic dialog: `surface-container-high`, `corner-extra-large`
         // (28 px), elevation level 3, over a `scrim`.
-        'm-auto rounded-xl bg-surface-container-high p-6 text-on-surface shadow-level3 backdrop:bg-scrim/60 backdrop:backdrop-blur-[2px]',
+        'm-auto rounded-xl bg-surface-container-high text-on-surface shadow-level3 backdrop:bg-scrim/60 backdrop:backdrop-blur-[2px]',
+        padding === 'roomy' ? 'p-8' : 'p-6',
         className,
       )}
       style={{ width: `min(${width}px, 92vw)` }}

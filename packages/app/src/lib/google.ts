@@ -1,37 +1,52 @@
 /**
- * Google Identity Services, button only. The GIS script is loaded on demand
- * (never in the initial bundle, never in headless renders), One Tap is never
- * prompted, and the credential callback hands the ID token straight to the
- * API, which is the only place it is verified.
+ * Google Identity Services, for the app's own Continue with Google.
+ *
+ * The GIS script is loaded on demand (never in the initial bundle, never in
+ * headless renders), One Tap is never prompted, and Google's own rendered
+ * button is not used any more (ADR-0042): it is an iframe Google styles, and
+ * it never matched the sheet it sat in. Instead the sheet draws its own
+ * button and, on click, asks GIS for a one-time **authorization code** in a
+ * popup. The code goes to the API, which exchanges it for the ID token with
+ * the client secret and verifies that token exactly as before. Nothing
+ * secret is in the browser, and nothing about the account is decided here.
  */
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
-/** The slice of `google.accounts.id` this app uses (the SDK ships no types). */
+/** The slice of `google.accounts` this app uses (the SDK ships no types). */
 interface GoogleAccountsId {
-  initialize(config: {
-    client_id: string;
-    callback: (response: { credential?: string; select_by?: string }) => void;
-    auto_select?: boolean;
-    cancel_on_tap_outside?: boolean;
-    itp_support?: boolean;
-    use_fedcm_for_prompt?: boolean;
-    ux_mode?: 'popup' | 'redirect';
-  }): void;
-  renderButton(
-    parent: HTMLElement,
-    options: {
-      type?: 'standard' | 'icon';
-      theme?: 'outline' | 'filled_blue' | 'filled_black';
-      size?: 'large' | 'medium' | 'small';
-      text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
-      shape?: 'rectangular' | 'pill' | 'circle' | 'square';
-      logo_alignment?: 'left' | 'center';
-      width?: number;
-      locale?: string;
-    },
-  ): void;
   disableAutoSelect(): void;
+}
+
+export interface GoogleCodeResponse {
+  code?: string;
+  error?: string;
+  error_description?: string;
+}
+
+/** What `error_callback` reports: the popup did not open, was closed, or something else. */
+export interface GoogleClientError {
+  type: 'popup_failed_to_open' | 'popup_closed' | 'unknown' | (string & {});
+  message?: string;
+}
+
+interface GoogleCodeClient {
+  requestCode(): void;
+}
+
+interface GoogleAccountsOAuth2 {
+  initCodeClient(config: {
+    client_id: string;
+    scope: string;
+    ux_mode: 'popup';
+    callback: (response: GoogleCodeResponse) => void;
+    error_callback?: (error: GoogleClientError) => void;
+  }): GoogleCodeClient;
+}
+
+interface GoogleAccounts {
+  id?: GoogleAccountsId;
+  oauth2?: GoogleAccountsOAuth2;
 }
 
 declare global {
@@ -40,24 +55,24 @@ declare global {
   }
   /** `window.google` is shared by Google's SDKs: sign-in adds `accounts`, IMA (ads/ima.ts) adds `ima`. */
   interface GoogleGlobal {
-    accounts?: { id?: GoogleAccountsId };
+    accounts?: GoogleAccounts;
   }
 }
 
-let loading: Promise<GoogleAccountsId> | null = null;
+let loading: Promise<GoogleAccounts> | null = null;
 
-/** Resolves once `google.accounts.id` is on the page; one script tag per page, ever. */
-export function loadGoogleIdentity(doc: Document = document): Promise<GoogleAccountsId> {
-  const ready = window.google?.accounts?.id;
-  if (ready) return Promise.resolve(ready);
+/** Resolves once `google.accounts.oauth2` is on the page; one script tag per page, ever. */
+export function loadGoogleAccounts(doc: Document = document): Promise<GoogleAccounts> {
+  const ready = window.google?.accounts;
+  if (ready?.oauth2) return Promise.resolve(ready);
   if (loading) return loading;
-  loading = new Promise<GoogleAccountsId>((resolve, reject) => {
+  loading = new Promise<GoogleAccounts>((resolve, reject) => {
     const existing = doc.querySelector<HTMLScriptElement>(`script[src="${GIS_SRC}"]`);
     const script = existing ?? doc.createElement('script');
     const settle = () => {
-      const api = window.google?.accounts?.id;
-      if (api) resolve(api);
-      else reject(new Error('Google Identity Services loaded without google.accounts.id'));
+      const api = window.google?.accounts;
+      if (api?.oauth2) resolve(api);
+      else reject(new Error('Google Identity Services loaded without google.accounts.oauth2'));
     };
     script.addEventListener('load', settle, { once: true });
     script.addEventListener(
@@ -78,55 +93,67 @@ export function loadGoogleIdentity(doc: Document = document): Promise<GoogleAcco
   return loading;
 }
 
-export interface GoogleButtonOptions {
+/** The person closed Google's window: not an error, and nothing to say. */
+export class GoogleCancelled extends Error {
+  constructor() {
+    super('cancelled');
+    this.name = 'GoogleCancelled';
+  }
+}
+
+export interface GoogleCodeRequest {
   clientId: string;
-  /** Called with the ID token; the caller sends it to the API. */
-  onCredential(idToken: string): void;
+  /** Called with the one-time code; the caller sends it to the API. */
+  onCode(code: string): void;
+  /** `GoogleCancelled` when the popup was closed; anything else is worth a sentence. */
   onError(error: Error): void;
-  theme: 'light' | 'dark';
-  width: number;
 }
 
 /**
- * Render Google's own button into `container`. Returns a disposer; the
- * container is emptied when the dialog closes so a reopened dialog gets a
- * fresh button (GIS never re-renders into a node it already used).
+ * Open Google's popup and ask for a code. Call it from the click itself: the
+ * popup needs the browser's user activation, and `loadGoogleAccounts` resolves
+ * in a microtask when the script was preloaded (the sheet does that on open),
+ * so the activation is still fresh when the window opens.
+ *
+ * Returns a disposer: a dialog that closes while the popup is up must not
+ * act on the code that comes back.
  */
-export function mountGoogleButton(container: HTMLElement, o: GoogleButtonOptions): () => void {
+export function requestGoogleCode(o: GoogleCodeRequest): () => void {
   let disposed = false;
-  loadGoogleIdentity()
-    .then((gis) => {
+  loadGoogleAccounts()
+    .then((accounts) => {
       if (disposed) return;
-      gis.initialize({
+      const oauth2 = accounts.oauth2;
+      if (!oauth2) throw new Error('Google sign-in is unavailable.');
+      const client = oauth2.initCodeClient({
         client_id: o.clientId,
+        scope: 'openid email profile',
+        ux_mode: 'popup',
         callback: (response) => {
           if (disposed) return;
-          if (response.credential) o.onCredential(response.credential);
-          else o.onError(new Error('Google returned no credential.'));
+          if (response.code) o.onCode(response.code);
+          else
+            o.onError(
+              new Error(response.error_description ?? response.error ?? 'Google returned no code.'),
+            );
         },
-        // Button only: no One Tap, no automatic account pick.
-        auto_select: false,
-        cancel_on_tap_outside: true,
-        itp_support: true,
-        ux_mode: 'popup',
+        error_callback: (error) => {
+          if (disposed) return;
+          if (error.type === 'popup_closed') o.onError(new GoogleCancelled());
+          else if (error.type === 'popup_failed_to_open')
+            o.onError(
+              new Error('Your browser blocked the Google window. Allow pop-ups and try again.'),
+            );
+          else o.onError(new Error(error.message ?? 'Could not sign in with Google.'));
+        },
       });
-      container.replaceChildren();
-      gis.renderButton(container, {
-        type: 'standard',
-        theme: o.theme === 'dark' ? 'filled_black' : 'outline',
-        size: 'large',
-        text: 'continue_with',
-        shape: 'pill',
-        logo_alignment: 'center',
-        width: Math.max(200, Math.min(400, Math.round(o.width))),
-      });
+      client.requestCode();
     })
     .catch((error: unknown) => {
       if (!disposed) o.onError(error instanceof Error ? error : new Error(String(error)));
     });
   return () => {
     disposed = true;
-    container.replaceChildren();
   };
 }
 

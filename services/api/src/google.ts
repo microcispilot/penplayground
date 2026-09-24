@@ -70,6 +70,44 @@ export class GoogleLibraryVerifier implements GoogleTokenVerifier {
   }
 }
 
+/**
+ * The exchange seam: the authorization code Google's popup hands the app's
+ * own button, for the ID token behind it. Google's library in production, a
+ * fake in tests.
+ */
+export interface GoogleCodeExchanger {
+  exchange(code: string): Promise<string>;
+}
+
+/**
+ * The popup code flow (`google.accounts.oauth2.initCodeClient`, `ux_mode:
+ * 'popup'`) returns a one-time code whose redirect URI is the literal
+ * `postmessage`; exchanging it needs the client secret, which is why the
+ * secret lives here and never in the browser. The ID token that comes back
+ * is verified exactly as one from Google's own button would be.
+ */
+export class GoogleLibraryExchanger implements GoogleCodeExchanger {
+  private readonly client: OAuth2Client;
+  constructor(clientId: string, clientSecret: string) {
+    this.client = new OAuth2Client({ clientId, clientSecret, redirectUri: 'postmessage' });
+  }
+
+  async exchange(code: string): Promise<string> {
+    let idToken: string | null | undefined;
+    try {
+      const { tokens } = await this.client.getToken(code);
+      idToken = tokens.id_token;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // A used, expired or forged code is `invalid_grant` from Google: the
+      // route says "try again", which is the right answer to all three.
+      throw new GoogleTokenError('invalid', message);
+    }
+    if (!idToken) throw new GoogleTokenError('invalid', 'the exchange returned no ID token');
+    return idToken;
+  }
+}
+
 export type GoogleSignInOutcome = 'linked' | 'existing' | 'created';
 
 export interface GoogleSignInResult {
@@ -104,7 +142,20 @@ export class GoogleSignIn {
     private readonly participants: ParticipantRepository,
     private readonly lists: ListRepository,
     private readonly defaultPlan: ParticipantRow['plan'] = 'free',
+    private readonly exchanger: GoogleCodeExchanger | null = null,
   ) {}
+
+  /** Whether the app's own button (the code flow) can be honoured here: the secret is configured. */
+  get exchangesCodes(): boolean {
+    return this.exchanger !== null;
+  }
+
+  /** The app's own button: a popup code, exchanged, then the same three cases as an ID token. */
+  async signInWithCode(code: string, caller: ParticipantRow | null): Promise<GoogleSignInResult> {
+    if (!this.exchanger)
+      throw new Error('GOOGLE_CLIENT_SECRET is not set: codes cannot be exchanged');
+    return this.signIn(await this.exchanger.exchange(code), caller);
+  }
 
   async signIn(idToken: string, caller: ParticipantRow | null): Promise<GoogleSignInResult> {
     const profile = await this.verifier.verify(idToken);
