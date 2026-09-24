@@ -207,7 +207,7 @@ export function AppHeader({
             </button>
             <button
               type="button"
-              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full border border-primary-fixed px-3.5 text-label-large text-primary-fixed sm:px-4"
+              className="state-layer flex h-9 items-center whitespace-nowrap rounded-full border-[1.5px] border-primary-fixed px-3.5 text-label-large font-semibold text-primary-fixed sm:px-4"
               onClick={() => openSignIn('header_sign_up')}
               data-testid="sign-up-cta"
             >

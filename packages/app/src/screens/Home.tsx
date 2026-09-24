@@ -496,7 +496,7 @@ export function Home() {
                           portraitUrl={api.portraitUrl(expert?.portrait?.src, 192)}
                           onOpen={() => {
                             trackAction('session_opened', { sessionId: r.id, source: 'ready' });
-                            navigate(`/sessions/${r.id}`);
+                            navigate(`/sessions/${r.id}`, { state: { play: true } });
                           }}
                         />
                       );
@@ -620,7 +620,7 @@ export function Home() {
                         portraitUrl={api.portraitUrl(expert?.portrait?.src, 192)}
                         onOpen={() => {
                           trackAction('session_opened', { sessionId: s.id, source: 'catalogue' });
-                          navigate(`/sessions/${s.id}`);
+                          navigate(`/sessions/${s.id}`, { state: { play: true } });
                         }}
                       />
                     );

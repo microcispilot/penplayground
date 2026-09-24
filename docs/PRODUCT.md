@@ -62,12 +62,15 @@ In the room the board *is* the screen: no shell, nothing else to look at.
    the name, with the plan's name on the card — never a lock, never a warning.
 3. **Your sessions** — the watch page, in YouTube's shape (ADR-0044): the
    board, the title, the expert as a channel row with the actions beside it,
-   a description box, comments, and *Up next* on the right. *Replay* starts
-   the lesson again as a fresh session of your own (ADR-0035); a host with an
-   account also has *Watch my recording*, *Download* (with or without their
-   questions), their own questions, and Delete; making it private is
-   Standard. Share, one button and one sheet, for everyone. Comments: everyone
-   reads, an account writes, the author and the host delete.
+   a description box, comments, and *Up next* on the right. The board is the
+   player (ADR-0045): press it, or arrive from a card, and the lesson starts
+   again, live, as a fresh session of your own (ADR-0035) in that box; a
+   press on the board pauses and resumes; *Full view* is the board and its
+   controls alone. A host with an account also has *Watch my recording*,
+   *Download* (with or without their questions), their own questions, and
+   Delete; making it private is Standard. Share, one button and one sheet,
+   for everyone. Comments: everyone reads, an account writes, the author and
+   the host delete.
 4. **History / Learn later / Liked / Downloads / Rooms** — the learner's own
    shelves. A heart and a bookmark on every card and on the session page fill
    them; the like count is public, the shelf is not.

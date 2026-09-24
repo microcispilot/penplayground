@@ -221,6 +221,15 @@ export interface BottomBarProps {
   onToggleCaptions: () => void;
   onToggleMic: () => void;
   onFullscreen: () => void;
+  /** "Full screen" on the room screen; "Full view" / "Exit full view" for the watch page's player (ADR-0045). */
+  fullscreenLabel?: string;
+  /** Show the full-screen control at every width, not only from `lg` (the inline player). */
+  fullscreenAlways?: boolean;
+  /**
+   * Inside the watch page's player box (ADR-0045): no title (the page's own is
+   * right under the box), the status on one line, the controls as they are.
+   */
+  compact?: boolean;
   onLeave: () => void;
   /**
    * The session panel — the AI human, the call and the chat — is open.
@@ -332,13 +341,21 @@ export function BottomBar(p: BottomBarProps) {
         style={{ minHeight: 56 }}
       >
         <span
-          className="hidden size-[26px] shrink-0 place-items-center rounded-full bg-primary text-body-small text-on-primary sm:grid"
+          className={cn(
+            'hidden size-[26px] shrink-0 place-items-center rounded-full bg-primary text-body-small text-on-primary',
+            !p.compact && 'sm:grid',
+          )}
           aria-hidden
         >
           ◇
         </span>
         {/* Title and status: the first thing to go when the screen narrows. */}
-        <div className="hidden min-w-0 flex-auto items-center gap-2.5 border-l border-outline pl-2.5 md:flex">
+        <div
+          className={cn(
+            'hidden min-w-0 flex-auto items-center gap-2.5 border-l border-outline pl-2.5',
+            !p.compact && 'md:flex',
+          )}
+        >
           <span className="min-w-0 truncate text-body-medium text-on-surface">
             {p.state.plan?.title ?? p.state.topic}
           </span>
@@ -346,13 +363,19 @@ export function BottomBar(p: BottomBarProps) {
           {p.recording ? <RecordingDot /> : null}
           <span
             className="hidden text-body-small text-on-surface-dim lg:inline"
-            data-testid="room-status-label"
+            data-testid={p.compact ? undefined : 'room-status-label'}
           >
             {statusLabel}
           </span>
         </div>
-        {/* On a phone the same sentence is the only thing worth the width. */}
-        <span className="min-w-0 flex-auto truncate text-body-small text-on-surface-variant md:hidden">
+        {/* On a phone — and in the player box — the same sentence is the only thing worth the width. */}
+        <span
+          className={cn(
+            'min-w-0 flex-auto truncate text-body-small text-on-surface-variant',
+            !p.compact && 'md:hidden',
+          )}
+          data-testid={p.compact ? 'room-status-label' : undefined}
+        >
           {statusLabel}
         </span>
         {total > 0 ? (
@@ -481,7 +504,12 @@ export function BottomBar(p: BottomBarProps) {
               <PanelRight size={17} />
             </IconButton>
           ) : null}
-          <IconButton label="Full screen" onClick={p.onFullscreen} className="hidden lg:grid">
+          <IconButton
+            label={p.fullscreenLabel ?? 'Full screen'}
+            onClick={p.onFullscreen}
+            className={p.fullscreenAlways ? 'grid' : 'hidden lg:grid'}
+            data-testid="fullscreen-toggle"
+          >
             <Maximize2 size={15} />
           </IconButton>
           <IconButton
@@ -558,7 +586,7 @@ export function BottomBar(p: BottomBarProps) {
           />
         </div>
         <SheetRow
-          label="Full screen"
+          label={p.fullscreenLabel ?? 'Full screen'}
           icon={<Maximize2 size={16} />}
           onClick={() => {
             p.onFullscreen();
@@ -697,12 +725,15 @@ export function RecapPanel({
   questions,
   onOpenSaved,
   onLearnMore,
+  savedIsHere = false,
 }: {
   state: RoomState;
   expertFirstName: string;
   questions: Array<{ q: string; a: string }>;
   onOpenSaved: () => void;
   onLearnMore: () => void;
+  /** Inline on the watch page (ADR-0045): the saved page is this page, so the button says so. */
+  savedIsHere?: boolean;
 }) {
   // The lesson's own words — title, recap, the learner's questions — read in its direction.
   const lang = state.language;
@@ -744,12 +775,14 @@ export function RecapPanel({
           )}
         </div>
         <div className="flex flex-col gap-2">
-          <Button variant="primary" size="lg" onClick={onOpenSaved}>
-            Open the saved session
+          <Button variant="primary" size="lg" onClick={onOpenSaved} data-testid="recap-done">
+            {savedIsHere ? 'Done' : 'Open the saved session'}
           </Button>
-          <Button variant="secondary" size="lg" onClick={onLearnMore}>
-            Learn something else
-          </Button>
+          {savedIsHere ? null : (
+            <Button variant="secondary" size="lg" onClick={onLearnMore}>
+              Learn something else
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -764,6 +797,7 @@ export function PreparingView({
   topic,
   plan,
   progress,
+  compact = false,
 }: {
   expertName: string;
   expertRole: string;
@@ -771,9 +805,16 @@ export function PreparingView({
   topic: string;
   plan: RoomState['plan'];
   progress: { fraction: number; status: string } | null;
+  /** Inside the watch page's player box rather than the whole screen (ADR-0045). */
+  compact?: boolean;
 }) {
   return (
-    <div className="grid min-h-screen place-items-center bg-surface px-7 py-12">
+    <div
+      className={cn(
+        'grid place-items-center bg-surface px-7',
+        compact ? 'h-full py-6' : 'min-h-screen py-12',
+      )}
+    >
       <div className="flex w-full max-w-[380px] flex-col items-center text-center">
         <div
           className={cn(

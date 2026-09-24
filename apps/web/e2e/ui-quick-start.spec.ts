@@ -30,10 +30,9 @@ test.describe('replay and the recording', () => {
     const id = await endSession(page);
     expect(id).toBeTruthy();
 
-    // The host's page: the lesson again, the recording, the download and its choice.
-    await expect(page.getByTestId('session-replay')).toBeVisible();
+    // The host's page: the board is the player, the recording, the download and its choice.
+    await expect(page.getByTestId('player-play')).toBeVisible();
     await expect(page.getByTestId('session-watch-recording')).toBeVisible();
-    await expect(page.getByTestId('replay-note')).toContainText('starts this lesson again');
     // The pair's learner is on the free plan: the download is the locked
     // button that leads to Pricing, and the choice of recording comes with
     // the plan (the two variants are proved in services/api/test/features.test.ts).
@@ -46,7 +45,7 @@ test.describe('replay and the recording', () => {
     const other = await browser.newContext({ permissions: ['microphone'] });
     const visitor = await other.newPage();
     await visitor.goto(`${UI_WEB}/sessions/${id}`);
-    await expect(visitor.getByTestId('session-replay')).toBeVisible();
+    await expect(visitor.getByTestId('player-play')).toBeVisible();
     await expect(visitor.getByTestId('session-watch-recording')).toHaveCount(0);
     await expect(visitor.getByTestId('export-control')).toHaveCount(0);
     await expect(visitor.getByText('Questions you asked')).toHaveCount(0);
@@ -110,7 +109,7 @@ test.describe('replay and the recording', () => {
       for (const viewport of VIEWPORTS) {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await page.goto(`${UI_WEB}/sessions/${id}`);
-        await expect(page.getByTestId('session-replay')).toBeVisible();
+        await expect(page.getByTestId('player-play')).toBeVisible();
         await shot(page, `session-page-host-${viewport.name}-${theme}`);
         await page.goto(`${UI_WEB}/`);
         await page

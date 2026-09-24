@@ -4,6 +4,7 @@ import { Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SessionPage } from '../src/screens/SessionPage.js';
 import { ANONYMOUS, renderWithApp, SIGNED_IN } from './harness.js';
+import { roomState } from './room-fixtures.js';
 
 /**
  * The watch page (ADR-0044): who sees what.
@@ -123,6 +124,9 @@ describe('the watch page', () => {
     expect(screen.queryByTestId('owner-controls')).toBeNull();
     expect(screen.queryByText('Questions you asked')).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
+    // The board is the player (ADR-0045): a play button over it, no Replay button anywhere.
+    expect(screen.getByTestId('player-play')).toBeTruthy();
+    expect(screen.queryByText('Replay')).toBeNull();
     // One Share, as a sheet with the public link; no card, no "Open share page".
     expect(screen.getAllByTestId('session-share')).toHaveLength(1);
     expect(screen.queryByText('Open share page')).toBeNull();
@@ -170,5 +174,42 @@ describe('the watch page', () => {
     expect(screen.queryByTestId('owner-controls')).toBeNull();
     expect(screen.queryByText('Questions you asked')).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
+  });
+});
+
+describe('the player (ADR-0045)', () => {
+  it('presses play into a fresh session of the viewer’s own, in place', async () => {
+    mount(ANONYMOUS, '', features('free', true));
+    const play = await waitFor(() => screen.getByTestId('player-play'));
+    const posts: unknown[] = [];
+    const through = globalThis.fetch;
+    const fresh = { ...session(''), id: 's_fresh_0000001', endedAt: null, startedAt: Date.now() };
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString(), 'http://api.test');
+      if (url.pathname === '/api/sessions' && init?.method === 'POST') {
+        posts.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify({ session: fresh, state: roomState(1) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.pathname === `/api/sessions/${fresh.id}`)
+        return new Response(JSON.stringify({ session: fresh, live: true, state: null, expert }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      return through(input, init);
+    }) as typeof fetch;
+
+    fireEvent.click(play);
+    await waitFor(() => expect(posts).toHaveLength(1));
+    // The same door Replay was: the lesson again, as a replay of this session.
+    expect(posts[0]).toEqual({ replayOf: ID });
+    // The room mounts inside the page: the URL and the page around it are unchanged.
+    await waitFor(() => expect(screen.getByTestId('session-player')).toBeTruthy());
+    expect(screen.getByTestId('session-player').getAttribute('data-layout')).toBe('inline');
+    expect(screen.getByTestId('player').getAttribute('data-full')).toBe('false');
+    expect(screen.getByTestId('comments')).toBeTruthy();
+    expect(screen.queryByTestId('player-play')).toBeNull();
   });
 });

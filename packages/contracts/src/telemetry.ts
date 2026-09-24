@@ -249,6 +249,9 @@ export const ActionName = z.enum([
   'download_variant_changed',
   'download_failed',
   'session_tab_shown',
+  // the watch page's player (ADR-0045)
+  'player_play_clicked',
+  'full_view_toggled',
   // replay controls that are not the session's own record
   'replay_rate_changed',
   'replay_back_clicked',

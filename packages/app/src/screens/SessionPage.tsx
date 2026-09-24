@@ -2,7 +2,7 @@ import type { Expert, LedgerEntry, SessionTelemetry } from '@pen/contracts';
 import { Avatar, Button, cn, Dialog, SegmentedButtons, Skeleton, useToast } from '@pen/design';
 import { Check, Clapperboard, Copy, Download, Lock, Play, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   ApiError,
   type ExportStatus,
@@ -14,7 +14,8 @@ import { Comments } from '../components/Comments.js';
 import { Insights } from '../components/Insights.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
-import { trackAction, trackInteraction } from '../lib/analytics.js';
+import { SessionPlayer } from '../components/SessionPlayer.js';
+import { markStartClicked, trackAction, trackInteraction } from '../lib/analytics.js';
 import { formatDuration, relativeDay, useApp } from '../lib/context.js';
 import { dirOf, useDocumentLanguage } from '../lib/locale.js';
 import { useQuickStart } from '../lib/quick-start.js';
@@ -517,6 +518,7 @@ export function SessionPage() {
   const [params, setParams] = useSearchParams();
   const { api, participant, features } = useApp();
   const navigate = useNavigate();
+  const toast = useToast();
   const quickStart = useQuickStart();
   const [data, setData] = useState<{
     session: SessionRecord;
@@ -527,6 +529,17 @@ export function SessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<SessionTelemetry | null>(null);
   const [telemetryError, setTelemetryError] = useState<string | null>(null);
+  const location = useLocation();
+  /**
+   * The player (ADR-0045). `playing` is the fresh session of the viewer's own
+   * that the board is showing; `starting` while it is being made; `full` the
+   * whole-viewport view. Arriving from a card or a row carries `play` in the
+   * navigation state, and the page presses play itself, once.
+   */
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [full, setFull] = useState(false);
+  const autoPlayed = useRef(false);
   const [related, setRelated] = useState<Array<{
     session: SessionRecord;
     expert: Expert | null;
@@ -638,6 +651,35 @@ export function SessionPage() {
 
   const s = data?.session;
   const live = s ? s.endedAt === null : false;
+
+  /** Press play: the lesson again, live, in this box — the same door as Replay was (ADR-0035). */
+  const play = useCallback(
+    async (source: 'button' | 'arrival') => {
+      if (!s || starting || playing) return;
+      setStarting(true);
+      markStartClicked();
+      trackInteraction('quick_start', { sessionId: s.id });
+      trackAction('player_play_clicked', { sessionId: s.id, source });
+      try {
+        const { session: fresh } = await api.createSession({ replayOf: s.id });
+        setPlaying(fresh.id);
+      } catch (error) {
+        trackAction('start_refused', {
+          code: error instanceof ApiError ? error.code : 'NETWORK',
+          status: error instanceof ApiError ? error.status : 0,
+          source: 'quick_start',
+        });
+        const calm = error instanceof ApiError && (error.status === 402 || error.status === 403);
+        toast(
+          error instanceof ApiError ? error.message : 'Could not start the session',
+          calm ? 'neutral' : 'danger',
+        );
+      } finally {
+        setStarting(false);
+      }
+    },
+    [api, s, starting, playing, toast],
+  );
   // The tab, the canonical URL and what a JavaScript-running crawler reads follow the session.
   // The saved page is the session's: its language, and its direction for its own words.
   useDocumentLanguage(s?.language);
@@ -661,8 +703,35 @@ export function SessionPage() {
   const canWatch = ownerWithAccount && !live && features.recording_playback;
   /** A room is a recording, not a lesson to replay (ADR-0035). */
   const room = (s?.guests ?? 0) > 0;
-  const replayable = !live && quickStart.enabled && !room;
+  const playable = !live && quickStart.enabled && !room;
   const tabs = VISIBLE_TABS(ownerWithAccount);
+
+  // Arrived from a card, a row or a search result: press play once, the way a video starts.
+  useEffect(() => {
+    if (autoPlayed.current || !playable || !s) return;
+    const wants = (location.state as { play?: boolean } | null)?.play === true;
+    if (!wants) return;
+    autoPlayed.current = true;
+    void play('arrival');
+  }, [playable, s, location.state, play]);
+
+  // Full view: Escape brings the page back; the page does not scroll underneath.
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFull(false);
+    };
+    window.addEventListener('keydown', onKey);
+    const { overflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [full]);
+  useEffect(() => {
+    if (!playing) setFull(false);
+  }, [playing]);
 
   // Insights are the host's: loaded on demand, refreshed while the session is still live.
   useEffect(() => {
@@ -717,11 +786,57 @@ export function SessionPage() {
         */}
         <div className="mx-auto grid max-w-[1280px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0">
-            {s ? (
-              <SessionThumb session={s} watch className="relative aspect-video w-full" />
-            ) : (
-              <Skeleton className="aspect-video w-full" />
-            )}
+            {/*
+              The board is the player (ADR-0045). Idle: the board with one play
+              button over it. Playing: the live room in this box, or the whole
+              viewport in full view. A live room with guests keeps Join; a room's
+              recording is not a lesson to play (ADR-0035).
+            */}
+            <div
+              className={cn(
+                full
+                  ? 'fixed inset-0 z-50 bg-surface'
+                  : 'relative aspect-video w-full overflow-hidden rounded-lg bg-surface-container',
+              )}
+              data-testid="player"
+              data-full={full ? 'true' : 'false'}
+            >
+              {playing && s ? (
+                <SessionPlayer
+                  sessionId={playing}
+                  layout="inline"
+                  full={full}
+                  onToggleFull={() => setFull((v) => !v)}
+                  onExit={() => setPlaying(null)}
+                  onOpenSaved={() => setPlaying(null)}
+                />
+              ) : s ? (
+                <>
+                  <SessionThumb session={s} watch className="absolute inset-0" />
+                  {playable ? (
+                    <button
+                      type="button"
+                      aria-label="Play"
+                      disabled={starting}
+                      onClick={() => void play('button')}
+                      className="group absolute inset-0 grid cursor-pointer place-items-center bg-transparent"
+                      data-testid="player-play"
+                    >
+                      <span
+                        className={cn(
+                          'grid size-16 place-items-center rounded-full bg-primary-fixed text-on-primary-fixed shadow-level3 transition-transform duration-[var(--duration-fast)] group-hover:scale-105',
+                          starting && 'animate-pulse',
+                        )}
+                      >
+                        <Play size={26} fill="currentColor" className="translate-x-0.5" />
+                      </span>
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <Skeleton className="absolute inset-0" />
+              )}
+            </div>
             <h2 lang={lang} dir={dir} className="mt-4">
               {s?.title ?? <Skeleton className="h-7 w-72" />}
             </h2>
@@ -767,16 +882,6 @@ export function SessionPage() {
                   >
                     Join
                   </Button>
-                ) : replayable ? (
-                  <Button
-                    variant="primary"
-                    leading={<Play size={14} />}
-                    loading={quickStart.starting === id}
-                    onClick={() => void quickStart.start(id)}
-                    data-testid="session-replay"
-                  >
-                    Replay
-                  </Button>
                 ) : null}
                 {canWatch ? (
                   <Button
@@ -792,7 +897,7 @@ export function SessionPage() {
                   </Button>
                 ) : null}
                 {s ? <LikeButton session={s} /> : null}
-                {s ? <SaveButton session={s} withLabel /> : null}
+                {s ? <SaveButton session={s} /> : null}
                 <Button
                   variant="secondary"
                   leading={<Share2 size={14} />}
@@ -827,15 +932,6 @@ export function SessionPage() {
                 <p className="mt-1.5 text-on-surface-dim" data-testid="room-note">
                   A room with {s.guests} {s.guests === 1 ? 'guest' : 'guests'}. Its recording is the
                   host's; to have this lesson yourself, search the topic.
-                </p>
-              ) : null}
-              {s && replayable ? (
-                // What "Replay" is here: not a recording of somebody else's
-                // hour, but the lesson again, live, for you (ADR-0035).
-                <p className="mt-1.5 text-on-surface-dim" data-testid="replay-note">
-                  Replay starts this lesson again, live, with{' '}
-                  {data?.expert?.displayName.split(' ')[0] ?? 'the expert'} — ask anything along the
-                  way.
                 </p>
               ) : null}
               {tab === 'recap' || tabs.length === 1 ? (

@@ -42,6 +42,7 @@ export function SoloPresence({
   audio,
   soundBlocked,
   onEnableSound,
+  compact = false,
 }: {
   expert: Expert | null;
   presence: ExpertPresence;
@@ -51,6 +52,8 @@ export function SoloPresence({
   audio: RoomAudioUi | null;
   soundBlocked: boolean;
   onEnableSound: () => void;
+  /** Inside a small player box (ADR-0045): faces only, side by side; the words come back when sound needs a tap. */
+  compact?: boolean;
 }) {
   const name = expert?.displayName ?? 'Expert';
   const first = name.split(' ')[0] ?? name;
@@ -69,8 +72,12 @@ export function SoloPresence({
     <div
       // Over the board, never on it: the board is the lesson. Logical inset,
       // so the day the room's chrome mirrors, this mirrors with it.
-      className="absolute bottom-3 end-3 z-[7] flex flex-col items-stretch gap-1.5"
+      className={cn(
+        'absolute bottom-3 end-3 z-[7] flex gap-1.5',
+        compact ? 'flex-row items-end' : 'flex-col items-stretch',
+      )}
       data-testid="solo-presence"
+      data-compact={compact ? 'true' : 'false'}
     >
       <Tile
         testId="solo-expert"
@@ -78,6 +85,7 @@ export function SoloPresence({
         label={expertLabel}
         name={name}
         warn={soundBlocked}
+        facesOnly={compact && !soundBlocked}
         {...(soundBlocked ? { onClick: onEnableSound, action: `Tap to hear ${name}` } : {})}
       >
         <ExpertOrb
@@ -93,6 +101,7 @@ export function SoloPresence({
         label={youLabel}
         name="You"
         glyph={voice === 'muted' || voice === 'off' ? <MicOff size={11} aria-hidden /> : null}
+        facesOnly={compact}
       >
         <Avatar
           name={self?.name ?? 'You'}
@@ -119,6 +128,7 @@ function Tile({
   glyph = null,
   onClick,
   action,
+  facesOnly = false,
 }: {
   children: React.ReactNode;
   name: string;
@@ -129,15 +139,18 @@ function Tile({
   glyph?: React.ReactNode;
   onClick?: () => void;
   action?: string;
+  /** The face alone, the words kept for assistive technology (the compact player). */
+  facesOnly?: boolean;
 }) {
   const shell = cn(
-    'flex items-center gap-2 rounded-xl px-2 py-1.5',
+    'flex items-center gap-2 rounded-xl',
+    facesOnly ? 'p-1' : 'px-2 py-1.5',
     'bg-surface-container-high shadow-level2 hairline',
   );
   const body = (
     <>
       {children}
-      <span className="flex min-w-0 flex-col items-start">
+      <span className={cn('flex min-w-0 flex-col items-start', facesOnly && 'sr-only')}>
         <span className="max-w-[128px] truncate text-label-medium text-on-surface" dir="auto">
           {name}
         </span>

@@ -42,21 +42,24 @@ export function StartAgain({ session, live }: { session: SessionRecord; live: bo
         variant="primary"
         onClick={() => {
           trackAction('session_opened', { sessionId: session.id, source: 'shelf' });
-          navigate(`/sessions/${session.id}`);
+          navigate(`/sessions/${session.id}`, { state: { play: true } });
         }}
       >
         Open
       </Button>
     );
+  // The watch page plays it (ADR-0045): the row's button is the same as pressing the card.
   return (
     <Button
       variant="primary"
       leading={<Play size={14} />}
-      loading={quickStart.starting === session.id}
-      onClick={() => void quickStart.start(session.id)}
+      onClick={() => {
+        trackAction('session_opened', { sessionId: session.id, source: 'shelf' });
+        navigate(`/sessions/${session.id}`, { state: { play: true } });
+      }}
       data-testid={`replay-${session.id}`}
     >
-      Replay
+      Play
     </Button>
   );
 }
