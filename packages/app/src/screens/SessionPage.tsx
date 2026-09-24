@@ -1,14 +1,5 @@
 import type { Expert, LedgerEntry, SessionTelemetry } from '@pen/contracts';
-import {
-  Avatar,
-  Button,
-  cn,
-  Dialog,
-  Pill,
-  SegmentedButtons,
-  Skeleton,
-  useToast,
-} from '@pen/design';
+import { Avatar, Button, cn, Dialog, SegmentedButtons, Skeleton, useToast } from '@pen/design';
 import { Check, Clapperboard, Copy, Download, Lock, Play, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -18,6 +9,7 @@ import {
   type ExportVariant,
   type SessionRecord,
 } from '../api/client.js';
+import { AiMark } from '../components/AiMark.js';
 import { Comments } from '../components/Comments.js';
 import { Insights } from '../components/Insights.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
@@ -753,7 +745,7 @@ export function SessionPage() {
                       <span className="truncate text-label-large font-semibold">
                         {data.expert.displayName}
                       </span>
-                      <Pill tone="accent">AI expert</Pill>
+                      <AiMark />
                     </span>
                     <span className="block truncate text-body-small text-on-surface-variant">
                       {data.expert.role}
