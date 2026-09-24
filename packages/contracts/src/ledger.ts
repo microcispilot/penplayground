@@ -44,6 +44,13 @@ export const LedgerEntry = z.discriminatedUnion('kind', [
     name: z.string(),
   }),
   z.object({ kind: z.literal('leave'), t: z.number().int(), participantId: ParticipantId }),
+  /** Which engine spoke for this session, and through which synthesizer — bound at creation (ADR-0048). */
+  z.object({
+    kind: z.literal('voice_engine'),
+    t: z.number().int(),
+    engine: z.string(),
+    tts: z.string(),
+  }),
   /** The host changed the teaching pace; replay knows the pace at every moment from these. */
   z.object({
     kind: z.literal('pace'),

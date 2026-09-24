@@ -325,3 +325,20 @@ function titleCase(raw: string): string {
 export function shortId(id: string): string {
   return id.length <= 12 ? id : `${id.slice(0, 10)}…`;
 }
+
+/** The engine that spoke (ADR-0048), as a person would say it; `unknown` is a session from before engines were a choice. */
+export function voiceEngineLabel(engine: string | null | undefined): string {
+  switch (engine) {
+    case 'cartesia':
+      return 'Cartesia';
+    case 'fish':
+      return 'Fish Audio';
+    case null:
+    case undefined:
+    case '':
+    case 'unknown':
+      return 'Before engines';
+    default:
+      return engine;
+  }
+}

@@ -271,6 +271,26 @@ export function buildFixture(mode: Mode, now: number): Fixture {
               { plan: 'standard', sessions: 402, totalUsd: 14.1, costPerSessionUsd: 0.0351 },
               { plan: 'professional', sessions: 71, totalUsd: 4.2, costPerSessionUsd: 0.0592 },
             ],
+        byVoiceEngine: zero
+          ? []
+          : [
+              {
+                engine: 'cartesia',
+                sessions: 1_100,
+                totalUsd: 31.2,
+                ttsUsd: 9.4,
+                costPerSessionUsd: 0.0284,
+                ttsFirstChunkP50Ms: 172,
+              },
+              {
+                engine: 'fish',
+                sessions: 184,
+                totalUsd: 8.5,
+                ttsUsd: 2.1,
+                costPerSessionUsd: 0.0462,
+                ttsFirstChunkP50Ms: 690,
+              },
+            ],
         byExpert: zero
           ? []
           : [

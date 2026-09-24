@@ -278,6 +278,13 @@ export class RoomRegistry {
       engine: voice.engine,
       tts: voice.synthesizer.id,
     });
+    // The recording says which engine spoke, so the statistics can group by it (ADR-0048).
+    services.ledger.append(sessionId, {
+      kind: 'voice_engine',
+      t: Date.now(),
+      engine: voice.engine,
+      tts: voice.synthesizer.id,
+    });
     const prepared =
       resolution.match === 'hit' || (resolution.match === 'partial' && resolution.packId !== null);
     if (!prepared && !(args.allowPreparation ?? features.prepare_new_topics)) {
@@ -429,6 +436,8 @@ export class RoomRegistry {
       throw error;
     }
     services.analytics.capture(args.host.id, 'session_started', {
+      'voice.engine': voice.engine,
+      'voice.tts': voice.synthesizer.id,
       intake: intake.via,
       match: resolution.match,
       domain: resolution.domainBoundary,

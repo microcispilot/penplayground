@@ -59,6 +59,9 @@ export const sessionStats = pgTable(
     band: text('band').notNull(),
     domain: text('domain').notNull(),
     canonicalId: text('canonical_id'),
+    /** The voice engine the session was bound to (ADR-0048); null before engines were a choice. */
+    voiceEngine: text('voice_engine'),
+    voiceTts: text('voice_tts'),
     /** `canonicalId|band|expertId|language`: the scope the lesson memo, card and picture share. */
     scopeKey: text('scope_key'),
     startedAt: bigint('started_at', { mode: 'number' }).notNull(),
@@ -148,6 +151,7 @@ export const sessionStats = pgTable(
     index('session_stats_plan_idx').on(t.plan, t.startedAt),
     index('session_stats_scope_idx').on(t.scopeKey),
     index('session_stats_leave_idx').on(t.leaveReason, t.startedAt),
+    index('session_stats_voice_idx').on(t.voiceEngine, t.startedAt),
     index('session_stats_version_idx').on(t.schemaVersion),
   ],
 );

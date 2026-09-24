@@ -92,6 +92,8 @@ export interface DerivedSessionRow {
   band: string;
   domain: string;
   canonicalId: string | null;
+  voiceEngine: string | null;
+  voiceTts: string | null;
   scopeKey: string | null;
   startedAt: number;
   endedAt: number | null;
@@ -324,6 +326,8 @@ export function deriveSession(input: DeriveInput): DerivedSession {
     band: record.band,
     domain: record.domain,
     canonicalId: t.canonicalId,
+    voiceEngine: t.voice?.engine ?? null,
+    voiceTts: t.voice?.tts ?? null,
     scopeKey: scopeKeyFor('lesson', scope),
     startedAt: record.startedAt,
     endedAt: record.endedAt,

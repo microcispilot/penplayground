@@ -63,6 +63,7 @@ const derive = (entries: LedgerEntry[], patch: Partial<SessionRecord> = {}, opts
 function fullLesson(): LedgerEntry[] {
   const entries: LedgerEntry[] = [
     metric(0, { stage: 'join', ms: 0, ok: true, meta: { role: 'host', plan: 'standard' } }),
+    { kind: 'voice_engine', t: 1, engine: 'cartesia', tts: 'cartesia:sonic-3.6+d1' },
     metric(10, {
       stage: 'resolve',
       ms: 0,
@@ -135,6 +136,15 @@ describe('deriveSession — the session row', () => {
   it('rolls totals, cost by component and latency percentiles out of the ledger', () => {
     const { session } = derive(fullLesson(), { recap: ['a', 'b'] });
     expect(session.schemaVersion).toBe(STATS_SCHEMA_VERSION);
+    // The engine rides on the row (ADR-0048); a ledger without the entry leaves it null.
+    expect(session.voiceEngine).toBe('cartesia');
+    expect(session.voiceTts).toBe('cartesia:sonic-3.6+d1');
+    expect(
+      derive(
+        fullLesson().filter((e) => e.kind !== 'voice_engine'),
+        { recap: [] },
+      ).session.voiceEngine,
+    ).toBeNull();
     expect(session.segmentsPlanned).toBe(4);
     expect(session.segmentsReached).toBe(4);
     expect(session.progress).toBe(1);

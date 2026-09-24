@@ -112,8 +112,14 @@ engine ids. Fish stays at $15 per million bytes.
 - `services.synthesizer` and `services.voices` are gone; `services.voice`
   binds, and `services.ttsCaches` is one cache per engine for the status
   pages.
-- Rooms record `room.voice_engine` at creation. The end-of-session books
-  carry the engine's synthesizer id as before.
+- Rooms record `room.voice_engine` at creation, and the recording carries a
+  `voice_engine` ledger entry. From it the derived statistics row has
+  `voice_engine` and `voice_tts` (migration 0018, indexed with `started_at`),
+  the cost report has a per-engine breakdown (sessions, spend, voice spend,
+  median first chunk), the sessions list filters by engine, and PostHog's
+  `session_started` and `session_ended` carry `voice.engine` and
+  `voice.tts` beside the host — so who ran which engine, and what it cost
+  and how fast it answered, is a question the reports answer.
 - The default moving to Cartesia means every stored Fish take is idle until
   a rule names Fish again; the ceiling evicts on its own.
 - `deploy.sh` forwards `FISH_AUDIO_API_KEY` and `CARTESIA_API_KEY` from the

@@ -112,6 +112,7 @@ export function computeTelemetry(input: TelemetryInput): SessionTelemetry {
   let interrupts = 0;
   let first = Number.POSITIVE_INFINITY;
   let last = 0;
+  let voice: { engine: string; tts: string } | null = null;
   for (const e of input.entries) {
     first = Math.min(first, e.t);
     last = Math.max(last, e.t);
@@ -133,6 +134,9 @@ export function computeTelemetry(input: TelemetryInput): SessionTelemetry {
         break;
       case 'interrupt':
         interrupts += 1;
+        break;
+      case 'voice_engine':
+        voice = { engine: e.engine, tts: e.tts };
         break;
       case 'cue':
         if (e.cue.thread === 'lesson') segments.add(e.cue.segment);
@@ -199,6 +203,7 @@ export function computeTelemetry(input: TelemetryInput): SessionTelemetry {
     expertId,
     language,
     canonicalId,
+    voice,
     totals: {
       durationMs,
       segments: segments.size,
@@ -349,6 +354,9 @@ export function sessionEndedProperties(
     'provider.llm': extra.providers.llm,
     'provider.tts': extra.providers.tts,
     'provider.stt': extra.providers.stt,
+    // The engine as a dimension of its own (ADR-0048), beside the synthesizer id above.
+    'voice.engine': t.voice?.engine ?? null,
+    'voice.tts': t.voice?.tts ?? null,
     durationMs: t.totals.durationMs,
     segments: t.totals.segments,
     says: t.totals.says,

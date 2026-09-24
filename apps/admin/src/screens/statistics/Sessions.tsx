@@ -10,6 +10,7 @@ import {
   percent,
   planLabel,
   usd,
+  voiceEngineLabel,
 } from '../../lib/format.js';
 import { rangeQuery } from '../../lib/range.js';
 import { ReusePayload, SessionsPayload } from '../../lib/stats-schemas.js';
@@ -264,6 +265,7 @@ export function Sessions() {
                     <Th>{sortLink('startedAt')}</Th>
                     <Th>Topic</Th>
                     <Th>Plan</Th>
+                    <Th>Voice</Th>
                     <Th numeric>{sortLink('durationMs')}</Th>
                     <Th numeric>{sortLink('progress')}</Th>
                     <Th>Ended</Th>
@@ -293,6 +295,7 @@ export function Sessions() {
                           </Link>
                         </Td>
                         <Td className="whitespace-nowrap">{planLabel(s.plan)}</Td>
+                        <Td className="whitespace-nowrap">{voiceEngineLabel(s.voiceEngine)}</Td>
                         <Td numeric>{duration(s.durationMs)}</Td>
                         <Td numeric>{percent(s.progress)}</Td>
                         <Td className="whitespace-nowrap">

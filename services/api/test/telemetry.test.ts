@@ -397,6 +397,9 @@ describe('PostHog property shapes', () => {
       },
     });
     expect(props).toMatchObject({
+      // No engine entry in an empty ledger: the dimension is there, and honest.
+      'voice.engine': null,
+      'voice.tts': null,
       'config.PEN_INTENT_PROVIDER': 'jev',
       'config.PEN_LLM_MODEL': 'gpt-5.6-luna',
       'config.PEN_TTS_CACHE_MB': 2048,
@@ -408,6 +411,19 @@ describe('PostHog property shapes', () => {
       expect(['number', 'boolean', 'string'].includes(typeof v) || v === null).toBe(true);
   });
 
+  it('carries the engine that spoke, from the ledger (ADR-0048)', () => {
+    const t = computeTelemetry({
+      ...base,
+      entries: [{ kind: 'voice_engine', t: 1, engine: 'fish', tts: 'fish-cloud:s2.1-pro+d1' }],
+    });
+    expect(t.voice).toEqual({ engine: 'fish', tts: 'fish-cloud:s2.1-pro+d1' });
+    const props = sessionEndedProperties(t, {
+      completed: false,
+      providers: { llm: 'openai', tts: 'fish-cloud:s2.1-pro+d1', stt: 'browser' },
+    });
+    expect(props['voice.engine']).toBe('fish');
+    expect(props['voice.tts']).toBe('fish-cloud:s2.1-pro+d1');
+  });
   it('omits them entirely when a caller has none, rather than sending nulls', () => {
     const props = sessionEndedProperties(computeTelemetry({ ...base, entries: [] }), {
       completed: true,

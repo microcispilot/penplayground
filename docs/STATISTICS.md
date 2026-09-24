@@ -608,3 +608,15 @@ only facts about sessions the product already stores.
   shape that drifts fails a test. What is still unproved is the round trip:
   point the console at a live API with rows in it and read the numbers. The
   review pictures are in `.pen-data/admin-review/`.
+
+## The voice engine (ADR-0048)
+
+`session_stats.voice_engine` (`cartesia` | `fish`; null for sessions from
+before engines were a choice) and `voice_tts` (the synthesizer id, e.g.
+`cartesia:sonic-3.6+d1`) come from the recording's `voice_engine` ledger
+entry, written when the room was created and bound. The cost report's
+`byVoiceEngine` gives, per engine, sessions, total spend, voice spend and the
+median of the rooms' own first-chunk medians; `/api/admin/stats/sessions`
+takes `voiceEngine=` as a filter; a session's and a user's pages show it.
+PostHog carries `voice.engine` and `voice.tts` on `session_started` and
+`session_ended`, keyed by the host, for per-user questions.

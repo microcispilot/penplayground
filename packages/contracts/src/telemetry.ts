@@ -355,6 +355,8 @@ export const SessionTelemetry = z.object({
   language: z.string(),
   /** `${lang}.${slug}` from the Onten registry; null when the session never resolved. */
   canonicalId: z.string().nullable(),
+  /** The engine that spoke (ADR-0048), from the ledger; null for a session recorded before engines were a choice. */
+  voice: z.object({ engine: z.string(), tts: z.string() }).nullable().optional(),
   totals: z.object({
     durationMs: z.number().int().nonnegative(),
     segments: z.number().int().nonnegative(),

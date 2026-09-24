@@ -175,6 +175,10 @@ describe('each page renders what it was given', () => {
     mount('/statistics/money');
     await screen.findAllByTestId('report-body');
     expect(screen.getByText('Where the money goes')).toBeTruthy();
+    // The engine that spoke is a breakdown of its own (ADR-0048).
+    expect(screen.getByText('By voice engine')).toBeTruthy();
+    expect(screen.getByText('Cartesia')).toBeTruthy();
+    expect(screen.getByText('Fish Audio')).toBeTruthy();
     expect(screen.getByText('Subscriptions')).toBeTruthy();
     // The owner asked for the monthly/yearly split by name.
     expect(screen.getAllByText(/Personal, yearly/).length).toBeGreaterThan(0);

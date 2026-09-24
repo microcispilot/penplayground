@@ -10,6 +10,7 @@ import {
   stageLabel,
   usd,
   usdCompact,
+  voiceEngineLabel,
 } from '../../lib/format.js';
 import { rangeQuery } from '../../lib/range.js';
 import { CostPayload, PlansPayload } from '../../lib/stats-schemas.js';
@@ -196,6 +197,25 @@ export function Money() {
                     }))}
                     format={usd}
                     emptyLabel="No lessons on any plan in this window."
+                  />
+                </Section>
+                <Section
+                  title="By voice engine"
+                  note="Which engine spoke, what its lessons cost, and how fast it answered."
+                >
+                  <BarList
+                    rows={cost.byVoiceEngine.map((e) => ({
+                      key: e.engine,
+                      label: voiceEngineLabel(e.engine),
+                      value: e.totalUsd,
+                      note: `${count(e.sessions)} ${e.sessions === 1 ? 'lesson' : 'lessons'} · voice ${usd(e.ttsUsd)}${
+                        e.ttsFirstChunkP50Ms === null
+                          ? ''
+                          : ` · first chunk ${Math.round(e.ttsFirstChunkP50Ms)} ms`
+                      }`,
+                    }))}
+                    format={usd}
+                    emptyLabel="No lesson was voiced in this window."
                   />
                 </Section>
                 <Section title="By expert" note="The twenty costliest experts in the window.">

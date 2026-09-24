@@ -176,6 +176,38 @@ export class ReportRepository {
     }));
   }
 
+  /** Cost and first-chunk latency per voice engine (ADR-0048); `unknown` is a session from before engines were a choice. */
+  async costByVoiceEngine(w: Window): Promise<
+    Array<{
+      engine: string;
+      sessions: number;
+      totalUsd: number;
+      ttsUsd: number;
+      costPerSessionUsd: number;
+      ttsFirstChunkP50Ms: number | null;
+    }>
+  > {
+    return rowsOf<Record<string, unknown>>(
+      await this.db.execute(sql`
+        select coalesce(voice_engine, 'unknown') as engine,
+               count(*)::int as sessions,
+               coalesce(sum(total_usd), 0) as total_usd,
+               coalesce(sum(tts_usd), 0) as tts_usd,
+               percentile_cont(0.5) within group (order by tts_first_chunk_p50_ms) as p50
+        from session_stats
+        where started_at >= ${w.from} and started_at < ${w.to}
+        group by 1 order by 2 desc
+      `),
+    ).map((r) => ({
+      engine: s(r.engine) ?? 'unknown',
+      sessions: n(r.sessions),
+      totalUsd: n(r.total_usd),
+      ttsUsd: n(r.tts_usd),
+      costPerSessionUsd: n(r.sessions) > 0 ? n(r.total_usd) / n(r.sessions) : 0,
+      ttsFirstChunkP50Ms: nn(r.p50),
+    }));
+  }
+
   async costByExpert(
     w: Window,
     limit = 20,
@@ -440,6 +472,7 @@ export class ReportRepository {
     if (q.leaveReason) conditions.push(sql`t.leave_reason = ${q.leaveReason}`);
     if (q.hostId) conditions.push(sql`t.host_id = ${q.hostId}`);
     if (q.expertId) conditions.push(sql`t.expert_id = ${q.expertId}`);
+    if (q.voiceEngine) conditions.push(sql`t.voice_engine = ${q.voiceEngine}`);
     if (q.completed !== undefined) conditions.push(sql`t.completed = ${q.completed}`);
     const where = sql.join(conditions, sql` and `);
     // Unknown — or `constructor` — falls back rather than reaching SQL.
@@ -949,6 +982,8 @@ function toSessionListRow(r: Record<string, unknown>): SessionListRow {
     band: s(r.band) ?? '',
     domain: s(r.domain) ?? '',
     canonicalId: s(r.canonical_id),
+    voiceEngine: s(r.voice_engine),
+    voiceTts: s(r.voice_tts),
     startedAt: n(r.started_at),
     endedAt: nn(r.ended_at),
     durationMs: n(r.duration_ms),
@@ -1070,6 +1105,7 @@ export interface SessionQuery {
   leaveReason?: string | undefined;
   hostId?: string | undefined;
   expertId?: string | undefined;
+  voiceEngine?: string | undefined;
   completed?: boolean | undefined;
   /** One of `ORDERABLE`'s keys; anything else falls back to `startedAt`. */
   orderBy?: string | undefined;
@@ -1089,6 +1125,8 @@ export interface SessionListRow {
   band: string;
   domain: string;
   canonicalId: string | null;
+  voiceEngine: string | null;
+  voiceTts: string | null;
   startedAt: number;
   endedAt: number | null;
   durationMs: number;

@@ -127,6 +127,13 @@
       "when": 1790272002379,
       "tag": "0017_session_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790291568236,
+      "tag": "0018_voice_engine_stats",
+      "breakpoints": true
     }
   ]
 }

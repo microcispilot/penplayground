@@ -62,6 +62,13 @@ function ledgerFor(f: Fixture): LedgerEntry[] {
   const reached = f.segmentsReached ?? 4;
   const entries: LedgerEntry[] = [
     metric(0, { stage: 'join', ms: 0, ok: true, meta: { role: 'host' } }),
+    // Reused lessons in this fixture were spoken by Fish; fresh ones by Cartesia (ADR-0048).
+    {
+      kind: 'voice_engine',
+      t: 1,
+      engine: reused ? 'fish' : 'cartesia',
+      tts: reused ? 'fish-cloud:s2.1-pro+d1' : 'cartesia:sonic-3.6+d1',
+    },
     metric(5, {
       stage: 'resolve',
       ms: 0,
@@ -404,6 +411,29 @@ describe('cost', () => {
     expect(totals.savedUsd).toBeGreaterThan(0.8);
     const experts = body.byExpert as unknown as Array<{ expertId: string; sessions: number }>;
     expect(experts.find((e) => e.expertId === 'marie-curie')?.sessions).toBe(1);
+    // Per voice engine (ADR-0048): the two fresh lessons on Cartesia carry all the spend.
+    const engines = body.byVoiceEngine as unknown as Array<{
+      engine: string;
+      sessions: number;
+      totalUsd: number;
+      ttsUsd: number;
+      ttsFirstChunkP50Ms: number | null;
+    }>;
+    const cartesia = engines.find((e) => e.engine === 'cartesia');
+    const fish = engines.find((e) => e.engine === 'fish');
+    expect(cartesia?.sessions).toBe(2);
+    expect(cartesia?.totalUsd).toBeCloseTo(0.072, 6);
+    expect(cartesia?.ttsUsd).toBeCloseTo(0.016, 6);
+    expect(cartesia?.ttsFirstChunkP50Ms).toBe(140);
+    expect(fish?.sessions).toBe(2);
+    expect(fish?.totalUsd).toBe(0);
+  });
+
+  it('lists the sessions of one engine when asked', async () => {
+    const { body } = await get(`/api/admin/stats/sessions?${window}&voiceEngine=fish`);
+    const rows = body.sessions as unknown as Array<{ voiceEngine: string | null }>;
+    expect(rows.length).toBe(2);
+    expect(rows.every((r) => r.voiceEngine === 'fish')).toBe(true);
   });
 
   it('a week bucket puts the same spend in one point', async () => {

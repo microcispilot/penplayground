@@ -257,6 +257,20 @@ export interface CostReport {
   totals: Omit<CostPoint, 'at'>;
   byPlan: Array<{ plan: string; sessions: number; totalUsd: number; costPerSessionUsd: number }>;
   byExpert: Array<{ expertId: string; sessions: number; totalUsd: number }>;
+  /**
+   * What each voice engine cost and how fast it answered (ADR-0048): the
+   * sessions bound to it, their whole cost and their voice cost, and the
+   * median first-chunk latency the rooms measured. `unknown` is a session
+   * recorded before engines were a choice.
+   */
+  byVoiceEngine: Array<{
+    engine: string;
+    sessions: number;
+    totalUsd: number;
+    ttsUsd: number;
+    costPerSessionUsd: number;
+    ttsFirstChunkP50Ms: number | null;
+  }>;
 }
 
 export interface RetentionCohort {
@@ -284,6 +298,9 @@ export interface SessionStatsRow {
   expertId: string;
   language: string;
   canonicalId: string | null;
+  /** The voice engine the session was bound to (ADR-0048); null before engines were a choice. */
+  voiceEngine: string | null;
+  voiceTts: string | null;
   startedAt: number;
   endedAt: number | null;
   durationMs: number;

@@ -151,10 +151,11 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
     if (refused) return refused;
     const w = windowOf(c, now());
     const bucket = bucketOf(c);
-    const [series, byPlan, byExpert, stages] = await Promise.all([
+    const [series, byPlan, byExpert, byVoiceEngine, stages] = await Promise.all([
       services.reports.costSeries(w, bucket),
       services.reports.costByPlan(w),
       services.reports.costByExpert(w),
+      services.reports.costByVoiceEngine(w),
       services.reports.stageSummary(w),
     ]);
     const totals = series.reduce(
@@ -185,7 +186,7 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
         savedUsd: 0,
       },
     );
-    return c.json({ window: w, bucket, series, totals, byPlan, byExpert, stages });
+    return c.json({ window: w, bucket, series, totals, byPlan, byExpert, byVoiceEngine, stages });
   });
 
   /** Per stage and per error code, across the window: the observability half of the ask. */
@@ -243,6 +244,7 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
       window: w,
       ...(c.req.query('plan') ? { plan: c.req.query('plan') } : {}),
       ...(c.req.query('leaveReason') ? { leaveReason: c.req.query('leaveReason') } : {}),
+      ...(c.req.query('voiceEngine') ? { voiceEngine: c.req.query('voiceEngine') } : {}),
       ...(c.req.query('hostId') ? { hostId: c.req.query('hostId') } : {}),
       ...(c.req.query('expertId') ? { expertId: c.req.query('expertId') } : {}),
       ...(completed !== undefined ? { completed: completed === 'true' } : {}),

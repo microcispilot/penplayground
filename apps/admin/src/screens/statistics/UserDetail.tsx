@@ -9,6 +9,7 @@ import {
   percent,
   planLabel,
   usd,
+  voiceEngineLabel,
 } from '../../lib/format.js';
 import { rangeQuery } from '../../lib/range.js';
 import { UserDetail as UserDetailSchema } from '../../lib/stats-schemas.js';
@@ -116,6 +117,7 @@ export function UserDetail() {
                       <tr>
                         <Th>Started</Th>
                         <Th>Topic</Th>
+                        <Th>Voice</Th>
                         <Th numeric>Length</Th>
                         <Th numeric>Progress</Th>
                         <Th>Ended</Th>
@@ -139,6 +141,7 @@ export function UserDetail() {
                                 {s.title || s.topic || s.sessionId}
                               </Link>
                             </Td>
+                            <Td className="whitespace-nowrap">{voiceEngineLabel(s.voiceEngine)}</Td>
                             <Td numeric>{duration(s.durationMs)}</Td>
                             <Td numeric>{percent(s.progress)}</Td>
                             <Td className="whitespace-nowrap">

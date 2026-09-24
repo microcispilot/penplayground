@@ -171,7 +171,9 @@ describe('pace re-take', () => {
       () => synthesizer.requests.filter((r) => r.speed === ttsSpeedFor(1.3)).length >= 2,
       8000,
     );
-    const atOldSpeed = synthesizer.requests.filter((r) => r.speed === ttsSpeedFor(1)).map((r) => r.text);
+    const atOldSpeed = synthesizer.requests
+      .filter((r) => r.speed === ttsSpeedFor(1))
+      .map((r) => r.text);
     expect(new Set(atOldSpeed).size).toBe(atOldSpeed.length);
     await room.end();
   }, 15_000);

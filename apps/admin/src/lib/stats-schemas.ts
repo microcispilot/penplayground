@@ -137,6 +137,19 @@ export const CostPayload = z.object({
     z.object({ plan: z.string(), sessions: int, totalUsd: num, costPerSessionUsd: num }),
   ),
   byExpert: z.array(z.object({ expertId: z.string(), sessions: int, totalUsd: num })),
+  /** Per voice engine (ADR-0048); absent from an API older than the engines, so it defaults to none. */
+  byVoiceEngine: z
+    .array(
+      z.object({
+        engine: z.string(),
+        sessions: int,
+        totalUsd: num,
+        ttsUsd: num,
+        costPerSessionUsd: num,
+        ttsFirstChunkP50Ms: nullableNum,
+      }),
+    )
+    .default([]),
   stages: z.array(StageSummaryRow),
 });
 export type CostPayload = z.infer<typeof CostPayload>;
@@ -175,6 +188,8 @@ export const SessionListRow = z.object({
   band: z.string(),
   domain: z.string(),
   canonicalId: z.string().nullable(),
+  voiceEngine: z.string().nullable().default(null),
+  voiceTts: z.string().nullable().default(null),
   startedAt: num,
   endedAt: nullableNum,
   durationMs: num,

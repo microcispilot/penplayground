@@ -13,6 +13,7 @@ import {
   shortId,
   stageLabel,
   usd,
+  voiceEngineLabel,
 } from '../../lib/format.js';
 import { SessionDetail as SessionDetailSchema } from '../../lib/stats-schemas.js';
 import {
@@ -78,6 +79,10 @@ export function SessionDetail() {
                   <span>{s.language}</span>
                   <span aria-hidden>·</span>
                   <span>{planLabel(s.plan)}</span>
+                  <span aria-hidden>·</span>
+                  <span title={s.voiceTts ?? undefined} data-testid="session-voice-engine">
+                    {voiceEngineLabel(s.voiceEngine)}
+                  </span>
                   <span aria-hidden>·</span>
                   <code className="font-mono text-on-surface-dim">{s.sessionId}</code>
                 </p>
