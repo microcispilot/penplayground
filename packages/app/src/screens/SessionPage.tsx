@@ -822,13 +822,24 @@ export function SessionPage() {
                       className="group absolute inset-0 grid cursor-pointer place-items-center bg-transparent"
                       data-testid="player-play"
                     >
+                      {/*
+                        Our own play control, not a video site's: a white
+                        disc that reads on any board, the brand's red as the
+                        mark itself. The disc lifts a little under the pointer
+                        and breathes while the session is being made.
+                      */}
                       <span
                         className={cn(
-                          'grid size-16 place-items-center rounded-full bg-primary-fixed text-on-primary-fixed shadow-level3 transition-transform duration-[var(--duration-fast)] group-hover:scale-105',
+                          'grid size-[72px] place-items-center rounded-full bg-white text-primary-fixed shadow-[0_2px_4px_rgba(0,0,0,0.16),0_12px_32px_rgba(0,0,0,0.28)] ring-1 ring-black/5 transition-transform duration-[var(--duration-fast)] ease-[var(--ease-emphasized)] group-hover:scale-[1.06] group-active:scale-[0.98]',
                           starting && 'animate-pulse',
                         )}
                       >
-                        <Play size={26} fill="currentColor" className="translate-x-0.5" />
+                        <Play
+                          size={30}
+                          fill="currentColor"
+                          strokeWidth={0}
+                          className="translate-x-[3px]"
+                        />
                       </span>
                     </button>
                   ) : null}
@@ -920,9 +931,11 @@ export function SessionPage() {
               className="mt-4 rounded-lg bg-surface-container-low px-4 py-3.5 text-body-medium"
               data-testid="session-description"
             >
-              <p className="text-label-large font-semibold text-on-surface">
-                {meta || <Skeleton className="h-4 w-40" />}
-              </p>
+              {meta ? (
+                <p className="text-label-large font-semibold text-on-surface">{meta}</p>
+              ) : (
+                <Skeleton className="h-4 w-40" />
+              )}
               {s?.description ? (
                 <p className="mt-1.5 text-on-surface-variant text-pretty" lang={lang} dir={dir}>
                   {s.description}

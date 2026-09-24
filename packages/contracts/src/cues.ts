@@ -21,9 +21,16 @@ export type Tone = z.infer<typeof Tone>;
 export const SayEvent = z.object({
   type: z.literal('say'),
   id: SayId,
-  /** One spoken sentence or short clause, ≤ ~25 words. */
+  /** One spoken sentence or short clause, ≤ ~25 words. What is shown: captions, recap, transcript. */
   text: z.string().min(1).max(400),
   tone: Tone,
+  /**
+   * The same sentence as the voice receives it, with the delivery cues the
+   * model wrote inline kept (`[emphasis]`, `[break]`…; ADR-0047). Set by the
+   * room when it splits the model's text; absent means `text` is spoken as
+   * is. Clients never render it.
+   */
+  spoken: z.string().max(480).optional(),
 });
 export type SayEvent = z.infer<typeof SayEvent>;
 

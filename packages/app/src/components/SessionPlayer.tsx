@@ -402,7 +402,7 @@ export function SessionPlayer({
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-[4] grid place-items-center"
               >
-                <span className="animate-rise grid size-16 place-items-center rounded-full bg-scrim/60 text-on-primary-fixed">
+                <span className="animate-rise grid size-16 place-items-center rounded-full bg-white text-primary-fixed shadow-[0_2px_4px_rgba(0,0,0,0.16),0_12px_32px_rgba(0,0,0,0.28)]">
                   {flash === 'paused' ? (
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                       <rect x="6" y="5" width="4" height="14" rx="1" />

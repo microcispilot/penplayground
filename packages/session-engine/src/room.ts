@@ -45,7 +45,7 @@ import {
 import type { EventStream, LanguageModel } from '@pen/llm';
 import { withTelemetry } from '@pen/llm';
 import type { MockContextRuntime, Onten, TopicResolution } from '@pen/onten';
-import type { SpeechSynthesizer } from '@pen/voice';
+import { type SpeechSynthesizer, splitDelivery } from '@pen/voice';
 import { nanoid } from 'nanoid';
 import {
   acknowledgement,
@@ -1355,7 +1355,7 @@ export class SessionRoom {
       segment,
       thread,
       at: this.now(),
-      event: qualifyIds(raw, prefix),
+      event: withDelivery(qualifyIds(raw, prefix)),
     };
     this.cues.push(cue);
     const ev = cue.event;
@@ -2764,6 +2764,19 @@ function pickMeta(
 }
 
 /** Prefix model-minted ids (s1, b1, c1 and their references) with the thread prefix. */
+/**
+ * A say leaves the room as two texts (ADR-0047): `text` with every delivery
+ * cue removed, for everything that shows words, and `spoken` with the vetted
+ * cues kept, for the voice. Done here, at the one door every cue goes
+ * through, so no caption, recap or transcript can ever carry a bracket.
+ */
+export function withDelivery(event: LessonEvent): LessonEvent {
+  if (event.type !== 'say') return event;
+  const { text, spoken } = splitDelivery(event.text);
+  if (!text) return { ...event, text: event.text.replace(/[[\]]/g, ' ').trim() || '…' };
+  return text === spoken ? { ...event, text } : { ...event, text, spoken };
+}
+
 export function qualifyIds(event: LessonEvent, prefix: string): LessonEvent {
   const q = (id: string) => (id && !id.includes('.') ? `${prefix}.${id}` : id);
   switch (event.type) {

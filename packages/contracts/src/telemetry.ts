@@ -135,6 +135,12 @@ export const InteractionName = z.enum([
   // The device cannot listen: no microphone, permission refused, no recognizer.
   // A condition of the learner's machine, recorded so it is visible, never an error.
   'speech_unavailable',
+  /**
+   * The browser's recognizer transcribed the speakers, not the learner, and
+   * the words were dropped before they could interrupt (ADR-0046). Many in
+   * one room means a loud speaker setup, or the guard has drifted.
+   */
+  'echo_dropped',
   'fullscreen',
   /** A participant reacted without taking the floor (`reactions.ts`). */
   'reaction_sent',

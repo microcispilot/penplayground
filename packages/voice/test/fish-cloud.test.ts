@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FishCloudSynthesizer, frameStream, stripDeliveryTags } from '../src/server/fish-cloud.js';
+import { FishCloudSynthesizer, frameStream } from '../src/server/fish-cloud.js';
 
 function streamOf(parts: Uint8Array[]): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -41,6 +41,7 @@ describe('FishCloudSynthesizer', () => {
     const chunks = [];
     for await (const c of tts.synthesize({
       text: 'Hello [pause] there.',
+      tone: 'neutral',
       voice: 'ref-1',
       sampleRate: 44100,
     }))
@@ -76,7 +77,23 @@ describe('FishCloudSynthesizer', () => {
     expect(bodies[1]?.prosody).toEqual({ speed: 1.235, volume: 0 });
     expect(bodies[2]?.prosody).toEqual({ speed: 0.5, volume: 0 });
   });
-  it('strips delivery tags', () => {
-    expect(stripDeliveryTags('Good [warm tone] one.  Really.')).toBe('Good one. Really.');
+  it('puts the tone in front and keeps only the vetted inline cues (ADR-0047)', async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(streamOf([new Uint8Array(44100 * 2 * 0.1)]), { status: 200 });
+    };
+    const tts = new FishCloudSynthesizer({ apiKey: 'k', fetchImpl });
+    for await (const _ of tts.synthesize({
+      text: 'Good [warm tone] one. [emphasis] Really.',
+      voice: 'v',
+      sampleRate: 44100,
+      tone: 'warm',
+    })) {
+      /* drain */
+    }
+    expect(body.text).toBe('[warm] Good one. [emphasis] Really.');
+    // The id carries the delivery version, so stored takes retire with it.
+    expect(tts.id).toBe('fish-cloud:s2.1-pro+d1');
   });
 });

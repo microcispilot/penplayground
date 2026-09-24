@@ -1,3 +1,4 @@
+import { withoutDelivery } from './delivery.js';
 import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from './types.js';
 
 /**
@@ -10,7 +11,7 @@ export class SilentSynthesizer implements SpeechSynthesizer {
   constructor(private readonly opts: { realtime?: boolean; wordsPerMinute?: number } = {}) {}
 
   async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
-    const words = request.text.trim().split(/\s+/).filter(Boolean).length || 1;
+    const words = withoutDelivery(request.text).split(/\s+/).filter(Boolean).length || 1;
     const wpm = this.opts.wordsPerMinute ?? 150;
     // A faster pace is shorter audio, exactly as Fish's prosody.speed shortens it.
     const speed = Math.min(2, Math.max(0.5, request.speed ?? 1));

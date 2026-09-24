@@ -127,7 +127,7 @@ describe('pace re-take', () => {
       new Set(['Segment 1, second sentence.', 'Segment 1, third sentence.']),
     );
     // The sentence that was already playing was bought at the old speed and left alone.
-    expect(synthesizer.requests[0]?.speed).toBe(0.95);
+    expect(synthesizer.requests[0]?.speed).toBe(ttsSpeedFor(1));
     await room.end();
   }, 15_000);
 
@@ -166,12 +166,12 @@ describe('pace re-take', () => {
     await until(() => synthesizer.requests.length >= 2);
     room.handle(HOST, { kind: 'set_pace', pace: 1.3 });
     await until(() => takes(transport).length >= 3);
-    // Let the pipeline settle, then check no sentence was synthesised twice at 0.95.
+    // Let the pipeline settle, then check no sentence was synthesised twice at the old speed.
     await until(
       () => synthesizer.requests.filter((r) => r.speed === ttsSpeedFor(1.3)).length >= 2,
       8000,
     );
-    const atOldSpeed = synthesizer.requests.filter((r) => r.speed === 0.95).map((r) => r.text);
+    const atOldSpeed = synthesizer.requests.filter((r) => r.speed === ttsSpeedFor(1)).map((r) => r.text);
     expect(new Set(atOldSpeed).size).toBe(atOldSpeed.length);
     await room.end();
   }, 15_000);

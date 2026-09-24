@@ -34,6 +34,7 @@ import { appendChat } from './chat.js';
 import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
 import { pushReaction } from './reactions.js';
+import { RecognizerGuard } from './recognizer-guard.js';
 import { useRoomStore } from './store.js';
 
 export interface RoomSessionOptions {
@@ -87,6 +88,8 @@ export class RoomSession {
   private expertSpeaking = false;
   private remoteSpeaking = false;
   private recognizer: SpeechRecognizer | null = null;
+  /** The recognizer's words are believed only with the microphone as witness while a voice plays (ADR-0046). */
+  private readonly guard = new RecognizerGuard();
   /**
    * No on-device recognizer (Electron, browsers without Web Speech): stream the
    * mic's 16 kHz utterance blocks to the API, which transcribes server-side and
@@ -580,7 +583,9 @@ export class RoomSession {
 
   /** The segmenter raises its bar while any voice plays through the speakers: the expert's or another participant's. */
   private syncPlaybackActive(): void {
-    this.mic?.setPlaybackActive(this.expertSpeaking || this.remoteSpeaking);
+    const active = this.expertSpeaking || this.remoteSpeaking;
+    this.mic?.setPlaybackActive(active);
+    this.guard.playback(active, performance.now());
   }
 
   /** Call from a user gesture (Start / Join click) so the AudioContext is unlocked. */
@@ -625,6 +630,7 @@ export class RoomSession {
       onSpeechStart: () => {
         const before = this.conductor.getPhase();
         const detectedAt = performance.now();
+        this.guard.speechStart(detectedAt);
         this.conductor.onSpeechStart();
         // Barge-in: confirmed speech → playback cancelled (the 20 ms gain ramp runs inside the player).
         if (before !== 'listening' && this.conductor.getPhase() === 'listening')
@@ -650,6 +656,7 @@ export class RoomSession {
         );
       },
       onSpeechEnd: () => {
+        this.guard.speechEnd();
         this.conductor.onSpeechEnd();
         if (this.serverSpeech && this.currentUtterance) {
           this.client.send({ kind: 'utterance_end', utteranceId: this.currentUtterance });
@@ -712,11 +719,21 @@ export class RoomSession {
       // while an ad is up its words are dropped here as well.
       onPartial: (id, text) => {
         if (this.adGate.refuses()) return;
+        if (!this.guard.believes(id, performance.now(), false)) return;
         this.conductor.onTranscript(this.utteranceId(id), text, false);
       },
       onFinal: (id, text) => {
         if (this.adGate.refuses()) {
           this.currentUtterance = null;
+          return;
+        }
+        if (!this.guard.believes(id, performance.now(), true)) {
+          // The speakers, not the learner (ADR-0046): the expert's own words
+          // back through the recognizer. Dropped before the conductor, so no
+          // interrupt, no caption, no question — and counted, so a room where
+          // this happens a lot is visible.
+          this.currentUtterance = null;
+          trackInteraction('echo_dropped', { chars: text.trim().length });
           return;
         }
         this.conductor.onTranscript(this.utteranceId(id), text, true);

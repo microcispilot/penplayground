@@ -16,10 +16,13 @@ import { z } from 'zod';
 export const PACE = {
   /**
    * Fish `prosody.speed` at 1×. Fish's own 1.0 reads like a newsreader; 0.95
-   * is where a native listener stops noticing the voice is "keeping up" and
-   * starts hearing someone explaining. Multiplied by the pace.
+   * was where a native listener stopped noticing the voice "keeping up", and
+   * the owner, listening to whole lessons, still heard a reader rather than
+   * a teacher. 0.85 is a person explaining something they care about to one
+   * other person (ADR-0047). The learner still sees 1×; this number is ours.
+   * Multiplied by the pace.
    */
-  ttsBaseSpeed: 0.95,
+  ttsBaseSpeed: 0.85,
   /**
    * Silence appended after every sentence. Human explanatory speech carries
    * ~350–500 ms between sentences; TTS butts them together and that is the

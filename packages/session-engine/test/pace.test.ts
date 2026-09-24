@@ -74,14 +74,14 @@ const completed = (transport: MemoryTransport) =>
   transport.messages.flatMap((m) => (m.kind === 'say_complete' ? [m] : []));
 
 describe('pace', () => {
-  it('starts at the teacher rhythm: Fish speed 0.95 and a 400 ms beat after each sentence', async () => {
+  it('starts at the teacher rhythm: Fish speed ttsSpeedFor(1) and a 400 ms beat after each sentence', async () => {
     const { room, transport, synthesizer } = await liveRoom();
     await room.start();
     await until(() => completed(transport).length >= 2);
     expect(room.getState().pace).toBe(1);
-    expect(synthesizer.requests.map((r) => r.speed)).toEqual([0.95, 0.95]);
+    expect(synthesizer.requests.map((r) => r.speed)).toEqual([ttsSpeedFor(1), ttsSpeedFor(1)]);
     const first = completed(transport)[0];
-    expect(first?.durationMs).toBe(speechMs('Segment 1, first sentence.', 0.95) + 400);
+    expect(first?.durationMs).toBe(speechMs('Segment 1, first sentence.', ttsSpeedFor(1)) + 400);
     // The beat is audio: silent frames continue the say's clock up to the final chunk.
     const frames = transport.audio.filter((h) => h.sayId === first?.sayId);
     expect(frames.at(-1)?.final).toBe(true);
@@ -107,9 +107,9 @@ describe('pace', () => {
       { kind: 'pace', t: expect.any(Number), pace: 1.3, participantId: HOST },
     ]);
     await until(() => completed(transport).length >= 2, 8000);
-    expect(synthesizer.requests.map((r) => r.speed)).toEqual([0.95, ttsSpeedFor(1.3)]);
+    expect(synthesizer.requests.map((r) => r.speed)).toEqual([ttsSpeedFor(1), ttsSpeedFor(1.3)]);
     const [s1, s2] = completed(transport);
-    expect(s1?.durationMs).toBe(speechMs('Segment 1, first sentence.', 0.95) + 400);
+    expect(s1?.durationMs).toBe(speechMs('Segment 1, first sentence.', ttsSpeedFor(1)) + 400);
     expect(s2?.durationMs).toBe(
       speechMs('Segment 1, second sentence.', ttsSpeedFor(1.3)) + gapMsFor('sentence', 1.3),
     );
@@ -177,9 +177,9 @@ describe('pace', () => {
     await room.start();
     await until(() => completed(transport).length >= 3);
     const [s1, s2, s3] = completed(transport);
-    expect(s1?.durationMs).toBe(speechMs('Tokens first.', 0.95) + 700);
-    expect(s2?.durationMs).toBe(speechMs('Quick one: what is a token?', 0.95) + 700);
-    expect(s3?.durationMs).toBe(speechMs('Good, moving on.', 0.95) + 400);
+    expect(s1?.durationMs).toBe(speechMs('Tokens first.', ttsSpeedFor(1)) + 700);
+    expect(s2?.durationMs).toBe(speechMs('Quick one: what is a token?', ttsSpeedFor(1)) + 700);
+    expect(s3?.durationMs).toBe(speechMs('Good, moving on.', ttsSpeedFor(1)) + 400);
     await room.end();
   });
 

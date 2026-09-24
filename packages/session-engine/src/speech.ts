@@ -246,7 +246,7 @@ export class SayPipeline {
     // board all follow this one number, and a change waits for the next sentence.
     const pace = this.opts.pace?.() ?? 1;
     const engine = this.opts.synthesizer.id;
-    const text = spokenText(say.text);
+    const text = spokenText(say.spoken ?? say.text);
     const bytes = new TextEncoder().encode(text).length;
     let durationMs = 0;
     /** Spoken audio only; the beat after the sentence is reported separately as `gapMs`. */

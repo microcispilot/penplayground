@@ -21,12 +21,12 @@ import {
 describe('pace math', () => {
   it('scales the TTS speed from the teacher baseline at every preset, inside Fish limits', () => {
     for (const p of PACE_PRESETS) expect(ttsSpeedFor(p)).toBeCloseTo(PACE.ttsBaseSpeed * p, 6);
-    expect(ttsSpeedFor(1)).toBeCloseTo(0.95, 6);
-    expect(ttsSpeedFor(0.75)).toBeCloseTo(0.7125, 6);
-    expect(ttsSpeedFor(1.3)).toBeCloseTo(1.235, 6);
-    // 0.95 × 0.5 would go below Fish's floor: clamped.
+    expect(ttsSpeedFor(1)).toBeCloseTo(0.85, 6);
+    expect(ttsSpeedFor(0.75)).toBeCloseTo(0.6375, 6);
+    expect(ttsSpeedFor(1.3)).toBeCloseTo(1.105, 6);
+    // 0.85 × 0.5 would go below Fish's floor: clamped.
     expect(ttsSpeedFor(0.5)).toBe(0.5);
-    expect(ttsSpeedFor(2)).toBeCloseTo(1.9, 6);
+    expect(ttsSpeedFor(2)).toBeCloseTo(1.7, 6);
     expect(ttsSpeedFor(99)).toBeLessThanOrEqual(2);
   });
 

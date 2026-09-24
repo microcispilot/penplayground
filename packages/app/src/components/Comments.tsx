@@ -18,6 +18,10 @@ import { relativeDay, useApp } from '../lib/context.js';
  * dress, because a comment is a paragraph and the design system's field is
  * a line. Enter submits when the platform's modifier is held, the way every
  * comment box works; plain Enter wraps.
+ *
+ * The thread is set a step below the page's own text — smaller, and in the
+ * variant colour — so it sits under the session instead of competing with
+ * it; the composer keeps the body size because it is the reader's own words.
  */
 export function Comments({
   sessionId,
@@ -227,7 +231,7 @@ export function Comments({
       ) : null}
 
       {page && page.comments.length > 0 ? (
-        <ol className="flex flex-col gap-5" data-testid="comment-list">
+        <ol className="flex flex-col gap-4" data-testid="comment-list">
           {page.comments.map((c) => {
             const mine = participant?.id === c.authorId;
             return (
@@ -235,18 +239,20 @@ export function Comments({
                 <Avatar
                   name={c.authorName}
                   src={c.authorAvatarUrl}
-                  size={36}
+                  size={32}
                   className="shrink-0"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-label-large font-semibold">{c.authorName}</span>
-                    <span className="text-body-small text-on-surface-dim">
+                    <span className="text-label-medium text-on-surface-variant">
+                      {c.authorName}
+                    </span>
+                    <span className="text-label-small text-on-surface-dim">
                       {relativeDay(c.createdAt)}
                     </span>
                   </div>
                   <p
-                    className="mt-0.5 whitespace-pre-wrap text-body-medium text-on-surface break-words"
+                    className="mt-0.5 whitespace-pre-wrap text-body-small text-on-surface-variant break-words"
                     dir="auto"
                   >
                     {c.body}
@@ -254,7 +260,7 @@ export function Comments({
                   {mine || isHost ? (
                     <button
                       type="button"
-                      className="mt-1 text-body-small text-on-surface-variant underline decoration-outline underline-offset-4 hover:text-on-surface"
+                      className="mt-1 text-label-small text-on-surface-dim underline decoration-outline underline-offset-4 hover:text-on-surface"
                       onClick={() => void remove(c)}
                       data-testid="comment-delete"
                     >

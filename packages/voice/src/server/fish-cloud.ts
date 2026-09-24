@@ -1,19 +1,16 @@
+import { deliveryText } from './delivery.js';
 import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from './types.js';
 
 const FISH_TTS_URL = 'https://api.fish.audio/v1/tts';
 const FRAME_MS = 120;
 const MAX_TEXT_BYTES = 16 * 1024;
-
-const DELIVERY_TAGS =
-  /\[(?:soft tone|warm tone|chuckle|chuckling|sigh|sighing|emphasis|pause|long pause|excited|whisper|whispering|break|long-break)\]/gi;
-
-/** Fish S2.1 reads bracket tags as emotion; strip anything the model may have added that we don't want spoken. */
-export function stripDeliveryTags(text: string): string {
-  return text
-    .replace(DELIVERY_TAGS, ' ')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
+/**
+ * Part of the engine id, and so of every stored take's hash (ADR-0017):
+ * bumped when the way a sentence is *delivered* changes — the tone cue in
+ * front of it, the vocabulary kept inline — so lessons stored under the old
+ * delivery are spoken again rather than played back flat.
+ */
+const DELIVERY_VERSION = 'd1';
 
 export interface FishCloudOptions {
   apiKey: string;
@@ -32,12 +29,13 @@ export class FishCloudSynthesizer implements SpeechSynthesizer {
   readonly id: string;
   private readonly fetchImpl: typeof fetch;
   constructor(private readonly opts: FishCloudOptions) {
-    this.id = `fish-cloud:${opts.model ?? 's2.1-pro'}`;
+    this.id = `fish-cloud:${opts.model ?? 's2.1-pro'}+${DELIVERY_VERSION}`;
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
   async *synthesize(request: SynthesisRequest): AsyncIterable<SpeechChunk> {
-    const text = stripDeliveryTags(request.text);
+    // The tone in front and the vetted inline cues kept: S2.1 reads both (ADR-0047).
+    const text = deliveryText(request.text, request.tone);
     if (new TextEncoder().encode(text).length > MAX_TEXT_BYTES)
       throw new Error('TTS_TEXT_TOO_LONG');
     const body: Record<string, unknown> = {

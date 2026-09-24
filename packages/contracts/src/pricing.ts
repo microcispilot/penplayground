@@ -275,9 +275,11 @@ export const TTS_PRICING_PER_M_BYTES: Record<string, number> = {
 
 /** Price for a synthesizer id (`fish-cloud:<model>`, `fish-bridge`, `silent`); unknown Fish cloud models are priced like s2.1-pro. */
 export function ttsPricePerMByte(engineId: string): number {
-  const known = TTS_PRICING_PER_M_BYTES[engineId];
+  // `fish-cloud:s2.1-pro+d1`: the part after `+` versions the delivery, not the model.
+  const model = engineId.split('+')[0] ?? engineId;
+  const known = TTS_PRICING_PER_M_BYTES[model];
   if (known !== undefined) return known;
-  return engineId.startsWith('fish-cloud:') ? 15 : 0;
+  return model.startsWith('fish-cloud:') ? 15 : 0;
 }
 
 export function ttsUsd(engineId: string, bytes: number): number {

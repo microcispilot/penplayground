@@ -25,6 +25,13 @@ import {
 export type InkTextShape = TLBaseShape<'ink-text', InkTextProps>;
 
 const fallbackFont = new FallbackFont();
+/**
+ * Erosion radius per pixel of type size for body writing (`write`, `label`).
+ * 0.016 at 36 px is 0.58 px: measured against the face at 0.25, 0.45, 0.7
+ * and 1.0 — 0.45–0.7 reads as a normal weight with the chalk texture intact,
+ * 1.0 starts to break thin strokes.
+ */
+const WRITE_ERODE = 0.016;
 
 /** Re-render once the font arrives so early shapes upgrade from CSS text to outlines. */
 function useGlyphSource(): GlyphSource {
@@ -144,6 +151,17 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
   const textUnits = props.text.length;
   const revealed = Math.min(textUnits, revealedUnits);
   const strokeW = Math.max(0.6, props.fontSize * 0.05);
+  /*
+   * Eraser is a heavy chalk face, and the board used to add a stroke on top
+   * of every filled glyph, so all writing read as bold. The weight now comes
+   * from a morphological erosion of the finished glyphs — the chalk edge is
+   * kept, the stroke is thinned — and only what the expert writes as a
+   * heading keeps the face's own weight (the "semi-bold when needed"). The
+   * radius scales with the type size so a line reads the same at every
+   * zoom; at 36 px it is a little over half a pixel a side.
+   */
+  const erode = props.style === 'title' ? 0 : props.fontSize * WRITE_ERODE;
+  const thinId = clipId ? `${clipId}-thin` : null;
   const nodes: ReactElement[] = [];
   let nib: { x: number; y: number } | null = null;
 
@@ -200,17 +218,7 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
         continue;
       }
       if (g.kind === 'outline') {
-        el = (
-          <path
-            key={key}
-            d={d}
-            transform={transform}
-            fill={color}
-            stroke={color}
-            strokeWidth={strokeW * 0.5}
-            strokeLinejoin="round"
-          />
-        );
+        el = <path key={key} d={d} transform={transform} fill={color} />;
       } else if (g.kind === 'stroke') {
         el = (
           <path
@@ -297,7 +305,12 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
 
   return (
     <g>
-      {nodes}
+      {erode > 0 && thinId ? (
+        <filter id={thinId} x="-5%" y="-5%" width="110%" height="110%">
+          <feMorphology operator="erode" radius={erode.toFixed(3)} />
+        </filter>
+      ) : null}
+      <g filter={erode > 0 && thinId ? `url(#${thinId})` : undefined}>{nodes}</g>
       {underline}
       {nib && clipId ? (
         <circle

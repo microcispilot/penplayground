@@ -1,3 +1,4 @@
+import { withoutDelivery } from './delivery.js';
 import type { SpeechChunk, SpeechSynthesizer, SynthesisRequest } from './types.js';
 
 /**
@@ -26,7 +27,7 @@ export class FishBridgeSynthesizer implements SpeechSynthesizer {
         session_id: sessionId,
         voice_profile_id: request.voice,
         engine: 'fish-s2',
-        text: request.text,
+        text: withoutDelivery(request.text),
         sample_rate: request.sampleRate,
         emotion: request.tone ?? null,
         speaking_rate: request.speed ?? 1.0,

@@ -194,6 +194,9 @@ describe('pricing', () => {
   it('prices TTS per UTF-8 byte, free for the free model and self-hosted engines', () => {
     expect(ttsUsd('fish-cloud:s2.1-pro', 1_000_000)).toBe(15);
     expect(ttsUsd('fish-cloud:s2.1-pro-free', 1_000_000)).toBe(0);
+    // A delivery version on the id prices as its model.
+    expect(ttsUsd('fish-cloud:s2.1-pro-free+d1', 1_000_000)).toBe(0);
+    expect(ttsUsd('fish-cloud:s2.1-pro+d1', 1_000_000)).toBe(15);
     expect(ttsUsd('fish-cloud:s2.9-future', 100)).toBeCloseTo(0.0015, 12);
     expect(ttsUsd('fish-bridge', 5000)).toBe(0);
     expect(ttsUsd('silent', 5000)).toBe(0);
