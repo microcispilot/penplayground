@@ -112,8 +112,10 @@ test.describe('served under a base path', () => {
     );
     expect(await thumb.locator('img').getAttribute('src')).toContain(`${BASE}/api/sessions/`);
 
-    // The share URL shown on the page is the public one, prefix included.
-    await expect(page.getByTestId('share-url')).toHaveText(`${origin}${BASE}/s/${id}`);
+    // The share URL in the share sheet is the public one, prefix included (ADR-0044).
+    await page.getByTestId('session-share').click();
+    await expect(page.getByTestId('share-url')).toHaveValue(`${origin}${BASE}/s/${id}`);
+    await page.keyboard.press('Escape');
     // And it is a real page: the API's share renderer, reached through the prefix.
     const share = await page.request.get(`${origin}${BASE}/s/${id}`);
     expect(share.status()).toBe(200);

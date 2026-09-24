@@ -5,6 +5,7 @@ import { createNodeWebSocket } from '@hono/node-ws';
 import {
   BoardPreference,
   ClientMessage,
+  CommentBody,
   clampPace,
   decodeAudioFrame,
   FeatureFlagsMutation,
@@ -36,6 +37,7 @@ import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import type { WSContext } from 'hono/ws';
+import { nanoid } from 'nanoid';
 import type { WebSocket } from 'ws';
 import { z } from 'zod';
 import { Admissions } from './admissions.js';
@@ -254,6 +256,8 @@ export function buildApp(services: Services): App {
   const rooms = new RoomRegistry(services);
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const sessionLimiter = new RateLimiter(20, 60_000);
+  /** Ten comments a minute per account (ADR-0044): a conversation, not a flood. */
+  const commentLimiter = new RateLimiter(10, 60_000);
   const authLimiter = new RateLimiter(30, 60_000);
   const allowSession = (key: string) => sessionLimiter.allow(key);
   const allowAuth = (key: string) => authLimiter.allow(key);
@@ -1373,6 +1377,85 @@ export function buildApp(services: Services): App {
     return c.json({ liked: false, likes });
   });
   /**
+   * Comments under a saved session (ADR-0044), the way YouTube has them.
+   * Everyone who can open the session reads the thread; an account writes;
+   * the author and the host delete. Newest first, cut by `before` so a
+   * comment posted mid-scroll never shifts the page.
+   */
+  app.get('/api/sessions/:id/comments', async (c) => {
+    const record = await services.sessions.resolve(c.req.param('id'));
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    const before = Number(c.req.query('before'));
+    const limit = Number(c.req.query('limit'));
+    const page = await services.comments.list(record.id, {
+      ...(Number.isFinite(before) && before > 0 ? { before } : {}),
+      ...(Number.isFinite(limit) && limit > 0 ? { limit } : {}),
+    });
+    const last = page.comments.at(-1);
+    return c.json({
+      comments: page.comments,
+      total: page.total,
+      nextBefore: last && page.comments.length < page.total ? last.createdAt : null,
+    });
+  });
+  app.post('/api/sessions/:id/comments', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    if (
+      !services.features.enabled('comments', {
+        plan: claims.plan,
+        platform: platformOf(c),
+        anonymous: claims.anonymous,
+      })
+    )
+      return c.json(
+        { error: 'ACCOUNT_REQUIRED', message: 'Sign in to comment.', upgrade: 'SignIn' },
+        403,
+      );
+    const record = await services.sessions.resolve(c.req.param('id'));
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    if (!commentLimiter.allow(claims.sub))
+      return c.json(
+        { error: 'RATE_LIMITED', message: 'That is a lot of comments at once. Give it a minute.' },
+        429,
+      );
+    const body = CommentBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const comment = await services.comments.create({
+      id: `c_${nanoid(16)}`,
+      sessionId: record.id,
+      authorId: claims.sub,
+      body: body.data.body,
+    });
+    if (!comment) return c.json({ error: 'SIGN_IN_FAILED', message: 'Could not post that.' }, 500);
+    observer.event('session.comment', { sessionId: record.id, length: body.data.body.length });
+    services.analytics.capture(claims.sub, 'comment_posted', {
+      sessionId: record.id,
+      length: body.data.body.length,
+    });
+    return c.json({ comment });
+  });
+  app.delete('/api/sessions/:id/comments/:commentId', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const record = await services.sessions.resolve(c.req.param('id'));
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    const row = await services.comments.row(c.req.param('commentId'));
+    if (!row || row.sessionId !== record.id || row.deletedAt !== null)
+      return c.json({ error: 'NOT_FOUND' }, 404);
+    const own = row.authorId === claims.sub;
+    if (!own && record.hostId !== claims.sub)
+      return c.json(
+        { error: 'NOT_ALLOWED', message: 'Only its author or the host can delete a comment.' },
+        403,
+      );
+    await services.comments.remove(row.id);
+    observer.event('session.comment_deleted', { sessionId: record.id, own });
+    services.analytics.capture(claims.sub, 'comment_deleted', { sessionId: record.id, own });
+    return c.json({ ok: true });
+  });
+
+  /**
    * Who may read a recording (ADR-0035): its host, and only its host. The
    * questions in it are theirs, the answers were composed for them, and a
    * caption is their own words. Everyone else starts the lesson again as a
@@ -1713,6 +1796,9 @@ export function buildApp(services: Services): App {
     await services.lists
       .forgetSession(sessionId)
       .catch((error: unknown) => observer.error('lists.forget_session', error, { sessionId }));
+    await services.comments
+      .forgetSession(sessionId)
+      .catch((error: unknown) => observer.error('comments.forget_session', error, { sessionId }));
     await services.sessions.remove(sessionId);
     // The statistics are derived from what was just erased, so they go too
     // (ADR-0027). A failure here must not turn a deletion into an error the
@@ -1739,6 +1825,23 @@ export function buildApp(services: Services): App {
     if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
     if (record.hostId !== claims.sub)
       return c.json({ error: 'NOT_HOST', message: 'Only the host can change this.' }, 403);
+    // A paid host's choice (ADR-0044): the page does not draw the control below
+    // Standard, and the API says the same thing to a call that arrives anyway.
+    if (
+      !services.features.enabled('session_visibility', {
+        plan: claims.plan,
+        platform: platformOf(c),
+        anonymous: claims.anonymous,
+      })
+    )
+      return c.json(
+        {
+          error: 'PLAN_REQUIRED',
+          message: 'Making a session private is part of Standard.',
+          upgrade: 'Pricing',
+        },
+        403,
+      );
     const body = Visibility.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
     const updated = await services.sessions.patch(id, { visibility: body.data.visibility });

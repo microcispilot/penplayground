@@ -5,6 +5,7 @@ import type { KeyOwner, PlanCode } from '@pen/contracts';
 import { FeatureRulesDocument } from '@pen/contracts';
 import {
   AuthChallengeRepository,
+  CommentRepository,
   type Connection,
   connect,
   FeatureFlagsRepository,
@@ -141,6 +142,8 @@ export interface Services {
   mailer: Mailer;
   /** Saved / liked / history per participant (ADR-0015). */
   lists: ListRepository;
+  /** Comments under a session (ADR-0044). */
+  comments: CommentRepository;
   /** Writing the statistics: derived session rows, visits, plan history (ADR-0027). */
   stats: StatsRepository;
   /** Reading them: every aggregate the owner's dashboard asks for, as SQL. */
@@ -285,6 +288,7 @@ export async function buildServices(
     },
   });
   const lists = new ListRepository(db.db);
+  const comments = new CommentRepository(db.db);
   /** Statistics and reports (ADR-0027): one repository writes, the other reads. */
   const stats = new StatsRepository(db.db);
   const reports = new ReportRepository(db.db);
@@ -680,6 +684,7 @@ export async function buildServices(
     authChallenges,
     mailer,
     lists,
+    comments,
     stats,
     reports,
     deriver,

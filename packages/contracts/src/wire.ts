@@ -307,3 +307,34 @@ export const ServerMessage = z.discriminatedUnion('kind', [
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
 export type ServerErrorCode = z.infer<typeof ServerError>['code'];
+
+// ── comments (ADR-0044) ──────────────────────────────────────────────────────
+
+/** The longest comment the API accepts, in characters after trimming. */
+export const COMMENT_MAX_LENGTH = 1000;
+
+/** A comment as the page shows it; the author is read at listing time, so a rename follows. */
+export const SessionComment = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  authorId: z.string(),
+  authorName: z.string(),
+  authorAvatarUrl: z.string().nullable(),
+  body: z.string(),
+  createdAt: z.number(),
+});
+export type SessionComment = z.infer<typeof SessionComment>;
+
+/** What is posted: plain text, trimmed, one to a thousand characters. */
+export const CommentBody = z.object({
+  body: z.string().trim().min(1).max(COMMENT_MAX_LENGTH),
+});
+export type CommentBody = z.infer<typeof CommentBody>;
+
+/** One page of a thread, newest first; `nextBefore` is the cursor for the page after it. */
+export const CommentPage = z.object({
+  comments: z.array(SessionComment),
+  total: z.number().int().nonnegative(),
+  nextBefore: z.number().nullable(),
+});
+export type CommentPage = z.infer<typeof CommentPage>;

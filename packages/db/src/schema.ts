@@ -200,6 +200,30 @@ export const sessionLikes = pgTable(
  * when they take a seat in the live room. One row per pair; a rejoin only
  * moves `last_joined_at`, so "most recent first" is one indexed read.
  */
+/**
+ * Comments under a saved session (ADR-0044). Plain text, one author, one
+ * session; a deletion keeps the row with `deleted_at` set so a thread's count
+ * and order stay honest and an abuse report can still be answered. Author
+ * name and picture are read from `participants` at listing time, never
+ * copied, so a rename follows.
+ */
+export const sessionComments = pgTable(
+  'session_comments',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id').notNull(),
+    authorId: text('author_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    deletedAt: bigint('deleted_at', { mode: 'number' }),
+  },
+  (t) => [
+    index('session_comments_session_idx').on(t.sessionId, t.createdAt),
+    index('session_comments_author_idx').on(t.authorId),
+  ],
+);
+export type SessionCommentRow = typeof sessionComments.$inferSelect;
+
 export const sessionVisits = pgTable(
   'session_visits',
   {

@@ -104,6 +104,10 @@ export const FeatureName = z.enum([
   'lists',
   /** The recap written by the model at the end; off, the recap is the lesson's own goals. */
   'model_recap',
+  /** Comments under a saved session: everyone reads, an account writes (ADR-0044). */
+  'comments',
+  /** Making a session private or public again: a paid host's choice (ADR-0044). */
+  'session_visibility',
 ]);
 export type FeatureName = z.infer<typeof FeatureName>;
 export const FEATURE_NAMES: readonly FeatureName[] = FeatureName.options;
@@ -265,6 +269,20 @@ export const FEATURES: Readonly<Record<FeatureName, FeatureDefinition>> = Object
     description: 'Learn later and Liked. An account keeps them; a visitor is invited to sign in.',
     group: 'Account',
     rule: rule(true, { anonymous: false }),
+  },
+  comments: {
+    label: 'Comments',
+    description:
+      'Comments under a saved session, the way YouTube has them: everyone can read them; an account can write one and delete its own (ADR-0044).',
+    group: 'Account',
+    rule: rule(true, { anonymous: false }),
+  },
+  session_visibility: {
+    label: 'Private sessions',
+    description:
+      'The host can make a session private (anyone with the link) or public again. Paid plans only; a free host’s sessions keep the visibility they were made with (ADR-0044).',
+    group: 'Sessions',
+    rule: rule(false, { plans: { standard: true, professional: true }, anonymous: false }),
   },
   model_recap: {
     label: 'Model-written recap',

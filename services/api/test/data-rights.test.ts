@@ -26,9 +26,9 @@ interface Caller {
   headers: Record<string, string>;
 }
 
-async function participant(plan: PlanCode = 'free'): Promise<Caller> {
-  const issued = await identity.issue({ name: 'Ada', plan, anonymous: true });
-  await services.participants.ensure({ id: issued.claims.sub, name: 'Ada', plan, anonymous: true });
+async function participant(plan: PlanCode = 'free', anonymous = true): Promise<Caller> {
+  const issued = await identity.issue({ name: 'Ada', plan, anonymous });
+  await services.participants.ensure({ id: issued.claims.sub, name: 'Ada', plan, anonymous });
   return { id: issued.claims.sub, headers: { authorization: `Bearer ${issued.token}` } };
 }
 
@@ -100,8 +100,9 @@ afterAll(async () => {
 });
 
 describe('PATCH /api/sessions/:id — going private', () => {
+  // Visibility is a paid account's control since ADR-0044, so the host here is one.
   it("is the host's call alone, and the catalogue stops listing it at once", async () => {
-    const host = await participant();
+    const host = await participant('standard', false);
     const stranger = await participant();
     const record = await seedSession(host.id, 'public');
 
@@ -145,7 +146,7 @@ describe('PATCH /api/sessions/:id — going private', () => {
   });
 
   it('400s a visibility the product does not have', async () => {
-    const host = await participant();
+    const host = await participant('standard', false);
     const record = await seedSession(host.id);
     const res = await app.request(
       `/api/sessions/${record.id}`,

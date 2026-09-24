@@ -1,6 +1,7 @@
 import {
   BoardPreference,
   ChallengeAccepted,
+  CommentPage,
   clampPace,
   Expert,
   LedgerEntry,
@@ -13,6 +14,7 @@ import {
   type Platform,
   RoomState,
   SaveResult,
+  SessionComment,
   SessionTelemetry,
   Visit,
 } from '@pen/contracts';
@@ -595,6 +597,28 @@ export class ApiClient {
     return this.request(`/api/sessions/${encodeURIComponent(id)}/like`, LikeResult, {
       method: liked ? 'PUT' : 'DELETE',
     });
+  }
+  // ── comments (ADR-0044) ────────────────────────────────────────────────────
+  /** The thread, newest first; `before` is the previous page's `nextBefore`. */
+  listComments(id: string, before?: number) {
+    const query = before ? `?before=${before}` : '';
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/comments${query}`, CommentPage);
+  }
+  /** An account's own comment; a visitor is answered ACCOUNT_REQUIRED. */
+  postComment(id: string, body: string) {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}/comments`,
+      z.object({ comment: SessionComment }),
+      { method: 'POST', body: JSON.stringify({ body }) },
+    );
+  }
+  /** The author's, or the host's, to delete. */
+  deleteComment(id: string, commentId: string) {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
+      z.object({ ok: z.boolean() }),
+      { method: 'DELETE' },
+    );
   }
   /** Public, and the first paint: see `request`'s note on why it does not wait. */
   listExperts() {

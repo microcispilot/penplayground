@@ -8,6 +8,7 @@ export {
   type ReconciledMigration,
   reconcileMigrationTimestamps,
 } from './client.js';
+export { CommentRepository, type CommentView } from './comments.js';
 export {
   type FeatureFlagsHistoryPage,
   FeatureFlagsRepository,

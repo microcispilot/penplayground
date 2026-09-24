@@ -120,6 +120,13 @@
       "when": 1790204556817,
       "tag": "0016_default_expert",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790272002379,
+      "tag": "0017_session_comments",
+      "breakpoints": true
     }
   ]
 }

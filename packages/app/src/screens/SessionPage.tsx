@@ -1,14 +1,24 @@
 import type { Expert, LedgerEntry, SessionTelemetry } from '@pen/contracts';
-import { Avatar, Button, cn, Pill, SegmentedButtons, Skeleton, useToast } from '@pen/design';
-import { Clapperboard, Download, Lock, Play, Share2 } from 'lucide-react';
+import {
+  Avatar,
+  Button,
+  cn,
+  Dialog,
+  Pill,
+  SegmentedButtons,
+  Skeleton,
+  useToast,
+} from '@pen/design';
+import { Check, Clapperboard, Copy, Download, Lock, Play, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   ApiError,
   type ExportStatus,
   type ExportVariant,
   type SessionRecord,
 } from '../api/client.js';
+import { Comments } from '../components/Comments.js';
 import { Insights } from '../components/Insights.js';
 import { LikeButton, SaveButton } from '../components/ListControls.js';
 import { SessionThumb } from '../components/SessionCard.js';
@@ -234,7 +244,8 @@ function ExportControl({ sessionId, entitled }: { sessionId: string; entitled: b
       ? 'Your video is ready to download'
       : '';
   return (
-    <div className="flex flex-col items-end gap-2" data-testid="export-control">
+    // Inline with the action row (ADR-0044): the variant, then Download, then a word on how it went.
+    <div className="flex flex-wrap items-center gap-2" data-testid="export-control">
       <SegmentedButtons
         label="What to download"
         options={VARIANTS}
@@ -299,12 +310,23 @@ const VISIBLE_TABS = (isHost: boolean) =>
  * see it, and take it away entirely. Stated plainly — a private session is a
  * normal choice, not a warning — and deletion asks twice.
  */
+
+/**
+ * What a host may do with a saved session (ADR-0044): make it private or
+ * public again when the plan includes that, and delete it when they have an
+ * account. Drawn only when at least one of the two applies; a visitor never
+ * sees this row, and a free host sees only Delete.
+ */
 function OwnerControls({
   session,
+  canChangeVisibility,
+  canDelete,
   onChanged,
   onDeleted,
 }: {
   session: SessionRecord;
+  canChangeVisibility: boolean;
+  canDelete: boolean;
   onChanged: (next: SessionRecord) => void;
   onDeleted: () => void;
 }) {
@@ -313,84 +335,195 @@ function OwnerControls({
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const isPublic = session.visibility === 'public';
+  if (!canChangeVisibility && !canDelete) return null;
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-container-high px-4 py-3 text-body-medium">
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-container-high px-4 py-3 text-body-medium"
+      data-testid="owner-controls"
+    >
       <span className="text-on-surface-variant">
         {isPublic
           ? 'Anyone with the link can watch this.'
           : 'Only you can watch this — it is not listed and the link will not open for anyone else.'}
       </span>
       <span className="flex-1" />
-      <Button
-        variant="ghost"
-        size="sm"
-        loading={busy}
-        data-testid="visibility-toggle"
-        onClick={async () => {
-          setBusy(true);
-          try {
-            const next = await api.setVisibility(session.id, isPublic ? 'private' : 'public');
-            trackAction('visibility_changed', {
-              sessionId: session.id,
-              visibility: next.visibility,
-            });
-            onChanged(next);
-            toast(isPublic ? 'Now private' : 'Now public', 'success');
-          } catch (error) {
-            toast(error instanceof Error ? error.message : 'Could not change this', 'danger');
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        {isPublic ? 'Make private' : 'Make public'}
-      </Button>
-      {confirming ? (
-        <>
-          <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-            Keep it
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            loading={busy}
-            data-testid="confirm-delete-session"
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await api.deleteSession(session.id);
-                trackAction('session_deleted', { sessionId: session.id });
-                toast('Session deleted', 'success');
-                onDeleted();
-              } catch (error) {
-                toast(error instanceof Error ? error.message : 'Could not delete this', 'danger');
-                setBusy(false);
-                setConfirming(false);
-              }
-            }}
-          >
-            Delete, including the recording
-          </Button>
-        </>
-      ) : (
+      {canChangeVisibility ? (
         <Button
           variant="ghost"
           size="sm"
-          data-testid="delete-session"
-          onClick={() => setConfirming(true)}
+          loading={busy}
+          data-testid="visibility-toggle"
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const next = await api.setVisibility(session.id, isPublic ? 'private' : 'public');
+              trackAction('visibility_changed', {
+                sessionId: session.id,
+                visibility: next.visibility,
+              });
+              onChanged(next);
+              toast(isPublic ? 'Now private' : 'Now public', 'success');
+            } catch (error) {
+              toast(error instanceof Error ? error.message : 'Could not change this', 'danger');
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
-          Delete
+          {isPublic ? 'Make private' : 'Make public'}
         </Button>
-      )}
+      ) : null}
+      {canDelete ? (
+        confirming ? (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+              Keep it
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              loading={busy}
+              data-testid="confirm-delete-session"
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await api.deleteSession(session.id);
+                  trackAction('session_deleted', { sessionId: session.id });
+                  toast('Session deleted', 'success');
+                  onDeleted();
+                } catch (error) {
+                  toast(error instanceof Error ? error.message : 'Could not delete this', 'danger');
+                  setBusy(false);
+                  setConfirming(false);
+                }
+              }}
+            >
+              Delete, including the recording
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="delete-session"
+            onClick={() => setConfirming(true)}
+          >
+            Delete
+          </Button>
+        )
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Share: one button, one sheet (ADR-0044). The public link in a field, Copy,
+ * and the system share sheet where the device has one. The link is the
+ * share page the crawlers get (`/s/<id>`), which forwards a person to this
+ * page.
+ */
+function ShareSheet({
+  open,
+  onClose,
+  url,
+  title,
+  sessionId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  url: string;
+  title: string;
+  sessionId: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!open) setCopied(false);
+  }, [open]);
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  return (
+    <Dialog open={open} onClose={onClose} title="Share" width={448}>
+      <div className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-body-small text-on-surface-variant">Link</span>
+          <span className="flex h-10 items-center gap-2 rounded-xs px-4 shadow-[0_0_0_1px_var(--color-outline-variant)]">
+            <input
+              readOnly
+              value={url}
+              onFocus={(e) => e.currentTarget.select()}
+              className="min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none"
+              data-testid="share-url"
+            />
+          </span>
+        </label>
+        <div className="flex flex-wrap justify-end gap-2">
+          {canShare ? (
+            <Button
+              variant="secondary"
+              leading={<Share2 size={14} />}
+              onClick={() => {
+                trackAction('share_clicked', { sessionId, method: 'share' });
+                void navigator.share({ title, url }).catch(() => undefined);
+              }}
+            >
+              Share…
+            </Button>
+          ) : null}
+          <Button
+            variant="primary"
+            leading={copied ? <Check size={14} /> : <Copy size={14} />}
+            data-testid="share-copy"
+            onClick={() => {
+              trackAction('share_copied', { sessionId });
+              void navigator.clipboard?.writeText(url).then(() => setCopied(true));
+            }}
+          >
+            {copied ? 'Copied' : 'Copy link'}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * One entry of Up next: the thumbnail beside the title, expert and numbers,
+ * the way the right column of a watch page reads. The whole row is the link.
+ */
+function UpNextRow({ session, expertName }: { session: SessionRecord; expertName: string }) {
+  const live = session.endedAt === null;
+  return (
+    <Link
+      to={`/sessions/${session.id}`}
+      className="state-layer group flex gap-3 rounded-lg p-1.5 text-left"
+      data-testid="up-next-row"
+      onClick={() => trackAction('session_opened', { sessionId: session.id, source: 'up_next' })}
+    >
+      <SessionThumb session={session} className="relative aspect-video w-40 shrink-0" />
+      <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
+        <span
+          className="line-clamp-2 text-label-large font-semibold text-on-surface"
+          lang={session.language}
+          dir={dirOf(session.language)}
+        >
+          {session.title}
+        </span>
+        {expertName ? (
+          <span className="truncate text-body-small text-on-surface-variant">{expertName}</span>
+        ) : null}
+        <span className="text-body-small text-on-surface-dim">
+          {session.views} {session.views === 1 ? 'view' : 'views'} ·{' '}
+          {live ? 'live now' : formatDuration(session.durationMs)}
+        </span>
+      </span>
+    </Link>
   );
 }
 
 export function SessionPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const { api, platform, participant, features } = useApp();
+  const { api, participant, features } = useApp();
   const navigate = useNavigate();
   const quickStart = useQuickStart();
   const [data, setData] = useState<{
@@ -402,6 +535,11 @@ export function SessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<SessionTelemetry | null>(null);
   const [telemetryError, setTelemetryError] = useState<string | null>(null);
+  const [related, setRelated] = useState<Array<{
+    session: SessionRecord;
+    expert: Expert | null;
+  }> | null>(null);
+  const [sharing, setSharing] = useState(false);
   const requested = params.get('tab');
   const tab =
     requested === 'transcript' ? 'transcript' : requested === 'insights' ? 'insights' : 'recap';
@@ -443,6 +581,45 @@ export function SessionPage() {
     };
   }, [api, id, participant]);
 
+  /**
+   * Up next: what a reader looks for in the right column. Other public
+   * sessions by this expert first, then the same topic — the catalogue's
+   * own order within each, never this session, at most eight.
+   */
+  useEffect(() => {
+    if (!data?.session) return;
+    let cancelled = false;
+    const current = data.session;
+    Promise.all([api.listPublicSessions(), api.listExperts()])
+      .then(([all, experts]) => {
+        if (cancelled) return;
+        const byId = new Map(experts.map((e) => [e.id, e]));
+        const others = all.filter((x) => x.id !== current.id && x.endedAt !== null);
+        const sameExpert = others.filter((x) => x.expertId === current.expertId);
+        const sameDomain = others.filter(
+          (x) => x.expertId !== current.expertId && x.domain === current.domain,
+        );
+        setRelated(
+          [...sameExpert, ...sameDomain]
+            .slice(0, 8)
+            .map((session) => ({ session, expert: byId.get(session.expertId) ?? null })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setRelated([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, data?.session]);
+
+  const questions = useMemo(() => {
+    if (!data) return [];
+    return data.entries.flatMap((e) =>
+      e.kind === 'cue' && e.cue.event.type === 'note' ? [e.cue.event] : [],
+    );
+  }, [data]);
+
   const transcript = useMemo(() => {
     if (!data) return [];
     const lines: Array<{ who: 'expert' | 'learner'; name: string; text: string; t: number }> = [];
@@ -467,13 +644,6 @@ export function SessionPage() {
     return lines;
   }, [data]);
 
-  const questions = useMemo(() => {
-    if (!data) return [];
-    return data.entries.flatMap((e) =>
-      e.kind === 'cue' && e.cue.event.type === 'note' ? [e.cue.event] : [],
-    );
-  }, [data]);
-
   const s = data?.session;
   const live = s ? s.endedAt === null : false;
   // The tab, the canonical URL and what a JavaScript-running crawler reads follow the session.
@@ -491,18 +661,20 @@ export function SessionPage() {
   // Only the host sees the recording controls (the API strips hostId for everyone else).
   const isHost = Boolean(s && participant && s.hostId === participant.id);
   /**
-   * The host's own recording: to watch here, to download here. Everyone
-   * else, and the host too, has "Replay" — the lesson again as a fresh
-   * session of their own (ADR-0035).
+   * The host's own things — the recording, the questions they asked, the
+   * insights, deleting — belong to an account (ADR-0040, ADR-0044); a visitor
+   * who happens to have hosted a session is shown the lesson like anyone.
    */
-  const canWatch = isHost && !live && features.recording_playback;
+  const ownerWithAccount = isHost && features.history;
+  const canWatch = ownerWithAccount && !live && features.recording_playback;
   /** A room is a recording, not a lesson to replay (ADR-0035). */
   const room = (s?.guests ?? 0) > 0;
   const replayable = !live && quickStart.enabled && !room;
+  const tabs = VISIBLE_TABS(ownerWithAccount);
 
   // Insights are the host's: loaded on demand, refreshed while the session is still live.
   useEffect(() => {
-    if (tab !== 'insights' || !isHost) return;
+    if (tab !== 'insights' || !ownerWithAccount) return;
     let cancelled = false;
     const load = () =>
       api
@@ -523,7 +695,7 @@ export function SessionPage() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [api, id, tab, isHost, live]);
+  }, [api, id, tab, ownerWithAccount, live]);
 
   if (error) {
     return (
@@ -538,52 +710,60 @@ export function SessionPage() {
     );
   }
 
+  const meta = s
+    ? `${s.views} ${s.views === 1 ? 'view' : 'views'} · ${relativeDay(s.startedAt)} · ${live ? 'live now' : formatDuration(s.durationMs)}`
+    : '';
+
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex-1 px-6 pt-8 pb-20 sm:px-8">
-        <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-          <div>
+      <div className="flex-1 px-4 pt-6 pb-20 sm:px-8">
+        {/*
+          YouTube's watch page (ADR-0044): the board, the title, one row with
+          the expert on the left and the actions on the right, the description
+          box, the comments; and on a wide screen, what to watch next on the
+          right. Nothing else lives in that column.
+        */}
+        <div className="mx-auto grid max-w-[1280px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0">
             {s ? (
               <SessionThumb session={s} watch className="relative aspect-video w-full" />
             ) : (
               <Skeleton className="aspect-video w-full" />
             )}
-            {/* Phone width: the actions wrap under the title rather than
-                running off the side of the page. */}
-            <div className="mt-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-              {/* A basis, not just `flex-1`: M3's buttons are wider than the
-                  ones they replace, and with a zero basis the title column
-                  collapsed to four words a line rather than letting the row
-                  wrap. */}
-              <div className="min-w-0 flex-1 basis-[18rem]">
-                <h2 lang={lang} dir={dir}>
-                  {s?.title ?? <Skeleton className="h-7 w-72" />}
-                </h2>
-                <p className="mt-1.5 text-body-medium text-on-surface-variant">
-                  {s
-                    ? `${relativeDay(s.startedAt)} · ${live ? 'live now' : formatDuration(s.durationMs)} · ${s.views} view${s.views === 1 ? '' : 's'}`
-                    : ''}
-                </p>
-                {s && room ? (
-                  <p className="mt-1 text-body-medium text-on-surface-dim" data-testid="room-note">
-                    A room with {s.guests} {s.guests === 1 ? 'guest' : 'guests'}. Its recording is
-                    the host's; to have this lesson yourself, search the topic.
-                  </p>
-                ) : null}
-                {s && replayable ? (
-                  // What "Replay" is here: not a recording of somebody else's
-                  // hour, but the lesson again, live, for you (ADR-0035).
-                  <p
-                    className="mt-1 text-body-medium text-on-surface-dim"
-                    data-testid="replay-note"
-                  >
-                    Replay starts this lesson again, live, with{' '}
-                    {data?.expert?.displayName.split(' ')[0] ?? 'the expert'} — ask anything along
-                    the way.
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap items-start gap-2">
+            <h2 lang={lang} dir={dir} className="mt-4">
+              {s?.title ?? <Skeleton className="h-7 w-72" />}
+            </h2>
+
+            {/* The channel row: who taught it, and what you can do with it. */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              {data?.expert ? (
+                <Link
+                  to={`/experts/${data.expert.id}`}
+                  className="flex min-w-0 items-center gap-3 rounded-full pr-2"
+                  data-testid="session-expert"
+                  onClick={() => trackAction('nav_clicked', { to: '/experts', rail: false })}
+                >
+                  <Avatar
+                    name={data.expert.displayName}
+                    src={api.portraitUrl(data.expert.portrait?.src)}
+                    size={40}
+                  />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-label-large font-semibold">
+                        {data.expert.displayName}
+                      </span>
+                      <Pill tone="accent">AI expert</Pill>
+                    </span>
+                    <span className="block truncate text-body-small text-on-surface-variant">
+                      {data.expert.role}
+                    </span>
+                  </span>
+                </Link>
+              ) : (
+                <Skeleton className="h-10 w-48" />
+              )}
+              <div className="flex flex-wrap items-center gap-2">
                 {live ? (
                   <Button
                     variant="primary"
@@ -624,54 +804,99 @@ export function SessionPage() {
                 <Button
                   variant="secondary"
                   leading={<Share2 size={14} />}
+                  data-testid="session-share"
                   onClick={() => {
-                    // Counted against the session, so "how often was this
-                    // shared" is answerable (ADR-0027); no URL is sent, only
-                    // that it happened, for which session, and by which means.
-                    const method = typeof navigator.share === 'function' ? 'share' : 'clipboard';
-                    trackAction('share_clicked', { sessionId: id, method });
-                    if (navigator.share)
-                      void navigator.share({ title: s?.title ?? 'Pen Playground', url: shareUrl });
-                    else void navigator.clipboard?.writeText(shareUrl);
+                    trackAction('share_clicked', { sessionId: id, method: 'sheet' });
+                    setSharing(true);
                   }}
                 >
                   Share
                 </Button>
-                {s && participant && isHost && !live ? (
+                {s && ownerWithAccount && !live ? (
                   <ExportControl sessionId={s.id} entitled={features.session_download} />
                 ) : null}
               </div>
             </div>
-            {s && isHost ? (
-              <OwnerControls
-                session={s}
-                onChanged={(next) => setData((d) => (d ? { ...d, session: next } : d))}
-                onDeleted={() => navigate('/sessions')}
-              />
-            ) : null}
-            {/*
-              Transcript is not offered anywhere in the product for now — the
-              owner has shelved it for a later version, and the rows in History
-              and the lists lost their Transcript button in the same change.
-              The panel below is left intact and still answers `?tab=transcript`
-              so the saved lines keep being rendered and asserted (the Persian
-              spec reads its per-line direction there, and it is the only place
-              that is proven). Putting it back is this one list.
 
-              A lone tab is not a tab bar, so a reader who is not the host —
-              who only ever had Recap and Transcript — now sees no rule at all.
+            {/* The description box: the numbers, the session's own words, what was covered. */}
+            <div
+              className="mt-4 rounded-lg bg-surface-container-low px-4 py-3.5 text-body-medium"
+              data-testid="session-description"
+            >
+              <p className="text-label-large font-semibold text-on-surface">
+                {meta || <Skeleton className="h-4 w-40" />}
+              </p>
+              {s?.description ? (
+                <p className="mt-1.5 text-on-surface-variant text-pretty" lang={lang} dir={dir}>
+                  {s.description}
+                </p>
+              ) : null}
+              {s && room ? (
+                <p className="mt-1.5 text-on-surface-dim" data-testid="room-note">
+                  A room with {s.guests} {s.guests === 1 ? 'guest' : 'guests'}. Its recording is the
+                  host's; to have this lesson yourself, search the topic.
+                </p>
+              ) : null}
+              {s && replayable ? (
+                // What "Replay" is here: not a recording of somebody else's
+                // hour, but the lesson again, live, for you (ADR-0035).
+                <p className="mt-1.5 text-on-surface-dim" data-testid="replay-note">
+                  Replay starts this lesson again, live, with{' '}
+                  {data?.expert?.displayName.split(' ')[0] ?? 'the expert'} — ask anything along the
+                  way.
+                </p>
+              ) : null}
+              {tab === 'recap' || tabs.length === 1 ? (
+                <div className="mt-3">
+                  <h6 className="mb-2 text-on-surface-variant">What was covered</h6>
+                  {s?.recap.length ? (
+                    <ul className="flex flex-col gap-1.5" lang={lang} dir={dir}>
+                      {s.recap.map((r) => (
+                        <li key={r} className="flex items-start gap-2.5 text-on-surface-variant">
+                          <span
+                            className="mt-2 size-[5px] shrink-0 rounded-full bg-primary"
+                            aria-hidden
+                          />
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-on-surface-dim">
+                      {live ? 'The recap appears when the session ends.' : 'No recap was recorded.'}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {s && isHost ? (
+              <div className="mt-4">
+                <OwnerControls
+                  session={s}
+                  canChangeVisibility={features.session_visibility}
+                  canDelete={features.history}
+                  onChanged={(next) => setData((d) => (d ? { ...d, session: next } : d))}
+                  onDeleted={() => navigate('/sessions')}
+                />
+              </div>
+            ) : null}
+
+            {/*
+              The host's own: the questions they asked and the insights, under
+              two tabs. A visitor has one tab, which is no tab bar at all.
+              Transcript stays reachable at ?tab=transcript for the specs that
+              read it, and is offered nowhere.
             */}
-            {VISIBLE_TABS(isHost).length > 1 ? (
+            {tabs.length > 1 ? (
               <div className="mt-6 flex gap-1 border-b border-outline-variant" role="tablist">
-                {VISIBLE_TABS(isHost).map((t) => (
+                {tabs.map((t) => (
                   <button
                     key={t}
                     type="button"
                     role="tab"
                     aria-selected={tab === t}
                     className={cn(
-                      // M3 primary tab: `label-large`, a 3 px `primary`
-                      // indicator, `on-surface-variant` when it is not the one.
                       'state-layer rounded-t-sm px-4 py-2.5 text-label-large',
                       tab === t
                         ? 'border-b-[3px] border-primary text-primary'
@@ -682,12 +907,12 @@ export function SessionPage() {
                       setParams(t === 'recap' ? {} : { tab: t });
                     }}
                   >
-                    {t === 'recap' ? 'Recap' : 'Insights'}
+                    {t === 'recap' ? 'Your questions' : 'Insights'}
                   </button>
                 ))}
               </div>
             ) : null}
-            {tab === 'insights' ? (
+            {tab === 'insights' && ownerWithAccount ? (
               telemetry ? (
                 <Insights telemetry={telemetry} />
               ) : telemetryError ? (
@@ -701,58 +926,31 @@ export function SessionPage() {
                   <Skeleton className="h-40 w-full" />
                 </div>
               )
-            ) : tab === 'recap' ? (
-              <div className="mt-5 flex flex-col gap-6">
-                <section>
-                  <h6 className="mb-2.5 text-on-surface-variant">What was covered</h6>
-                  {s?.recap.length ? (
-                    <ul className="flex flex-col gap-2" lang={lang} dir={dir}>
-                      {s.recap.map((r) => (
-                        <li
-                          key={r}
-                          className="flex items-start gap-2.5 text-body-medium text-on-surface-variant"
-                        >
-                          <span
-                            className="mt-2 size-[5px] shrink-0 rounded-full bg-primary"
-                            aria-hidden
-                          />
-                          {r}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-body-medium text-on-surface-dim">
-                      {live ? 'The recap appears when the session ends.' : 'No recap was recorded.'}
-                    </p>
-                  )}
-                </section>
-                {isHost ? (
-                  <section>
-                    <h6 className="mb-2.5 text-on-surface-variant">Questions you asked</h6>
-                    {questions.length === 0 ? (
-                      <p className="text-body-medium text-on-surface-dim">You did not ask any.</p>
-                    ) : (
-                      <div className="flex flex-col gap-3">
-                        {questions.map((q) => (
-                          <div
-                            key={`${q.question}-${q.headline}`}
-                            className="border-primary border-s-2 ps-[11px]"
-                            // A note carries the language the learner asked in.
-                            lang={q.language}
-                            dir={dirOf(q.language)}
-                          >
-                            <p className="text-body-medium text-on-surface">{q.question}</p>
-                            <p className="text-body-medium text-on-surface-variant">
-                              {q.headline} — {q.detail}
-                            </p>
-                          </div>
-                        ))}
+            ) : tab === 'recap' && ownerWithAccount ? (
+              <section className="mt-5">
+                <h6 className="mb-2.5 text-on-surface-variant">Questions you asked</h6>
+                {questions.length === 0 ? (
+                  <p className="text-body-medium text-on-surface-dim">You did not ask any.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {questions.map((q) => (
+                      <div
+                        key={`${q.question}-${q.headline}`}
+                        className="border-primary border-s-2 ps-[11px]"
+                        // A note carries the language the learner asked in.
+                        lang={q.language}
+                        dir={dirOf(q.language)}
+                      >
+                        <p className="text-body-medium text-on-surface">{q.question}</p>
+                        <p className="text-body-medium text-on-surface-variant">
+                          {q.headline} — {q.detail}
+                        </p>
                       </div>
-                    )}
-                  </section>
-                ) : null}
-              </div>
-            ) : (
+                    ))}
+                  </div>
+                )}
+              </section>
+            ) : tab === 'transcript' ? (
               <div className="mt-5 flex flex-col gap-3">
                 {transcript.length === 0 ? (
                   <p className="text-body-medium text-on-surface-dim">Nothing was said yet.</p>
@@ -784,52 +982,37 @@ export function SessionPage() {
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-          <aside className="flex flex-col gap-4">
-            {data?.expert ? (
-              <div className="flex items-center gap-3 rounded-lg bg-surface-container-low p-4 hairline">
-                <Avatar
-                  name={data.expert.displayName}
-                  src={api.portraitUrl(data.expert.portrait?.src)}
-                  size={48}
-                />
-                <div className="min-w-0">
-                  <div className="font-medium">{data.expert.displayName}</div>
-                  <div className="text-body-small text-on-surface-dim">{data.expert.role}</div>
-                  <div className="mt-1">
-                    <Pill tone="accent">AI expert</Pill>
-                  </div>
-                </div>
-              </div>
             ) : null}
-            {s ? (
-              <div className="rounded-lg bg-surface-container-low p-4 text-body-medium hairline">
-                <div className="mb-2 text-body-small font-medium tracking-wider text-on-surface-dim uppercase">
-                  Share
-                </div>
-                <code
-                  className="block truncate rounded-sm bg-surface-container-high px-2 py-1 text-body-small"
-                  data-testid="share-url"
-                >
-                  {shareUrl}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => {
-                    trackAction('share_page_opened', { sessionId: id });
-                    platform.openExternal(shareUrl);
-                  }}
-                >
-                  Open share page
-                </Button>
-              </div>
+
+            {s ? <Comments sessionId={s.id} hostId={s.hostId} className="mt-8" /> : null}
+          </div>
+
+          <aside className="flex min-w-0 flex-col gap-3" data-testid="up-next">
+            {related === null ? (
+              <>
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </>
+            ) : related.length > 0 ? (
+              <>
+                <h6 className="text-on-surface-variant">Up next</h6>
+                {related.map(({ session: r, expert }) => (
+                  <UpNextRow key={r.id} session={r} expertName={expert?.displayName ?? ''} />
+                ))}
+              </>
             ) : null}
           </aside>
         </div>
       </div>
+      {s ? (
+        <ShareSheet
+          open={sharing}
+          onClose={() => setSharing(false)}
+          url={shareUrl}
+          title={s.title}
+          sessionId={id}
+        />
+      ) : null}
     </div>
   );
 }
