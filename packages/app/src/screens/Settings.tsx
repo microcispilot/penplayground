@@ -364,7 +364,7 @@ function InkDot({
 
 export function Settings() {
   useSeo({ title: 'Settings', description: 'The board you learn on, and how Pen looks.' });
-  const { participant } = useApp();
+  const { participant, setCheckIns } = useApp();
   const [theme, setTheme] = useTheme();
   const { preference, surface, ink, tool, choose } = useBoard();
   const plan = participant?.plan ?? 'free';
@@ -469,6 +469,29 @@ export function Settings() {
             ))}
           </fieldset>
         </Section>
+
+        {participant && !participant.anonymous ? (
+          <Section
+            title="Quick checks"
+            intro="Now and then the expert stops, asks one question and waits for your answer before going on. Turn it off and the lesson runs straight through."
+          >
+            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md bg-surface-container-low px-4 py-3">
+              <span className="text-body-medium text-on-surface">Stop for quick checks</span>
+              <input
+                type="checkbox"
+                role="switch"
+                className="size-5 accent-primary"
+                checked={participant.checkIns}
+                onChange={(e) => void setCheckIns(e.target.checked).catch(() => undefined)}
+                aria-checked={participant.checkIns}
+                data-testid="check-ins-toggle"
+              />
+            </label>
+            <p className="mt-2 text-body-small text-on-surface-variant">
+              Takes effect from your next session.
+            </p>
+          </Section>
+        ) : null}
 
         <Section
           title="Theme"

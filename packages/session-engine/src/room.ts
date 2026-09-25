@@ -222,6 +222,8 @@ export interface SessionRoomDeps {
   ads?: AdPolicy | null;
   /** Initial teaching pace (the host's remembered preference arrives as `set_pace` right after join). */
   pace?: number;
+  /** Whether this host wants check-ins at all (ADR-0050); off, the questions and their cards never happen. */
+  checkIns?: boolean;
   /** The API has a media server for human-to-human audio; the host's plan still decides. */
   participantAudio?: boolean;
   /**
@@ -342,6 +344,7 @@ export class SessionRoom {
   private lastFloorUtterance = new Map<string, string>();
   /** Communication language: follows the learner turn by turn (RoomState.language). */
   private language: string;
+  private readonly checkIns: boolean;
   /** The host's socket is gone and nothing from them has arrived since (ADR-0049). */
   private hostAway = false;
   /** Arrival of the learner's last final transcript / typed answer; consumed by the next turn. */
@@ -403,6 +406,7 @@ export class SessionRoom {
     });
     this.system = lessonSystemPrompt(deps.expert, deps.band);
     this.language = deps.language;
+    this.checkIns = deps.checkIns ?? true;
     const host: Participant = {
       id: deps.host.id,
       name: deps.host.name,
@@ -1090,9 +1094,32 @@ export class SessionRoom {
     if (!segment) return;
     this.firstSeqOfSegment[index] = this.seq;
     const events: LessonEvent[] = [];
+    /**
+     * With check-ins off (ADR-0050) a check goes, and so does the sentence
+     * that asked it — which was written before the check arrived. So each
+     * sentence waits for the event after it: a check claims it, anything
+     * else releases it. The memo keeps every event either way; the choice
+     * is this host's, not the lesson's.
+     */
+    let held: LessonEvent | null = null;
     const emit = (event: LessonEvent) => {
       events.push(event);
-      this.emitLessonEvent(event, index);
+      if (this.checkIns) {
+        this.emitLessonEvent(event, index);
+        return;
+      }
+      if (event.type === 'check') {
+        if (held?.type === 'say' && held.id === event.askedBy) held = null;
+        return;
+      }
+      if (held) this.emitLessonEvent(held, index);
+      held = null;
+      if (event.type === 'say') held = event;
+      else this.emitLessonEvent(event, index);
+    };
+    const flush = () => {
+      if (held) this.emitLessonEvent(held, index);
+      held = null;
     };
     const memo = this.memoHit?.cuesBySegment[index];
     if (memo && memo.length > 0) {
@@ -1155,6 +1182,7 @@ export class SessionRoom {
       });
       if (count > 0) this.memoise(index, events, usage.usd);
     }
+    flush();
     this.segmentEvents.set(index, events);
     this.lastSeqOfSegment[index] = this.seq - 1;
     // Ad budget: one card every N segments. A card shown during preparation consumes the first slot.
@@ -1351,6 +1379,7 @@ export class SessionRoom {
 
   private emitLessonEvent(raw: LessonEvent, segment: number): void {
     const thread = 'lesson';
+    if (raw.type === 'check') raw = this.checkAsHeard(raw, segment);
     const cue = this.pushCue(raw, segment, thread);
     const event = cue.event;
     if (event.type === 'say') {
@@ -1361,8 +1390,36 @@ export class SessionRoom {
         this.pipeline.enqueue(event, thread, 0, this.voiceForCurrentLanguage());
     } else if (event.type === 'check') {
       const asking = this.lessonSays.get(event.askedBy);
-      this.checks.set(event.id, { check: event, question: asking?.say.text ?? '', seq: cue.seq });
+      this.checks.set(event.id, {
+        check: event,
+        question: event.question ?? asking?.say.text ?? '',
+        seq: cue.seq,
+      });
     }
+  }
+
+  /**
+   * A check-in the way a teacher does it (ADR-0050): the question was asked
+   * in the sentence before; the options are then read out, one letter each,
+   * as a sentence of their own; the card appears when the last option has
+   * been heard, carrying the question as asked. The options sentence takes
+   * the asking sentence's id with a letter after it, which is still one
+   * sentence id to every client and every replay.
+   */
+  private checkAsHeard(raw: CheckEvent, segment: number): CheckEvent {
+    const prefix = `L${segment}`;
+    const askedBy = raw.askedBy.includes('.') ? raw.askedBy : `${prefix}.${raw.askedBy}`;
+    const question = this.lessonSays.get(askedBy)?.say.text ?? '';
+    const base = /^(.*?s\d{1,4})[a-z]?$/.exec(raw.askedBy)?.[1];
+    if (raw.options.length === 0 || !base) return { ...raw, question };
+    const optionsId = `${base}o`;
+    const qualified = optionsId.includes('.') ? optionsId : `${prefix}.${optionsId}`;
+    if (this.lessonSays.has(qualified)) return { ...raw, question };
+    this.emitLessonEvent(
+      { type: 'say', id: optionsId, text: optionsSpoken(raw.options), tone: 'neutral' },
+      segment,
+    );
+    return { ...raw, askedBy: optionsId, question };
   }
 
   /** Assign a seq, qualify model ids with the thread (L2.s1 / t3.s1), broadcast and record. */
@@ -1616,6 +1673,9 @@ export class SessionRoom {
         const c = this.checks.get(cue.event.id);
         if (c) {
           this.pendingCheck = { check: c.check, question: c.question };
+          // The lesson waits while they think (ADR-0050): nothing further is
+          // bought or banked; the answer's feedback resumes it from here.
+          this.pipeline.cancel();
           this.setMode('checking');
         }
       }
@@ -1863,6 +1923,16 @@ export class SessionRoom {
           this.pipeline.cancel();
           this.deferCall();
           this.setMode('paused');
+        } else if (
+          this.state.mode === 'answering' ||
+          this.state.mode === 'thinking' ||
+          this.state.mode === 'listening' ||
+          this.state.mode === 'checking'
+        ) {
+          // Mid-turn: the answer finishes, and then the lesson holds instead
+          // of going on. Refusing the press outright left the player and the
+          // room disagreeing about whether anything was paused.
+          this.pausedBeforeTurn = 'paused';
         }
         return;
       case 'discuss':
@@ -1890,6 +1960,7 @@ export class SessionRoom {
           return;
         }
         if (this.state.mode === 'paused') this.resumeLesson();
+        else if (this.pausedBeforeTurn === 'paused') this.pausedBeforeTurn = 'teaching';
         return;
       case 'end':
         void this.end();
@@ -2800,6 +2871,15 @@ export function withDelivery(event: LessonEvent): LessonEvent {
   const { text, spoken } = splitDelivery(event.text);
   if (!text) return { ...event, text: event.text.replace(/[[\]]/g, ' ').trim() || '…' };
   return text === spoken ? { ...event, text } : { ...event, text, spoken };
+}
+
+/** The options of a check-in as a teacher reads them out: one letter each, a beat between. */
+export function optionsSpoken(options: readonly string[]): string {
+  const letters = ['A', 'B', 'C', 'D'];
+  return options
+    .slice(0, letters.length)
+    .map((option, i) => `${letters[i]}: ${option.trim().replace(/[.。]$/, '')}.`)
+    .join(' ');
 }
 
 export function qualifyIds(event: LessonEvent, prefix: string): LessonEvent {

@@ -89,18 +89,21 @@ export interface NoteCardProps {
 }
 
 /** Typography, in world units (the page is 1600 wide; zoom 1 ≈ CSS px). */
+/*
+ * One scale, not a shout and a whisper (ADR-0051). The title is 1.5× the
+ * writing, the writing 1.25× a label, and code and prose sit a step under
+ * the label — the ratios a type system uses, so a board reads as one hand
+ * at one distance rather than a headline over footnotes.
+ */
 export const TYPE = {
-  titleFont: 58,
-  writeFont: 36,
-  labelFont: 26,
-  codeFont: 17,
-  mdFont: 19,
-  /** Monospace advance as a fraction of font size (JetBrains Mono ≈ 0.6). */
-  monoAdvance: 0.6,
+  titleFont: 36,
+  writeFont: 24,
+  labelFont: 20,
+  codeFont: 18,
+  mdFont: 18,
+  /** Code and prose are set in the hand too (ADR-0051); their advance is `HAND_ADVANCE_RATIO`. */
   codeLineHeight: 1.55,
   mdLineHeight: 1.5,
-  /** Sans advance estimate for md-block sizing. */
-  sansAdvance: 0.5,
 } as const;
 
 /** Extra reveal "characters" the title underline costs, so pacing includes it. */

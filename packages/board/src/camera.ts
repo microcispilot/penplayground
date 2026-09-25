@@ -34,10 +34,12 @@ export interface CameraOptions {
 }
 
 /**
- * The smallest the expert's handwriting may be drawn, in CSS pixels. Caveat is
- * a script face; below this it stops being reading and starts being squinting.
+ * The smallest the expert's handwriting may be drawn, in CSS pixels. Below
+ * this it stops being reading and starts being squinting. Set against the
+ * type scale (ADR-0051): with the writing at 24 world units this floor is a
+ * zoom of 0.58, which still lets a 1200-wide line fit a 700-wide phone.
  */
-export const MIN_HAND_PX = 15;
+export const MIN_HAND_PX = 14;
 
 export const DEFAULT_CAMERA: CameraOptions = {
   minZoom: 0.6,

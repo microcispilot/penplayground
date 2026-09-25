@@ -88,6 +88,8 @@ export const participants = pgTable(
      * throwing.
      */
     board: jsonb('board'),
+    /** Whether the expert stops for quick checks in this learner's sessions (ADR-0050). */
+    checkIns: boolean('check_ins').notNull().default(true),
     /**
      * Argon2id hash, or null.
      *

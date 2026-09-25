@@ -31,7 +31,9 @@ const fallbackFont = new FallbackFont();
  * and 1.0 — 0.45–0.7 reads as a normal weight with the chalk texture intact,
  * 1.0 starts to break thin strokes.
  */
-const WRITE_ERODE = 0.016;
+const WRITE_ERODE = 0.021;
+/** Headings keep more of the face than body writing — semi-bold, not bold. */
+const TITLE_ERODE = 0.01;
 
 /** Re-render once the font arrives so early shapes upgrade from CSS text to outlines. */
 function useGlyphSource(): GlyphSource {
@@ -160,7 +162,7 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
    * radius scales with the type size so a line reads the same at every
    * zoom; at 36 px it is a little over half a pixel a side.
    */
-  const erode = props.style === 'title' ? 0 : props.fontSize * WRITE_ERODE;
+  const erode = props.fontSize * (props.style === 'title' ? TITLE_ERODE : WRITE_ERODE);
   const thinId = clipId ? `${clipId}-thin` : null;
   const nodes: ReactElement[] = [];
   let nib: { x: number; y: number } | null = null;

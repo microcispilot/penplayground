@@ -564,7 +564,7 @@ export class BoardExecutor implements BoardPort {
     const lines = await this.highlighter.highlight(code, op.lang);
     const cols = code.split('\n').reduce((m, l) => Math.max(m, l.length), 1);
     const rows = Math.max(1, lines.length);
-    const charW = TYPE.codeFont * TYPE.monoAdvance;
+    const charW = TYPE.codeFont * HAND_ADVANCE_RATIO;
     const lineH = TYPE.codeFont * TYPE.codeLineHeight;
     const innerW = Math.min(
       this.layout.content.w - FRAME_INSET * 2,
@@ -635,7 +635,7 @@ export class BoardExecutor implements BoardPort {
     }
     const fontSize = TYPE.mdFont;
     const w = Math.min(this.layout.columnWidth, this.layout.content.w);
-    const charsPerLine = (w - MD_PADDING * 2) / (fontSize * TYPE.sansAdvance);
+    const charsPerLine = (w - MD_PADDING * 2) / (fontSize * HAND_ADVANCE_RATIO);
     const measured = this.measureMarkdown?.(source, w, fontSize) ?? null;
     const h =
       measured !== null && measured > 0

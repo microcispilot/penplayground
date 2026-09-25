@@ -83,6 +83,12 @@ export const CheckEvent = z.object({
   expected: z.string().max(400),
   /** One sentence of explanation spoken after grading. */
   explain: z.string().max(400),
+  /**
+   * The question as asked, attached by the room from the asking sentence
+   * (ADR-0050) so the card shows the question and never whatever the expert
+   * happens to be saying. Absent from the model's own output.
+   */
+  question: z.string().max(400).optional(),
 });
 export type CheckEvent = z.infer<typeof CheckEvent>;
 

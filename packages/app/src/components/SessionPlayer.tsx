@@ -146,6 +146,18 @@ export function SessionPlayer({
     };
   }, [api, platform, id, participant]);
 
+  /**
+   * Inline, an ended session hands the page back the moment it ends: the
+   * watch page is the recap — the description, the comments, Up next — and a
+   * panel in a small box said less than the page around it (ADR-0050).
+   */
+  const handedBack = useRef(false);
+  useEffect(() => {
+    if (layout !== 'inline' || ui.state?.phase !== 'ended' || handedBack.current) return;
+    handedBack.current = true;
+    onOpenSaved();
+  }, [layout, ui.state?.phase, onOpenSaved]);
+
   const isHost = ui.state?.hostId === participant?.id;
   /**
    * A guest is told the room is being recorded — once, as they take their
@@ -217,13 +229,16 @@ export function SessionPlayer({
   const togglePlay = useCallback(() => {
     const st = ui.state;
     if (!session || !st || st.phase !== 'live') return;
-    const next = st.mode === 'paused' ? 'resume' : 'pause';
+    // The player's own phase decides, not the room's mode: a pause pressed
+    // mid-answer is honoured by the room when the answer ends, and by then
+    // the room's mode and the player's state had drifted apart (ADR-0050).
+    const next = ui.phase === 'paused' || st.mode === 'paused' ? 'resume' : 'pause';
     session.control(next);
     if (inline) {
       setFlash(next === 'pause' ? 'paused' : 'playing');
       window.setTimeout(() => setFlash(null), 600);
     }
-  }, [session, ui.state, inline]);
+  }, [session, ui.state, ui.phase, inline]);
 
   if (ui.errorText) {
     return (
@@ -364,7 +379,17 @@ export function SessionPlayer({
         </a>
       )}
       <div className="relative flex min-h-0 flex-1">
-        <div className={cn('flex min-w-0 flex-1 flex-col', inline ? 'p-0' : 'p-2 sm:p-3 lg:p-4')}>
+        {/*
+          The wall (ADR-0051): a board hangs on something. The room's surface
+          colour around the frame, with room to breathe, so the board reads as
+          an object in a space rather than a texture filling the viewport.
+        */}
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 flex-col bg-surface-container-low',
+            inline ? 'p-3 sm:p-4' : 'p-3 sm:p-5 lg:p-8',
+          )}
+        >
           {/*
             A named landmark so the skip link lands somewhere a screen reader can
             announce. What is written on the paper reaches assistive technology
@@ -376,10 +401,7 @@ export function SessionPlayer({
             ref={boardRef}
             tabIndex={-1}
             aria-label={`${firstName}'s board`}
-            className={cn(
-              'pen-board-frame relative min-h-0 flex-1 overflow-hidden outline-none',
-              inline && 'rounded-none',
-            )}
+            className="pen-board-frame relative min-h-0 flex-1 overflow-hidden outline-none"
           >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
             {pressToPause ? (
@@ -472,7 +494,7 @@ export function SessionPlayer({
             {ui.check && session ? (
               <CheckCard
                 check={ui.check}
-                question={checkQuestion}
+                question={ui.check.question ?? checkQuestion}
                 language={state.language}
                 onAnswer={(t) => session.answerCheck(ui.check?.id ?? '', t)}
               />
@@ -506,7 +528,7 @@ export function SessionPlayer({
                 compact={inline && !full}
               />
             ) : null}
-            {state.phase === 'ended' ? (
+            {state.phase === 'ended' && !inline ? (
               <RecapPanel
                 state={state}
                 expertFirstName={firstName}

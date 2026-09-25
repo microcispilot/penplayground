@@ -245,6 +245,15 @@ export class ParticipantRepository {
    * by a newer build, naming a board this one has never heard of, has to
    * degrade to the default instead of failing a sign-in.
    */
+  async setCheckIns(id: string, checkIns: boolean): Promise<ParticipantRow | null> {
+    const rows = await this.db
+      .update(participants)
+      .set({ checkIns, lastSeenAt: new Date() })
+      .where(eq(participants.id, id))
+      .returning();
+    return rows[0] ?? null;
+  }
+
   async setBoard(id: string, board: unknown): Promise<ParticipantRow | null> {
     const rows = await this.db
       .update(participants)

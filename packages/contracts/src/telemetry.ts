@@ -215,6 +215,8 @@ export const ActionName = z.enum([
   'expert_cleared',
   /** A paying learner made an expert their default for every search (ADR-0040). */
   'default_expert_set',
+  /** Quick checks turned on or off for an account (ADR-0050). */
+  'check_ins_set',
   'topic_chosen',
   'session_opened',
   'join_clicked',

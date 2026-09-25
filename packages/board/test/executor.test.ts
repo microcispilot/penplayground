@@ -120,7 +120,11 @@ describe('BoardExecutor', () => {
     expect(b?.x).toBeGreaterThan((a?.x ?? 0) + Number(a?.props.w));
     executor
       .execute(
-        boardOp('b3', { op: 'write', text: 'a much longer phrase that will not fit on this line' }),
+        boardOp('b3', {
+          op: 'write',
+          // Long enough to wrap at any type size the scale may settle on.
+          text: 'a much longer phrase that will not fit on this line, and goes on well past the margin of the page',
+        }),
         { paceMs: null },
       )
       .finish();
@@ -200,11 +204,19 @@ describe('BoardExecutor', () => {
     ticker.advance(200);
     expect(editor.progress('shape:b1.frame')).toBeGreaterThan(0);
     expect(editor.progress('shape:b1')).toBe(0);
-    ticker.advance(2000);
+    // The frame's share of the sentence depends on its size (the type scale
+    // sets it): walk to the moment it is done rather than assume where that is.
+    let walked = 200;
+    while (editor.progress('shape:b1.frame') < 1 && walked < 3_800) {
+      ticker.advance(100);
+      walked += 100;
+    }
     expect(editor.progress('shape:b1.frame')).toBe(1);
+    // The typewriter follows the frame after a beat of 80 ms, stretched with the rest.
+    ticker.advance(400);
     expect(editor.progress('shape:b1')).toBeGreaterThan(0);
     expect(editor.progress('shape:b1')).toBeLessThan(1);
-    ticker.advance(2000);
+    ticker.advance(4_000);
     await exec.done;
     expect(editor.progress('shape:b1')).toBe(1);
   });

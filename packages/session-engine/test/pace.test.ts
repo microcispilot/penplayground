@@ -175,10 +175,20 @@ describe('pace', () => {
     };
     const { room, transport } = await liveRoom({ scripts: [script] });
     await room.start();
+    // The options are read out as a sentence of their own (ADR-0050), and the
+    // check-in's longer beat follows *that*: the learner's thinking starts
+    // when the last option has been heard, not after the question.
     await until(() => completed(transport).length >= 3);
-    const [s1, s2, s3] = completed(transport);
+    // The lookahead holds at three sentences until the host is heard to move.
+    room.handle(HOST, { kind: 'progress', seq: 0, clockMs: 1 });
+    await until(() => completed(transport).length >= 4);
+    const [s1, s2, options, s3] = completed(transport);
     expect(s1?.durationMs).toBe(speechMs('Tokens first.', ttsSpeedFor(1)) + 700);
-    expect(s2?.durationMs).toBe(speechMs('Quick one: what is a token?', ttsSpeedFor(1)) + 700);
+    expect(s2?.durationMs).toBe(speechMs('Quick one: what is a token?', ttsSpeedFor(1)) + 400);
+    expect(options?.sayId).toBe('L0.s2o');
+    expect(options?.durationMs).toBe(
+      speechMs('A: A word piece. B: A number.', ttsSpeedFor(1)) + 700,
+    );
     expect(s3?.durationMs).toBe(speechMs('Good, moving on.', ttsSpeedFor(1)) + 400);
     await room.end();
   });

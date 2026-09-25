@@ -31,6 +31,7 @@ export const ANONYMOUS: Participant = {
   // Never chose a board; the device's copy is the whole preference.
   board: null,
   defaultExpertId: null,
+  checkIns: true,
 };
 
 export const SIGNED_IN: Participant = {
@@ -44,6 +45,7 @@ export const SIGNED_IN: Participant = {
   // Never chose a board; the device's copy is the whole preference.
   board: null,
   defaultExpertId: null,
+  checkIns: true,
 };
 
 /** A platform with nothing real behind it: no analytics, no Sentry, no Google. */

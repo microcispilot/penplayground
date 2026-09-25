@@ -671,33 +671,49 @@ export function CheckCard({
 }) {
   const [text, setText] = useState('');
   return (
-    <div className="absolute inset-x-2 bottom-3 z-[6] mx-auto max-h-[70%] w-[min(560px,100%)] animate-rise overflow-y-auto rounded-lg bg-surface-container p-4 shadow-level3 sm:inset-x-0 sm:bottom-[70px] sm:w-[min(560px,90%)]">
-      <div className="mb-1 text-label-small font-medium tracking-widest text-primary uppercase">
+    /*
+     * The moment the lesson stops for (ADR-0050): in the middle of the board,
+     * the question set large enough to be the thing on screen, the options
+     * under it with a letter each — the same letters the expert just read —
+     * and a line to type or speak an answer of your own.
+     */
+    <div
+      role="dialog"
+      aria-labelledby="check-question"
+      className="absolute inset-x-3 top-1/2 z-[6] mx-auto max-h-[86%] w-[min(600px,100%)] -translate-y-1/2 animate-rise overflow-y-auto rounded-xl bg-surface-container p-6 shadow-level3 sm:inset-x-0 sm:p-8"
+      data-testid="check-card"
+    >
+      <div className="mb-3 text-label-medium font-medium tracking-widest text-primary uppercase">
         Quick check
       </div>
       <p
-        className="mb-3 text-body-medium font-medium leading-snug text-on-surface text-pretty"
+        id="check-question"
+        className="mb-6 text-title-large leading-snug text-on-surface text-pretty"
         {...(language ? { lang: language, dir: dirOf(language) } : { dir: 'auto' as const })}
       >
         {question}
       </p>
       {check.options.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {check.options.map((o) => (
+        <div className="flex flex-col gap-2.5">
+          {check.options.map((o, i) => (
             <Button
               key={o}
               variant="secondary"
-              className="justify-start text-start"
+              size="lg"
+              className="h-auto min-h-12 justify-start gap-3 whitespace-normal px-4 py-3 text-start text-body-large text-on-surface"
               dir="auto"
               onClick={() => onAnswer(o)}
             >
-              {o}
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-container-highest text-label-medium text-on-surface-variant">
+                {String.fromCharCode(65 + i)}
+              </span>
+              <span className="min-w-0 flex-1 break-words">{o}</span>
             </Button>
           ))}
         </div>
       ) : null}
       <form
-        className="mt-3 flex items-center gap-2"
+        className="mt-5 flex items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           if (text.trim()) onAnswer(text.trim());

@@ -456,8 +456,10 @@ describe('Conductor', () => {
       expect(c.getPhase(), mode).toBe('ad');
       expect(audio.paused, mode).toBe(true);
       c.skipAd();
-      expect(c.getPhase(), mode).toBe('playing');
-      expect(audio.paused, mode).toBe(false);
+      // A check-in holds the lesson (ADR-0050): after the ad the card is
+      // still up, so the phase is paused, not playing.
+      expect(c.getPhase(), mode).toBe(mode === 'checking' ? 'paused' : 'playing');
+      expect(audio.paused, mode).toBe(mode === 'checking');
       expect(presence.ads.at(-1), mode).toBeNull();
     }
   });
@@ -813,5 +815,28 @@ describe('the floor in a room (ADR-0037)', () => {
     const sentBefore = transport.sent.length;
     c.onSpeechStart();
     expect(transport.sent.length).toBe(sentBefore);
+  });
+});
+
+describe('a check-in holds the lesson (ADR-0050)', () => {
+  it('pauses playback and drops the bank while the card is up, and never dims the board around the answer', () => {
+    const { c, audio, board } = setup();
+    // A sentence is playing when the room turns to checking.
+    c.handleServer({ kind: 'state', state: state('teaching') });
+    expect(c.getPhase()).toBe('playing');
+    c.handleServer({ kind: 'state', state: state('checking') });
+    expect(c.getPhase()).toBe('paused');
+    expect(audio.paused).toBe(true);
+    expect(board.dimmed).toBe(false);
+    // The answer goes in: the room thinks, then speaks the verdict. Neither dims the board.
+    c.handleServer({ kind: 'state', state: state('thinking', { floor: HOST }) });
+    expect(board.dimmed).toBe(false);
+    c.handleServer({ kind: 'state', state: state('answering', { floor: HOST }) });
+    expect(board.dimmed).toBe(false);
+    // Back to the lesson: playing again, and a later real turn dims as it always did.
+    c.handleServer({ kind: 'state', state: state('teaching') });
+    expect(c.getPhase()).toBe('playing');
+    c.handleServer({ kind: 'state', state: state('listening', { floor: HOST }) });
+    expect(board.dimmed).toBe(true);
   });
 });

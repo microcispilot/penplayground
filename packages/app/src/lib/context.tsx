@@ -50,6 +50,8 @@ interface AppContextValue {
   setName(name: string): Promise<void>;
   /** The expert who starts every search for this account (ADR-0040); null clears it. */
   setDefaultExpert(expertId: string | null): Promise<void>;
+  /** Quick checks in this learner's sessions (ADR-0050): an account's to turn off. */
+  setCheckIns(on: boolean): Promise<void>;
   /** Attach a Google account: the popup's code from our own button, or an ID token. */
   signInWithGoogle(credential: GoogleCredential): Promise<GoogleSignInOutcome>;
   /**
@@ -232,6 +234,10 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
       setDefaultExpert: async (expertId: string | null) => {
         setParticipant(await api.setDefaultExpert(expertId));
         trackAction('default_expert_set', { expertId: expertId ?? 'none' });
+      },
+      setCheckIns: async (on: boolean) => {
+        setParticipant(await api.setCheckIns(on));
+        trackAction('check_ins_set', { on });
       },
       signInWithGoogle: async (credential: GoogleCredential) => {
         const { participant: p, outcome } = await api.signInWithGoogle(credential);

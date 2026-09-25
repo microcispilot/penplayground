@@ -23,6 +23,7 @@ const SIGNED_IN: Participant = {
   // Never chose a board; the device's copy is the whole preference.
   board: null,
   defaultExpertId: null,
+  checkIns: true,
 };
 
 interface Rig {

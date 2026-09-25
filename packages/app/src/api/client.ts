@@ -45,6 +45,8 @@ export const Participant = z.object({
   board: BoardPreference.nullish().default(null),
   /** The expert a paying learner starts every search with (ADR-0040); null = the visit's random pick. */
   defaultExpertId: z.string().nullish().default(null),
+  /** Quick checks in this learner's sessions (ADR-0050); defaulted so an older server still parses. */
+  checkIns: z.boolean().default(true),
 });
 
 export { PlanUsage } from '@pen/contracts';
@@ -487,6 +489,16 @@ export class ApiClient {
     const res = await this.request('/api/me', z.object({ participant: Participant }), {
       method: 'PATCH',
       body: JSON.stringify({ pace: clampPace(pace) }),
+    });
+    this.account = res.participant;
+    return res.participant;
+  }
+
+  /** Quick checks on or off for this account (ADR-0050); the next session is built with it. */
+  async setCheckIns(checkIns: boolean): Promise<Participant> {
+    const res = await this.request('/api/me', z.object({ participant: Participant }), {
+      method: 'PATCH',
+      body: JSON.stringify({ checkIns }),
     });
     this.account = res.participant;
     return res.participant;

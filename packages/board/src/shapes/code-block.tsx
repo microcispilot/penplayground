@@ -34,7 +34,7 @@ export class CodeBlockShapeUtil extends PaperShapeUtil<CodeBlockShape> {
   }
 
   component(shape: CodeBlockShape) {
-    const { code, lines, progress, fontSize, w, h, lang } = shape.props;
+    const { code, lines, progress, fontSize, w, h } = shape.props;
     const budget = Math.floor(Math.max(0, Math.min(1, progress)) * code.length);
     const typing = progress > 0 && progress < 1;
     let left = budget;
@@ -77,7 +77,7 @@ export class CodeBlockShapeUtil extends PaperShapeUtil<CodeBlockShape> {
     return (
       <HTMLContainer style={{ width: w, height: h, pointerEvents: 'none' }}>
         <div className="pen-code" style={{ fontSize, padding: CODE_PADDING }}>
-          {lang ? <span className="pen-code__lang">{lang}</span> : null}
+          {/* No language badge: the expert said what the lesson is in, and a board does not footnote itself (ADR-0051). */}
           <pre className="pen-code__pre">{rows}</pre>
         </div>
       </HTMLContainer>

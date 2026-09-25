@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "check_ins" boolean DEFAULT true NOT NULL;

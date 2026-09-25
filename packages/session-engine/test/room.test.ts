@@ -282,7 +282,17 @@ describe('SessionRoom', () => {
     room.handle('host-1234', { kind: 'progress', seq: 2, clockMs: 6000 });
     await until(() => transport.cues().some((c) => c.event.type === 'check'));
     const check = transport.cues().find((c) => c.event.type === 'check');
-    expect(check?.event).toMatchObject({ id: 'L1.c1', askedBy: 'L1.s2' });
+    // The options were read out in a sentence of their own, the card follows
+    // it, and the check carries the question as asked (ADR-0050).
+    expect(check?.event).toMatchObject({
+      id: 'L1.c1',
+      askedBy: 'L1.s2o',
+      question: 'Quick one: what is a vector here?',
+    });
+    const options = transport.cues().find((c) => c.event.type === 'say' && c.event.id === 'L1.s2o');
+    expect(options?.event).toMatchObject({
+      text: 'A: A word. B: A list of numbers. C: A position.',
+    });
     room.handle('host-1234', { kind: 'progress', seq: check?.seq ?? 0, clockMs: 9000 });
     expect(room.getState().mode).toBe('checking');
     room.handle('host-1234', { kind: 'check_answer', checkId: 'L1.c1', text: 'a list of numbers' });

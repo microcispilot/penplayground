@@ -137,6 +137,8 @@ export class RoomRegistry {
   async create(args: {
     topic: string;
     host: { id: ParticipantId; name: string; plan: PlanCode; anonymous?: boolean };
+    /** The host's quick-check preference (ADR-0050); on when unknown. */
+    checkIns?: boolean;
     /**
      * Whether a topic nobody has prepared may be prepared for this host
      * (ADR-0040): the flag, and the free plan's custom-session allowance,
@@ -369,6 +371,7 @@ export class RoomRegistry {
       expert,
       band: args.band,
       ...(args.pace === undefined ? {} : { pace: args.pace }),
+      checkIns: args.checkIns ?? true,
       language: locale,
       locale,
       resolution,

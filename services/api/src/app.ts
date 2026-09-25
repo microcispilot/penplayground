@@ -130,13 +130,16 @@ const UpdateMe = z
      * has to defend against.
      */
     board: BoardPreference.optional(),
+    /** Quick checks in this learner's sessions (ADR-0050): on by default, an account's to turn off. */
+    checkIns: z.boolean().optional(),
   })
   .refine(
     (v) =>
       v.name !== undefined ||
       v.analyticsOptOut !== undefined ||
       v.pace !== undefined ||
-      v.board !== undefined,
+      v.board !== undefined ||
+      v.checkIns !== undefined,
     { message: 'nothing to change' },
   );
 
@@ -151,6 +154,7 @@ function participantView(row: {
   pace?: number | null;
   board?: unknown;
   defaultExpertId?: string | null;
+  checkIns?: boolean | null;
 }) {
   // Parsed, never trusted: a row written by a newer build naming a board this
   // one has never heard of degrades to the default rather than failing the
@@ -166,6 +170,7 @@ function participantView(row: {
     pace: clampPace(row.pace ?? PACE_DEFAULT),
     board: board.success ? board.data : null,
     defaultExpertId: row.defaultExpertId ?? null,
+    checkIns: row.checkIns ?? true,
   };
 }
 
@@ -829,6 +834,13 @@ export function buildApp(services: Services): App {
     }
     if (body.data.board !== undefined)
       row = await services.participants.setBoard(claims.sub, body.data.board);
+    if (body.data.checkIns !== undefined) {
+      // A visitor has no account to keep it on; the next session is a fresh visitor's.
+      if (claims.anonymous)
+        return c.json({ error: 'ACCOUNT_REQUIRED', message: 'Sign in to keep this.' }, 403);
+      row = await services.participants.setCheckIns(claims.sub, body.data.checkIns);
+      observer.event('settings.check_ins', { on: body.data.checkIns });
+    }
     if (!row) return c.json({ error: 'NOT_FOUND' }, 404);
     return c.json({ participant: participantView({ ...row, plan: claims.plan }) });
   });
@@ -1225,6 +1237,7 @@ export function buildApp(services: Services): App {
           ...(create.expertId ? { expertId: create.expertId } : {}),
           ...(create.language ? { language: create.language } : {}),
           ...(me && !me.anonymous ? { pace: clampPace(me.pace) } : {}),
+          checkIns: me?.checkIns ?? true,
         });
       } catch (error) {
         if (!(error instanceof PreparationRefused)) throw error;

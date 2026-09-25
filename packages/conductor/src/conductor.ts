@@ -293,6 +293,9 @@ export class Conductor {
   }
 
   /** Confirmed speech from the local mic (harmonic VAD). Zero round-trips: fade, freeze, then tell the room. */
+  /** A check-in is being answered or graded: the board keeps the question up, undimmed (ADR-0050). */
+  private afterCheck = false;
+
   onSpeechStart(): void {
     const mode = this.state?.mode;
     if (!mode || this.phase === 'ended') return;
@@ -412,7 +415,9 @@ export class Conductor {
         this.clearCheckTimer();
         if (!inAd) this.phase = 'listening';
       }
-      this.o.board.setDimmed(true);
+      // A check-in being graded is not the floor changing hands: the board
+      // holds the question and stays readable (ADR-0050).
+      if (!this.afterCheck) this.o.board.setDimmed(true);
       this.o.captions.hint(
         state.floor === this.o.participantId
           ? state.invited === this.o.participantId
@@ -447,11 +452,23 @@ export class Conductor {
       if (!inAd) this.phase = 'playing';
       this.o.captions.hint(null);
     } else if (mode === 'checking') {
-      if (!inAd) this.phase = 'playing';
+      // The card is up and the lesson waits (ADR-0050): whatever was banked
+      // past the question is stale — the room re-speaks from here after the
+      // answer — and the board stays readable, because the question is on it.
+      if (this.phase === 'playing') {
+        this.o.audio.pause();
+        for (const { exec } of this.executions.values()) exec.pause();
+      }
+      this.discardRebank();
+      this.dropBank();
+      this.afterCheck = true;
+      if (!inAd) this.phase = 'paused';
       this.o.board.setDimmed(false);
+      this.o.presence.setSpeaking(false);
       this.o.captions.hint('Answer out loud, or pick an option');
     } else {
       if (!inAd) this.phase = 'playing';
+      this.afterCheck = false;
       this.o.board.setDimmed(false);
       this.o.captions.hint(null);
       if (previous?.mode === 'paused' || previous?.mode === 'discussing')

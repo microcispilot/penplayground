@@ -153,7 +153,7 @@ export function segmentMessages(args: {
     `Goal: ${args.segment.goal}`,
     `Length: about ${Math.round(args.segment.seconds / 60)} minute(s) of speech — ${Math.max(6, Math.round(args.segment.seconds / 7))} to ${Math.min(16, Math.max(8, Math.round(args.segment.seconds / 5)))} sentences, no more. One idea per sentence; cut anything that repeats.`,
     args.segment.hasCheck
-      ? 'End with ONE short check-in question (a "say" that asks it, then a "check" event with options and the expected answer).'
+      ? 'End with ONE short check-in: a "say" that opens with a short cue such as "Quick check:" and asks the question in one sentence — do not list the options in the sentence, they are read out for you — then a "check" event with 2–4 short options and the expected answer.'
       : 'End with a natural handoff to the next segment.',
     titles && order === titles.length
       ? 'This is the last segment: close the session in two warm sentences.'
