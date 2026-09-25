@@ -60,7 +60,10 @@ test.describe('replay scrubber', () => {
     // covered in packages/voice/test/media-player.test.ts.
     const clock = await page.getByTestId('replay-clock').innerText();
     const [mm = '0', ss = '0'] = (clock.split('/')[0] ?? '').trim().split(':');
-    expect(Number(mm) * 60 + Number(ss)).toBeGreaterThanOrEqual(Math.floor(total * 0.4));
+    // The clock shows whole seconds, truncated, so a position of 26.9 reads
+    // "0:26" against a floor of 27: one second of tolerance is the display's
+    // own rounding, not slack in the seek.
+    expect(Number(mm) * 60 + Number(ss)).toBeGreaterThanOrEqual(Math.floor(total * 0.4) - 1);
 
     await shot(page, 'replay-scrubber');
   });

@@ -23,6 +23,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  ACCENT_TOKEN,
   ARTWORK,
   art,
   BBOX,
@@ -33,6 +34,7 @@ import {
   INK,
   INK_TOKEN,
   isInked,
+  MARK_ACCENT,
   paths,
   WHITE,
 } from '../scripts/mark.js';
@@ -179,9 +181,9 @@ const strokes = (): string[] =>
 describe('the two substitutions, which are the reason for the pipeline', () => {
   it('nothing in the component is painted a literal hex', () => {
     // #000000 is 1.27:1 on `surface-container` in dark, so a literal one is a
-    // logo half the product cannot see; #E62117 is right but would be a fourth
-    // place the brand is written down. Both hexes are named in the header
-    // comment on purpose — this is about what gets painted.
+    // logo half the product cannot see; the wine is 1.7:1 there. Both hexes
+    // are named in the header comment on purpose — this is about what gets
+    // painted.
     for (const paint of [...fills(), ...strokes()]) expect(paint).not.toMatch(/^#/);
   });
 
@@ -217,23 +219,37 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
     expect(declared).toEqual([INK, WHITE, WHITE]);
   });
 
-  it('the red is named, and appears once in the mark and once in the lockup', () => {
-    expect(fills().filter((f) => f === 'var(--color-primary-fixed)')).toHaveLength(2);
+  it('the delta is named, and appears once in the mark and once in the lockup', () => {
+    expect(ACCENT_TOKEN).toBe('var(--color-mark-accent)');
+    expect(fills().filter((f) => f === ACCENT_TOKEN)).toHaveLength(2);
+    expect(fills()).not.toContain('var(--color-primary-fixed)');
   });
 
-  it('primary-fixed is the hex the artwork used, so naming it changed nothing', () => {
+  it('tokens.css carries the delta in both themes, and they are the palette', () => {
     const tokens = read('src/styles/tokens.css');
-    const found = /--color-primary-fixed:\s*(#[0-9a-f]{6})/i.exec(tokens);
-    expect(found?.[1]?.toUpperCase()).toBe(BRAND_RED);
+    const declared = [...tokens.matchAll(/--color-mark-accent:\s*(#[0-9a-f]{6})/gi)].map((m) =>
+      (m[1] ?? '').toUpperCase(),
+    );
+    // @theme, the prefers-color-scheme block, and [data-theme="dark"] — the
+    // same three places the ink is declared, in the same order.
+    expect(declared).toEqual([MARK_ACCENT.light, MARK_ACCENT.dark, MARK_ACCENT.dark]);
+    // The artwork's red is recognised and never painted: no theme block declares it.
+    // (The candidate families below `[data-brand=` still name it, as the seed they record.)
+    expect(tokens.slice(0, tokens.indexOf(':root[data-brand=')).toUpperCase()).not.toContain(
+      BRAND_RED,
+    );
   });
 
   it('the favicon carries its own dark rule, since it has no document to inherit from', () => {
     const svg = faviconSvg();
     expect(svg).toContain('@media (prefers-color-scheme: dark)');
-    // The delta is deliberately outside it: it is the one part of the mark
-    // that reads on both grounds, and the part that stays the brand when a
-    // client ignores the media query altogether.
-    expect(svg).toMatch(new RegExp(`fill="${BRAND_RED}"`, 'i'));
+    // The delta is themed with the ink: wine on a light strip, glow on a dark
+    // one. The artwork's red is nowhere in the file, and a client that ignores
+    // the media query gets the light drawing, which is still the mark.
+    expect(svg).not.toMatch(new RegExp(BRAND_RED, 'i'));
+    expect(svg).toContain(`.delta-fill { fill: ${MARK_ACCENT.light} }`);
+    expect(svg).toContain(`.delta-fill { fill: ${MARK_ACCENT.dark} }`);
+    expect(svg.match(/class="delta-fill"/g)).toHaveLength(1);
     expect(svg).not.toMatch(/\.brand\s*\{/);
   });
 

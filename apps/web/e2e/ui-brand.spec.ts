@@ -55,7 +55,7 @@ const THEMES = ['light', 'dark'] as const;
 
 /** The board's ink under each family, as `tokens.css` declares it. */
 const INK: Record<Family, string> = {
-  brand: 'oklch(0.592 0.228 29.3)', // #E62117
+  brand: 'oklch(0.422 0.148 6)', // #8A1A41, the brand wine
   teal: 'oklch(0.597 0.107 218.3)', // #008EAA
   youtube: 'oklch(0.628 0.258 29.2)',
   vermilion: 'oklch(0.592 0.228 29.3)',
@@ -248,8 +248,13 @@ test.describe('brand candidates, side by side', () => {
             .trim(),
         ),
       ]);
-      expect(declared, 'the brand hex the owner chose').toBe('#e62117');
-      expect(painted, `Sign in in ${theme}`).toBe('rgb(230, 33, 23)');
+      // The owner's wine by day; its glow by night, where the wine itself would not read.
+      expect(declared, 'the brand hex the owner chose').toBe(
+        theme === 'dark' ? '#cb688c' : '#8a1a41',
+      );
+      expect(painted, `Sign in in ${theme}`).toBe(
+        theme === 'dark' ? 'rgb(203, 104, 140)' : 'rgb(138, 26, 65)',
+      );
     });
 
     /**

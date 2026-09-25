@@ -125,7 +125,11 @@ describe('content security policy', () => {
 
   it('lets the room capture audio and play it back', () => {
     const policy = defaultPolicy();
-    // The microphone AudioWorklet is a blob: URL, and replay audio is a blob too.
+    // The microphone AudioWorklet is a blob: module and a worklet is a script
+    // to CSP3 (ADR-0053): without blob: under script-src the mic never opens,
+    // Chrome says nothing, and session.spec.ts is what proves it end to end.
+    expect(/script-src [^;]*blob:/.test(policy)).toBe(true);
+    // The resampler worker is a blob: in dev, and replay audio is a blob too.
     expect(/worker-src [^;]*blob:/.test(policy)).toBe(true);
     expect(/media-src [^;]*blob:/.test(policy)).toBe(true);
     // The API and the room WebSocket are same-origin behind nginx.

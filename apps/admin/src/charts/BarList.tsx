@@ -62,7 +62,10 @@ export function BarList({
               {row.label}
             </span>
             {row.note ? (
-              <span className="shrink-0 text-label-small text-on-surface-dim tabular">
+              // The note yields before the label does: on a phone the row
+              // keeps its value at the edge and the note truncates, rather
+              // than the two of them pushing the page sideways.
+              <span className="min-w-0 shrink truncate text-label-small text-on-surface-dim tabular">
                 {row.note}
               </span>
             ) : null}

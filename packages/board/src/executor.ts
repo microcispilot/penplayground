@@ -26,7 +26,6 @@ import {
   handArrow,
   handEllipse,
   handRect,
-  handRoundedRect,
   handUnderline,
   normaliseStrokes,
   type Stroke,
@@ -35,7 +34,6 @@ import {
 import {
   CODE_PADDING,
   type CodeBlockProps,
-  FRAME_INSET,
   type InkStrokeProps,
   type InkTextProps,
   type InkTextStyle,

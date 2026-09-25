@@ -113,12 +113,14 @@
     outline: none;
   }
   /*
-   * M3's focus ring: 3 px of `secondary`, 2 px outward.
-   * (@material/web focus/internal/focus-ring-styles.css — colour
-   * `--md-sys-color-secondary`, width 3px, outward-offset 2px.)
+   * M3's focus ring, 3 px and 2 px outward (@material/web
+   * focus/internal/focus-ring-styles.css), drawn in the brand's glow rather
+   * than `secondary`: the owner's palette names the glow for exactly an edge
+   * — 3.3:1 on the light page, 4.4:1 on the dark one, WCAG's bar for a focus
+   * indicator on both.
    */
   :focus-visible {
-    outline: 3px solid var(--color-secondary);
+    outline: 3px solid var(--color-glow);
     outline-offset: 2px;
   }
   ::selection {

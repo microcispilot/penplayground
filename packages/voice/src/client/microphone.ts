@@ -141,6 +141,12 @@ async function addWorkletFromSource(context: AudioContext, source: string): Prom
   const moduleUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
   try {
     await context.audioWorklet.addModule(moduleUrl);
+  } catch (error: unknown) {
+    // Chrome rejects a module the page's Content-Security-Policy refuses with
+    // a bare `AbortError` and no console line — the same name a cancelled
+    // start() carries. It is a failure of ours, named as one, so it can
+    // never again be read as the user stopping the microphone (ADR-0053).
+    throw new Error('PEN_MICROPHONE_WORKLET_FAILED', { cause: error });
   } finally {
     URL.revokeObjectURL(moduleUrl);
   }
@@ -323,7 +329,9 @@ export class Microphone {
       if (this.#startupAbort === startupAbort) this.#startupAbort = undefined;
       this.#setState('listening');
     } catch (error: unknown) {
-      const aborted = isAbortError(error);
+      // Only *our* abort is a stop() racing the startup; an AbortError from a
+      // step itself (a refused worklet module) is a failure to report.
+      const aborted = isAbortError(error) && startupAbort.signal.aborted;
       if (generation === this.#generation) {
         // Still ours: release what this attempt created. When stop() or a
         // fatal callback already advanced the generation, teardown covered

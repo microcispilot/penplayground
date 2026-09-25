@@ -109,14 +109,20 @@ Calm, never alarming: no consent banners, no draft badges, no lock icons on
 gated rows. Limits are one friendly sentence with a link. The AI disclosure is
 one quiet line.
 
-Red is the brand. `#E62117` is the mark, Sign in, Start, the lesson's
-progress and the board's ink — the ordinary, confident places. The error role
-is the owner's `#ED424A`, laddered so it can be read, and it is close enough
-to the brand that *colour alone never carries the message*: an error says what
-went wrong in words, and the red is only agreement with the words. Reach for
-`error` when something actually broke — a request that failed, a field that
-will not take what is in it. Ending a session, liking a lesson and an ad
-having played are ordinary states and wear neither.
+Wine is the brand. The owner's palette (ADR-0052) is wine `#68113C` for pills
+and the mark's delta, brand `#8A1A41` for buttons — Sign in, Start, the
+lesson's progress and the board's ink, the ordinary, confident places —
+brand-light `#AE2A58` for highlights, glow `#CB688C` for an edge, blush
+`#DFBDC7` for a card's frame, mint `#D0F5EB` for a headline on a dark ground
+and berry `#95214E` for the middle of a gradient. By night the brand fill is
+the glow, because the wine is 2:1 on a dark page; every number is measured in
+`packages/design/test`. The error role is the owner's `#ED424A`, laddered so
+it can be read, and it is close enough to the brand that *colour alone never
+carries the message*: an error says what went wrong in words, and the red is
+only agreement with the words. Reach for `error` when something actually
+broke — a request that failed, a field that will not take what is in it.
+Ending a session, liking a lesson and an ad having played are ordinary states
+and wear neither.
 
 Latency is the product. No state where the expert is silent and the board is
 still for more than two seconds without an honest status line.

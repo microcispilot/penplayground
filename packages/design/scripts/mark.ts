@@ -30,7 +30,7 @@
  *
  *   src/components/PenLogo.tsx   the mark and the lockup, as React. The charcoal
  *                                becomes `var(--color-mark-ink)` and the red becomes
- *                                `var(--color-primary-fixed)`; nothing else is
+ *                                `var(--color-mark-accent)`; nothing else is
  *                                touched, and the `d` of every path is copied
  *                                byte for byte out of the artwork.
  *   apps/web/public/favicon.svg  the same icon with its own `prefers-color-scheme`
@@ -126,7 +126,15 @@ export const ARTWORK: Record<string, string> = {
  */
 export const INK = '#000000';
 export const WHITE = '#FFFFFF';
+/** The red in the owner's artwork — what the generator recognises, not what it paints. */
 export const BRAND_RED = '#E62117';
+/**
+ * What the delta is painted, per ground: the palette's wine on a light tab
+ * strip and its glow on a dark one (ADR-0052). The artwork's red is only the
+ * marker the generator swaps for these.
+ */
+export const MARK_ACCENT = { light: '#68113C', dark: '#CB688C' } as const;
+export const ACCENT_TOKEN = 'var(--color-mark-accent)';
 
 /**
  * The token the ink becomes. Declared in `styles/tokens.css` as #2A2A2A in
@@ -323,7 +331,7 @@ const role = (paint: string): string => {
   const hex = paint.toUpperCase();
   if (hex === 'NONE') return 'none';
   if (hex === INK) return INK_TOKEN;
-  if (hex === BRAND_RED) return 'var(--color-primary-fixed)';
+  if (hex === BRAND_RED) return ACCENT_TOKEN;
   throw new Error(`the artwork uses ${paint}, which this generator has no role for`);
 };
 
@@ -371,9 +379,9 @@ const rawPath = (p: Path, paint: (colour: string, prop: 'fill' | 'stroke') => st
   return `    <path ${attrs.join(' ')} />`;
 };
 
-/** The ink written out literally — for a raster, which cannot ask the OS. */
+/** The ink written out literally — for a raster, which cannot ask the OS. Rasters sit on a light ground. */
 const literal = (colour: string, prop: 'fill' | 'stroke'): string =>
-  `${prop}="${colour.toUpperCase() === INK ? INK : colour.toUpperCase() === 'NONE' ? 'none' : BRAND_RED}"`;
+  `${prop}="${colour.toUpperCase() === INK ? INK : colour.toUpperCase() === 'NONE' ? 'none' : MARK_ACCENT.light}"`;
 
 const box = (b: { x: number; y: number; w: number; h: number }): string =>
   `viewBox="0 0 ${b.w} ${b.h}"`;
@@ -402,11 +410,10 @@ export function component(): string {
  *   softened on a dark page so it does not glare, a mark is not, and that is
  *   the owner's drawing.
  *
- *   The red becomes \`var(--color-primary-fixed)\`. Same hex, named: it is then
- *   one thing with Sign in, Start and the board's ink rather than a fourth
- *   place #E62117 is written down. It is deliberately *not* toned per theme —
- *   the delta is the one part of the mark that reads on both grounds, and
- *   \`primary-fixed\` is M3's role for exactly that.
+ *   The artwork's red becomes \`var(--color-mark-accent)\`: the palette's wine
+ *   on a light page and its glow on a dark one (ADR-0052). The wine is the
+ *   owner's colour for the icon and is 1.7:1 on a dark ground, so the delta
+ *   is toned per theme now, the way the ink is, and for the same reason.
  *
  * The diagonals are strokes, not filled shapes: \`stroke-width\`, the round cap
  * and \`fill="none"\` are copied across with the \`d\`, because each of them is
@@ -507,15 +514,14 @@ ${jsx(icon, '        ')}
 // ── the favicon ─────────────────────────────────────────────────────────────
 
 /**
- * A favicon has no document to read a token from, so the swap that
- * `--color-mark-ink` does for the component has to be written into the file.
- * `prefers-color-scheme`
- * inside an SVG favicon is honoured by Safari, Firefox and Chrome.
+ * A favicon has no document to read a token from, so the swaps that
+ * `--color-mark-ink` and `--color-mark-accent` do for the component have to
+ * be written into the file. `prefers-color-scheme` inside an SVG favicon is
+ * honoured by Safari, Firefox and Chrome.
  *
- * Where it is not, the rule is simply ignored and the icon stays charcoal —
- * so the failure is the red triangle alone on a dark tab strip, which is still
- * the Pen mark and still the brand. That is the reason the triangle keeps one
- * fixed colour rather than being themed with the rest.
+ * Where it is not, the rule is simply ignored and the icon stays charcoal and
+ * wine — the light-tab drawing on whatever strip it lands on, which is still
+ * the Pen mark and still the brand.
  */
 export function faviconSvg(): string {
   const { icon } = art();
@@ -536,21 +542,25 @@ export function faviconSvg(): string {
           return `class="ink-${prop}"`;
         }
         if (colour.toUpperCase() === 'NONE') return prop === 'fill' ? 'fill="none"' : '';
-        return `${prop}="${BRAND_RED}"`;
+        if (colour.toUpperCase() === BRAND_RED) return `class="delta-${prop}"`;
+        throw new Error(`the artwork uses ${colour}, which the favicon has no rule for`);
       }),
     )
     .join('\n');
-  const rule = (colour: string, indent: string): string =>
-    [...used].map((prop) => `${indent}.ink-${prop} { ${prop}: ${colour} }`).join('\n');
+  const rule = (colour: string, accent: string, indent: string): string =>
+    [
+      ...[...used].map((prop) => `${indent}.ink-${prop} { ${prop}: ${colour} }`),
+      `${indent}.delta-fill { fill: ${accent} }`,
+    ].join('\n');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FAVICON_SIDE} ${FAVICON_SIDE}">
   <title>Pen Playground</title>
   <style>
-    /* The ink follows the tab strip. The delta does not: it is the one part
-       of the mark that reads on both, and it is the brand. */
-${rule(INK, '    ')}
+    /* The ink follows the tab strip, and so does the delta: the brand's wine
+       by day, its glow by night. */
+${rule(INK, MARK_ACCENT.light, '    ')}
     @media (prefers-color-scheme: dark) {
-${rule(WHITE, '      ')}
+${rule(WHITE, MARK_ACCENT.dark, '      ')}
     }
   </style>
   <g transform="translate(${round(dx)} ${round(dy)})">

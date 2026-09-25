@@ -27,9 +27,9 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
  * got wrong somewhere:
  *
  *   · the ink follows the theme, so the lockup is legible on both grounds;
- *   · the delta does *not* — it is `primary-fixed`, rgb(230, 33, 23), the
- *     same hex in light and dark, which is what the owner asked for and what
- *     makes the mark survive a client that ignores a colour-scheme rule;
+ *   · the delta follows it too, but to the palette and not to the ink: the
+ *     owner's wine on the light page, the brand's glow on the dark one, and
+ *     never the ink's colour, or the mark would be a silhouette;
  *   · the artwork's aspect is intact, because a mark is easy to squash and
  *     nobody notices in a diff.
  *
@@ -38,8 +38,11 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
  * Output: `.pen-data/screens/logo-<screen>-<theme>-<viewport>.png`.
  */
 
-/** `--color-primary-fixed`, the one colour in the mark that does not move. */
-const BRAND = 'rgb(230, 33, 23)';
+/** `--color-mark-accent`: the delta is wine by day and the brand's glow by night. */
+const BRAND: Record<'light' | 'dark', string> = {
+  light: 'rgb(104, 17, 60)',
+  dark: 'rgb(203, 104, 140)',
+};
 
 const THEMES = ['light', 'dark'] as const;
 
@@ -108,13 +111,13 @@ test.describe('the mark', () => {
       const { fills, ground } = await lockup(page);
 
       // The delta: one fill, the brand, the same hex in both themes.
-      const brand = fills.filter((f) => f === BRAND);
-      expect(brand, `the header mark has no ${BRAND} delta in ${theme}`).toHaveLength(1);
+      const brand = fills.filter((f) => f === BRAND[theme]);
+      expect(brand, `the header mark has no ${BRAND[theme]} delta in ${theme}`).toHaveLength(1);
 
       // The ink: everything else, and it has to be a single resolved colour
       // that a person can see against the bar it sits on. 3:1 is WCAG 1.4.11 —
       // the mark is a graphic, not text.
-      const ink = fills.filter((f) => f !== BRAND);
+      const ink = fills.filter((f) => f !== BRAND[theme]);
       // Eight: the lettering filled and stroked (3 + 3), and the two diagonals
       // stroked. A drop to three would mean the strokes stopped being painted.
       expect(ink).toHaveLength(8);
@@ -135,9 +138,12 @@ test.describe('the mark', () => {
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
     const dark = await lockup(page);
 
-    const inkOf = (f: string[]) => f.filter((x) => x !== BRAND)[0];
-    expect(inkOf(light.fills)).not.toBe(inkOf(dark.fills));
-    expect(light.fills.filter((f) => f === BRAND)).toEqual(dark.fills.filter((f) => f === BRAND));
+    const inkOf = (f: string[], theme: 'light' | 'dark') => f.filter((x) => x !== BRAND[theme])[0];
+    expect(inkOf(light.fills, 'light')).not.toBe(inkOf(dark.fills, 'dark'));
+    // The delta moves with the theme too, but to its own pair, never to the ink's.
+    expect(light.fills.filter((f) => f === BRAND.light)).toHaveLength(1);
+    expect(dark.fills.filter((f) => f === BRAND.dark)).toHaveLength(1);
+    expect(dark.fills).not.toContain(BRAND.light);
   });
 
   test('the lockup keeps the artwork aspect', async ({ page }) => {

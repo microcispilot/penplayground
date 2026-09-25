@@ -614,7 +614,7 @@ export class RoomSession {
   async enableMic(): Promise<void> {
     const set = (patch: Parameters<ReturnType<typeof useRoomStore.getState>['set']>[0]) =>
       useRoomStore.getState().set(patch);
-    if (this.mic) return;
+    if (this.mic || this.disposed) return;
     set({ micState: 'starting' });
     trackInteraction('mic_on');
     const mic = new Microphone({
@@ -683,6 +683,18 @@ export class RoomSession {
     });
     this.mic = mic;
     await mic.start();
+    if (this.disposed) {
+      // Disposed while the grant was pending — React's StrictMode mounts a
+      // session, disposes it, and mounts the one that lives, and the first
+      // one's `start().then(enableMic)` still runs. Release the grant and
+      // leave: the store, the audio room and the recognizer are the live
+      // session's, and a recognizer started here would hand every word the
+      // learner says to a conductor that has already ended (ADR-0053).
+      mic.stop();
+      if (this.mic === mic) this.mic = null;
+      this.micStream = null;
+      return;
+    }
     // Turned on behind an ad (the preference is remembered, the overlay is not):
     // start in custody, and the ad's end releases it with everything else.
     if (this.adGate.paused) mic.setMuted(true);

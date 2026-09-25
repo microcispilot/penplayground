@@ -121,6 +121,14 @@ export function contentSecurityPolicy(options: CspOptions): string {
       'script-src',
       [
         "'self'",
+        // The microphone's capture AudioWorklet is a module built from source
+        // text and loaded from a blob: URL (packages/voice, `Microphone`). A
+        // worklet is a *script* to CSP3 — `addModule` is governed by
+        // script-src, not worker-src — and Chrome refuses it without a console
+        // line: the promise rejects with a bare AbortError, which the mic once
+        // read as "the user stopped" and went quietly idle (ADR-0053). Every
+        // learner's question during playback was then dropped as echo.
+        'blob:',
         ...(options.dev ? ["'unsafe-inline'", "'unsafe-eval'"] : options.inlineScriptHashes),
         ...GOOGLE_ADS,
         ...GOOGLE_SIGN_IN,
@@ -179,7 +187,8 @@ export function contentSecurityPolicy(options: CspOptions): string {
         ...(options.dev ? ['http://imasdk.googleapis.com'] : []),
       ],
     ],
-    // The microphone capture AudioWorklet is loaded from a blob: URL.
+    // The resampler is a module worker; in dev Vite serves it from a blob: URL.
+    // (The AudioWorklet is *not* this directive's: see script-src.)
     ['worker-src', ["'self'", 'blob:']],
     ['child-src', ['blob:', ...GOOGLE_ADS]],
     ['manifest-src', ["'self'"]],

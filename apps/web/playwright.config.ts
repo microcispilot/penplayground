@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -136,6 +137,14 @@ export default defineConfig({
       args: [
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
+        // The fake device's own capture is a beeping tone, and the room's
+        // harmonic voice detector confirms it as speech: with the microphone
+        // alive (ADR-0053) every spec that did not install the fake speech
+        // harness barged in on its own lesson two seconds in. The capture is
+        // therefore a file — one second of a working microphone's noise
+        // floor, looped — so a room hears a quiet learner unless a spec
+        // speaks (e2e/speech.ts hands the room its own stream for that).
+        `--use-file-for-fake-audio-capture=${resolve(import.meta.dirname, 'e2e/fixtures/quiet-microphone.wav')}`,
         '--autoplay-policy=no-user-gesture-required',
         // A local TURN server is on 127.0.0.1, and Chrome silently drops ICE servers on a
         // loopback address without this (rooms-turn.spec.ts). Local testing only.

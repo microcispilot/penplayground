@@ -502,14 +502,15 @@ describe('a brand role and an error role have to be two colours', () => {
   const RECORDED: Record<string, readonly [number, number]> = {
     //         light   dark
     /*
-     * The brand, with the error role the owner chose: #ED424A, a red six
-     * degrees of hue from it. This is the one entry in the table that does
-     * not clear the 0.15 below — 0.025 in light is not two colours, it is two
-     * shades of one, and in light a failed request and the Start button are
-     * very nearly the same red. It is recorded here rather than gated so the
-     * cost is a number somebody can look at, and so moving it still fails.
+     * The brand — the owner's wine, #8A1A41 by day and a lightened glow by
+     * night — with the error role the owner chose, #ED424A. The wine sits
+     * at red's door, so this is still the one entry that does not clear the
+     * 0.15 below: 0.110 in light, four times the 0.025 the old red managed,
+     * but a failed request and the Start button remain neighbours. Recorded
+     * rather than gated so the cost is a number somebody can look at, and so
+     * moving it still fails.
      */
-    default: [0.025, 0.13],
+    default: [0.11, 0.122],
     teal: [0.279, 0.17],
     green: [0.232, 0.148],
     forest: [0.273, 0.171],
@@ -617,8 +618,8 @@ describe('caption contrast on the board', () => {
     expect(contrast(over(WHITE, CAPTION_BG, 0.85), CAPTION_BG)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('the ink the board is drawn in is the brand red, and teal still has its own', () => {
-    expect(decl('--color-ink-accent')).toBe('oklch(0.592 0.228 29.3)');
+  it('the ink the board is drawn in is the brand wine, and teal still has its own', () => {
+    expect(decl('--color-ink-accent')).toBe('oklch(0.422 0.148 6)');
     expect(
       /--color-ink-accent:\s*([^;]+);/.exec(block('teal', 'light'))?.[1]?.trim(),
       'the teal family keeps the ink every sketch before the rebrand was drawn in',

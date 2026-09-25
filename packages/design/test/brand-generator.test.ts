@@ -373,7 +373,9 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
    * The finding the four candidate families exist to record: M3 puts primary
    * at tone 80 in a dark scheme, and a red at tone 80 is #ffb4a8 — a salmon
    * with barely a tenth of the seed's chroma. Measured against them: all four
-   * land there, and the brand does not.
+   * land there, and the brand does not — by night it is the palette's own
+   * glow, #CB688C, chosen by the owner and not derived, at 0.131 of chroma
+   * and on the wine's hue.
    */
   it('does not go pale in the dark the way every generated red does', () => {
     const chroma = (brand: string) =>
@@ -381,22 +383,31 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
     for (const pale of ['youtube', 'vermilion', 'coral', 'ember']) {
       expect(chroma(pale), `${pale} dark primary`).toBeLessThan(0.11);
     }
-    expect(oklchFromHex(brand('dark')).c, 'the brand in dark').toBeGreaterThan(0.18);
+    const night = oklchFromHex(brand('dark'));
+    expect(night.c, 'the brand in dark').toBeGreaterThan(0.12);
+    expect(hueGap(night.h, oklchFromHex(brand('light')).h), "and on the wine's hue").toBeLessThan(
+      10,
+    );
   });
 
   /**
-   * The owner's instruction, in one assertion: "the same red youtubish colour
-   * ... to be used both for dark and light". Not a near match — the same hex.
+   * Two hexes, by measurement (ADR-0052): the owner's wine is 2.0:1 on the
+   * dark `surface`, so the dark scheme re-declares the brand fill as the
+   * palette's glow. Both are pinned here so neither can drift quietly, and
+   * the reason is asserted rather than remembered.
    */
-  /**
-   * "Fixed" is not a naming convention here — it is the absence of a second
-   * declaration. The dark blocks must not re-declare it, or a later edit can
-   * make the two themes drift without any test noticing.
-   */
-  it('is one hex, because the dark scheme never redeclares it', () => {
-    expect(declared(themeBlock('dark'), 'primary-fixed')).toBeUndefined();
-    expect(declared(themeBlock('dark'), 'on-primary-fixed')).toBeUndefined();
-    expect(brand('dark')).toBe(brand('light'));
+  it('is wine by day and glow by night, because the wine cannot fill a button in the dark', () => {
+    expect(brand('light')).toBe('#8a1a41');
+    expect(brand('dark')).toBe('#cb688c');
+    expect(onBrand('dark')).toBe('#2b0716');
+    const surface = rgb(declared(themeBlock('dark'), 'surface') ?? '');
+    expect(contrast(rgb(brand('light')), surface), 'the wine on the dark surface').toBeLessThan(3);
+    expect(contrast(rgb(brand('dark')), surface), 'the glow on the dark surface').toBeGreaterThan(
+      4.5,
+    );
+    expect(contrast(rgb(onBrand('dark')), rgb(brand('dark'))), 'text on the glow').toBeGreaterThan(
+      4.5,
+    );
   });
 
   /**
@@ -423,8 +434,8 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
    * Sign in, the mark, the focus ring and the progress bar are drawn in
    * primary directly, on whichever of the neutral surfaces they happen to sit
    * on. 3:1 is WCAG's bar for a non-text control, and it has to hold on all of
-   * them, not on the lightest one. This is the reason the red is #e62117 and
-   * not the brighter #cc0000, which fails it at 2.80:1 on `surface-container`.
+   * them, not on the lightest one. This is the reason the dark scheme's brand
+   * fill is the palette's glow and not its wine, which is 2.0:1 on `surface`.
    */
   it.each(['light', 'dark'] as const)('%s: it reads on every surface it sits on', (theme) => {
     for (const role of ['surface', 'surface-container', 'surface-container-high']) {
@@ -461,14 +472,10 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
     const block = themeBlock(theme);
     const label = declared(block, 'on-secondary-container') ?? '';
     const fill = declared(block, 'secondary-container') ?? '';
-    // The toned role, not the fixed one, and this is the number that decides
-    // it: #E62117 on these greys is 3.53:1 and 2.68:1.
+    // The toned role, not the fixed one: by night the brand fill is the
+    // glow, 3.6:1 on this grey, and the wine would be 2.3:1.
     expect(label, 'selected is labelled in `primary`').toBe(declared(block, 'primary'));
     expect(contrast(rgb(label), rgb(fill)), `${label} on ${fill}`).toBeGreaterThan(4.5);
-    expect(
-      contrast(rgb(brand(theme)), rgb(fill)),
-      'and the fixed brand could not have carried it',
-    ).toBeLessThan(4.5);
   });
 
   /**
