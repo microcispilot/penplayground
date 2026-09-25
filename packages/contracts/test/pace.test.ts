@@ -44,11 +44,11 @@ describe('pace math', () => {
   });
 
   it('multiplies the board handwriting rate by the pace', () => {
-    expect(handwritingCpsFor(1)).toBe(10);
-    expect(handwritingCpsFor(0.75)).toBeCloseTo(7.5, 6);
-    expect(handwritingCpsFor(0.9)).toBeCloseTo(9, 6);
-    expect(handwritingCpsFor(1.15)).toBeCloseTo(11.5, 6);
-    expect(handwritingCpsFor(1.3)).toBeCloseTo(13, 6);
+    expect(handwritingCpsFor(1)).toBe(20);
+    expect(handwritingCpsFor(0.75)).toBeCloseTo(15, 6);
+    expect(handwritingCpsFor(0.9)).toBeCloseTo(18, 6);
+    expect(handwritingCpsFor(1.15)).toBeCloseTo(23, 6);
+    expect(handwritingCpsFor(1.3)).toBeCloseTo(26, 6);
     // The product timing constant is the same number: one place for the 1× rhythm.
     expect(TIMING.handwritingCps).toBe(PACE.handwritingCps);
   });

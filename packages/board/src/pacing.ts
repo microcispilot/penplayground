@@ -20,7 +20,7 @@ export const PEN_UNITS_PER_SECOND = 850;
 export const MIN_OP_MS = 160;
 
 /** Upper bound on stretching a short op to a long sentence. */
-export const MAX_STRETCH = 3;
+export const MAX_STRETCH = 1.5;
 
 /** Fade used by `erase`. */
 export const FADE_MS = 360;

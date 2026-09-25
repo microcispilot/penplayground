@@ -41,12 +41,15 @@ export const PACE = {
   titleGapMs: 700,
   /**
    * Handwriting on the board, characters per second at 1×. Real board writing
-   * measured 8–12 cps depending on the writer; 10 lands in the middle and stays
-   * legible as it appears. Multiplied by the pace.
+   * measures 8–12 cps, and 10 was the first number; the owner, watching whole
+   * lessons, found the pen crawling — *"it should write faster, 2x faster on
+   * the board"* — and a learner reads faster than a hand writes. 20, with the
+   * stretch below capped at 1.5×, is a hand that keeps up with the voice
+   * without lagging it. Multiplied by the pace.
    */
-  handwritingCps: 10,
+  handwritingCps: 20,
   /** Typewriter reveal for code/markdown blocks; text nobody "writes" by hand can arrive faster. */
-  typewriterCps: 40,
+  typewriterCps: 80,
 } as const;
 
 /**

@@ -13,7 +13,7 @@ describe('pacing', () => {
   it('natural durations follow the product constants', () => {
     expect(handwritingMs(TIMING.handwritingCps)).toBeCloseTo(1000, 6);
     expect(typewriterMs(TIMING.typewriterCps)).toBeCloseTo(1000, 6);
-    expect(handwritingMs(22)).toBeCloseTo(2200, 6); // 10 cps: a patient teacher's hand
+    expect(handwritingMs(22)).toBeCloseTo((22 / TIMING.handwritingCps) * 1000, 6);
     expect(penTravelMs(850)).toBeCloseTo(1000, 6);
   });
 
@@ -29,8 +29,8 @@ describe('pacing', () => {
   });
 
   it('a longer sentence stretches the op to its duration', () => {
-    const r = resolvePace(2000, 4500);
-    expect(r).toEqual({ durationMs: 4500, naturalMs: 2000, stretch: 2.25, mode: 'stretched' });
+    const r = resolvePace(2000, 2500);
+    expect(r).toEqual({ durationMs: 2500, naturalMs: 2000, stretch: 1.25, mode: 'stretched' });
   });
 
   it('stretching is capped so a short label never crawls', () => {

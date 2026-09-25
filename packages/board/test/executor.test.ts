@@ -52,7 +52,7 @@ describe('BoardExecutor', () => {
 
   it('write: never faster than the human constant, stretched to a long sentence, capped', async () => {
     const { editor, ticker, executor } = ctx;
-    const text = 'the cat sat on the mat'; // 22 chars → 2200 ms natural at 10 cps
+    const text = 'the cat sat on the mat'; // 22 chars → 1100 ms natural at 20 cps
     const natural = handwritingMs(text.length);
     // short sentence → natural speed
     const a = executor.execute(boardOp('b1', { op: 'write', text, place: 'newline' }), {
@@ -63,14 +63,15 @@ describe('BoardExecutor', () => {
     expect(editor.progress('shape:b1')).toBeCloseTo(0.5, 1);
     ticker.advance(natural / 2 + 100);
     await a.done;
-    // long sentence → stretched
+    // long sentence → stretched, within the cap
+    const stretchedMs = natural * (1 + (MAX_STRETCH - 1) / 2);
     const b = executor.execute(boardOp('b2', { op: 'write', text, place: 'newline' }), {
-      paceMs: 4000,
+      paceMs: stretchedMs,
     });
     await flush();
-    ticker.advance(2000);
+    ticker.advance(stretchedMs / 2);
     expect(editor.progress('shape:b2')).toBeCloseTo(0.5, 1);
-    ticker.advance(2100);
+    ticker.advance(stretchedMs / 2 + 100);
     await b.done;
     // absurd sentence → capped at MAX_STRETCH × natural
     const c = executor.execute(boardOp('b3', { op: 'write', text, place: 'newline' }), {
@@ -136,16 +137,17 @@ describe('BoardExecutor', () => {
 
   it('pause freezes mid-stroke, resume continues, finish completes, cancel leaves what was drawn', async () => {
     const { editor, ticker, executor } = ctx;
-    const text = 'twenty two characters!'; // 2000 ms
+    const text = 'twenty two characters!';
+    const natural = handwritingMs(text.length);
     const exec = executor.execute(boardOp('b1', { op: 'write', text }), { paceMs: null });
     await flush();
-    ticker.advance(500);
+    ticker.advance(natural / 4);
     exec.pause();
     const frozen = editor.progress('shape:b1');
     ticker.advance(5000);
     expect(editor.progress('shape:b1')).toBe(frozen);
     exec.resume();
-    ticker.advance(500);
+    ticker.advance(natural / 4);
     expect(editor.progress('shape:b1')).toBeCloseTo(0.5, 1);
     exec.finish();
     await exec.done;
@@ -212,8 +214,9 @@ describe('BoardExecutor', () => {
       walked += 100;
     }
     expect(editor.progress('shape:b1.frame')).toBe(1);
-    // The typewriter follows the frame after a beat of 80 ms, stretched with the rest.
-    ticker.advance(400);
+    // The typewriter follows the frame after a beat of 80 ms (stretched with
+    // the rest, at most 1.5×): a moment after that it has begun and not ended.
+    ticker.advance(150);
     expect(editor.progress('shape:b1')).toBeGreaterThan(0);
     expect(editor.progress('shape:b1')).toBeLessThan(1);
     ticker.advance(4_000);
