@@ -1,7 +1,8 @@
 import type { Expert, Reaction } from '@pen/contracts';
 import { Button, cn, Pill, useToast } from '@pen/design';
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router';
 import { trackAction, trackInteraction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
@@ -69,6 +70,25 @@ export interface SessionPlayerProps {
  * Two frames, one classroom (ADR-0045): the room screen renders this at
  * `layout="full"`, the watch page at `layout="inline"`.
  */
+/**
+ * The check-in card inside whatever element is fullscreen (ADR-0050). When
+ * an element is fullscreen the browser draws its subtree alone; a card that
+ * is that element's sibling is not hidden by a style, it is not drawn at
+ * all. So while something is fullscreen the card is portalled into it, and
+ * otherwise it stays where it is, on the board.
+ */
+function FullscreenPortal({ children }: { children: ReactNode }) {
+  const [host, setHost] = useState<Element | null>(() =>
+    typeof document === 'undefined' ? null : document.fullscreenElement,
+  );
+  useEffect(() => {
+    const onChange = () => setHost(document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  return host ? createPortal(children, host) : <>{children}</>;
+}
+
 export function SessionPlayer({
   sessionId: id,
   layout,
@@ -514,12 +534,14 @@ export function SessionPlayer({
               language={state.language}
             />
             {ui.check && session ? (
-              <CheckCard
-                check={ui.check}
-                question={ui.check.question ?? checkQuestion}
-                language={state.language}
-                onAnswer={(t) => session.answerCheck(ui.check?.id ?? '', t)}
-              />
+              <FullscreenPortal>
+                <CheckCard
+                  check={ui.check}
+                  question={ui.check.question ?? checkQuestion}
+                  language={state.language}
+                  onAnswer={(t) => session.answerCheck(ui.check?.id ?? '', t)}
+                />
+              </FullscreenPortal>
             ) : null}
             {ui.ad && session ? (
               <VideoAd

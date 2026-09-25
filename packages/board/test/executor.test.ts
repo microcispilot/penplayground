@@ -190,40 +190,25 @@ describe('BoardExecutor', () => {
     expect(editor.shapes.has('shape:b3')).toBe(false);
   });
 
-  it('code: frame stroke first, then typewriter, both stretched to the sentence', async () => {
+  it('code: bare lines typed at the sentence, with no frame around them', async () => {
     const { editor, ticker, executor } = ctx;
     const code = 'let x = 1\nprint(x)';
     const exec = executor.execute(boardOp('b1', { op: 'code', text: code, lang: 'swift' }), {
       paceMs: 4000,
     });
     await flush();
-    const frame = editor.shapes.get('shape:b1.frame');
+    // No rectangle (ADR-0051): the colouring says it is code.
+    expect(editor.shapes.has('shape:b1.frame')).toBe(false);
     const block = editor.shapes.get('shape:b1');
-    expect(frame?.type).toBe(SHAPE_TYPE.inkStroke);
-    expect(frame?.props).toMatchObject({ role: 'frame' });
     expect(block?.type).toBe(SHAPE_TYPE.codeBlock);
     expect(block?.props.lines).toEqual(plainLines(code));
-    ticker.advance(200);
-    expect(editor.progress('shape:b1.frame')).toBeGreaterThan(0);
-    expect(editor.progress('shape:b1')).toBe(0);
-    // The frame's share of the sentence depends on its size (the type scale
-    // sets it): walk to the moment it is done rather than assume where that is.
-    let walked = 200;
-    while (editor.progress('shape:b1.frame') < 1 && walked < 3_800) {
-      ticker.advance(100);
-      walked += 100;
-    }
-    expect(editor.progress('shape:b1.frame')).toBe(1);
-    // The typewriter follows the frame after a beat of 80 ms (stretched with
-    // the rest, at most 1.5×): a moment after that it has begun and not ended.
-    ticker.advance(150);
+    ticker.advance(60);
     expect(editor.progress('shape:b1')).toBeGreaterThan(0);
     expect(editor.progress('shape:b1')).toBeLessThan(1);
     ticker.advance(4_000);
     await exec.done;
     expect(editor.progress('shape:b1')).toBe(1);
   });
-
   it('markdown: one md-block sized from the estimate', async () => {
     const { editor, executor } = ctx;
     executor
@@ -389,7 +374,16 @@ describe('BoardExecutor', () => {
     const { editor, executor } = setup({ camera: true });
     editor.viewport = { x: 0, y: 0, w: 800, h: 500 };
     editor.zoom = 1;
-    executor.execute(boardOp('b1', { op: 'write', text: 'in view' }), { paceMs: null }).finish();
+    executor
+      .execute(
+        boardOp('b1', {
+          op: 'write',
+          // Wide enough to fill the column, so the next column lands outside an 800 px view.
+          text: 'in view, and a good deal more of it than fits on one narrow screen of board',
+        }),
+        { paceMs: null },
+      )
+      .finish();
     await flush();
     expect(editor.cameraMoves).toHaveLength(0);
     executor

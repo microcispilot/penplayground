@@ -572,30 +572,21 @@ export class BoardExecutor implements BoardPort {
     const rows = Math.max(1, lines.length);
     const charW = TYPE.codeFont * HAND_ADVANCE_RATIO;
     const lineH = TYPE.codeFont * TYPE.codeLineHeight;
-    const innerW = Math.min(
-      this.layout.content.w - FRAME_INSET * 2,
-      Math.ceil(cols * charW + CODE_PADDING * 2),
-    );
+    /*
+     * Code is written as lines, not boxed (ADR-0051): a frame around every
+     * snippet read as a form and cost a third of the column. The colouring
+     * says it is code; the hand says who wrote it.
+     */
+    const innerW = Math.min(this.layout.content.w, Math.ceil(cols * charW + CODE_PADDING * 2));
     const innerH = Math.ceil(rows * lineH + CODE_PADDING * 2);
-    const frameW = innerW + FRAME_INSET * 2;
-    const frameH = innerH + FRAME_INSET * 2;
     const placed = this.layout.place({
-      w: frameW,
-      h: frameH,
+      w: innerW,
+      h: innerH,
       place: op.place,
       ...(op.ref ? { ref: op.ref } : {}),
     });
 
-    const frameId = toShapeId(`${op.id}.frame`);
     const codeId = toShapeId(op.id);
-    const frame = this.strokeShape(
-      frameId,
-      handRoundedRect(frameW, frameH, 14, op.id),
-      { x: placed.x, y: placed.y },
-      op.emphasis === 'ink' ? 'muted' : op.emphasis,
-      'frame',
-      2.6,
-    );
     const props: CodeBlockProps = {
       code,
       lang: op.lang,
@@ -608,23 +599,19 @@ export class BoardExecutor implements BoardPort {
     const codeShape: ShapeRecordInit = {
       id: codeId,
       type: SHAPE_TYPE.codeBlock,
-      x: placed.x + FRAME_INSET,
-      y: placed.y + FRAME_INSET,
+      x: placed.x,
+      y: placed.y,
       props: { ...props },
     };
-    const frameMs = penTravelMs(frame.length);
     const typeMs = typewriterMs(code.length);
-    const pace = resolvePace(frameMs + typeMs, paceMs, rate);
-    const timeline = new Timeline()
-      .append(progressTrack(frameId, frameMs))
-      .append(progressTrack(codeId, typeMs), 80)
-      .stretch(pace.stretch);
-    const b: Bounds = { x: placed.x, y: placed.y, w: frameW, h: frameH };
+    const pace = resolvePace(typeMs, paceMs, rate);
+    const timeline = new Timeline().append(progressTrack(codeId, typeMs)).stretch(pace.stretch);
+    const b: Bounds = { x: placed.x, y: placed.y, w: innerW, h: innerH };
     return {
-      shapes: [frame.shape, codeShape],
+      shapes: [codeShape],
       timeline,
       bounds: b,
-      register: [{ ref: op.id, ids: [frameId, codeId], bounds: b }],
+      register: [{ ref: op.id, ids: [codeId], bounds: b }],
     };
   }
 

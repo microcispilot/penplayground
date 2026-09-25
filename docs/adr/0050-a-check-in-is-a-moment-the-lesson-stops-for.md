@@ -96,6 +96,14 @@ instead of going on; a resume before that undoes it. The player's toggle is
 decided by its own phase and the room's mode together, so the two can no
 longer disagree about what a press means.
 
+### The card lives inside whatever is fullscreen
+
+When an element is fullscreen the browser draws its subtree alone: a card
+that is that element's sibling is not hidden by a style, it is not drawn at
+all. The card is portalled into `document.fullscreenElement` while there is
+one, and stays on the board otherwise — so it is there whichever element the
+learner made fullscreen.
+
 ### Inline, an ended session hands the page back
 
 The watch page is the recap — the description, the comments, Up next — so

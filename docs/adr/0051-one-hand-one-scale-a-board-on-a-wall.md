@@ -80,6 +80,17 @@ executor, the shapes and the camera do not know the difference. The board
 takes its direction from the session's language and can change it
 mid-lesson without moving what is already on the page.
 
+### Code is written as lines, and the next column starts after the widest thing
+
+Every snippet used to be drawn inside a hand-drawn rectangle: the owner,
+*"it does not look good, second, it takes so much space."* Code is now bare
+lines with a hair of padding; the colouring says it is code, the hand says
+who wrote it. And the next column starts a gap after the widest thing in
+the current column rather than a fixed column width away — a column of
+short lines used to leave half the board empty beside it — with a floor
+(240) so a column of one word never puts the next on top of it, and the
+full column as the ceiling.
+
 ### The card scales with its box
 
 The check-in card is sized from the board frame's **measured width** (a CSS

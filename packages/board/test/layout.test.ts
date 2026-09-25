@@ -38,14 +38,16 @@ describe('Layout', () => {
 
   it('column opens the next column to the right, then a new page when there is no room', () => {
     const l = new Layout();
-    l.place({ w: 100, h: 40, place: 'flow' });
-    l.place({ w: 100, h: 40, place: 'newline' });
-    const c1 = l.place({ w: 100, h: 40, place: 'column' });
+    // Full-width lines: the next column starts a full column away (ADR-0051
+    // starts it after the widest thing, which here is the whole column).
+    l.place({ w: 700, h: 40, place: 'flow' });
+    l.place({ w: 700, h: 40, place: 'newline' });
+    const c1 = l.place({ w: 700, h: 40, place: 'column' });
     expect(c1.newColumn).toBe(true);
     expect(c1.x).toBe(MARGIN + DEFAULT_LAYOUT.columnWidth + DEFAULT_LAYOUT.columnGap);
     expect(c1.y).toBe(MARGIN);
     // Third column would end at 80 + 2*(640+64) + 640 = 2128 > 1520 → new page.
-    const c2 = l.place({ w: 100, h: 40, place: 'column' });
+    const c2 = l.place({ w: 700, h: 40, place: 'column' });
     expect(c2.newPage).toBe(true);
     expect(c2.page).toBe(1);
     expect(c2).toMatchObject({ x: MARGIN, y: PAGE_STRIDE + MARGIN });

@@ -23,6 +23,8 @@ export const PAGE_W = 1600;
 export const PAGE_H = 900;
 export const MARGIN = 80;
 export const PAGE_STRIDE = 1100;
+/** A column never starts closer than this to the last one's start, whatever was in it. */
+export const MIN_COLUMN_ADVANCE = 240;
 
 export interface LayoutOptions {
   pageWidth: number;
@@ -98,6 +100,8 @@ export class Layout {
   private readonly refs = new Map<string, Bounds>();
   /** Bottom edge of the last pinned note, per page. */
   private readonly noteBottom = new Map<number, number>();
+  /** The right edge of the widest thing placed in the current column, so the next column starts after it. */
+  private columnUsedRight = 0;
 
   constructor(opts: Partial<LayoutOptions> = {}) {
     this.opts = { ...DEFAULT_LAYOUT, ...opts };
@@ -259,6 +263,7 @@ export class Layout {
 
   private resetCursor(): void {
     this.columnX = this.contentLeft;
+    this.columnUsedRight = this.columnX;
     this.cursor = { x: this.columnX, y: this.contentTop, lineHeight: 0 };
   }
 
@@ -291,11 +296,21 @@ export class Layout {
   }
 
   private placeColumn(w: number, h: number): Placed {
-    const nextX = this.columnX + this.opts.columnWidth + this.opts.columnGap;
+    /*
+     * The next column starts a gap after the widest thing in this one, not a
+     * fixed column width away (ADR-0051): a column of short lines used to
+     * leave half the board empty beside it. A floor keeps a column of one
+     * word from putting the next column on top of it.
+     */
+    const nextX = Math.min(
+      Math.max(this.columnUsedRight + this.opts.columnGap, this.columnX + MIN_COLUMN_ADVANCE),
+      this.columnX + this.opts.columnWidth + this.opts.columnGap,
+    );
     const fits = nextX + Math.min(w, this.opts.columnWidth) <= right(this.content) + 0.5;
     let newPage = false;
     if (fits) {
       this.columnX = nextX;
+      this.columnUsedRight = nextX;
     } else {
       this.newPage();
       newPage = true;
@@ -324,6 +339,7 @@ export class Layout {
       newColumn: false,
     };
     // The hand is now to the right of what it just wrote.
+    this.columnUsedRight = Math.max(this.columnUsedRight, x + w);
     this.cursor = { x: x + w + this.opts.itemGap, y, lineHeight: h };
     return placed;
   }
@@ -384,6 +400,7 @@ export class Layout {
   }
 
   private advance(w: number, h: number): void {
+    this.columnUsedRight = Math.max(this.columnUsedRight, this.cursor.x + w);
     this.cursor = {
       x: this.cursor.x + w + this.opts.itemGap,
       y: this.cursor.y,

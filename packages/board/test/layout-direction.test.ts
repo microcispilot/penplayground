@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Layout, MARGIN, PAGE_W } from '../src/layout.js';
+import { Layout, MARGIN, MIN_COLUMN_ADVANCE, PAGE_W } from '../src/layout.js';
 
 /**
  * Writing starts from the right for a right-to-left lesson (ADR-0051): the
@@ -32,5 +32,26 @@ describe('Layout direction', () => {
     rtl.setDirection('ltr');
     const c = rtl.place({ w: 120, h: 40, place: 'newline' });
     expect(c.x).toBe(MARGIN);
+  });
+});
+
+describe('the next column (ADR-0051)', () => {
+  it('starts a gap after the widest thing in the current column, never closer than the floor, never further than a full column', () => {
+    const wide = new Layout();
+    wide.place({ w: 700, h: 40, place: 'flow' });
+    const afterWide = wide.place({ w: 100, h: 40, place: 'column' });
+    // A full column: the old rule, still the ceiling.
+    expect(afterWide.x).toBe(MARGIN + wide.opts.columnWidth + wide.opts.columnGap);
+
+    const narrow = new Layout();
+    narrow.place({ w: 300, h: 40, place: 'flow' });
+    narrow.place({ w: 200, h: 40, place: 'newline' });
+    const afterNarrow = narrow.place({ w: 100, h: 40, place: 'column' });
+    expect(afterNarrow.x).toBe(MARGIN + 300 + narrow.opts.columnGap);
+
+    const tiny = new Layout();
+    tiny.place({ w: 40, h: 40, place: 'flow' });
+    const afterTiny = tiny.place({ w: 100, h: 40, place: 'column' });
+    expect(afterTiny.x).toBe(MARGIN + MIN_COLUMN_ADVANCE);
   });
 });
