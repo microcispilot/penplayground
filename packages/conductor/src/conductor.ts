@@ -498,7 +498,7 @@ export class Conductor {
       if (!inAd) this.phase = 'paused';
       this.o.board.setDimmed(false);
       this.o.presence.setSpeaking(false);
-      this.o.captions.hint('Answer out loud, or pick an option');
+      this.o.captions.hint(null);
     } else {
       if (!inAd) this.phase = 'playing';
       this.afterCheck = false;

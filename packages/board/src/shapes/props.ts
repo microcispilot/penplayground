@@ -101,7 +101,7 @@ export const TYPE = {
   labelFont: 23,
   codeFont: 24,
   mdFont: 22,
-  /** Code and prose are set in the hand too (ADR-0051); their advance is `HAND_ADVANCE_RATIO`. */
+  /** Prose is set in the hand (ADR-0051), its advance `HAND_ADVANCE_RATIO`; code in the editor's mono, `MONO_ADVANCE_RATIO`. */
   codeLineHeight: 1.55,
   mdLineHeight: 1.5,
 } as const;

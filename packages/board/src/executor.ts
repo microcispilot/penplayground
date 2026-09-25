@@ -52,6 +52,7 @@ import {
   connectNearestSides,
   HAND_ADVANCE_RATIO,
   layoutSketch,
+  MONO_ADVANCE_RATIO,
   parseSketch,
   type SketchLayout,
 } from './sketch.js';
@@ -568,12 +569,12 @@ export class BoardExecutor implements BoardPort {
     const lines = await this.highlighter.highlight(code, op.lang);
     const cols = code.split('\n').reduce((m, l) => Math.max(m, l.length), 1);
     const rows = Math.max(1, lines.length);
-    const charW = TYPE.codeFont * HAND_ADVANCE_RATIO;
+    const charW = TYPE.codeFont * MONO_ADVANCE_RATIO;
     const lineH = TYPE.codeFont * TYPE.codeLineHeight;
     /*
      * Code is written as lines, not boxed (ADR-0051): a frame around every
      * snippet read as a form and cost a third of the column. The colouring
-     * says it is code; the hand says who wrote it.
+     * and the editor's face say it is code.
      */
     const innerW = Math.min(this.layout.content.w, Math.ceil(cols * charW + CODE_PADDING * 2));
     const innerH = Math.ceil(rows * lineH + CODE_PADDING * 2);

@@ -97,23 +97,26 @@ export function createShikiHighlighter(): CodeHighlighter {
   let corePromise: Promise<Core> | null = null;
   const loaded = new Set<string>();
   /*
-   * Two themes, because the board is no longer always light (ADR-0034).
-   * `github-light` on a blackboard is dark-grey keywords on near-black, which
-   * is a code block nobody can read — and the board cannot re-tint them,
-   * because Shiki emits each token as a literal hex.
+   * Two themes, because the board is no longer always light (ADR-0034), and
+   * the One themes because the owner wants code in an editor's colours —
+   * purple keywords, green strings — while everything else on the board is
+   * the chalk's own colour. A light theme on a blackboard is dark-grey
+   * keywords on near-black, which is a code block nobody can read — and the
+   * board cannot re-tint them, because Shiki emits each token as a literal
+   * hex.
    *
    * Which one is in use is read from `--board-code-theme`: a number rather
    * than a colour, because Shiki picks a theme by name and CSS has no way to
    * hand it one. 1 is dark.
    */
-  const THEMES = { 0: 'github-light', 1: 'github-dark' } as const;
+  const THEMES = { 0: 'one-light', 1: 'one-dark-pro' } as const;
   const themeFg: Record<string, string> = {
-    'github-light': '#24292e',
-    'github-dark': '#c9d1d9',
+    'one-light': '#383a42',
+    'one-dark-pro': '#abb2bf',
   };
 
   /** The Shiki theme the board in use calls for. Light when we cannot tell. */
-  const themeName = (): 'github-light' | 'github-dark' => {
+  const themeName = (): 'one-light' | 'one-dark-pro' => {
     if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
       return THEMES[0];
     }
@@ -129,7 +132,7 @@ export function createShikiHighlighter(): CodeHighlighter {
       .then(([shiki, js]) =>
         shiki.createHighlighterCore({
           engine: js.createJavaScriptRegexEngine({ forgiving: true }),
-          themes: [import('shiki/themes/github-light.mjs'), import('shiki/themes/github-dark.mjs')],
+          themes: [import('shiki/themes/one-light.mjs'), import('shiki/themes/one-dark-pro.mjs')],
           langs: [],
         }),
       )

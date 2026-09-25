@@ -4,7 +4,7 @@
     /* The ink follows the tab strip. The delta does not: it is the brand on
        both. */
     .ink-stroke { stroke: #000000 }
-    .delta-fill { fill: #B30D4D }
+    .delta-fill { fill: #A9124A }
     @media (prefers-color-scheme: dark) {
       .ink-stroke { stroke: #FFFFFF }
     }

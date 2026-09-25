@@ -61,11 +61,17 @@ export function inkVar(emphasis: Emphasis): string {
   }
 }
 
+/**
+ * Every emphasis is written in the chalk or marker the learner chose (the
+ * owner, 2026-09-25: "the rest should stay exactly as the selected colour").
+ * Emphasis still shapes the writing — size, underline, weight — never its
+ * colour; only code takes an editor's colours (highlight.ts).
+ */
 const TOKEN: Record<Emphasis, string> = {
   ink: '--color-ink',
-  accent: '--color-ink-accent',
-  warn: '--color-ink-warn',
-  muted: '--color-ink-muted',
+  accent: '--color-ink',
+  warn: '--color-ink',
+  muted: '--color-ink',
 };
 
 /**
@@ -77,17 +83,8 @@ export function resolveInk(container: HTMLElement | null, emphasis: Emphasis): s
     const v = getComputedStyle(container).getPropertyValue(TOKEN[emphasis]).trim();
     if (v) return v;
   }
-  switch (emphasis) {
-    case 'accent':
-      return '#B30D4D';
-    case 'warn':
-      // Amber, because the brand sits at red's door: see tokens.css, --color-ink-warn.
-      return '#8F3C00';
-    case 'muted':
-      return '#7A8494';
-    default:
-      return '#1B2B3F';
-  }
+  // One ink for every emphasis, so an export matches the board.
+  return '#1B2B3F';
 }
 
 /**

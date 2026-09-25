@@ -36,8 +36,8 @@ import { RoomClient } from './RoomClient.js';
 import { pushReaction } from './reactions.js';
 import { RecognizerGuard } from './recognizer-guard.js';
 
-/** How long a session waits for the board to mount before it connects regardless. */
-export const BOARD_READY_WAIT_MS = 4000;
+/** How long a session waits for the board to mount before it connects regardless: about a second, no more (the owner). */
+export const BOARD_READY_WAIT_MS = 1000;
 
 import { useRoomStore } from './store.js';
 
@@ -602,19 +602,25 @@ export class RoomSession {
     this.guard.playback(active, performance.now());
   }
 
-  /** Call from a user gesture (Start / Join click) so the AudioContext is unlocked. */
-  async start(): Promise<void> {
+  /**
+   * Call from a user gesture (Start / Join click) so the AudioContext is unlocked.
+   * `boardLoaded` is the board chunk's download (`preloadBoard()`): the room is
+   * connected once it has landed, or after `BOARD_READY_WAIT_MS`, whichever is
+   * first — so the first cue writes on a mounted board rather than on a
+   * download, and nothing is shown for the wait.
+   */
+  async start(boardLoaded?: Promise<unknown>): Promise<void> {
     this.startedAt = takeStartClickedAt() ?? Date.now();
     await this.player.prime(AUDIO.ttsSampleRate);
     // React StrictMode mounts twice: the first instance is disposed before prime() resolves.
     if (this.disposed) return;
-    // The board is a lazy chunk. Connecting before it had mounted meant the
+    // The board is a lazy chunk. Connecting before it had loaded meant the
     // expert's first words played over an empty box and the first writing was
     // already on the board when it appeared (the owner, 2026-09-25). So the
-    // room is asked for nothing until the board is there — or until a bound,
-    // so a board that never mounts cannot hold the lesson hostage.
+    // room is asked for nothing until the chunk has landed — about a second
+    // at most, so a download that never finishes cannot hold the lesson.
     await Promise.race([
-      this.board.ready,
+      boardLoaded ?? Promise.resolve(),
       new Promise<void>((resolve) => setTimeout(resolve, BOARD_READY_WAIT_MS)),
     ]);
     if (this.disposed) return;

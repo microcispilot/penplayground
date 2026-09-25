@@ -1,6 +1,6 @@
 # ADR-0054: The Pem palette
 
-Status: accepted · 2026-09-25
+Status: accepted · 2026-09-25 · amended the same day (rose by night)
 
 Supersedes ADR-0052 (wine is the brand) and its amendments.
 
@@ -19,7 +19,7 @@ they chose the smallest, and ruled:
 
 | name | hex | where |
 | --- | --- | --- |
-| brand | `#B30D4D` | buttons, Sign in, selected rows and chips, brand-coloured text, the mark's delta, progress, the board's ink |
+| brand | `#A9124A` | buttons, Sign in, selected rows and chips, brand-coloured text, the mark's delta, progress, the board's ink |
 | wine | `#7F0D3F` | `tertiary` |
 | plum | `#470928` | text on blush |
 | crimson | `#C42163` | `highlight`, the live voice on the board |
@@ -56,3 +56,22 @@ One set of values for both themes, as ADR-0052's amendment already ruled:
   is re-rendered.
 - `brand-generator.test.ts`, `design-system.test.ts`, `brand-mark.test.ts`,
   `ui-brand.spec.ts` and `ui-logo.spec.ts` pin the values above.
+
+## Amendment (2026-09-25): rose by night
+
+The owner, on the dark header: *"can this sign up for free text and border
+be a bit lighter? it's not properly visible. we should use a shade or tint
+or something."* The outlined button's label and border are `primary`, the
+text role, which by night was the brand at 2.7:1. It is now the palette's
+rose `#E1799D` — 6.6:1 on the dark `surface`, 4.3:1 on the highest grey,
+the one step it misses, recorded — with plum `#470928` on it where it is
+ever a fill (5.6:1). Fills, selections, the delta and the board's ink stay
+the brand; the light theme is untouched.
+
+## Amendment (2026-09-25): the brand is #A9124A
+
+Shown the earlier pill (`#8A1A41`) beside the current one (`#B30D4D`), the
+owner asked for a colour between them and chose the stop three quarters of
+the way, blended in OKLCH: `#A9124A` (0.478 / 0.182 / 7.6°). Every place the
+brand is painted follows it. White on it is 7.3:1; on the light `surface`
+6.9:1; on the dark page 2.5:1, recorded as before.

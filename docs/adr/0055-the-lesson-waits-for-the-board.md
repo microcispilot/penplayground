@@ -25,11 +25,20 @@ The owner, testing the deploy of 2026-09-25:
 ### The lesson waits for the board
 
 `RoomSession.start()` primes the player inside the click, then waits for
-`LazyBoard.ready` — resolved when the real board mounts — before it
-connects, bounded by `BOARD_READY_WAIT_MS` (4 s) so a board that never
-mounts cannot hold the lesson. Nothing is generated, and so nothing is
-spoken or written, until there is a board to write on. The replay session
-already waited the same way for its export; it now uses the base promise.
+the board chunk's download (`preloadBoard()`, started at mount) before it
+connects, bounded by `BOARD_READY_WAIT_MS` (1 s) so a download that never
+lands cannot hold the lesson. Nothing is generated, and so nothing is
+spoken or written, until the board can mount at once. Nothing is shown for
+the wait: the room paints the wall and an empty frame while it connects,
+and the portrait page with "Getting the material together" and
+"Connecting…" is gone from that phase (it remains for a topic that is
+genuinely being prepared). The first cut waited for the *mount* with a 4 s
+bound, which left that page on screen for the full four seconds; the owner:
+*"I just wanted you to add only like a second delay and then the session
+starts without adding or showing any visuals."*
+
+`LazyBoard.ready` stays for the replay's export, which does wait for the
+mount.
 
 ### The card comes with the announcement
 
@@ -38,7 +47,9 @@ announces the check with ("Quick check — let's see if that landed"). The
 conductor shows the card when that sentence *starts* and arms it — the
 lesson held, an answer taken — when the options sentence ends, exactly as
 before. Between the two the card is read-only: the options are disabled and
-the answer line hidden, with one quiet line saying the options are coming.
+the answer line hidden. The card carries no "Quick check" label and the
+board no "Answer out loud, or pick an option" hint — the owner had both
+removed; the expert has just said what this is.
 A state update while the announcement plays does not take the card down; a
 barge-in does, with the sentence it rode on.
 
@@ -73,6 +84,19 @@ sit 81 units apart at the code size, and sits 49 apart now. A word gap is
 never narrower than `WORD_GAP_MIN_EM` (0.32 em): Patrick Hand's own space is
 barely a fifth of an em, which is why words ran together. Wrapping,
 measuring and placing all go through the same floor.
+
+### The board writes in one colour, and code in an editor's face
+
+Every emphasis — title, accent, warning, muted, the underline, a note's
+label — is the chalk or marker the learner chose: *"markers/chalk fonts
+should stay the same on the board … only for the code you should use some
+purplish and greenish colours that code editors use."* The emphasis
+tokens are still declared for the families' tests, but nothing on the
+board reads them. Code alone takes colour, from Shiki's One Light and One
+Dark Pro (purple keywords, green strings), and is set in the editor's face,
+JetBrains Mono, at a 0.6 em advance — the owner's second ruling on the
+code face, superseding ADR-0051's "code in the hand". The "is thinking…"
+pill is gone as well.
 
 ### The small things
 

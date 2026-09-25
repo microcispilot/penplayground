@@ -287,7 +287,7 @@ function InkTextGlyphs({ layout, props, color, clipId }: GlyphsProps) {
     underline = (
       <g
         transform={`translate(0 ${y.toFixed(2)})`}
-        fill="var(--color-ink-accent)"
+        fill="var(--color-ink)"
         style={{ mixBlendMode: 'multiply' }}
       >
         {parts.map((p, i) => (

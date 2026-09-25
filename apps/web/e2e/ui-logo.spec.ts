@@ -27,7 +27,7 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
  * got wrong somewhere:
  *
  *   · the ink follows the theme, so the lockup is legible on both grounds;
- *   · the delta does *not* — it is `mark-accent`, the brand #B30D4D, the same
+ *   · the delta does *not* — it is `mark-accent`, the brand #A9124A, the same
  *     hex in light and dark by the owner's ruling, and never the ink's colour,
  *     or the mark would be a silhouette;
  *   · the artwork's aspect is intact, because a mark is easy to squash and
@@ -39,7 +39,7 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
  */
 
 /** `--color-mark-accent`: the brand, the one colour in the mark that does not move. */
-const BRAND = 'rgb(179, 13, 77)';
+const BRAND = 'rgb(169, 18, 74)';
 
 const THEMES = ['light', 'dark'] as const;
 

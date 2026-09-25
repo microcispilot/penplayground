@@ -19,8 +19,10 @@ const Board = lazy(async () => ({ default: (await import('@pen/board')).Board })
  * while it is still preparing, so the paper is ready by the first cue instead
  * of the download landing on the first stroke.
  */
-export function preloadBoard(): void {
-  void import('@pen/board');
+let boardChunk: Promise<unknown> | null = null;
+export function preloadBoard(): Promise<unknown> {
+  boardChunk ??= import('@pen/board').catch(() => undefined);
+  return boardChunk;
 }
 
 /**

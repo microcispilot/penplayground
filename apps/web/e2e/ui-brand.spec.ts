@@ -55,7 +55,7 @@ const THEMES = ['light', 'dark'] as const;
 
 /** The board's ink under each family, as `tokens.css` declares it. */
 const INK: Record<Family, string> = {
-  brand: 'oklch(0.495 0.193 7.9)', // #B30D4D, the brand
+  brand: 'oklch(0.478 0.182 7.6)', // #A9124A, the brand
   teal: 'oklch(0.597 0.107 218.3)', // #008EAA
   youtube: 'oklch(0.628 0.258 29.2)',
   vermilion: 'oklch(0.592 0.228 29.3)',
@@ -112,7 +112,7 @@ async function theBoardIsDrawnInItsOwnInk(page: Page, family: Family): Promise<v
   const { resolved, painted } = await page.evaluate(() => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('fill', 'var(--color-ink-accent)');
+    rect.setAttribute('fill', 'var(--color-ink)');
     svg.appendChild(rect);
     document.body.appendChild(svg);
     const resolvedFill = getComputedStyle(rect).fill;
@@ -249,8 +249,8 @@ test.describe('brand candidates, side by side', () => {
         ),
       ]);
       // The owner's brand, the same hex on both pages: their ruling.
-      expect(declared, 'the brand hex the owner chose').toBe('#b30d4d');
-      expect(painted, `Sign in in ${theme}`).toBe('rgb(179, 13, 77)');
+      expect(declared, 'the brand hex the owner chose').toBe('#a9124a');
+      expect(painted, `Sign in in ${theme}`).toBe('rgb(169, 18, 74)');
     });
 
     /**

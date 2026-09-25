@@ -154,7 +154,7 @@ test.describe('free plan video ads', () => {
     await page.mouse.click(40, 40);
 
     // Segment 2 ends with a check-in; answering it lets the expert finish the segment.
-    await expect(page.getByText('Quick check')).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByTestId('check-card')).toBeVisible({ timeout: 120_000 });
     await page.getByRole('button', { name: /query from "sat"/ }).click();
 
     // The ad overlay: label, position, and the honest way out of ads.

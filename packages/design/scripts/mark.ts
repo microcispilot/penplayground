@@ -139,11 +139,11 @@ export const WHITE = '#FFFFFF';
 /** The red in the owner's artwork — what the generator recognises, not what it paints. */
 export const BRAND_RED = '#E62117';
 /**
- * What the delta is painted: the brand itself, #B30D4D, on both grounds
+ * What the delta is painted: the brand itself, #A9124A, on both grounds
  * (ADR-0052 as amended). The artwork's red is only the marker the generator
  * swaps for it.
  */
-export const MARK_ACCENT = '#B30D4D';
+export const MARK_ACCENT = '#A9124A';
 export const ACCENT_TOKEN = 'var(--color-mark-accent)';
 
 /**
@@ -421,7 +421,7 @@ export function component(): string {
  *   the owner's drawing.
  *
  *   The artwork's red becomes \`var(--color-mark-accent)\`: the brand itself,
- *   #B30D4D, the same on both grounds by the owner's ruling (ADR-0054).
+ *   #A9124A, the same on both grounds by the owner's ruling (ADR-0054).
  *
  * The diagonals are strokes, not filled shapes: \`stroke-width\`, the round cap
  * and \`fill="none"\` are copied across with the \`d\`, because each of them is

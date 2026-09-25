@@ -104,9 +104,6 @@ export function RoomStatus({
       />
     );
     testid = 'status-sound';
-  } else if (waiting) {
-    content = <StatusPill testid="status-waiting" pulse text={`${expertFirstName} is thinking…`} />;
-    testid = 'status-waiting';
   } else if (notice) {
     content = <StatusPill testid="status-notice" text={notice.text} />;
     testid = 'status-notice';
@@ -685,10 +682,7 @@ export function CheckCard({
       className="absolute inset-x-3 top-1/2 z-[6] mx-auto max-h-[92%] w-[min(560px,calc(var(--board-w,1000px)*0.86),100%)] -translate-y-1/2 animate-rise overflow-y-auto rounded-xl bg-surface-container p-[clamp(12px,calc(var(--board-w,1000px)*0.022),24px)] shadow-level3 ring-1 ring-brand-blush [scrollbar-width:none] sm:inset-x-0 [&::-webkit-scrollbar]:hidden"
       data-testid="check-card"
     >
-      {/* Sized by the box it is in (container units), so it is one card in a small player and a full screen. */}
-      <div className="pen-check__label mb-[0.6em] font-medium tracking-widest text-primary uppercase">
-        Quick check
-      </div>
+      {/* Sized by the box it is in (container units), so it is one card in a small player and a full screen. No label: the expert has just said what this is (the owner, 2026-09-25). */}
       <p
         id="check-question"
         className="pen-check__question mb-[0.8em] leading-snug font-medium text-on-surface text-pretty"
@@ -716,12 +710,6 @@ export function CheckCard({
             </Button>
           ))}
         </div>
-      ) : null}
-      {!armed ? (
-        // Up while the expert is still reading: nothing to press yet, and it says so.
-        <p className="pen-check__label mt-3 text-on-surface-variant">
-          Listen — the options are coming.
-        </p>
       ) : null}
       <form
         className="mt-3 flex items-center gap-2"

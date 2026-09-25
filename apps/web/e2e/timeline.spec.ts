@@ -136,7 +136,7 @@ test.describe("the owner's in-session timeline", () => {
       if (
         !answered &&
         (await page
-          .getByText('Quick check')
+          .getByTestId('check-card')
           .isVisible()
           .catch(() => false))
       ) {

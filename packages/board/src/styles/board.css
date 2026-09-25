@@ -127,7 +127,8 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: var(--font-hand);
+  /* An editor's face for code (the owner, 2026-09-25); the hand is for everything else. */
+  font-family: var(--font-mono);
   color: var(--color-ink);
   line-height: 1.55;
 }
@@ -149,7 +150,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-ink-muted);
+  color: var(--color-ink);
 }
 .pen-code__caret {
   display: inline-block;
@@ -157,7 +158,7 @@
   height: 1.1em;
   margin-left: 1px;
   vertical-align: -0.2em;
-  background: var(--color-ink-accent);
+  background: var(--color-ink);
   animation: pen-caret 1s step-end infinite;
 }
 @keyframes pen-caret {
@@ -214,7 +215,7 @@
   font-size: 0.9em;
   padding: 0 0.25em;
   border-radius: var(--radius-xs, 4px);
-  background: var(--color-ink-highlight);
+  background: color-mix(in oklch, var(--color-ink) 18%, transparent);
 }
 .pen-md pre {
   margin: 0;
@@ -240,7 +241,7 @@
 }
 .pen-md th {
   font-weight: 600;
-  color: var(--color-ink-muted);
+  color: var(--color-ink);
   font-size: 0.85em;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -280,7 +281,7 @@
    */
   background: var(--board-note);
   border: 1px solid var(--color-paper-grid);
-  border-left: 2px solid var(--color-ink-accent);
+  border-left: 2px solid var(--color-ink);
   box-shadow:
     0 1px 2px oklch(0.2 0.05 248 / 6%),
     0 8px 24px oklch(0.2 0.05 248 / 10%);
@@ -298,13 +299,13 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-ink-accent);
+  color: var(--color-ink);
 }
 .pen-note__headline {
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: none;
-  color: var(--color-ink-muted);
+  color: var(--color-ink);
   font-size: 12px;
 }
 .pen-note__question {
@@ -318,7 +319,7 @@
   margin: 8px 0 0;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--color-ink-muted);
+  color: var(--color-ink);
 }
 @keyframes pen-note-rise {
   from {
@@ -362,8 +363,10 @@
  * teacher reaching for a second colour actually does.
  */
 .pen-md__em {
+  /* Emphasis in the chalk's own colour (the owner, 2026-09-25): weight, not a second ink. */
   font-style: normal;
-  color: var(--color-ink-accent);
+  font-weight: 600;
+  color: var(--color-ink);
 }
 
 /*

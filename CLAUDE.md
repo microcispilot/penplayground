@@ -109,16 +109,16 @@ Calm, never alarming: no consent banners, no draft badges, no lock icons on
 gated rows. Limits are one friendly sentence with a link. The AI disclosure is
 one quiet line.
 
-The brand is `#B30D4D`, and the palette is the owner's Pem palette and
-nothing else (ADR-0054): brand `#B30D4D` for buttons, Sign in, selected rows
+The brand is `#A9124A`, and the palette is the owner's Pem palette and
+nothing else (ADR-0054): brand `#A9124A` for buttons, Sign in, selected rows
 and chips, brand-coloured text, the mark's delta, the lesson's progress and
 the board's ink, in both themes; wine `#7F0D3F`, plum `#470928`, crimson
 `#C42163` for highlights and the live voice, rose `#E1799D` for an edge glow,
 pink `#E6AEBE`, blush `#EBD7DA` for a card's frame and the green board's ink,
-periwinkle `#94ABD7`. No mint: white stands where it stood. The same values
+periwinkle `#94ABD7`. No mint: white stands where it stood. Fills are the same
 in both themes: they are neither white nor black, so a fill does not change
-with the page; brand text on the dark page measures 2.7:1, the owner's
-ruling. Never introduce a hex outside these; every number is measured in
+with the page; brand-coloured text and outlines by night are rose, the tint
+the owner asked for. Never introduce a hex outside these; every number is measured in
 `packages/design/test`. The error role is the owner's `#ED424A`, laddered so
 it can be read, and it is close enough to the brand that *colour alone never
 carries the message*: an error says what went wrong in words, and the red is

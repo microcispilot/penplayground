@@ -157,7 +157,7 @@ export function SessionPlayer({
     setSession(s);
     // The mic preference is remembered per device; first visit defaults to on.
     const autoMic = platform.storage.get('pen.mic') !== 'off';
-    s.start()
+    s.start(preloadBoard())
       .then(() => (autoMic ? s.enableMic() : undefined))
       .catch(() => setNeedsGesture(true));
     return () => {
@@ -239,7 +239,7 @@ export function SessionPlayer({
     if (needsGesture) {
       setNeedsGesture(false);
       session
-        ?.start()
+        ?.start(preloadBoard())
         .then(() => session.enableMic())
         .catch(() => toast('Audio could not start', 'danger'));
       return;
@@ -301,7 +301,30 @@ export function SessionPlayer({
     );
   }
 
-  if (!ui.state || ui.state.phase === 'preparing') {
+  if (!ui.state) {
+    // Connecting: nothing is shown for it (the owner, 2026-09-25) — the wall
+    // and an empty board, which the room then writes on within the second.
+    return (
+      <div
+        className={cn('relative flex flex-col', inline && 'h-full overflow-hidden')}
+        data-testid="session-player"
+        data-layout={layout}
+        data-phase="connecting"
+      >
+        <div
+          className={cn(
+            'pen-wall flex min-w-0 flex-1 flex-col',
+            inline ? 'p-3 sm:p-4' : 'p-3 sm:p-5 lg:p-8',
+          )}
+          data-testid="board-wall"
+        >
+          <div className="pen-board-frame relative min-h-0 flex-1 overflow-hidden" aria-hidden />
+        </div>
+      </div>
+    );
+  }
+
+  if (ui.state.phase === 'preparing') {
     return (
       <div
         className={cn('relative', inline && 'h-full overflow-hidden')}

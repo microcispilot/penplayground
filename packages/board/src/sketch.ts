@@ -157,6 +157,8 @@ export interface SketchLayoutOptions {
  * wrapped note questions move together when the face changes.
  */
 export const HAND_ADVANCE_RATIO = 0.43;
+/** JetBrains Mono's advance, six tenths of the size: what a code line measures on the board (ADR-0055). */
+export const MONO_ADVANCE_RATIO = 0.6;
 
 export const DEFAULT_SKETCH_LAYOUT: SketchLayoutOptions = {
   gap: 36,
