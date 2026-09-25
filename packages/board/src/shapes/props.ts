@@ -96,11 +96,11 @@ export interface NoteCardProps {
  * at one distance rather than a headline over footnotes.
  */
 export const TYPE = {
-  titleFont: 36,
-  writeFont: 24,
-  labelFont: 20,
-  codeFont: 18,
-  mdFont: 18,
+  titleFont: 40,
+  writeFont: 28,
+  labelFont: 23,
+  codeFont: 21,
+  mdFont: 21,
   /** Code and prose are set in the hand too (ADR-0051); their advance is `HAND_ADVANCE_RATIO`. */
   codeLineHeight: 1.55,
   mdLineHeight: 1.5,

@@ -20,7 +20,7 @@ import { type Bounds, bottom, right } from './geometry.js';
  */
 
 export const PAGE_W = 1600;
-export const PAGE_H = 1000;
+export const PAGE_H = 900;
 export const MARGIN = 80;
 export const PAGE_STRIDE = 1100;
 
@@ -40,6 +40,13 @@ export interface LayoutOptions {
   /** Width reserved for pinned note cards on the right. */
   noteWidth: number;
   noteGap: number;
+  /**
+   * Which edge writing starts from (ADR-0051). The layout thinks left to
+   * right and mirrors what it hands out, so a Persian or Arabic lesson
+   * starts at the right margin and its columns walk left, with nothing else
+   * knowing the difference.
+   */
+  direction: 'ltr' | 'rtl';
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {
@@ -54,6 +61,7 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   relativeGap: 24,
   noteWidth: 300,
   noteGap: 16,
+  direction: 'ltr',
 };
 
 export interface PlaceRequest {
@@ -83,7 +91,7 @@ export interface Cursor {
 }
 
 export class Layout {
-  readonly opts: LayoutOptions;
+  opts: LayoutOptions;
   private pageIndex = 0;
   private columnX: number;
   private cursor: Cursor;
@@ -153,12 +161,25 @@ export class Layout {
   // ── refs ──────────────────────────────────────────────────────────────
 
   register(id: string, b: Bounds): void {
-    this.refs.set(id, { ...b });
+    // Refs live in the layout's own left-to-right space; the mirror is its own inverse.
+    this.refs.set(id, this.mirror(b));
+  }
+
+  /** Writing starts from the other edge from now on; what is on the page stays where it is. */
+  setDirection(direction: 'ltr' | 'rtl'): void {
+    this.opts = { ...this.opts, direction };
+  }
+
+  /** The same bounds seen from the other edge of the content area; an involution. */
+  private mirror<B extends Bounds>(b: B): B {
+    if (this.opts.direction !== 'rtl') return b;
+    const c = this.content;
+    return { ...b, x: c.x + right(c) - (b.x + b.w) };
   }
 
   boundsOf(id: string): Bounds | undefined {
     const b = this.refs.get(id);
-    return b ? { ...b } : undefined;
+    return b ? this.mirror({ ...b }) : undefined;
   }
 
   forget(id: string): void {
@@ -180,6 +201,10 @@ export class Layout {
   // ── placement ─────────────────────────────────────────────────────────
 
   place(req: PlaceRequest): Placed {
+    return this.mirror(this.placeLtr(req));
+  }
+
+  private placeLtr(req: PlaceRequest): Placed {
     const w = Math.max(0, req.w);
     const h = Math.max(0, req.h);
     switch (req.place) {
@@ -227,7 +252,7 @@ export class Layout {
     let y = baseY;
     if (y + h > bottom(c)) y = c.y;
     this.noteBottom.set(this.pageIndex, y + h);
-    return { x, y, w, h };
+    return this.mirror({ x, y, w, h });
   }
 
   // ── internals ─────────────────────────────────────────────────────────

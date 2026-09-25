@@ -1,9 +1,9 @@
 import 'tldraw/tldraw.css';
 import './styles/board.css';
 import fallbackUrl from '@fontsource/caveat/files/caveat-latin-400-normal.woff?url';
+import handUrl from '@fontsource/patrick-hand/files/patrick-hand-latin-400-normal.woff?url';
 import type { BoardExecuteOptions, BoardExecution, BoardPort } from '@pen/conductor';
 import type { BoardEvent, NoteEvent } from '@pen/contracts';
-import handUrl from '@pen/design/fonts/eraser-regular.woff?url';
 import {
   type ReactNode,
   type Ref,
@@ -57,6 +57,8 @@ export interface BoardProps {
   /** Overlays rendered above the paper (chips, captions). */
   children?: ReactNode;
   ref?: Ref<BoardController | null>;
+  /** Which edge writing starts from: the lesson's language decides (ADR-0051). */
+  direction?: 'ltr' | 'rtl';
 }
 
 export interface BoardController extends BoardPort {
@@ -121,12 +123,33 @@ export function Board({
   interactive = false,
   className,
   fontUrl,
+  direction = 'ltr',
   onReady,
   onWarning,
   children,
   ref,
 }: BoardProps) {
   const [controller, setController] = useState<BoardController | null>(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  // The lesson's language decides which edge writing starts from (ADR-0051).
+  useEffect(() => {
+    controller?.executor.setDirection(direction);
+  }, [controller, direction]);
+  // A box that grows or shrinks — inline to full view, a phone turning — keeps the page framed.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !controller || typeof ResizeObserver === 'undefined') return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => controller.executor.camera?.refit());
+    });
+    observer.observe(host);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [controller]);
   const [dimmed, setDimmed] = useState(false);
   const measureRef = useRef<HTMLDivElement | null>(null);
   const onReadyRef = useRef(onReady);
@@ -154,13 +177,13 @@ export function Board({
     const bytes = (u: string) => () =>
       fetch(u).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))));
     /*
-     * Eraser first, Caveat for the glyphs it does not have.
+     * Patrick Hand first (ADR-0051), Caveat for the glyphs it does not have.
      *
-     * Eraser has 100 of them — no `<`, `>`, `[`, `]`, `}`, no arrows, degrees
-     * or accents — and a lesson about maths or code meets every one. CSS falls
-     * back per glyph on its own; outlines do not, so `LayeredFont` does it
-     * here, and a missing character is a Caveat character rather than a blank
-     * in the middle of an equation.
+     * Patrick Hand covers Latin, its punctuation and the brackets; the arrows
+     * and the maths (`→`, `√`, `≤`, `∑`, `π`…) it lacks, and a lesson about
+     * maths or code meets every one. CSS falls back per glyph on its own;
+     * outlines do not, so `LayeredFont` does it here, and a missing character
+     * is a Caveat character rather than a blank in the middle of an equation.
      */
     loadHandFont(bytes(url), bytes(fallbackUrl)).catch((err: unknown) => {
       onWarningRef.current?.({
@@ -251,7 +274,7 @@ export function Board({
     .join(' ');
 
   return (
-    <div className={classes} data-dimmed={dimmed}>
+    <div ref={hostRef} className={classes} data-dimmed={dimmed}>
       <Tldraw
         hideUi
         shapeUtils={boardShapeUtils}

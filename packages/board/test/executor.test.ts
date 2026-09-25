@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ManualTicker } from '../src/clock.js';
 import { BoardExecutor, type BoardWarning } from '../src/executor.js';
 import { plainLines } from '../src/highlight.js';
-import { Layout, MARGIN, PAGE_STRIDE } from '../src/layout.js';
+import { Layout, MARGIN, PAGE_H, PAGE_STRIDE } from '../src/layout.js';
 import { FADE_MS, HAND_CPS, handwritingMs, MAX_STRETCH } from '../src/pacing.js';
 import { SHAPE_TYPE, UNDERLINE_UNITS } from '../src/shapes/props.js';
 import { boardOp, FakeEditor, flush, loadTestFont } from './helpers.js';
@@ -369,7 +369,11 @@ describe('BoardExecutor', () => {
     await flush();
     const np = executor.execute(boardOp('b2', { op: 'newpage' }), { paceMs: null });
     await flush();
-    expect(editor.cameraMoves.at(-1)?.bounds.y).toBe(PAGE_STRIDE);
+    // The frame hangs from the page's leading edge with a little padding
+    // around it (ADR-0051): the new page is inside the framed window.
+    const framed = editor.cameraMoves.at(-1)?.bounds;
+    expect(framed?.y).toBeLessThanOrEqual(PAGE_STRIDE);
+    expect((framed?.y ?? 0) + (framed?.h ?? 0)).toBeGreaterThanOrEqual(PAGE_STRIDE + PAGE_H);
     ticker.advance(600);
     await np.done;
     executor.execute(boardOp('b3', { op: 'write', text: 'new' }), { paceMs: null }).finish();

@@ -1,6 +1,8 @@
 import type { BoardPort } from '@pen/conductor';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { dirOf } from '../lib/locale.js';
 import type { LazyBoard } from '../room/LazyBoard.js';
+import { useRoomStore } from '../room/store.js';
 
 /**
  * tldraw, the ink fonts and the code highlighter are the heaviest thing the
@@ -34,12 +36,13 @@ export function BoardSurface({
   licenseKey: string;
 }) {
   const [controller, setController] = useState<BoardPort | null>(null);
+  const language = useRoomStore((s) => s.state?.language ?? null);
   useEffect(() => {
     if (controller && session) session.board.attach(controller);
   }, [controller, session]);
   return (
     <Suspense fallback={<div className="size-full paper" aria-hidden />}>
-      <Board licenseKey={licenseKey} onReady={setController} />
+      <Board licenseKey={licenseKey} direction={dirOf(language)} onReady={setController} />
     </Suspense>
   );
 }

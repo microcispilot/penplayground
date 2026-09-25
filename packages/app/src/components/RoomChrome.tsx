@@ -680,15 +680,16 @@ export function CheckCard({
     <div
       role="dialog"
       aria-labelledby="check-question"
-      className="absolute inset-x-3 top-1/2 z-[6] mx-auto max-h-[92%] w-[min(560px,100%)] -translate-y-1/2 animate-rise overflow-y-auto rounded-xl bg-surface-container p-5 shadow-level3 [scrollbar-width:none] sm:inset-x-0 sm:p-6 [&::-webkit-scrollbar]:hidden"
+      className="absolute inset-x-3 top-1/2 z-[6] mx-auto max-h-[92%] w-[min(560px,86cqi,100%)] -translate-y-1/2 animate-rise overflow-y-auto rounded-xl bg-surface-container p-[clamp(12px,2.2cqi,24px)] shadow-level3 [scrollbar-width:none] sm:inset-x-0 [&::-webkit-scrollbar]:hidden"
       data-testid="check-card"
     >
-      <div className="mb-2 text-label-small font-medium tracking-widest text-primary uppercase">
+      {/* Sized by the box it is in (container units), so it is one card in a small player and a full screen. */}
+      <div className="pen-check__label mb-[0.6em] font-medium tracking-widest text-primary uppercase">
         Quick check
       </div>
       <p
         id="check-question"
-        className="mb-4 text-title-medium leading-snug text-on-surface text-pretty"
+        className="pen-check__question mb-[0.8em] leading-snug font-medium text-on-surface text-pretty"
         {...(language ? { lang: language, dir: dirOf(language) } : { dir: 'auto' as const })}
       >
         {question}
@@ -700,11 +701,11 @@ export function CheckCard({
               key={o}
               variant="secondary"
               size="lg"
-              className="h-auto min-h-10 justify-start gap-3 whitespace-normal px-3 py-2 text-start text-body-medium text-on-surface"
+              className="pen-check__option h-auto justify-start gap-3 whitespace-normal px-3 py-1.5 text-start text-on-surface"
               dir="auto"
               onClick={() => onAnswer(o)}
             >
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface-container-highest text-label-small text-on-surface-variant">
+              <span className="pen-check__letter grid shrink-0 place-items-center rounded-full bg-surface-container-highest text-on-surface-variant">
                 {String.fromCharCode(65 + i)}
               </span>
               {/* The option is a plain answer, not a brand-coloured action: its own colour beats the button's. */}
@@ -721,7 +722,7 @@ export function CheckCard({
         }}
       >
         <input
-          className="h-9 min-w-0 flex-1 rounded-md bg-surface-container-low px-3 text-body-medium outline-none hairline focus:shadow-[0_0_0_2px_var(--color-primary)]"
+          className="pen-check__input min-w-0 flex-1 rounded-md bg-surface-container-low px-3 outline-none hairline focus:shadow-[0_0_0_2px_var(--color-primary)]"
           placeholder="Or say it out loud — or type here"
           value={text}
           onChange={(e) => setText(e.target.value)}

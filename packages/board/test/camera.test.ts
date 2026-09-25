@@ -111,3 +111,20 @@ describe('a page is a frame (ADR-0051)', () => {
     expect(settled.moves.length).toBe(before);
   });
 });
+
+describe('the page hangs from its leading edge (ADR-0051)', () => {
+  it('left for left-to-right, right for right-to-left, when the screen is wider than the page', () => {
+    // A 2.1:1 screen: the page fits by height and leaves spare board beside it.
+    const ltr = fakeEditor(2000, 950);
+    new CameraDirector(ltr.editor).showPage(page, false);
+    const left = ltr.moves.at(-1)?.bounds;
+    expect(left?.x).toBeLessThanOrEqual(0);
+    expect(left?.x).toBeGreaterThan(-200);
+    const rtl = fakeEditor(2000, 950);
+    new CameraDirector(rtl.editor, { direction: 'rtl' }).showPage(page, false);
+    const right = rtl.moves.at(-1)?.bounds;
+    // The window ends at the page's right edge (plus the same small padding).
+    expect((right?.x ?? 0) + (right?.w ?? 0)).toBeGreaterThanOrEqual(PAGE_W);
+    expect((right?.x ?? 0) + (right?.w ?? 0)).toBeLessThan(PAGE_W + 200);
+  });
+});

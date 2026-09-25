@@ -204,7 +204,7 @@
    * or code lesson will reach for. Two handwriting faces side by side read as
    * one hand; a hand face falling back to a system sans does not.
    */
-  --font-hand: "Eraser", "Caveat", "Bradley Hand", "Segoe Print", cursive;
+  --font-hand: "Patrick Hand", "Caveat", "Bradley Hand", "Segoe Print", cursive;
 
   /* ──────────────────────────────────────────────────────────────────────
    * Shape — the M3 corner scale. `rounded-full` is Tailwind's own and is the

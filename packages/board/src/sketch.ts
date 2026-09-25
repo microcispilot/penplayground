@@ -150,7 +150,13 @@ export interface SketchLayoutOptions {
  * node boxes and `executor.ts` wrapped note-card questions. Swapping the hand
  * font moved both, and one of them would have been missed.
  */
-export const HAND_ADVANCE_RATIO = 0.63;
+/**
+ * The hand's advance as a fraction of its size: Patrick Hand averages 0.426
+ * over letters, digits and punctuation (measured with opentype.js, ADR-0051).
+ * Eraser, all caps, was 0.63; the number lives here so sketch boxes and
+ * wrapped note questions move together when the face changes.
+ */
+export const HAND_ADVANCE_RATIO = 0.43;
 
 export const DEFAULT_SKETCH_LAYOUT: SketchLayoutOptions = {
   gap: 36,

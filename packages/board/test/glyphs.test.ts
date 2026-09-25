@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { FallbackFont } from '../src/font.js';
-import { layoutHandText, measureHandText, wrapHandText } from '../src/glyphs.js';
+import {
+  DEFAULT_LINE_HEIGHT,
+  layoutHandText,
+  measureHandText,
+  wrapHandText,
+} from '../src/glyphs.js';
 import { loadTestFont } from './helpers.js';
 
 describe('glyph layout (Caveat via opentype.js)', () => {
@@ -44,7 +49,7 @@ describe('glyph layout (Caveat via opentype.js)', () => {
   it('respects explicit newlines and reports height per line', () => {
     const l = layoutHandText(font, 'one\ntwo', { fontSize: 36, maxWidth: 1000, seed: 's' });
     expect(l.lines).toHaveLength(2);
-    expect(l.height).toBeCloseTo(36 * 1.25 * 2, 6);
+    expect(l.height).toBeCloseTo(36 * DEFAULT_LINE_HEIGHT * 2, 6);
     expect(l.lines[1]?.baseline).toBeGreaterThan(l.lines[0]?.baseline ?? 0);
     expect(l.charCount).toBe(7);
   });

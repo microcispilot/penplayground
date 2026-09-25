@@ -85,7 +85,7 @@ export interface HandTextOptions {
 
 export const BASELINE_JITTER_PX = 1;
 export const ROTATION_JITTER_DEG = 1.5;
-export const DEFAULT_LINE_HEIGHT = 1.25;
+export const DEFAULT_LINE_HEIGHT = 1.3;
 
 /** Kerned single-line width in world units. */
 export function measureHandText(font: GlyphSource, text: string, fontSize: number): number {

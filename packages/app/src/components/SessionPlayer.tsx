@@ -407,7 +407,7 @@ export function SessionPlayer({
             ref={boardRef}
             tabIndex={-1}
             aria-label={`${firstName}'s board`}
-            className="pen-board-frame relative min-h-0 flex-1 overflow-hidden outline-none"
+            className="pen-board-frame @container relative min-h-0 flex-1 overflow-hidden outline-none"
           >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
             {pressToPause ? (

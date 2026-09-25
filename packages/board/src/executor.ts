@@ -284,6 +284,12 @@ export class BoardExecutor implements BoardPort {
     this.camera?.follow(slot, this.recent);
   }
 
+  /** Writing starts from the other edge from now on (ADR-0051): the layout and the camera together. */
+  setDirection(direction: 'ltr' | 'rtl'): void {
+    this.layout.setDirection(direction);
+    this.camera?.setDirection(direction);
+  }
+
   setDimmed(dimmed: boolean): void {
     if (this.dimmed === dimmed) return;
     this.dimmed = dimmed;

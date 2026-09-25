@@ -26,8 +26,8 @@ block wore a language badge; the frame filled the viewport edge to edge.
 
 ### One scale
 
-`TYPE` is 36 / 24 / 20 / 18 / 18 (title, writing, label, code, prose): the
-title 1.5× the writing, the writing 1.2× a label, code and prose a step
+`TYPE` is 40 / 28 / 23 / 21 / 21 (title, writing, label, code, prose): the
+title about 1.4× the writing, the writing 1.2× a label, code and prose a step
 under. A board reads as one hand at one distance, not a headline over
 footnotes. The camera's legibility floor is 14 CSS pixels for the writing,
 which at this scale still lets a 1200-wide line fit a phone.
@@ -40,23 +40,50 @@ in, per glyph. That is what "except what the font cannot do" means. Code
 blocks and prose are sized with the hand's own advance, and the language
 badge is gone: the expert said what the lesson is in.
 
-### One weight, and intact
+### The hand is Patrick Hand
 
-The face is heavy. Handwriting is eroded towards a normal weight — 0.012 of
-the type size a side, headings 0.005 so they stay semi-bold — and no
-further: a first round at nearly twice that broke the chalk's thin strokes
-into specks, and a normal weight is worth having only if the glyphs stay
-whole. Code and prose keep the face's own weight; a paper hairline over
-their edges read as damage.
+The owner, after two rounds of thinning Eraser: *"let's replace the current
+one with Patrick Hand."* Patrick Hand (OFL, via fontsource) is a marker hand
+of normal weight with lowercase, so nothing is eroded any more — the erosion
+stays in the code at zero for a heavier face — and the board reads as
+writing rather than chalk shouting. It covers Latin, punctuation and the
+brackets Eraser lacked; the arrows and the maths it lacks still come from
+Caveat, per glyph, as before. Its letters are narrower (advance 0.43 of the
+size against Eraser's 0.63, measured with opentype.js) and it has
+descenders, so the advance ratio, the line height (1.3) and the scale moved
+with it: 40 / 28 / 23 / 21 / 21. Eraser's files stay in `packages/design/
+fonts`, unloaded. Code and prose keep the face's own weight.
 
-### A page is a frame
+### A page is a frame, hung from its leading edge
 
-The camera keeps the whole current page on screen at whatever zoom the
-screen allows — below the legibility floor if it must — and follows only
-what leaves the page. That is how a video shows its whole frame in a small
-box and a big one. Cropping the page to keep the writing readable was what
-hid the bottom of a board in the inline player; a reader who wants it larger
-makes the box larger, as with a video.
+The page is 1600 × 900, the shape of the player's box. The camera keeps the
+whole current page on screen at whatever zoom the screen allows — below the
+legibility floor if it must — and follows only what leaves the page. That is
+how a video shows its whole frame in a small box and a big one. The page
+check comes before "is the new writing already on screen": at mount the zoom
+is 1 and the first line sits inside that small viewport, which was exactly
+when the inline player never framed the page and then cropped it. A box that
+changes size re-fits the page.
+
+When the screen is wider than the page, the page hangs from its **leading
+edge** — the left for left-to-right writing, the right for right-to-left —
+with the spare board on the trailing side. Centring a narrower page put the
+first word of every line near the middle of the board.
+
+### Writing starts from the right for a right-to-left lesson
+
+The layout thinks left to right and mirrors what it hands out: placements,
+note slots and registered refs, around the content area. A Persian or
+Arabic lesson fills from its right margin and its columns walk left; the
+executor, the shapes and the camera do not know the difference. The board
+takes its direction from the session's language and can change it
+mid-lesson without moving what is already on the page.
+
+### The card scales with its box
+
+The check-in card is sized in container units of the board it sits on: one
+card that is small in a small player and larger in full view, never one that
+needs scrolling in a short box.
 
 ### A board on a wall
 

@@ -26,6 +26,8 @@ export interface CameraOptions {
    * never shrinks a lesson to a thumbnail to make it fit.
    */
   minLegibleZoom: number;
+  /** Which edge the page hangs from when the screen is wider than it (ADR-0051). */
+  direction: 'ltr' | 'rtl';
   /** Screen-pixel inset around the framed bounds. */
   inset: number;
   durationMs: number;
@@ -46,13 +48,14 @@ export const DEFAULT_CAMERA: CameraOptions = {
   maxZoom: 1.2,
   /** Never smaller than this, whatever it costs in visible width. */
   minLegibleZoom: MIN_HAND_PX / TYPE.writeFont,
+  direction: 'ltr',
   inset: 96,
   durationMs: CAMERA_MS,
   tolerance: 8,
 };
 
 export class CameraDirector {
-  readonly opts: CameraOptions;
+  opts: CameraOptions;
 
   constructor(
     private readonly editor: EditorLike,
@@ -97,14 +100,16 @@ export class CameraDirector {
   follow(target: Bounds, context: readonly Bounds[] = []): boolean {
     const vp = this.editor.getViewportPageBounds();
     if (!(vp.w > 0) || !(vp.h > 0)) return false;
-    if (contains(vp, target, this.opts.tolerance)) return false;
     /*
      * A page is a frame (ADR-0051): once a page has been shown, the camera
      * keeps the whole of it on screen at whatever zoom the screen allows —
      * the way a video shows its whole frame in a small box and a big one —
-     * and follows only what leaves the page. Cropping the page to keep the
-     * writing at a readable size was what hid the bottom of a board in the
-     * inline player; a reader who wants it larger makes the box larger.
+     * and follows only what leaves the page. This comes before "is the
+     * target already on screen": at mount the zoom is 1 and the first line
+     * sits inside that small viewport, which is exactly when the page is
+     * not yet framed. Cropping the page to keep the writing at a readable
+     * size was what hid the bottom of a board in the inline player; a reader
+     * who wants it larger makes the box larger.
      */
     const page = this.page;
     if (page && contains(page, target, this.opts.tolerance)) {
@@ -112,6 +117,7 @@ export class CameraDirector {
       this.showPage(page, true);
       return true;
     }
+    if (contains(vp, target, this.opts.tolerance)) return false;
 
     let frame = target;
     const withContext = union([...context, target]);
@@ -150,17 +156,43 @@ export class CameraDirector {
   /** The page the camera is keeping in frame; null until one has been shown. */
   private page: Bounds | null = null;
 
-  /** Frame a whole page area (used by `newpage` and on mount): the page fits, whatever the screen. */
+  /**
+   * Frame a whole page area (used by `newpage` and on mount): the page fits,
+   * whatever the screen, and hangs from its leading edge — the left for
+   * left-to-right writing, the right for right-to-left — with the spare
+   * board on the trailing side. Centring a page narrower than the screen put
+   * the first word of every line near the middle.
+   */
   showPage(area: Bounds, animate = true): void {
     this.page = area;
+    const s = this.screen();
     const fit = this.fitZoom(area);
-    if (fit === null) return;
+    if (fit === null || !s) return;
     const targetZoom = Math.min(fit, this.opts.maxZoom);
-    this.editor.zoomToBounds(this.window(area, targetZoom), {
-      targetZoom,
-      inset: this.inset() * 0.5,
-      ...(animate ? { animation: { duration: this.opts.durationMs } } : {}),
-      force: true,
-    });
+    const inset = this.inset() * 0.5;
+    const w = Math.max(1, s.w) / targetZoom;
+    const h = Math.max(1, s.h) / targetZoom;
+    const pad = inset / targetZoom;
+    const x = this.opts.direction === 'rtl' ? area.x + area.w + pad - w : area.x - pad;
+    this.editor.zoomToBounds(
+      { x, y: area.y - pad, w, h },
+      {
+        targetZoom,
+        inset: 0,
+        ...(animate ? { animation: { duration: this.opts.durationMs } } : {}),
+        force: true,
+      },
+    );
+  }
+
+  /** The screen changed size (a box grew, a phone turned): the same page, framed again. */
+  refit(): void {
+    if (this.page) this.showPage(this.page, false);
+  }
+
+  setDirection(direction: 'ltr' | 'rtl'): void {
+    if (this.opts.direction === direction) return;
+    this.opts = { ...this.opts, direction };
+    this.refit();
   }
 }

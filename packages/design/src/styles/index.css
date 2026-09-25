@@ -1,5 +1,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/patrick-hand/400.css";
 @import "@fontsource/caveat/400.css";
 @import "@fontsource/caveat/600.css";
 
@@ -8,37 +9,10 @@
 @import "tailwindcss/utilities" layer(utilities);
 
 /*
- * Eraser — the board's hand, supplied by the owner.
- *
- * Self-hosted rather than fetched: it is not on Google Fonts or fontsource
- * (`@fontsource/eraser` is a 404), so the file lives in `packages/design/fonts`
- * and is converted to woff2 at 52 KB from the 125 KB TTF.
- *
- * Two facts about it are load-bearing and neither is fixable here.
- *
- * **It has one weight.** The file is `usWeightClass` 500 with no `fvar` axis,
- * so a `<strong>` on the board is browser-synthesised bold. That is why the
- * 700 face below is declared as the same file at `font-weight: 400 700` — it
- * tells the browser it may synthesise rather than silently swapping to the
- * next family in the stack, which would be a different hand mid-sentence.
- *
- * **It has 100 glyphs**, and the gaps matter for this product specifically:
- * no `<` `>` `[` `]` `}`, no `×` `÷` `→` `°` `…`, and no accented letters at
- * all. A board that teaches maths and shows code will meet every one of those.
- * Caveat is named immediately after it for that reason — the browser falls
- * back *per glyph*, so an inequality renders its digits in Eraser and its `<`
- * in Caveat, which is two handwriting faces rather than a hand face and a
- * system sans. `packages/design/test/hand-font.test.ts` pins exactly which
- * characters take that path, so the gap is a known list rather than a surprise
- * in a screenshot.
+ * The board's hand is Patrick Hand (ADR-0051), from fontsource above; Caveat
+ * stays behind it for the glyphs it lacks. Eraser, the chalk face the owner
+ * supplied, is no longer loaded; its files stay in `packages/design/fonts`.
  */
-@font-face {
-  font-family: "Eraser";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("../../fonts/eraser-regular.woff2") format("woff2");
-}
 
 @layer base {
   html {
@@ -241,4 +215,32 @@
   background-size:
     auto,
     240px 240px;
+}
+
+/*
+ * The check-in card (ADR-0050, ADR-0051) is sized by the board it sits on —
+ * container units of the board's frame — so it is one card in a small player
+ * and in full view, never one that needs scrolling in a short box. These
+ * sizes are the type scale's own roles at the ends of each clamp (label
+ * small → medium, title small → large, body small → large); the middle is
+ * the box talking.
+ */
+.pen-check__label {
+  font-size: clamp(10px, 0.9cqi, 12px);
+}
+.pen-check__question {
+  font-size: clamp(14px, 1.7cqi, 20px);
+}
+.pen-check__option {
+  min-height: clamp(32px, 3.6cqi, 40px);
+  font-size: clamp(12px, 1.35cqi, 15px);
+}
+.pen-check__letter {
+  width: clamp(18px, 2cqi, 24px);
+  height: clamp(18px, 2cqi, 24px);
+  font-size: clamp(10px, 0.95cqi, 12px);
+}
+.pen-check__input {
+  height: clamp(32px, 3.4cqi, 36px);
+  font-size: clamp(12px, 1.3cqi, 14px);
 }
