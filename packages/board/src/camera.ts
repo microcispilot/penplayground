@@ -98,6 +98,20 @@ export class CameraDirector {
     const vp = this.editor.getViewportPageBounds();
     if (!(vp.w > 0) || !(vp.h > 0)) return false;
     if (contains(vp, target, this.opts.tolerance)) return false;
+    /*
+     * A page is a frame (ADR-0051): once a page has been shown, the camera
+     * keeps the whole of it on screen at whatever zoom the screen allows —
+     * the way a video shows its whole frame in a small box and a big one —
+     * and follows only what leaves the page. Cropping the page to keep the
+     * writing at a readable size was what hid the bottom of a board in the
+     * inline player; a reader who wants it larger makes the box larger.
+     */
+    const page = this.page;
+    if (page && contains(page, target, this.opts.tolerance)) {
+      if (contains(vp, page, this.opts.tolerance)) return false;
+      this.showPage(page, true);
+      return true;
+    }
 
     let frame = target;
     const withContext = union([...context, target]);
@@ -133,11 +147,15 @@ export class CameraDirector {
     return { x: b.x, y: b.y, w: Math.min(b.w, w), h: Math.min(b.h, h) };
   }
 
-  /** Frame a whole page area (used by `newpage` and on mount). */
+  /** The page the camera is keeping in frame; null until one has been shown. */
+  private page: Bounds | null = null;
+
+  /** Frame a whole page area (used by `newpage` and on mount): the page fits, whatever the screen. */
   showPage(area: Bounds, animate = true): void {
+    this.page = area;
     const fit = this.fitZoom(area);
     if (fit === null) return;
-    const targetZoom = clamp(fit, this.opts.minLegibleZoom, this.opts.maxZoom);
+    const targetZoom = Math.min(fit, this.opts.maxZoom);
     this.editor.zoomToBounds(this.window(area, targetZoom), {
       targetZoom,
       inset: this.inset() * 0.5,

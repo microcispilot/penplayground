@@ -50,7 +50,10 @@ describe('CameraDirector on small screens', () => {
       camera.showPage(page, false);
       const move = moves.at(-1);
       const zoom = move?.opts.targetZoom ?? 0;
-      expect(zoom).toBeGreaterThanOrEqual(DEFAULT_CAMERA.minLegibleZoom);
+      // The page fits, whole (ADR-0051): a frame, not a crop.
+      expect(PAGE_W * zoom).toBeLessThanOrEqual(w);
+      expect(PAGE_H * zoom).toBeLessThanOrEqual(h);
+      expect(zoom).toBeLessThanOrEqual(DEFAULT_CAMERA.maxZoom);
       expect(PAGE_W * zoom).toBeLessThanOrEqual(w + 1);
     }
   });
@@ -85,5 +88,26 @@ describe('CameraDirector on small screens', () => {
     const camera = new CameraDirector(editor);
     camera.follow({ x: 0, y: 5000, w: 40, h: 20 });
     expect(moves.at(-1)?.opts.targetZoom).toBe(1.2);
+  });
+});
+
+describe('a page is a frame (ADR-0051)', () => {
+  it('keeps the whole page on screen at any size, below the legibility floor if it must', () => {
+    const { editor, moves } = fakeEditor(840, 472);
+    const camera = new CameraDirector(editor);
+    const page = { x: 0, y: 0, w: 1600, h: 1000 };
+    camera.showPage(page, false);
+    const shown = moves.at(-1)?.opts.targetZoom ?? 0;
+    // 472 tall minus the inset over 1000: well under 0.58, and that is the point.
+    expect(shown).toBeLessThan(0.5);
+    expect(1000 * shown).toBeLessThanOrEqual(472);
+    // At that zoom the whole page is the viewport: writing further down the
+    // same page does not move the camera off it.
+    const settled = fakeEditor(840, 472, shown);
+    const steady = new CameraDirector(settled.editor);
+    steady.showPage(page, false);
+    const before = settled.moves.length;
+    expect(steady.follow({ x: 100, y: 900, w: 600, h: 40 })).toBe(false);
+    expect(settled.moves.length).toBe(before);
   });
 });

@@ -98,7 +98,17 @@ describe('check-ins on', () => {
   it('reads the options after the question, and the card carries the question as asked', async () => {
     const { room, transport } = await liveRoom(true);
     await until(() => says(transport).some((s) => s.id === 'L0.s3'));
-    expect(says(transport).map((s) => s.id)).toEqual(['L0.s1', 'L0.s2', 'L0.s2o', 'L0.s3']);
+    // Announced, asked, options read: three sentences where the model wrote one.
+    expect(says(transport).map((s) => s.id)).toEqual([
+      'L0.s1',
+      'L0.s2i',
+      'L0.s2',
+      'L0.s2o',
+      'L0.s3',
+    ]);
+    expect(says(transport).find((s) => s.id === 'L0.s2i')?.text).toBe(
+      "Quick check — let's see if that landed.",
+    );
     expect(says(transport).find((s) => s.id === 'L0.s2o')?.text).toBe(
       'A: A word piece. B: A number.',
     );

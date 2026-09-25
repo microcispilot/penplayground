@@ -222,3 +222,23 @@
 @utility hairline {
   box-shadow: 0 0 0 1px var(--color-outline-variant);
 }
+
+/*
+ * The wall (ADR-0051): a board hangs on something. Plaster — a cream with a
+ * fine grain from a turbulence filter, darker towards the edges the way a
+ * lit wall is — so the framed board reads as an object in a room. The grain
+ * is a data URI so it loads with the stylesheet and never with the network.
+ */
+.pen-wall {
+  background-color: var(--color-wall);
+  background-image:
+    radial-gradient(
+      120% 90% at 50% 40%,
+      transparent 55%,
+      color-mix(in oklch, var(--color-wall-deep), transparent 20%) 100%
+    ),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.22 0 0 0 0.07 0'/></filter><rect width='240' height='240' filter='url(%23g)'/></svg>");
+  background-size:
+    auto,
+    240px 240px;
+}

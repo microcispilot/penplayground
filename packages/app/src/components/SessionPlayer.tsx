@@ -152,10 +152,14 @@ export function SessionPlayer({
    * panel in a small box said less than the page around it (ADR-0050).
    */
   const handedBack = useRef(false);
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
     if (layout !== 'inline' || ui.state?.phase !== 'ended' || handedBack.current) return;
     handedBack.current = true;
-    onOpenSaved();
+    // A beat of fade before the page comes back: a lesson ends, it does not vanish.
+    setLeaving(true);
+    const timer = window.setTimeout(onOpenSaved, 520);
+    return () => window.clearTimeout(timer);
   }, [layout, ui.state?.phase, onOpenSaved]);
 
   const isHost = ui.state?.hostId === participant?.id;
@@ -386,9 +390,11 @@ export function SessionPlayer({
         */}
         <div
           className={cn(
-            'flex min-w-0 flex-1 flex-col bg-surface-container-low',
+            'pen-wall flex min-w-0 flex-1 flex-col transition-opacity duration-500 ease-out',
             inline ? 'p-3 sm:p-4' : 'p-3 sm:p-5 lg:p-8',
+            leaving && 'opacity-0',
           )}
+          data-testid="board-wall"
         >
           {/*
             A named landmark so the skip link lands somewhere a screen reader can

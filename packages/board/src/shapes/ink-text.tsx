@@ -31,9 +31,9 @@ const fallbackFont = new FallbackFont();
  * and 1.0 — 0.45–0.7 reads as a normal weight with the chalk texture intact,
  * 1.0 starts to break thin strokes.
  */
-const WRITE_ERODE = 0.021;
+const WRITE_ERODE = 0.012;
 /** Headings keep more of the face than body writing — semi-bold, not bold. */
-const TITLE_ERODE = 0.01;
+const TITLE_ERODE = 0.005;
 
 /** Re-render once the font arrives so early shapes upgrade from CSS text to outlines. */
 function useGlyphSource(): GlyphSource {

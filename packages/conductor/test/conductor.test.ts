@@ -840,3 +840,24 @@ describe('a check-in holds the lesson (ADR-0050)', () => {
     expect(board.dimmed).toBe(true);
   });
 });
+
+describe('the player is resumed on every road back to playing', () => {
+  it('after the host’s own pause, and after a check-in’s verdict', () => {
+    const { c, audio } = setup();
+    c.handleServer({ kind: 'state', state: state('teaching') });
+    c.control('pause');
+    expect(audio.paused).toBe(true);
+    c.control('resume');
+    expect(audio.paused).toBe(false);
+    c.handleServer({ kind: 'state', state: state('checking') });
+    expect(audio.paused).toBe(true);
+    c.handleServer({ kind: 'state', state: state('thinking', { floor: HOST }) });
+    expect(audio.paused).toBe(false);
+    c.handleServer({ kind: 'state', state: state('answering', { floor: HOST }) });
+    expect(audio.paused).toBe(false);
+    c.handleServer({ kind: 'state', state: state('paused') });
+    expect(audio.paused).toBe(true);
+    c.handleServer({ kind: 'state', state: state('teaching') });
+    expect(audio.paused).toBe(false);
+  });
+});

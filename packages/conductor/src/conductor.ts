@@ -295,6 +295,24 @@ export class Conductor {
   /** Confirmed speech from the local mic (harmonic VAD). Zero round-trips: fade, freeze, then tell the room. */
   /** A check-in is being answered or graded: the board keeps the question up, undimmed (ADR-0050). */
   private afterCheck = false;
+  /**
+   * Whether *we* paused the player. Its pause is a flag only its own resume
+   * clears, so every road back to playing resumes it — and only when it was
+   * paused, so a state broadcast is never a spurious resume.
+   */
+  private audioPaused = false;
+
+  private pauseAudio(): void {
+    if (this.audioPaused) return;
+    this.audioPaused = true;
+    this.o.audio.pause();
+  }
+
+  private resumeAudio(): void {
+    if (!this.audioPaused) return;
+    this.audioPaused = false;
+    this.o.audio.resume();
+  }
 
   onSpeechStart(): void {
     const mode = this.state?.mode;
@@ -353,7 +371,7 @@ export class Conductor {
   control(action: 'pause' | 'resume' | 'end'): void {
     if (!this.isHost) return;
     if (action === 'pause' && this.phase === 'playing') {
-      this.o.audio.pause();
+      this.pauseAudio();
       for (const { exec } of this.executions.values()) exec.pause();
       this.phase = 'paused';
     }
@@ -361,6 +379,7 @@ export class Conductor {
       // The room re-speaks from the resume point with a new take; audio we held is stale.
       this.discardRebank();
       this.dropBank();
+      this.resumeAudio();
       this.phase = 'playing';
     }
     this.o.transport.send({ kind: 'control', action });
@@ -416,8 +435,10 @@ export class Conductor {
         if (!inAd) this.phase = 'listening';
       }
       // A check-in being graded is not the floor changing hands: the board
-      // holds the question and stays readable (ADR-0050).
+      // holds the question and stays readable (ADR-0050) — and the player,
+      // paused for the card, must be able to speak the verdict.
       if (!this.afterCheck) this.o.board.setDimmed(true);
+      else if (!inAd) this.resumeAudio();
       this.o.captions.hint(
         state.floor === this.o.participantId
           ? state.invited === this.o.participantId
@@ -431,7 +452,7 @@ export class Conductor {
       // The class is talking among themselves (ADR-0037): the lesson holds
       // like a pause, the board stays readable, and the expert waits.
       if (this.phase === 'playing') {
-        this.o.audio.pause();
+        this.pauseAudio();
         for (const { exec } of this.executions.values()) exec.pause();
       }
       if (!inAd) this.phase = 'paused';
@@ -440,7 +461,7 @@ export class Conductor {
       this.o.presence.setSpeaking(false);
     } else if (mode === 'paused') {
       if (this.phase === 'playing') {
-        this.o.audio.pause();
+        this.pauseAudio();
         for (const { exec } of this.executions.values()) exec.pause();
       }
       if (!inAd) this.phase = 'paused';
@@ -449,14 +470,17 @@ export class Conductor {
       this.o.presence.setSpeaking(false);
     } else if (mode === 'answering') {
       // Answer audio flows on the turn thread; the board stays dimmed until the bridge sentence.
-      if (!inAd) this.phase = 'playing';
+      if (!inAd) {
+        this.phase = 'playing';
+        this.resumeAudio();
+      }
       this.o.captions.hint(null);
     } else if (mode === 'checking') {
       // The card is up and the lesson waits (ADR-0050): whatever was banked
       // past the question is stale — the room re-speaks from here after the
       // answer — and the board stays readable, because the question is on it.
       if (this.phase === 'playing') {
-        this.o.audio.pause();
+        this.pauseAudio();
         for (const { exec } of this.executions.values()) exec.pause();
       }
       this.discardRebank();
@@ -471,7 +495,17 @@ export class Conductor {
       this.afterCheck = false;
       this.o.board.setDimmed(false);
       this.o.captions.hint(null);
-      if (previous?.mode === 'paused' || previous?.mode === 'discussing')
+      /*
+       * The player's pause is a flag only its own resume clears: a lesson
+       * coming back from a pause, a discussion or a check-in has to say so,
+       * or every sentence from here on is enqueued into silence.
+       */
+      if (!inAd) this.resumeAudio();
+      if (
+        previous?.mode === 'paused' ||
+        previous?.mode === 'discussing' ||
+        previous?.mode === 'checking'
+      )
         for (const { exec } of this.executions.values()) exec.resume();
       // A boundary ad whose sentence was cancelled mid-flight (a barge-in, or a
       // check-in answered before the sentence finished) never gets the say-end
@@ -760,7 +794,7 @@ export class Conductor {
     if (this.phase === 'listening' || this.phase === 'ended' || this.phase === 'ad') return;
     this.pendingAd = null;
     this.prepAd = ad.afterSeq < 0;
-    this.o.audio.pause();
+    this.pauseAudio();
     for (const { exec } of this.executions.values()) exec.pause();
     this.phase = 'ad';
     this.o.presence.showAd({
@@ -783,7 +817,7 @@ export class Conductor {
       return;
     }
     this.phase = 'playing';
-    this.o.audio.resume();
+    this.resumeAudio();
     for (const { exec } of this.executions.values()) exec.resume();
     this.touchActivity();
     // The room may have moved on during the ad (a check, an answer, a pause, someone else's

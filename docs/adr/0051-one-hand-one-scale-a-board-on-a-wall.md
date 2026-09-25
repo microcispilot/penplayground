@@ -40,19 +40,32 @@ in, per glyph. That is what "except what the font cannot do" means. Code
 blocks and prose are sized with the hand's own advance, and the language
 badge is gone: the expert said what the lesson is in.
 
-### One weight
+### One weight, and intact
 
-The face is heavy. Handwriting is eroded to a normal weight (0.021 of the
-type size a side; headings 0.01, semi-bold rather than bold), and the HTML
-text — code and prose — is asked the same weight with a hairline of paper
-over each glyph's edge.
+The face is heavy. Handwriting is eroded towards a normal weight — 0.012 of
+the type size a side, headings 0.005 so they stay semi-bold — and no
+further: a first round at nearly twice that broke the chalk's thin strokes
+into specks, and a normal weight is worth having only if the glyphs stay
+whole. Code and prose keep the face's own weight; a paper hairline over
+their edges read as damage.
+
+### A page is a frame
+
+The camera keeps the whole current page on screen at whatever zoom the
+screen allows — below the legibility floor if it must — and follows only
+what leaves the page. That is how a video shows its whole frame in a small
+box and a big one. Cropping the page to keep the writing readable was what
+hid the bottom of a board in the inline player; a reader who wants it larger
+makes the box larger, as with a video.
 
 ### A board on a wall
 
-The player's surface colour surrounds the frame with room to breathe, in
-the room and inline, so the board reads as an object hanging in a space
-rather than a texture filling the viewport. The frame keeps its bevel and
-its shadow, which is what says it is standing off the wall.
+Plaster: a cream with a fine grain (a turbulence filter in a data URI, so it
+ships with the stylesheet), darker towards the edges the way a lit wall is,
+in the room and inline, so the framed board reads as an object hanging in a
+room. Dark theme gets a darker warm plaster. The frame keeps its bevel and
+its shadow, which is what says it is standing off the wall. An inline
+session fades for half a second when it ends before the page comes back.
 
 ## Consequences
 

@@ -382,6 +382,9 @@
    * picture. Teal ink is pinned to the brand tone rather than to `primary`.
    * ────────────────────────────────────────────────────────────────────── */
   --color-paper: oklch(0.975 0.008 80);
+  /* The wall a board hangs on (ADR-0051): cream plaster by day. */
+  --color-wall: oklch(0.945 0.02 85);
+  --color-wall-deep: oklch(0.905 0.024 82);
   --color-paper-grid: oklch(0.285 0.062 247.7 / 16%);
   --color-ink: oklch(0.27 0.055 248);
   --color-ink-accent: oklch(0.592 0.228 29.3); /* #E62117, the brand red, 4.25:1 on paper */
@@ -1171,6 +1174,8 @@
 :root[data-board="blackboard"],
 [data-board="blackboard"] {
   --color-paper: oklch(0.255 0.016 250);
+  --color-wall: oklch(0.27 0.012 70);
+  --color-wall-deep: oklch(0.22 0.012 70);
   --color-paper-grid: oklch(0.95 0.01 85 / 14%);
   --color-ink: oklch(0.945 0.012 85);
   --color-ink-accent: oklch(0.74 0.15 28);

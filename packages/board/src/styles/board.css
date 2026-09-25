@@ -253,16 +253,6 @@
  * `<`, `>`, `[`, `]`, `}` — and for those alone the stack's next face steps
  * in, per glyph, which is what "except what the font cannot do" means.
  */
-/*
- * The face is heavy; the handwriting is eroded to a normal weight, and the
- * same weight is asked of the HTML text — code and prose — with a hairline
- * of paper drawn over each glyph's edge (a stroke sits half inside, half out).
- */
-.pen-code,
-.pen-md {
-  -webkit-text-stroke: 0.6px var(--color-paper);
-}
-
 /* ── note-card ──────────────────────────────────────────────────────── */
 /*
  * The board is ALWAYS paper, so the card must not use theme-flipping tokens

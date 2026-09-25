@@ -35,13 +35,21 @@ What was true:
 
 ### The room asks the way a teacher does
 
-The model's asking sentence opens with a short cue ("Quick check:") — a
-prompt rule — and asks in one sentence, without listing the options. The
-room then **reads the options out** as a sentence of its own ("A: … B: …
-C: …", one letter each), with the asking sentence's id and a letter after it
-(`s9o`), and points the check at *that* sentence. The card appears when the
-last option has been heard, and carries `question`, the question as asked,
-attached by the room; the client never guesses it from a caption.
+Every sentence the model writes is held for one event, so a check can claim
+the sentence that asked it. When it does, the room speaks three sentences
+where the model wrote one: an **introduction** of its own ("Quick check —
+let's see if that landed", rotated by segment, in the lesson's language
+where a line exists and English otherwise; id `s9i`), the **asking
+sentence** as written, and the **options read out** ("A: … B: … C: …", one
+letter each; id `s9o`). The check is pointed at the options sentence, so the
+card appears when the last option has been heard. This is the room's doing,
+not the prompt's, so lessons written and memoised before this decision are
+introduced just the same. The prompt still asks the model to write the
+question in one sentence and leave the options to the room.
+
+The card carries `question`, attached by the room: the asking sentence when
+it is a question, or the sentence before it when an older lesson pointed the
+check at a statement. The client never guesses it from a caption.
 
 ### The lesson waits
 
@@ -69,6 +77,16 @@ sentence that asked it are dropped together — the sentence is held for one
 event so a following check can claim it — and the lesson runs straight
 through. The lesson memo keeps every event, so the choice is this learner's
 and costs the next learner nothing.
+
+### The player is resumed on every road back
+
+The player's pause is a flag only its own resume clears, and the conductor
+resumed it only after an ad. A host's own pause, a discussion, and now the
+check-in's hold all left the player mute for the rest of the session — which
+is what "the expert never spoke again" was. The conductor now pauses and
+resumes the player through one flagged pair, and every road back to playing
+(the host's resume, the verdict after a check, the lesson after a pause or a
+discussion) resumes it; an ad keeps charge of it while it is up.
 
 ### A pause mid-turn is honoured, later
 

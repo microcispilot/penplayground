@@ -1104,12 +1104,32 @@ export class SessionRoom {
     let held: LessonEvent | null = null;
     const emit = (event: LessonEvent) => {
       events.push(event);
-      if (this.checkIns) {
+      if (event.type === 'check' && held?.type === 'say' && held.id === event.askedBy) {
+        // The check claims the sentence that asked it. On: the expert
+        // announces the check, asks, and reads the options. Off: neither
+        // is heard, and the lesson runs straight through.
+        const asking = held;
+        held = null;
+        if (!this.checkIns) return;
+        this.emitLessonEvent(
+          {
+            type: 'say',
+            id: `${asking.id}i`,
+            text: checkIntro(index, this.language),
+            tone: 'warm',
+          },
+          index,
+        );
+        this.emitLessonEvent(asking, index);
         this.emitLessonEvent(event, index);
         return;
       }
       if (event.type === 'check') {
-        if (held?.type === 'say' && held.id === event.askedBy) held = null;
+        // A check whose sentence was not the one just heard: nothing to
+        // announce it with, so it is asked as it was written, or dropped.
+        if (held) this.emitLessonEvent(held, index);
+        held = null;
+        if (this.checkIns) this.emitLessonEvent(event, index);
         return;
       }
       if (held) this.emitLessonEvent(held, index);
@@ -1399,6 +1419,20 @@ export class SessionRoom {
   }
 
   /**
+   * The question a check asks. The asking sentence, normally — but a lesson
+   * written before the prompt asked for a question in that sentence may point
+   * the check at a statement, with the question in the sentence before it;
+   * the card should still show the question.
+   */
+  private questionFor(askedBy: string): string {
+    const asking = this.lessonSays.get(askedBy)?.say.text ?? '';
+    if (/[?？؟]\s*$/.test(asking)) return asking;
+    const at = this.lessonOrder.indexOf(askedBy);
+    const previous = at > 0 ? this.lessonSays.get(this.lessonOrder[at - 1] ?? '')?.say.text : '';
+    return previous && /[?？؟]\s*$/.test(previous) ? previous : asking;
+  }
+
+  /**
    * A check-in the way a teacher does it (ADR-0050): the question was asked
    * in the sentence before; the options are then read out, one letter each,
    * as a sentence of their own; the card appears when the last option has
@@ -1409,7 +1443,7 @@ export class SessionRoom {
   private checkAsHeard(raw: CheckEvent, segment: number): CheckEvent {
     const prefix = `L${segment}`;
     const askedBy = raw.askedBy.includes('.') ? raw.askedBy : `${prefix}.${raw.askedBy}`;
-    const question = this.lessonSays.get(askedBy)?.say.text ?? '';
+    const question = this.questionFor(askedBy);
     const base = /^(.*?s\d{1,4})[a-z]?$/.exec(raw.askedBy)?.[1];
     if (raw.options.length === 0 || !base) return { ...raw, question };
     const optionsId = `${base}o`;
@@ -2871,6 +2905,48 @@ export function withDelivery(event: LessonEvent): LessonEvent {
   const { text, spoken } = splitDelivery(event.text);
   if (!text) return { ...event, text: event.text.replace(/[[\]]/g, ' ').trim() || '…' };
   return text === spoken ? { ...event, text } : { ...event, text, spoken };
+}
+
+/**
+ * What the expert says before a check-in (ADR-0050): a teacher does not spring
+ * a question; they say a check is coming. Rotated by segment so a lesson with
+ * three checks does not open all three the same way; English when the
+ * language has no table, since the card that follows says the rest.
+ */
+const CHECK_INTROS: Record<string, string[]> = {
+  en: [
+    "Quick check — let's see if that landed.",
+    'Let me check that this made sense so far.',
+    'Before we go on, a quick one back at you.',
+  ],
+  es: ['Una comprobación rápida: veamos si quedó claro.', 'Antes de seguir, una pregunta breve.'],
+  fr: ['Petite vérification : voyons si c’est clair.', 'Avant de continuer, une question rapide.'],
+  de: [
+    'Kurzer Check: Schauen wir, ob das angekommen ist.',
+    'Bevor es weitergeht, eine kurze Frage.',
+  ],
+  it: ['Un rapido controllo: vediamo se è chiaro.', 'Prima di andare avanti, una domanda veloce.'],
+  pt: [
+    'Uma verificação rápida: vamos ver se ficou claro.',
+    'Antes de seguir, uma pergunta rápida.',
+  ],
+  nl: ['Even checken of dit is geland.', 'Voor we verdergaan, een korte vraag.'],
+  tr: ['Kısa bir kontrol: bakalım anlaşıldı mı.', 'Devam etmeden önce kısa bir soru.'],
+  ru: ['Быстрая проверка: посмотрим, всё ли понятно.', 'Прежде чем идти дальше, короткий вопрос.'],
+  fa: ['یک بررسی سریع — ببینیم جا افتاد یا نه.', 'قبل از ادامه، یک سؤال کوتاه.'],
+  ar: ['تحقق سريع: لنرَ إن كان هذا واضحًا.', 'قبل أن نكمل، سؤال قصير.'],
+  hi: ['एक छोटी जाँच — देखें कि यह समझ में आया।', 'आगे बढ़ने से पहले, एक छोटा सवाल।'],
+  ja: ['ここで少し確認しましょう。', '先に進む前に、短い質問をひとつ。'],
+  zh: ['快速检查一下，看看这部分是否清楚。', '继续之前，先问一个小问题。'],
+  ko: ['잠깐 확인해 볼게요. 잘 이해되었는지 봅시다.', '계속하기 전에 짧은 질문 하나.'],
+};
+
+export function checkIntro(seed: number, language = 'en'): string {
+  const lines =
+    CHECK_INTROS[language.split('-')[0]?.toLowerCase() ?? 'en'] ?? CHECK_INTROS.en ?? [];
+  return (
+    lines[Math.abs(seed) % Math.max(1, lines.length)] ?? "Quick check — let's see if that landed."
+  );
 }
 
 /** The options of a check-in as a teacher reads them out: one letter each, a beat between. */
