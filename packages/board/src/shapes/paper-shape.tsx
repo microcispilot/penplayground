@@ -79,7 +79,7 @@ export function resolveInk(container: HTMLElement | null, emphasis: Emphasis): s
   }
   switch (emphasis) {
     case 'accent':
-      return '#8A1A41';
+      return '#B30D4D';
     case 'warn':
       // Amber, because the brand sits at red's door: see tokens.css, --color-ink-warn.
       return '#8F3C00';

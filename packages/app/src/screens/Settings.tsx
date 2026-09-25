@@ -167,16 +167,26 @@ function SurfaceCard({
         <span className="min-w-0 flex-1 text-label-large font-semibold leading-tight text-balance">
           {surface.name}
         </span>
-        {chosen ? <Check size={15} className="shrink-0 text-primary" aria-hidden /> : null}
+        {chosen ? (
+          <Check size={15} className="shrink-0 text-on-secondary-container" aria-hidden />
+        ) : null}
         {locked ? <PlanTag name={locked} /> : null}
       </span>
-      <span className="mt-0.5 block text-body-small text-on-surface-variant">{surface.note}</span>
+      {/* On the brand fill every line is white: a note in `on-surface-variant` vanished into it. */}
+      <span
+        className={cn(
+          'mt-0.5 block text-body-small',
+          chosen ? 'text-on-secondary-container' : 'text-on-surface-variant',
+        )}
+      >
+        {surface.note}
+      </span>
     </>
   );
 
   const shell = cn(
     'state-layer group rounded-lg p-2 text-left transition-colors',
-    chosen && 'bg-secondary-container',
+    chosen && 'bg-secondary-container text-on-secondary-container',
   );
 
   // A board above the plan is a link to Pricing, not a dead control: the
@@ -239,15 +249,24 @@ function ToolCard({
           beside its plan tag is "Mark", so the tag drops under the name instead. */}
       <span className="mt-2.5 flex flex-wrap items-start gap-x-2 gap-y-1">
         <span className="flex-1 text-label-large font-semibold leading-tight">{name}</span>
-        {chosen ? <Check size={15} className="shrink-0 text-primary" aria-hidden /> : null}
+        {chosen ? (
+          <Check size={15} className="shrink-0 text-on-secondary-container" aria-hidden />
+        ) : null}
         {locked ? <PlanTag name={locked} /> : null}
       </span>
-      <span className="mt-0.5 block text-body-small text-on-surface-variant">{note}</span>
+      <span
+        className={cn(
+          'mt-0.5 block text-body-small',
+          chosen ? 'text-on-secondary-container' : 'text-on-surface-variant',
+        )}
+      >
+        {note}
+      </span>
     </>
   );
   const shell = cn(
     'state-layer group rounded-lg p-2 text-left transition-colors',
-    chosen && 'bg-secondary-container',
+    chosen && 'bg-secondary-container text-on-secondary-container',
   );
   return locked ? (
     <Link

@@ -19,7 +19,7 @@
  *   the owner's drawing.
  *
  *   The artwork's red becomes `var(--color-mark-accent)`: the brand itself,
- *   #8A1A41, the same on both grounds by the owner's ruling (ADR-0052).
+ *   #B30D4D, the same on both grounds by the owner's ruling (ADR-0054).
  *
  * The diagonals are strokes, not filled shapes: `stroke-width`, the round cap
  * and `fill="none"` are copied across with the `d`, because each of them is

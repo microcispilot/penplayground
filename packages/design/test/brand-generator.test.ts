@@ -373,7 +373,7 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
    * The finding the four candidate families exist to record: M3 puts primary
    * at tone 80 in a dark scheme, and a red at tone 80 is #ffb4a8 — a salmon
    * with barely a tenth of the seed's chroma. Measured against them: all four
-   * land there, and the brand does not — it is the owner's #8A1A41 in both
+   * land there, and the brand does not — it is the owner's #B30D4D in both
    * themes, at 0.148 of chroma.
    */
   it('does not go pale in the dark the way every generated red does', () => {
@@ -397,7 +397,7 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
    * fill's own 2.0:1 against the dark `surface` is recorded, not gated.
    */
   it('is one hex in both themes, because the dark scheme never redeclares it', () => {
-    expect(brand('light')).toBe('#8a1a41');
+    expect(brand('light')).toBe('#b30d4d');
     expect(declared(themeBlock('dark'), 'primary-fixed')).toBeUndefined();
     expect(declared(themeBlock('dark'), 'on-primary-fixed')).toBeUndefined();
     expect(brand('dark')).toBe(brand('light'));
@@ -409,7 +409,7 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
     }
     const surface = rgb(declared(themeBlock('dark'), 'surface') ?? '');
     expect(contrast(rgb(brand('dark')), surface), 'the brand on the dark surface').toBeCloseTo(
-      2.04,
+      2.73,
       1,
     );
   });
@@ -452,15 +452,15 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
   });
 
   /**
-   * And by night the text role is brand-light, by the owner's ruling
+   * And by night the text role is the brand itself, by the owner's ruling
    * (ADR-0052, amended): 2.9:1 on `surface`, 1.9:1 on the highest grey.
    * Pinned so the cost is a number rather than a surprise; white on it is
    * 6.4:1, which is what a filled control carries.
    */
-  it('dark: brand-coloured text is brand-light, at the contrast the owner accepted', () => {
-    expect(primary('dark')).toBe('#ae2a58');
+  it('dark: brand-coloured text is the brand, at the contrast the owner accepted', () => {
+    expect(primary('dark')).toBe('#b30d4d');
     const surface = rgb(declared(themeBlock('dark'), 'surface') ?? '');
-    expect(contrast(rgb(primary('dark')), surface)).toBeCloseTo(2.89, 1);
+    expect(contrast(rgb(primary('dark')), surface)).toBeCloseTo(2.73, 1);
     expect(contrast(rgb('#ffffff'), rgb(primary('dark')))).toBeGreaterThan(4.5);
   });
 

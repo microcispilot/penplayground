@@ -37,26 +37,24 @@
  *   would have made every dark panel read as lacquered blue-grey; that is the
  *   look this replaces.)
  *
- *   The brand. The owner's palette (2026-09-25), and nothing outside it:
- *   wine #68113C (pills), berry #95214E, brand #8A1A41 (buttons, Sign in,
- *   selections, the mark's delta — the brand itself), brand-light #AE2A58
- *   (highlights), glow #CB688C (an edge glow), blush #DFBDC7 (a card's
- *   frame) and mint #D0F5EB. Pinned, not generated, and the owner's ruling
- *   is that these are one set for both themes: they are neither white nor
- *   black, so a fill of brand with white on it is the same object by day and
- *   by night. `primary-fixed`, `secondary-container`, `mark-accent`, `glow`
- *   and `highlight` are therefore declared once, in @theme, and the dark
- *   blocks do not touch them.
+ *   The brand. The owner's Pem palette (ADR-0054, 2026-09-25), and nothing
+ *   outside it: brand #B30D4D (buttons, Sign in, selected rows and chips,
+ *   brand-coloured text, the mark's delta, the board's ink — every main
+ *   place), wine #7F0D3F, plum #470928, crimson #C42163 (highlights, the
+ *   live voice), rose #E1799D (an edge glow), pink #E6AEBE, blush #EBD7DA
+ *   (a card's frame) and periwinkle #94ABD7. Mint is gone; white stands
+ *   where it stood. Pinned, not generated, and one set for both themes by
+ *   the owner's ruling: `primary`, `primary-fixed`, `secondary-container`,
+ *   `mark-accent`, `glow` and `highlight` carry the same value by day and
+ *   by night.
  *
- *   The one thing that does move is brand-coloured *text* on a dark
- *   surface, where `primary` — the text role — is brand-light #AE2A58 by the
- *   owner's ruling (2026-09-25). Measured: 2.9:1 on the dark `surface`,
- *   1.9:1 on the highest grey, under WCAG's 4.5 for text; the numbers are
- *   pinned in the tests as a recorded cost. White on it is 6.4:1. Selected rows
- *   and chips are the brand with white on them (9.1:1) in both themes; the
- *   containers under `::selection` stay platform greys; error stays the
- *   owner's #ED424A; the board's accent ink is the brand on a light board,
- *   brand-light on a dark one and blush on the green board.
+ *   Measured: white on the brand is 6.8:1; the brand on the light `surface`
+ *   6.5:1 and on the highest light grey 5.3:1. On the dark `surface` it is
+ *   2.7:1 and on the highest dark grey 1.8:1, under WCAG's 4.5 for text and
+ *   3 for graphics — the owner's accepted cost, pinned in the tests as a
+ *   number rather than gated. The containers under `::selection` stay
+ *   platform greys; error stays the owner's #ED424A ladder, and by day the
+ *   brand now sits 0.053 from it in OKLab: two reds, one hue apart.
  */
 @import "tailwindcss/theme" layer(theme);
 
@@ -236,38 +234,35 @@
    * ────────────────────────────────────────────────────────────────────── */
 
   /*
-   * The brand, in M3's two halves.
+   * The brand, in M3's two halves — which here are one.
    *
-   * `primary-fixed` is the brand fill: the owner's #8A1A41 by day, and by
-   * night the palette's glow #CB688C, because the wine is 2.0:1 on a dark
-   * page and nothing that dark can fill a button there. It fills Sign in and
-   * Start — the places that say "this is Pen" — and the mark's delta is its
-   * own pair, `mark-accent`, wine and glow.
-   *
-   * `primary` is the brand made readable as text, and it cannot be one hex: no
-   * colour whatsoever clears 4.5:1 against both #ffffff and #353535 — the
-   * arithmetic forbids it, for teal as much as for wine. So the role that
-   * carries *text* (links, a tab underline, a speaker's name, a ghost button)
-   * is toned per theme: the wine itself by day, a lightened glow by night.
+   * `primary-fixed` is the brand fill and `primary` the brand as text, and
+   * by the owner's ruling (ADR-0054) both are #B30D4D in both themes: a fill
+   * of brand with white on it is the same object by day and by night, and
+   * brand-coloured text on the dark page is accepted at 2.7:1. M3 would tone
+   * `primary` per theme because no single hex clears 4.5:1 against both
+   * #ffffff and #353535; that arithmetic still holds, and the numbers are
+   * pinned in the tests as the recorded cost rather than gated.
    */
-  --color-primary: #8a1a41;
+  --color-primary: #b30d4d;
   --color-on-primary: #ffffff;
   --color-primary-container: #e8e8e8;
   --color-on-primary-container: #1b1b1b;
-  --color-inverse-primary: #cb688c;
-  --color-primary-fixed: #8a1a41;
+  --color-inverse-primary: #e1799d;
+  --color-primary-fixed: #b30d4d;
   --color-on-primary-fixed: #ffffff;
   /* The owner's palette by name, for the few places that ask for a member rather than a role. */
-  --color-brand-wine: #68113c;
-  --color-brand-berry: #95214e;
-  --color-brand: #8a1a41;
-  --color-brand-light: #ae2a58;
-  --color-brand-glow: #cb688c;
-  --color-brand-blush: #dfbdc7;
-  --color-brand-mint: #d0f5eb;
+  --color-brand: #b30d4d;
+  --color-brand-wine: #7f0d3f;
+  --color-brand-plum: #470928;
+  --color-brand-crimson: #c42163;
+  --color-brand-rose: #e1799d;
+  --color-brand-pink: #e6aebe;
+  --color-brand-blush: #ebd7da;
+  --color-brand-periwinkle: #94abd7;
   /* An edge glow (a hover bloom; not the focus ring, which stays neutral at 3:1 everywhere) and a highlight. */
-  --color-glow: #cb688c;
-  --color-highlight: #ae2a58;
+  --color-glow: #e1799d;
+  --color-highlight: #c42163;
 
   /*
    * The mark's ink — the lettering and the two strokes of the logo, and
@@ -289,7 +284,7 @@
    */
   --color-mark-ink: #000000;
   /* The mark's delta: the brand itself, in both themes (the owner, 2026-09-25). */
-  --color-mark-accent: #8a1a41;
+  --color-mark-accent: #b30d4d;
 
   /*
    * secondary: the selected state — a nav row you are on, a chosen chip, a
@@ -315,14 +310,14 @@
    */
   --color-secondary: #474747;
   --color-on-secondary: #ffffff;
-  /* Selected — a nav row, a chosen chip — is the brand with white on it (9.1:1), both themes. */
-  --color-secondary-container: #8a1a41;
+  /* Selected — a nav row, a chosen chip — is the brand with white on it (6.8:1), both themes. */
+  --color-secondary-container: #b30d4d;
   --color-on-secondary-container: #ffffff;
 
-  --color-tertiary: #95214e;
+  --color-tertiary: #7f0d3f;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #d0f5eb;
-  --color-on-tertiary-container: #68113c;
+  --color-tertiary-container: #ebd7da;
+  --color-on-tertiary-container: #470928;
 
   /*
    * error: the owner's #ED424A, through M3's tonal machinery.
@@ -411,13 +406,13 @@
   --color-wall-deep: oklch(0.905 0.024 82);
   --color-paper-grid: oklch(0.285 0.062 247.7 / 16%);
   --color-ink: oklch(0.27 0.055 248);
-  --color-ink-accent: oklch(0.422 0.148 6); /* #8A1A41, the brand wine, 8.5:1 on paper */
+  --color-ink-accent: oklch(0.495 0.193 7.9); /* #B30D4D, the brand, 6.5:1 on paper */
   /* Warn is amber, not red: the brand sits at red's door, and two reds on one sheet are one red. */
   --color-ink-warn: oklch(0.457 0.15 62);
   --color-ink-muted: oklch(0.58 0.03 247);
   --color-ink-highlight: oklch(0.88 0.12 90 / 55%);
-  /* A live voice on that same board; the brand's highlight, #AE2A58, for the same reason as the ink. */
-  --color-speaking: oklch(0.506 0.17 4.9);
+  /* A live voice on that same board; the palette's crimson, #C42163, for the same reason as the ink. */
+  --color-speaking: oklch(0.542 0.199 3.4);
   /*
    * The expert orb's pulse (`@keyframes ring`). Two tokens rather than one
    * because a keyframe cannot add an alpha to a colour it was handed, and the
@@ -426,8 +421,8 @@
    * ink, so a family that re-tunes the board re-tunes the pulse with it, and
    * `packages/design/scripts/brand.ts` emits all four together.
    */
-  --color-ring-pulse: oklch(0.422 0.148 6 / 45%);
-  --color-ring-pulse-out: oklch(0.422 0.148 6 / 0%);
+  --color-ring-pulse: oklch(0.495 0.193 7.9 / 45%);
+  --color-ring-pulse-out: oklch(0.495 0.193 7.9 / 0%);
 
   /*
    * Captions sit on the board, and the board is always paper. The scrim is
@@ -548,18 +543,18 @@
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    /* Brand-coloured text on a dark surface is brand-light, by the owner's ruling: 2.9:1 on `surface`, 1.9:1 on the highest grey (recorded in the tests, not gated). */
-    --color-primary: #ae2a58;
+    /* Brand-coloured text on a dark surface is the brand itself, by the owner's ruling: 2.7:1 on `surface`, 1.8:1 on the highest grey (recorded in the tests, not gated). */
+    --color-primary: #b30d4d;
     --color-on-primary: #ffffff;
     --color-primary-container: #2a2a2a;
     --color-on-primary-container: #e2e2e2;
-    --color-inverse-primary: #8a1a41;
+    --color-inverse-primary: #b30d4d;
     /* The mark is pure white on a dark page, not `on-surface`. See @theme. */
     --color-mark-ink: #ffffff;
     --color-secondary: #c6c6c6;
     --color-on-secondary: #1b1b1b;
     /* Selected is the brand with white on it here too: the same object as by day. */
-    --color-secondary-container: #8a1a41;
+    --color-secondary-container: #b30d4d;
     --color-on-secondary-container: #ffffff;
     --color-error: #ffb3b0;
     --color-on-error: #68000f;
@@ -595,18 +590,18 @@
   }
 }
 :root[data-theme="dark"] {
-  /* Brand-coloured text on a dark surface is brand-light, by the owner's ruling: 2.9:1 on `surface`, 1.9:1 on the highest grey (recorded in the tests, not gated). */
-  --color-primary: #ae2a58;
+  /* Brand-coloured text on a dark surface is the brand itself, by the owner's ruling: 2.7:1 on `surface`, 1.8:1 on the highest grey (recorded in the tests, not gated). */
+  --color-primary: #b30d4d;
   --color-on-primary: #ffffff;
   --color-primary-container: #2a2a2a;
   --color-on-primary-container: #e2e2e2;
-  --color-inverse-primary: #8a1a41;
+  --color-inverse-primary: #b30d4d;
   /* The mark is pure white on a dark page, not `on-surface`. See @theme. */
   --color-mark-ink: #ffffff;
   --color-secondary: #c6c6c6;
   --color-on-secondary: #1b1b1b;
   /* Selected is the brand with white on it here too: the same object as by day. */
-  --color-secondary-container: #8a1a41;
+  --color-secondary-container: #b30d4d;
   --color-on-secondary-container: #ffffff;
   --color-error: #ffb3b0;
   --color-on-error: #68000f;
@@ -1153,7 +1148,7 @@
   --color-paper: oklch(0.975 0.006 85);
   --color-paper-grid: oklch(0.285 0.05 247.7 / 14%);
   --color-ink: oklch(0.28 0.02 250);
-  --color-ink-accent: oklch(0.422 0.148 6); /* the brand wine, 8.5:1 on this paper */
+  --color-ink-accent: oklch(0.495 0.193 7.9); /* the brand, 6.5:1 on this paper */
   --color-ink-warn: oklch(0.457 0.15 62);
   --color-ink-muted: oklch(0.6 0.02 250);
   --color-ink-highlight: oklch(0.88 0.12 90 / 50%);
@@ -1175,7 +1170,7 @@
   --color-paper: oklch(0.955 0.022 85);
   --color-paper-grid: oklch(0.35 0.04 70 / 16%);
   --color-ink: oklch(0.3 0.035 60);
-  --color-ink-accent: oklch(0.422 0.148 6); /* the brand wine, 8.0:1 on ivory */
+  --color-ink-accent: oklch(0.495 0.193 7.9); /* the brand, 6.1:1 on ivory */
   --color-ink-warn: oklch(0.45 0.14 62);
   --color-ink-muted: oklch(0.56 0.025 70);
   --color-ink-highlight: oklch(0.87 0.13 88 / 50%);
@@ -1199,8 +1194,8 @@
   --color-wall-deep: oklch(0.905 0.024 82);
   --color-paper-grid: oklch(0.95 0.01 85 / 14%);
   --color-ink: oklch(0.945 0.012 85);
-  /* Brand-light, #AE2A58, by the owner's ruling: 2.5:1 on this board (the brand itself is 1.7). */
-  --color-ink-accent: oklch(0.506 0.17 4.9);
+  /* The brand, by the owner's ruling: 2.3:1 on this board, recorded not gated. */
+  --color-ink-accent: oklch(0.495 0.193 7.9);
   --color-ink-warn: oklch(0.85 0.12 82);
   --color-ink-muted: oklch(0.72 0.012 85);
   --color-ink-highlight: oklch(0.85 0.14 90 / 26%);
@@ -1220,8 +1215,8 @@
   --color-paper: oklch(0.44 0.062 160);
   --color-paper-grid: oklch(0.95 0.01 85 / 14%);
   --color-ink: oklch(0.955 0.012 85);
-  /* Blush, #DFBDC7, on green: 4.4:1, where the glow is 2.1. */
-  --color-ink-accent: oklch(0.831 0.041 358.4);
+  /* Blush, #EBD7DA, on green: 5.5:1, where the brand is 1.1. */
+  --color-ink-accent: oklch(0.896 0.022 7.2);
   --color-ink-warn: oklch(0.86 0.12 84);
   --color-ink-muted: oklch(0.76 0.015 140);
   --color-ink-highlight: oklch(0.85 0.14 90 / 24%);
@@ -1243,8 +1238,8 @@
   --color-paper-grid: oklch(0.94 0.012 80 / 12%);
   --color-ink: oklch(0.93 0.014 80);
   --color-ink-accent: oklch(
-    0.506 0.17 4.9
-  ); /* brand-light, 2.6:1 on smoked glass, the owner's ruling */
+    0.495 0.193 7.9
+  ); /* the brand, 2.5:1 on smoked glass, the owner's ruling */
   --color-ink-warn: oklch(0.85 0.12 80);
   --color-ink-muted: oklch(0.7 0.012 70);
   --color-ink-highlight: oklch(0.85 0.14 90 / 22%);

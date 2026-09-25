@@ -109,15 +109,16 @@ Calm, never alarming: no consent banners, no draft badges, no lock icons on
 gated rows. Limits are one friendly sentence with a link. The AI disclosure is
 one quiet line.
 
-The brand is `#8A1A41`, and the palette is the owner's seven colours and
-nothing else (ADR-0052): wine `#68113C` for pills, brand
-`#8A1A41` for buttons, Sign in, selections, the mark's delta, the lesson's
-progress and the board's ink, brand-light `#AE2A58` for highlights, glow `#CB688C` for an edge, blush
-`#DFBDC7` for a card's frame, mint `#D0F5EB` and berry `#95214E`; on a dark
-surface, brand-coloured text and the board's accent ink are brand-light.
-That text measures 2.9:1 on the dark page, the owner's ruling. The same values in both themes:
-they are neither white nor black, so a fill does not change with the page.
-Never introduce a hex outside these; every number is measured in
+The brand is `#B30D4D`, and the palette is the owner's Pem palette and
+nothing else (ADR-0054): brand `#B30D4D` for buttons, Sign in, selected rows
+and chips, brand-coloured text, the mark's delta, the lesson's progress and
+the board's ink, in both themes; wine `#7F0D3F`, plum `#470928`, crimson
+`#C42163` for highlights and the live voice, rose `#E1799D` for an edge glow,
+pink `#E6AEBE`, blush `#EBD7DA` for a card's frame and the green board's ink,
+periwinkle `#94ABD7`. No mint: white stands where it stood. The same values
+in both themes: they are neither white nor black, so a fill does not change
+with the page; brand text on the dark page measures 2.7:1, the owner's
+ruling. Never introduce a hex outside these; every number is measured in
 `packages/design/test`. The error role is the owner's `#ED424A`, laddered so
 it can be read, and it is close enough to the brand that *colour alone never
 carries the message*: an error says what went wrong in words, and the red is

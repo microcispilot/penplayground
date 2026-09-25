@@ -1,6 +1,6 @@
 # ADR-0052: Wine is the brand
 
-Status: accepted · 2026-09-25 · amended the same day by the owner (see the end)
+Status: superseded by ADR-0054 · 2026-09-25 · amended the same day by the owner (see the end)
 
 Supersedes the colour decision in ADR-0034's brand review (the YouTube-adjacent
 red, #E62117). Extends ADR-0041 (chalk and marker) for the board's accent ink.

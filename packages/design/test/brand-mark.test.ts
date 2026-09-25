@@ -181,7 +181,7 @@ const strokes = (): string[] =>
 describe('the two substitutions, which are the reason for the pipeline', () => {
   it('nothing in the component is painted a literal hex', () => {
     // #000000 is 1.27:1 on `surface-container` in dark, so a literal one is a
-    // logo half the product cannot see; the brand is 2.0:1 there. Both hexes
+    // logo half the product cannot see; the brand is 2.7:1 there. Both hexes
     // are named in the header comment on purpose — this is about what gets
     // painted.
     for (const paint of [...fills(), ...strokes()]) expect(paint).not.toMatch(/^#/);

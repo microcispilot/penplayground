@@ -407,19 +407,19 @@ describe('M3 roles carry text that can be read', () => {
     (brand, theme) => {
       if (brand === 'default' && theme === 'dark') {
         // The owner's ruling (ADR-0052, amended): brand-coloured text on a
-        // dark page is brand-light, #AE2A58, and it does not clear 4.5 on
+        // dark page is the brand itself, #B30D4D, and it does not clear 4.5 on
         // any step of the ladder — 2.9:1 on `surface` down to 1.9:1 on the
         // highest grey. Recorded, not gated: the numbers are pinned so a
         // drift in either direction is seen, and the exemption is one line
         // that names its owner rather than a rule with a silent hole.
-        expect(rgb('primary', theme, brand)).toEqual(rgb('brand-light', 'light'));
+        expect(rgb('primary', theme, brand)).toEqual(rgb('brand', 'light'));
         expect(contrast(rgb('primary', theme, brand), rgb('surface', theme, brand))).toBeCloseTo(
-          2.89,
+          2.73,
           1,
         );
         expect(
           contrast(rgb('primary', theme, brand), rgb('surface-container-highest', theme, brand)),
-        ).toBeCloseTo(1.91, 1);
+        ).toBeCloseTo(1.8, 1);
         return;
       }
       for (const bg of LADDER) {
@@ -441,7 +441,7 @@ describe('M3 roles carry text that can be read', () => {
    * painted from a brand role:
    *   · the mark — `PenMark` draws its triangle in `mark-accent`
    *     (components/PenLogo.tsx), the brand itself, declared once for both
-   *     grounds by the owner's ruling (ADR-0052, amended). It is 2.0:1 on the dark
+   *     grounds by the owner's ruling (ADR-0054). It is 2.7:1 on the dark
    *     `surface`: recorded for the default in dark, gated everywhere else;
    *   · the focus ring — 3 px of `secondary` (styles/index.css :focus-visible).
    * A family that passed the text sweep can still lose either of these, so
@@ -454,7 +454,7 @@ describe('M3 roles carry text that can be read', () => {
       // has `mark-accent`, and only the default in dark is exempt.
       const drop = brand === 'default' ? rgb('mark-accent', 'light') : rgb('primary', theme, brand);
       const exempt = brand === 'default' && theme === 'dark';
-      if (exempt) expect(contrast(drop, rgb('surface', theme, brand))).toBeCloseTo(2.04, 1);
+      if (exempt) expect(contrast(drop, rgb('surface', theme, brand))).toBeCloseTo(2.73, 1);
       for (const bg of LADDER) {
         if (!exempt)
           expect(
@@ -527,7 +527,7 @@ describe('a brand role and an error role have to be two colours', () => {
   const RECORDED: Record<string, readonly [number, number]> = {
     //         light   dark
     /*
-     * The brand — the owner's #8A1A41, with its text role brand-light by night —
+     * The brand — the owner's #B30D4D, one value in both themes —
      * against the error role the owner chose, #ED424A. The brand sits at
      * red's door, so light is still the one entry that does not clear the
      * 0.15 below: 0.110, four times the 0.025 the old red managed, but a
@@ -535,7 +535,7 @@ describe('a brand role and an error role have to be two colours', () => {
      * than gated so the cost is a number somebody can look at, and so moving
      * it still fails.
      */
-    default: [0.11, 0.343],
+    default: [0.053, 0.359],
     teal: [0.279, 0.17],
     green: [0.232, 0.148],
     forest: [0.273, 0.171],
@@ -644,7 +644,7 @@ describe('caption contrast on the board', () => {
   });
 
   it('the ink the board is drawn in is the brand wine, and teal still has its own', () => {
-    expect(decl('--color-ink-accent')).toBe('oklch(0.422 0.148 6)');
+    expect(decl('--color-ink-accent')).toBe('oklch(0.495 0.193 7.9)');
     expect(
       /--color-ink-accent:\s*([^;]+);/.exec(block('teal', 'light'))?.[1]?.trim(),
       'the teal family keeps the ink every sketch before the rebrand was drawn in',

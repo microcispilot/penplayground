@@ -55,7 +55,7 @@ const THEMES = ['light', 'dark'] as const;
 
 /** The board's ink under each family, as `tokens.css` declares it. */
 const INK: Record<Family, string> = {
-  brand: 'oklch(0.422 0.148 6)', // #8A1A41, the brand wine
+  brand: 'oklch(0.495 0.193 7.9)', // #B30D4D, the brand
   teal: 'oklch(0.597 0.107 218.3)', // #008EAA
   youtube: 'oklch(0.628 0.258 29.2)',
   vermilion: 'oklch(0.592 0.228 29.3)',
@@ -249,8 +249,8 @@ test.describe('brand candidates, side by side', () => {
         ),
       ]);
       // The owner's brand, the same hex on both pages: their ruling.
-      expect(declared, 'the brand hex the owner chose').toBe('#8a1a41');
-      expect(painted, `Sign in in ${theme}`).toBe('rgb(138, 26, 65)');
+      expect(declared, 'the brand hex the owner chose').toBe('#b30d4d');
+      expect(painted, `Sign in in ${theme}`).toBe('rgb(179, 13, 77)');
     });
 
     /**
