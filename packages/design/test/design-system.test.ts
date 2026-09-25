@@ -440,8 +440,8 @@ describe('M3 roles carry text that can be read', () => {
    * product are graphics that have to be seen rather than read, and both are
    * painted from a brand role:
    *   · the mark — `PenMark` draws its triangle in `mark-accent`
-   *     (components/PenLogo.tsx), the owner's wine, declared once for both
-   *     grounds by their ruling (ADR-0052, amended). It is 1.5:1 on the dark
+   *     (components/PenLogo.tsx), the brand itself, declared once for both
+   *     grounds by the owner's ruling (ADR-0052, amended). It is 2.0:1 on the dark
    *     `surface`: recorded for the default in dark, gated everywhere else;
    *   · the focus ring — 3 px of `secondary` (styles/index.css :focus-visible).
    * A family that passed the text sweep can still lose either of these, so
@@ -451,10 +451,10 @@ describe('M3 roles carry text that can be read', () => {
     '%s in %s: the mark and the focus ring clear 3:1 as graphics',
     (brand, theme) => {
       // The candidate families draw their mark from `primary`; only the default
-      // has the owner's wine, and only the default in dark is exempt.
+      // has `mark-accent`, and only the default in dark is exempt.
       const drop = brand === 'default' ? rgb('mark-accent', 'light') : rgb('primary', theme, brand);
       const exempt = brand === 'default' && theme === 'dark';
-      if (exempt) expect(contrast(drop, rgb('surface', theme, brand))).toBeCloseTo(1.53, 1);
+      if (exempt) expect(contrast(drop, rgb('surface', theme, brand))).toBeCloseTo(2.04, 1);
       for (const bg of LADDER) {
         if (!exempt)
           expect(

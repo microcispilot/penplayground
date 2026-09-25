@@ -38,8 +38,8 @@
  *   look this replaces.)
  *
  *   The brand. The owner's palette (2026-09-25), and nothing outside it:
- *   wine #68113C (pills, the mark's delta), berry #95214E, brand #8A1A41
- *   (buttons, Sign in, selections — the brand itself), brand-light #AE2A58
+ *   wine #68113C (pills), berry #95214E, brand #8A1A41 (buttons, Sign in,
+ *   selections, the mark's delta — the brand itself), brand-light #AE2A58
  *   (highlights), glow #CB688C (an edge glow), blush #DFBDC7 (a card's
  *   frame) and mint #D0F5EB. Pinned, not generated, and the owner's ruling
  *   is that these are one set for both themes: they are neither white nor
@@ -288,8 +288,8 @@
    * reads when a client ignores a colour-scheme rule.
    */
   --color-mark-ink: #000000;
-  /* The mark's delta: the owner's wine, in both themes. */
-  --color-mark-accent: #68113c;
+  /* The mark's delta: the brand itself, in both themes (the owner, 2026-09-25). */
+  --color-mark-accent: #8a1a41;
 
   /*
    * secondary: the selected state — a nav row you are on, a chosen chip, a

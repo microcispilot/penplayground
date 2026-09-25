@@ -110,9 +110,9 @@ gated rows. Limits are one friendly sentence with a link. The AI disclosure is
 one quiet line.
 
 The brand is `#8A1A41`, and the palette is the owner's seven colours and
-nothing else (ADR-0052): wine `#68113C` for pills and the mark's delta, brand
-`#8A1A41` for buttons, Sign in, selections, the lesson's progress and the
-board's ink, brand-light `#AE2A58` for highlights, glow `#CB688C` for an edge, blush
+nothing else (ADR-0052): wine `#68113C` for pills, brand
+`#8A1A41` for buttons, Sign in, selections, the mark's delta, the lesson's
+progress and the board's ink, brand-light `#AE2A58` for highlights, glow `#CB688C` for an edge, blush
 `#DFBDC7` for a card's frame, mint `#D0F5EB` and berry `#95214E`; on a dark
 surface, brand-coloured text and the board's accent ink are brand-light.
 That text measures 2.9:1 on the dark page, the owner's ruling. The same values in both themes:

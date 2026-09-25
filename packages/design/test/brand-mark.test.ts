@@ -181,7 +181,7 @@ const strokes = (): string[] =>
 describe('the two substitutions, which are the reason for the pipeline', () => {
   it('nothing in the component is painted a literal hex', () => {
     // #000000 is 1.27:1 on `surface-container` in dark, so a literal one is a
-    // logo half the product cannot see; the wine is 1.7:1 there. Both hexes
+    // logo half the product cannot see; the brand is 2.0:1 there. Both hexes
     // are named in the header comment on purpose — this is about what gets
     // painted.
     for (const paint of [...fills(), ...strokes()]) expect(paint).not.toMatch(/^#/);
@@ -230,7 +230,7 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
     const declared = [...tokens.matchAll(/--color-mark-accent:\s*(#[0-9a-f]{6})/gi)].map((m) =>
       (m[1] ?? '').toUpperCase(),
     );
-    // @theme only: the delta is the same wine on both grounds (the owner's
+    // @theme only: the delta is the brand on both grounds (the owner's
     // ruling), so the dark blocks never redeclare it.
     expect(declared).toEqual([MARK_ACCENT]);
     // The artwork's red is recognised and never painted: no theme block declares it.
@@ -243,7 +243,7 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
   it('the favicon carries its own dark rule, since it has no document to inherit from', () => {
     const svg = faviconSvg();
     expect(svg).toContain('@media (prefers-color-scheme: dark)');
-    // The delta is wine on both strips and sits outside the media query; the
+    // The delta is the brand on both strips and sits outside the media query; the
     // artwork's red is nowhere in the file.
     expect(svg).not.toMatch(new RegExp(BRAND_RED, 'i'));
     expect(svg.match(new RegExp(`\\.delta-fill \\{ fill: ${MARK_ACCENT} \\}`, 'g'))).toHaveLength(

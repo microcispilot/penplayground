@@ -129,10 +129,11 @@ export const WHITE = '#FFFFFF';
 /** The red in the owner's artwork — what the generator recognises, not what it paints. */
 export const BRAND_RED = '#E62117';
 /**
- * What the delta is painted: the owner's wine, on both grounds (ADR-0052 as
- * amended). The artwork's red is only the marker the generator swaps for it.
+ * What the delta is painted: the brand itself, #8A1A41, on both grounds
+ * (ADR-0052 as amended). The artwork's red is only the marker the generator
+ * swaps for it.
  */
-export const MARK_ACCENT = '#68113C';
+export const MARK_ACCENT = '#8A1A41';
 export const ACCENT_TOKEN = 'var(--color-mark-accent)';
 
 /**
@@ -409,8 +410,8 @@ export function component(): string {
  *   softened on a dark page so it does not glare, a mark is not, and that is
  *   the owner's drawing.
  *
- *   The artwork's red becomes \`var(--color-mark-accent)\`: the owner's wine,
- *   #68113C, the same on both grounds by the owner's ruling (ADR-0052).
+ *   The artwork's red becomes \`var(--color-mark-accent)\`: the brand itself,
+ *   #8A1A41, the same on both grounds by the owner's ruling (ADR-0052).
  *
  * The diagonals are strokes, not filled shapes: \`stroke-width\`, the round cap
  * and \`fill="none"\` are copied across with the \`d\`, because each of them is
@@ -513,12 +514,11 @@ ${jsx(icon, '        ')}
 /**
  * A favicon has no document to read a token from, so the swap that
  * `--color-mark-ink` does for the component has to be written into the file,
- * and the delta's wine with it. `prefers-color-scheme` inside an SVG favicon is
+ * and the delta's brand with it. `prefers-color-scheme` inside an SVG favicon is
  * honoured by Safari, Firefox and Chrome.
  *
  * Where it is not, the rule is simply ignored and the icon stays charcoal —
- * the delta is wine either way, which is still the Pen mark and still the
- * brand.
+ * the delta is the brand either way, which is still the Pen mark.
  */
 export function faviconSvg(): string {
   const { icon } = art();
@@ -550,8 +550,8 @@ export function faviconSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FAVICON_SIDE} ${FAVICON_SIDE}">
   <title>Pen Playground</title>
   <style>
-    /* The ink follows the tab strip. The delta does not: it is the owner's
-       wine on both. */
+    /* The ink follows the tab strip. The delta does not: it is the brand on
+       both. */
 ${rule(INK, '    ')}
     .delta-fill { fill: ${MARK_ACCENT} }
     @media (prefers-color-scheme: dark) {

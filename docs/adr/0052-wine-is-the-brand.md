@@ -105,7 +105,9 @@ So, as it stands:
 - **The brand `#8A1A41` is the fill** for Sign in, Start and every selection
   (`primary-fixed` and `secondary-container`), with white on it (9.1:1), and
   it is declared once: the dark blocks never redeclare it. The mark's delta
-  is the wine on both grounds. Glow, highlight, blush and mint are likewise
+  is the brand too, on both grounds (the owner, later the same day: *"for the
+  logo the alpha sign use that light current color 8A1A41 as well"*), having
+  been the wine for one deploy. Glow, highlight, blush and mint are likewise
   one value each.
 - **The one thing that moves** is brand-coloured *text* on a dark surface
   (`primary`, the text role: links, the admin's active tab), and on a dark
@@ -113,7 +115,7 @@ So, as it stands:
   CB688C use brand light on dark for the things you mentioned, AE2A58."* So
   both are brand-light `#AE2A58` (white on it where it is ever a fill,
   6.4:1). The green board keeps blush (4.4:1).
-- **Recorded, not gated:** the brand fill is 2.0:1 against the dark page;
+- **Recorded, not gated:** the brand fill, and the delta in it, are 2.0:1 against the dark page;
   brand-light text is 2.9:1 on the dark `surface`, 1.9:1 on the highest
   grey, 2.5:1 on the blackboard and 2.6:1 on smoked glass, all under WCAG's
   4.5 for text and 3 for graphics. The owner has ruled that the palette does

@@ -27,9 +27,9 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
  * got wrong somewhere:
  *
  *   · the ink follows the theme, so the lockup is legible on both grounds;
- *   · the delta does *not* — it is `mark-accent`, the owner's wine, the same
- *     hex in light and dark by their ruling, and never the ink's colour, or
- *     the mark would be a silhouette;
+ *   · the delta does *not* — it is `mark-accent`, the brand #8A1A41, the same
+ *     hex in light and dark by the owner's ruling, and never the ink's colour,
+ *     or the mark would be a silhouette;
  *   · the artwork's aspect is intact, because a mark is easy to squash and
  *     nobody notices in a diff.
  *
@@ -38,8 +38,8 @@ import { SCREENS, UI_WEB, useTheme, VIEWPORTS } from './ui-helpers.js';
  * Output: `.pen-data/screens/logo-<screen>-<theme>-<viewport>.png`.
  */
 
-/** `--color-mark-accent`: the owner's wine, the one colour in the mark that does not move. */
-const BRAND = 'rgb(104, 17, 60)';
+/** `--color-mark-accent`: the brand, the one colour in the mark that does not move. */
+const BRAND = 'rgb(138, 26, 65)';
 
 const THEMES = ['light', 'dark'] as const;
 

@@ -18,8 +18,8 @@
  *   softened on a dark page so it does not glare, a mark is not, and that is
  *   the owner's drawing.
  *
- *   The artwork's red becomes `var(--color-mark-accent)`: the owner's wine,
- *   #68113C, the same on both grounds by the owner's ruling (ADR-0052).
+ *   The artwork's red becomes `var(--color-mark-accent)`: the brand itself,
+ *   #8A1A41, the same on both grounds by the owner's ruling (ADR-0052).
  *
  * The diagonals are strokes, not filled shapes: `stroke-width`, the round cap
  * and `fill="none"` are copied across with the `d`, because each of them is
