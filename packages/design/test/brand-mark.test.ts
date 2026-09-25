@@ -34,6 +34,7 @@ import {
   INK,
   INK_TOKEN,
   isInked,
+  LOCKUP_GAP,
   MARK_ACCENT,
   paths,
   WHITE,
@@ -284,7 +285,12 @@ describe('the crop', () => {
   it('the component is cropped to the artwork, with nothing left over', () => {
     const file = read('src/components/PenLogo.tsx');
     expect(file).toContain(`viewBox="0 0 ${BBOX.icon.w} ${BBOX.icon.h}"`);
-    expect(file).toContain(`viewBox="0 0 ${BBOX.logo.w} ${BBOX.logo.h}"`);
+    // The lockup's box is the artwork's plus the gap the owner asked for between the word and the icon.
+    expect(file).toContain(
+      `viewBox="0 0 ${Math.round((BBOX.logo.w + LOCKUP_GAP) * 1000) / 1000} ${BBOX.logo.h}"`,
+    );
+    expect(file).toContain(`<g transform="translate(${LOCKUP_GAP} 0)">`);
+    expect(LOCKUP_GAP).toBeGreaterThan(0);
     expect(file).toContain(`translate(${-BBOX.icon.x} ${-BBOX.icon.y})`);
     expect(file).toContain(`translate(${-BBOX.logo.x} ${-BBOX.logo.y})`);
   });

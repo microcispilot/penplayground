@@ -4,6 +4,7 @@ import {
   DEFAULT_LINE_HEIGHT,
   layoutHandText,
   measureHandText,
+  WORD_GAP_MIN_EM,
   wrapHandText,
 } from '../src/glyphs.js';
 import { loadTestFont } from './helpers.js';
@@ -90,5 +91,31 @@ describe('glyph layout (Caveat via opentype.js)', () => {
     expect((l.lines[0]?.glyphs ?? []).every((g) => g.kind === 'fallback' || g.char === ' ')).toBe(
       true,
     );
+  });
+});
+
+describe('word gaps', () => {
+  it('a space is never narrower than WORD_GAP_MIN_EM, whatever the face says', () => {
+    // The fallback face's own space is 0.22 em — the owner read "Int Double
+    // UInt" as one word on the board. Wrapping, measuring and placing all go
+    // through the same floor.
+    const font = new FallbackFont();
+    const size = 40;
+    const a = measureHandText(font, 'Int', size);
+    const b = measureHandText(font, 'Double', size);
+    expect(measureHandText(font, 'Int Double', size)).toBeCloseTo(
+      a + size * WORD_GAP_MIN_EM + b,
+      6,
+    );
+    const l = layoutHandText(font, 'Int Double', {
+      fontSize: size,
+      maxWidth: 10_000,
+      seed: 'x',
+      jitter: false,
+    });
+    const glyphs = l.lines[0]?.glyphs ?? [];
+    const space = glyphs.find((g) => g.char === ' ');
+    expect(space?.advance).toBeCloseTo(size * WORD_GAP_MIN_EM, 6);
+    expect(WORD_GAP_MIN_EM).toBeGreaterThan(0.22);
   });
 });

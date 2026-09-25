@@ -122,3 +122,20 @@ test.describe('replay and the recording', () => {
     });
   }
 });
+
+test.describe('the search field', () => {
+  test('clearing the suggested expert leaves a "Random expert" chip in its place', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /What do you want to/ })).toBeVisible();
+    // A suggested expert is on the field within a moment of the catalogue loading.
+    const clear = page.getByRole('button', { name: 'Any expert' });
+    await expect(clear).toBeVisible({ timeout: 15_000 });
+    await clear.click();
+    // The owner: "it should show that Random Expert in place of that, so the user knows".
+    await expect(page.getByTestId('random-expert')).toBeVisible();
+    await expect(page.getByTestId('random-expert')).toHaveText(/Random expert/);
+    await expect(clear).toHaveCount(0);
+  });
+});

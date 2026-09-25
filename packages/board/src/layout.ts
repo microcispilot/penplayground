@@ -59,7 +59,7 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   columnWidth: 640,
   columnGap: 64,
   itemGap: 18,
-  lineGap: 18,
+  lineGap: 10,
   relativeGap: 24,
   noteWidth: 300,
   noteGap: 16,

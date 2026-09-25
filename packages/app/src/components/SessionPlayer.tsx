@@ -539,6 +539,7 @@ export function SessionPlayer({
                   check={ui.check}
                   question={ui.check.question ?? checkQuestion}
                   language={state.language}
+                  armed={state.mode === 'checking'}
                   onAnswer={(t) => session.answerCheck(ui.check?.id ?? '', t)}
                 />
               </FullscreenPortal>

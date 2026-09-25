@@ -35,6 +35,10 @@ import { LazyBoard } from './LazyBoard.js';
 import { RoomClient } from './RoomClient.js';
 import { pushReaction } from './reactions.js';
 import { RecognizerGuard } from './recognizer-guard.js';
+
+/** How long a session waits for the board to mount before it connects regardless. */
+export const BOARD_READY_WAIT_MS = 4000;
+
 import { useRoomStore } from './store.js';
 
 export interface RoomSessionOptions {
@@ -128,7 +132,17 @@ export class RoomSession {
    * dropped, and typing is refused even if something got past the disabled
    * composer. See `ad-input.ts` for the whole rule.
    */
-  private readonly adGate = new AdInputGate((paused) => this.mic?.setMuted(paused));
+  private readonly adGate = new AdInputGate((paused) =>
+    this.mic?.setMuted(paused || this.userMuted),
+  );
+  /**
+   * The learner's own mute. The toggle no longer releases the device: opening
+   * and closing the capture stream reconfigured the audio hardware and put a
+   * hitch in the expert's voice each time (the owner, 2026-09-25). Muted is
+   * what a call does — the track disabled, the recognizer stopped, the device
+   * kept — and the device is released when the session ends.
+   */
+  private userMuted = false;
   /** Monotonic tiebreaker for reaction and chat ids; the store keys React rows by them. */
   private lineCounter = 0;
 
@@ -594,6 +608,16 @@ export class RoomSession {
     await this.player.prime(AUDIO.ttsSampleRate);
     // React StrictMode mounts twice: the first instance is disposed before prime() resolves.
     if (this.disposed) return;
+    // The board is a lazy chunk. Connecting before it had mounted meant the
+    // expert's first words played over an empty box and the first writing was
+    // already on the board when it appeared (the owner, 2026-09-25). So the
+    // room is asked for nothing until the board is there — or until a bound,
+    // so a board that never mounts cannot hold the lesson hostage.
+    await Promise.race([
+      this.board.ready,
+      new Promise<void>((resolve) => setTimeout(resolve, BOARD_READY_WAIT_MS)),
+    ]);
+    if (this.disposed) return;
     this.client.connect();
     this.clockTimer = setInterval(() => {
       const st = useRoomStore.getState();
@@ -614,7 +638,19 @@ export class RoomSession {
   async enableMic(): Promise<void> {
     const set = (patch: Parameters<ReturnType<typeof useRoomStore.getState>['set']>[0]) =>
       useRoomStore.getState().set(patch);
-    if (this.mic || this.disposed) return;
+    if (this.disposed) return;
+    if (this.mic) {
+      if (!this.userMuted) return;
+      // Unmute: the device never went away.
+      this.userMuted = false;
+      this.mic.setMuted(this.adGate.paused);
+      const track = this.micStream?.getAudioTracks()[0];
+      if (track) void this.audio.attachMicrophone(track);
+      set({ micState: 'listening' });
+      trackInteraction('mic_on');
+      await this.startRecognizer();
+      return;
+    }
     set({ micState: 'starting' });
     trackInteraction('mic_on');
     const mic = new Microphone({
@@ -702,6 +738,11 @@ export class RoomSession {
     const track = this.micStream?.getAudioTracks()[0];
     if (mic.state === 'listening' && track && this.mic === mic)
       void this.audio.attachMicrophone(track);
+    await this.startRecognizer();
+  }
+
+  /** The words half of the microphone: the platform recognizer, or server STT when there is none. */
+  private async startRecognizer(): Promise<void> {
     // A guest without the floor keeps the microphone for the people in the
     // room and holds the recogniser until the expert calls on them.
     if (!this.mayAddressExpert(useRoomStore.getState().state)) {
@@ -834,8 +875,31 @@ export class RoomSession {
     this.client.send({ kind: 'remove_participant', participantId });
   }
 
+  /** The learner's toggle: mute. The device stays open (see `userMuted`); `releaseMic` is for the end. */
   disableMic(): void {
+    if (!this.mic || this.mic.state !== 'listening') {
+      this.releaseMic();
+      return;
+    }
+    trackInteraction('mic_off');
+    this.userMuted = true;
+    if (this.serverSpeech && this.currentUtterance) {
+      this.client.send({ kind: 'utterance_end', utteranceId: this.currentUtterance });
+      this.currentUtterance = null;
+    }
+    this.recognizerHeld = false;
+    this.recognizer?.stop();
+    this.recognizer = null;
+    this.mic.setMuted(true);
+    // The room publishes a clone of the track, and a clone's `enabled` is its own: unpublish it.
+    void this.audio.detachMicrophone();
+    useRoomStore.getState().set({ micState: 'idle', micLevel: 0 });
+  }
+
+  /** Release the microphone and everything derived from it. */
+  releaseMic(): void {
     if (this.mic) trackInteraction('mic_off');
+    this.userMuted = false;
     if (this.serverSpeech && this.currentUtterance) {
       this.client.send({ kind: 'utterance_end', utteranceId: this.currentUtterance });
       this.currentUtterance = null;
@@ -957,7 +1021,7 @@ export class RoomSession {
     if (this.disposed) return;
     this.disposed = true;
     if (this.clockTimer) clearInterval(this.clockTimer);
-    this.disableMic();
+    this.releaseMic();
     void this.audio.disconnect();
     this.conductor.dispose();
     setRoomReporter(null);

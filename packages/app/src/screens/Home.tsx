@@ -1,7 +1,7 @@
 import type { Expert, PlanUsage } from '@pen/contracts';
 import { planIncludes } from '@pen/contracts';
 import { Chip, cn, Skeleton, useToast } from '@pen/design';
-import { ArrowRight, Mic, Search, X } from 'lucide-react';
+import { ArrowRight, Mic, Search, Shuffle, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, PreparationRequired, type SessionRecord } from '../api/client.js';
@@ -368,6 +368,16 @@ export function Home() {
                 >
                   <X size={12} />
                 </button>
+              </span>
+            ) : cleared ? (
+              // The learner just sent an expert away; the chip says who is
+              // coming instead, so the field is never silently "anyone".
+              <span
+                className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary-container py-0.5 pr-2.5 pl-2 text-label-large text-on-primary-container"
+                data-testid="random-expert"
+              >
+                <Shuffle size={14} aria-hidden />
+                Random expert
               </span>
             ) : null}
             <input

@@ -151,18 +151,6 @@ export class ExportClock implements AudioPort {
   }
 }
 
-/** A lazy board that also tells us when the real board mounted (the export waits for it). */
-class ObservedLazyBoard extends LazyBoard {
-  private resolveReady: () => void = () => undefined;
-  readonly ready = new Promise<void>((r) => {
-    this.resolveReady = r;
-  });
-  override attach(board: Parameters<LazyBoard['attach']>[0]): void {
-    super.attach(board);
-    this.resolveReady();
-  }
-}
-
 /**
  * Deterministic replay of a saved session: the recording ledger is replayed
  * through the same conductor the live room uses, so the board is written at
@@ -176,7 +164,8 @@ class ObservedLazyBoard extends LazyBoard {
  * `state` updates, so the board's writing speed follows what the room had.
  */
 export class ReplaySession {
-  readonly board = new ObservedLazyBoard();
+  /** `board.ready` resolves when the real board mounted; the export waits for it. */
+  readonly board = new LazyBoard();
   readonly mode: ReplayMode;
   private readonly player: MediaSayPlayer | null;
   private exportClock: ExportClock | null = null;

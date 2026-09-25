@@ -78,6 +78,10 @@ export class Conductor {
   private readonly cues = new Map<number, Cue>();
   private readonly says = new Map<string, SayRecord>();
   private readonly checksByAsker = new Map<string, CheckEvent>();
+  /** Checks by the sentence that announces them: the card goes up as it starts (ADR-0050, amended). */
+  private readonly checksByAnnouncer = new Map<string, CheckEvent>();
+  /** A card shown at its announcement and not yet armed: a state update must not take it down. */
+  private announcedCheck: string | null = null;
   private readonly expectedTake = new Map<string, number>();
   /** Takes whose audio is banked in the player, by say: what a re-take has to replace. */
   private readonly bankedTakes = new Map<string, number>();
@@ -333,6 +337,11 @@ export class Conductor {
     const cue = sayId ? this.says.get(sayId)?.cue : undefined;
     for (const { exec } of this.executions.values()) exec.pause();
     this.clearCheckTimer();
+    // A card shown at its announcement comes down with the sentence it rode on.
+    if (this.announcedCheck !== null) {
+      this.announcedCheck = null;
+      this.o.presence.showCheck(null);
+    }
     this.phase = 'listening';
     this.clearWaitingTimer();
     this.setWaiting(false);
@@ -516,7 +525,8 @@ export class Conductor {
       if (!inAd && pending && pending.afterSeq >= 0 && this.lastProgressSeq >= pending.afterSeq)
         this.startAd();
     }
-    if (previous?.mode !== 'checking' && mode !== 'checking') this.o.presence.showCheck(null);
+    if (previous?.mode !== 'checking' && mode !== 'checking' && this.announcedCheck === null)
+      this.o.presence.showCheck(null);
     // Cheap reconciliation: if a finished turn has nothing left to play, say so now
     // rather than leaving the room to time out.
     for (const thread of this.turnsDone) this.maybeSendResumed(thread);
@@ -556,6 +566,7 @@ export class Conductor {
       }
       case 'check':
         this.checksByAsker.set(ev.askedBy, ev);
+        if (ev.announcedBy) this.checksByAnnouncer.set(ev.announcedBy, ev);
         return;
       case 'note':
         /*
@@ -623,6 +634,15 @@ export class Conductor {
     const durationMs = Math.max(1, recordedMs - this.seekOffsetMs);
     this.seekOffsetMs = 0;
     this.o.captions.showExpert(say.text, durationMs / this.playbackRate, say.thread);
+    // The announcement: the card is up while the expert reads the question and
+    // the options, and armed — the lesson held, an answer taken — only when
+    // the options end (the owner: "it should be shown when the expert starts
+    // talking about it").
+    const announced = this.checksByAnnouncer.get(sayId);
+    if (announced && !this.revealedChecks.has(announced.id)) {
+      this.announcedCheck = announced.id;
+      this.o.presence.showCheck(announced);
+    }
     // A check-in question is followed by the longer beat (ADR-0010); the card
     // and the room's `checking` mode belong to the end of the words, not of the
     // beat, so an eager learner's answer is graded rather than taken as a question.
@@ -671,6 +691,7 @@ export class Conductor {
     if (!check || this.revealedChecks.has(check.id)) return;
     if (this.phase === 'listening' || this.phase === 'ended') return;
     this.revealedChecks.add(check.id);
+    this.announcedCheck = null;
     const checkCue = [...this.cues.values()].find(
       (c) => c.event.type === 'check' && c.event.id === check.id,
     );

@@ -337,6 +337,53 @@ describe('Conductor', () => {
     });
   });
 
+  it('shows a check-in as its announcement starts, keeps it through a state update, and arms it when the options end', () => {
+    const { c, presence, transport } = setup();
+    c.handleServer({
+      kind: 'cue',
+      cue: say(0, 'L1.s2i', "Quick check — let's see if that landed."),
+    });
+    c.handleServer({ kind: 'cue', cue: say(1, 'L1.s2', 'What is a vector?') });
+    c.handleServer({ kind: 'cue', cue: say(2, 'L1.s2o', 'A: A list. B: A number.') });
+    c.handleServer({
+      kind: 'cue',
+      cue: {
+        seq: 3,
+        segment: 1,
+        thread: 'lesson',
+        at: 0,
+        event: {
+          type: 'check',
+          id: 'L1.c1',
+          askedBy: 'L1.s2o',
+          announcedBy: 'L1.s2i',
+          options: ['A list', 'A number'],
+          expected: 'A list',
+          explain: 'x',
+        },
+      },
+    });
+    c.audioEvents.onSayStart('L1.s2i@0');
+    // Up as the announcement starts, with nothing reported: the lesson is still playing.
+    expect(presence.checks.at(-1)).toMatchObject({ id: 'L1.c1' });
+    expect(transport.sent.filter((m) => m.kind === 'progress')).toEqual([]);
+    expect(c.getPhase()).toBe('playing');
+    // A state update while the expert reads the question does not take it down.
+    c.handleServer({ kind: 'state', state: state('teaching') });
+    expect(presence.checks.at(-1)).toMatchObject({ id: 'L1.c1' });
+    c.audioEvents.onSayEnd('L1.s2i@0', 1200);
+    c.audioEvents.onSayStart('L1.s2@0');
+    c.audioEvents.onSayEnd('L1.s2@0', 1200);
+    c.audioEvents.onSayStart('L1.s2o@0');
+    c.audioEvents.onSayEnd('L1.s2o@0', 1500);
+    // Armed at the options' end: the check cue is reported, as before.
+    expect(
+      transport.sent
+        .filter((m) => m.kind === 'progress')
+        .map((m) => (m.kind === 'progress' ? m.seq : -1)),
+    ).toContain(3);
+  });
+
   it("reveals a check-in when the question's words end, before the beat of silence, and only once", () => {
     const { c, presence, transport, timers } = setup();
     c.handleServer({ kind: 'cue', cue: say(0, 'L1.s2', 'Quick one: what is a vector?') });

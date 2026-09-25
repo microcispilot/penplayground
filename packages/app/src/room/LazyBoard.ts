@@ -9,9 +9,16 @@ export class LazyBoard implements BoardPort {
   private real: BoardPort | null = null;
   private readonly queue: Array<() => void> = [];
   private dimmed = false;
+  private resolveReady: (() => void) | null = null;
+  /** Resolves when the real board has mounted, so a session can wait for it before the first sentence. */
+  readonly ready: Promise<void> = new Promise((resolve) => {
+    this.resolveReady = resolve;
+  });
 
   attach(board: BoardPort): void {
     this.real = board;
+    this.resolveReady?.();
+    this.resolveReady = null;
     board.setDimmed(this.dimmed);
     for (const fn of this.queue.splice(0)) fn();
   }

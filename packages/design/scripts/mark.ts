@@ -83,6 +83,16 @@ export const BBOX = {
 } as const;
 
 /**
+ * Air between the word and the icon in the lockup, in artwork units (the
+ * cap height is 459, so this is a tenth of it — about 2 px at the header's
+ * 22 px). The owner, 2026-09-25: "the two lines and delta should have a
+ * little bit more space from the pen word". The artwork is untouched; the
+ * lockup shifts the icon right by this much and its box grows to match. The
+ * mark on its own, and the favicon, are unaffected.
+ */
+export const LOCKUP_GAP = 48;
+
+/**
  * The artwork these numbers were measured against.
  *
  * The second revision of the drawing changed only the two strokes — thickening
@@ -441,7 +451,7 @@ export function component(): string {
 import type { SVGProps } from 'react';
 
 const ICON = { w: ${BBOX.icon.w}, h: ${BBOX.icon.h} } as const;
-const LOGO = { w: ${BBOX.logo.w}, h: ${BBOX.logo.h} } as const;
+const LOGO = { w: ${round(BBOX.logo.w + LOCKUP_GAP)}, h: ${BBOX.logo.h} } as const;
 
 export interface PenArtProps extends Omit<SVGProps<SVGSVGElement>, 'width' | 'height'> {
   /** Height in px. The width follows the artwork. */
@@ -496,12 +506,15 @@ export function PenLogo({ size = 22, title, ...rest }: PenArtProps) {
       {...rest}
       width={(size * LOGO.w) / LOGO.h}
       height={size}
-      ${box(BBOX.logo)}
+      viewBox="0 0 ${round(BBOX.logo.w + LOCKUP_GAP)} ${BBOX.logo.h}"
       fill="none"
     >
       <g transform="${shift(BBOX.logo)}">
 ${jsx(wordmark, '        ')}
-${jsx(icon, '        ')}
+        {/* The icon sits LOCKUP_GAP further from the word than the artwork draws it. */}
+        <g transform="translate(${LOCKUP_GAP} 0)">
+${jsx(icon, '          ')}
+        </g>
       </g>
     </svg>
   );

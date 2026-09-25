@@ -122,7 +122,8 @@ export const STROKE_STYLE = {
   simulatePressure: true,
 } as const;
 
-export const CODE_PADDING = 18;
+/* A hair of air around a code line: bare lines (ADR-0051), not a box, and the owner found 18 too far apart. */
+export const CODE_PADDING = 6;
 export const FRAME_INSET = 10;
 export const MD_PADDING = 16;
 export const NOTE_WIDTH = 300;

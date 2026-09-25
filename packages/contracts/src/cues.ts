@@ -75,8 +75,16 @@ export type BoardEvent = z.infer<typeof BoardEvent>;
 export const CheckEvent = z.object({
   type: z.literal('check'),
   id: CheckId,
-  /** The say id that asks the question aloud. */
+  /** The say id that asks the question aloud (the options, when they are read). */
   askedBy: SayId,
+  /**
+   * The say id that announces the check ("Quick check — let's see if that
+   * landed"), attached by the room. The card is shown when this sentence
+   * starts and armed when `askedBy` ends, so the learner sees the question
+   * while the expert is reading it (the owner, 2026-09-25). Absent when the
+   * check was asked as written, with no announcement.
+   */
+  announcedBy: SayId.optional(),
   /** 0–4 options; empty means free answer. */
   options: z.array(z.string().max(160)).max(4),
   /** Reference answer used for grading, never shown before the learner answers. */

@@ -6,6 +6,7 @@ import {
   cn,
   IconButton,
   IconButtonGroup,
+  PenMark,
   Pill,
   SegmentDots,
   Sheet,
@@ -340,14 +341,12 @@ export function BottomBar(p: BottomBarProps) {
         className="flex shrink-0 items-center gap-2 border-t border-outline-variant bg-surface-container-low px-2.5 pb-[env(safe-area-inset-bottom)] sm:gap-3 sm:px-3.5"
         style={{ minHeight: 56 }}
       >
+        {/* The mark, not a stand-in glyph: the owner, 2026-09-25, "here it should show the pen logo". */}
         <span
-          className={cn(
-            'hidden size-[26px] shrink-0 place-items-center rounded-full bg-primary text-body-small text-on-primary',
-            !p.compact && 'sm:grid',
-          )}
+          className={cn('hidden shrink-0 place-items-center', !p.compact && 'sm:grid')}
           aria-hidden
         >
-          ◇
+          <PenMark size={22} />
         </span>
         {/* Title and status: the first thing to go when the screen narrows. */}
         <div
@@ -662,10 +661,13 @@ export function CheckCard({
   question,
   onAnswer,
   language,
+  armed = true,
 }: {
   check: CheckEvent;
   question: string;
   onAnswer: (text: string) => void;
+  /** False while the expert is still reading the question: the card is up to be read, not yet to be answered. */
+  armed?: boolean;
   /** The check is asked in the session's language, so it reads in its direction. */
   language?: string;
 }) {
@@ -703,6 +705,7 @@ export function CheckCard({
               size="lg"
               className="pen-check__option h-auto justify-start gap-3 whitespace-normal px-3 py-1.5 text-start text-on-surface"
               dir="auto"
+              disabled={!armed}
               onClick={() => onAnswer(o)}
             >
               <span className="pen-check__letter grid shrink-0 place-items-center rounded-full bg-surface-container-highest text-on-surface-variant">
@@ -714,8 +717,15 @@ export function CheckCard({
           ))}
         </div>
       ) : null}
+      {!armed ? (
+        // Up while the expert is still reading: nothing to press yet, and it says so.
+        <p className="pen-check__label mt-3 text-on-surface-variant">
+          Listen — the options are coming.
+        </p>
+      ) : null}
       <form
         className="mt-3 flex items-center gap-2"
+        hidden={!armed}
         onSubmit={(e) => {
           e.preventDefault();
           if (text.trim()) onAnswer(text.trim());

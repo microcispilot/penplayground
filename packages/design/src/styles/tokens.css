@@ -460,8 +460,9 @@
    * lifts it. Product-specific on purpose — it is the only place a shadow and
    * a border are both needed.
    */
-  --shadow-thumb: 0 0 0 1px var(--color-outline-variant), var(--shadow-level1);
-  --shadow-thumb-hover: 0 0 0 1px var(--color-outline), var(--shadow-level2);
+  /* A hairline only: the owner, 2026-09-25, "a big outstanding border … so the card doesn't look 3d". The lift is for hover. */
+  --shadow-thumb: 0 0 0 1px var(--color-outline-variant);
+  --shadow-thumb-hover: 0 0 0 1px var(--color-outline), var(--shadow-level1);
   /* The board itself: paper, so it needs the same boundary at room scale. */
   --shadow-board: 0 0 0 1px var(--color-outline-variant), var(--shadow-level2);
 

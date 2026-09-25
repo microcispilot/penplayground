@@ -115,6 +115,7 @@ describe('check-ins on', () => {
     const check = transport.cues().find((c) => c.event.type === 'check')?.event;
     expect(check).toMatchObject({
       askedBy: 'L0.s2o',
+      announcedBy: 'L0.s2i',
       question: 'Quick check: what is a token?',
     });
     await room.end();

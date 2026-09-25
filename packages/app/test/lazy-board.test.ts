@@ -212,3 +212,18 @@ describe('LazyBoard', () => {
     expect(real.cleared).toBe(1);
   });
 });
+
+describe('ready', () => {
+  it('resolves when the real board attaches, and not before', async () => {
+    const lazy = new LazyBoard();
+    let ready = false;
+    void lazy.ready.then(() => {
+      ready = true;
+    });
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    lazy.attach(new FakeBoard());
+    await lazy.ready;
+    expect(ready).toBe(true);
+  });
+});

@@ -1445,15 +1445,21 @@ export class SessionRoom {
     const askedBy = raw.askedBy.includes('.') ? raw.askedBy : `${prefix}.${raw.askedBy}`;
     const question = this.questionFor(askedBy);
     const base = /^(.*?s\d{1,4})[a-z]?$/.exec(raw.askedBy)?.[1];
-    if (raw.options.length === 0 || !base) return { ...raw, question };
+    // The announcement, when the room made one (check-ins on): the card is
+    // shown as it starts, so the learner reads the question while hearing it.
+    const introId = base ? `${base}i` : null;
+    const introQualified = introId && (introId.includes('.') ? introId : `${prefix}.${introId}`);
+    const announced =
+      introQualified && this.lessonSays.has(introQualified) ? { announcedBy: introId } : {};
+    if (raw.options.length === 0 || !base) return { ...raw, ...announced, question };
     const optionsId = `${base}o`;
     const qualified = optionsId.includes('.') ? optionsId : `${prefix}.${optionsId}`;
-    if (this.lessonSays.has(qualified)) return { ...raw, question };
+    if (this.lessonSays.has(qualified)) return { ...raw, ...announced, question };
     this.emitLessonEvent(
       { type: 'say', id: optionsId, text: optionsSpoken(raw.options), tone: 'neutral' },
       segment,
     );
-    return { ...raw, askedBy: optionsId, question };
+    return { ...raw, ...announced, askedBy: optionsId, question };
   }
 
   /** Assign a seq, qualify model ids with the thread (L2.s1 / t3.s1), broadcast and record. */
@@ -2977,7 +2983,12 @@ export function qualifyIds(event: LessonEvent, prefix: string): LessonEvent {
         ref2: q(event.ref2),
       };
     case 'check':
-      return { ...event, id: q(event.id), askedBy: q(event.askedBy) };
+      return {
+        ...event,
+        id: q(event.id),
+        askedBy: q(event.askedBy),
+        ...(event.announcedBy ? { announcedBy: q(event.announcedBy) } : {}),
+      };
     default:
       return event;
   }

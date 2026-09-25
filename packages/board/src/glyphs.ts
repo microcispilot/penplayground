@@ -100,8 +100,16 @@ export function measureHandText(font: GlyphSource, text: string, fontSize: numbe
   return x;
 }
 
+/**
+ * A word gap is never narrower than this many ems. Patrick Hand's own space is
+ * a hair over a fifth of an em, and "Int Double UInt" ran together on the board
+ * (the owner, 2026-09-25); a hand leaves more room between words than that.
+ */
+export const WORD_GAP_MIN_EM = 0.32;
+
 /** Advance for any character: the font's, a synthesised symbol's, or the fallback width. */
 function glyphAdvance(font: GlyphSource, ch: string, fontSize: number): number {
+  if (ch === ' ') return Math.max(font.advance(ch, fontSize), fontSize * WORD_GAP_MIN_EM);
   if (font.has(ch)) return font.advance(ch, fontSize);
   const synth = SYNTH[ch];
   if (synth) return synth.advance * fontSize;
@@ -116,7 +124,7 @@ export function wrapHandText(
   maxWidth: number,
 ): string[] {
   const out: string[] = [];
-  const spaceW = font.advance(' ', fontSize);
+  const spaceW = glyphAdvance(font, ' ', fontSize);
   for (const paragraph of text.split('\n')) {
     const words = paragraph.split(/ +/).filter((w) => w.length > 0);
     if (words.length === 0) {
