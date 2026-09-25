@@ -129,11 +129,10 @@ export const WHITE = '#FFFFFF';
 /** The red in the owner's artwork — what the generator recognises, not what it paints. */
 export const BRAND_RED = '#E62117';
 /**
- * What the delta is painted, per ground: the palette's wine on a light tab
- * strip and its glow on a dark one (ADR-0052). The artwork's red is only the
- * marker the generator swaps for these.
+ * What the delta is painted: the owner's wine, on both grounds (ADR-0052 as
+ * amended). The artwork's red is only the marker the generator swaps for it.
  */
-export const MARK_ACCENT = { light: '#68113C', dark: '#CB688C' } as const;
+export const MARK_ACCENT = '#68113C';
 export const ACCENT_TOKEN = 'var(--color-mark-accent)';
 
 /**
@@ -381,7 +380,7 @@ const rawPath = (p: Path, paint: (colour: string, prop: 'fill' | 'stroke') => st
 
 /** The ink written out literally — for a raster, which cannot ask the OS. Rasters sit on a light ground. */
 const literal = (colour: string, prop: 'fill' | 'stroke'): string =>
-  `${prop}="${colour.toUpperCase() === INK ? INK : colour.toUpperCase() === 'NONE' ? 'none' : MARK_ACCENT.light}"`;
+  `${prop}="${colour.toUpperCase() === INK ? INK : colour.toUpperCase() === 'NONE' ? 'none' : MARK_ACCENT}"`;
 
 const box = (b: { x: number; y: number; w: number; h: number }): string =>
   `viewBox="0 0 ${b.w} ${b.h}"`;
@@ -410,10 +409,8 @@ export function component(): string {
  *   softened on a dark page so it does not glare, a mark is not, and that is
  *   the owner's drawing.
  *
- *   The artwork's red becomes \`var(--color-mark-accent)\`: the palette's wine
- *   on a light page and its glow on a dark one (ADR-0052). The wine is the
- *   owner's colour for the icon and is 1.7:1 on a dark ground, so the delta
- *   is toned per theme now, the way the ink is, and for the same reason.
+ *   The artwork's red becomes \`var(--color-mark-accent)\`: the owner's wine,
+ *   #68113C, the same on both grounds by the owner's ruling (ADR-0052).
  *
  * The diagonals are strokes, not filled shapes: \`stroke-width\`, the round cap
  * and \`fill="none"\` are copied across with the \`d\`, because each of them is
@@ -514,14 +511,14 @@ ${jsx(icon, '        ')}
 // ── the favicon ─────────────────────────────────────────────────────────────
 
 /**
- * A favicon has no document to read a token from, so the swaps that
- * `--color-mark-ink` and `--color-mark-accent` do for the component have to
- * be written into the file. `prefers-color-scheme` inside an SVG favicon is
+ * A favicon has no document to read a token from, so the swap that
+ * `--color-mark-ink` does for the component has to be written into the file,
+ * and the delta's wine with it. `prefers-color-scheme` inside an SVG favicon is
  * honoured by Safari, Firefox and Chrome.
  *
- * Where it is not, the rule is simply ignored and the icon stays charcoal and
- * wine — the light-tab drawing on whatever strip it lands on, which is still
- * the Pen mark and still the brand.
+ * Where it is not, the rule is simply ignored and the icon stays charcoal —
+ * the delta is wine either way, which is still the Pen mark and still the
+ * brand.
  */
 export function faviconSvg(): string {
   const { icon } = art();
@@ -547,20 +544,18 @@ export function faviconSvg(): string {
       }),
     )
     .join('\n');
-  const rule = (colour: string, accent: string, indent: string): string =>
-    [
-      ...[...used].map((prop) => `${indent}.ink-${prop} { ${prop}: ${colour} }`),
-      `${indent}.delta-fill { fill: ${accent} }`,
-    ].join('\n');
+  const rule = (colour: string, indent: string): string =>
+    [...used].map((prop) => `${indent}.ink-${prop} { ${prop}: ${colour} }`).join('\n');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FAVICON_SIDE} ${FAVICON_SIDE}">
   <title>Pen Playground</title>
   <style>
-    /* The ink follows the tab strip, and so does the delta: the brand's wine
-       by day, its glow by night. */
-${rule(INK, MARK_ACCENT.light, '    ')}
+    /* The ink follows the tab strip. The delta does not: it is the owner's
+       wine on both. */
+${rule(INK, '    ')}
+    .delta-fill { fill: ${MARK_ACCENT} }
     @media (prefers-color-scheme: dark) {
-${rule(WHITE, MARK_ACCENT.dark, '      ')}
+${rule(WHITE, '      ')}
     }
   </style>
   <g transform="translate(${round(dx)} ${round(dy)})">

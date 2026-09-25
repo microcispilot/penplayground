@@ -18,10 +18,8 @@
  *   softened on a dark page so it does not glare, a mark is not, and that is
  *   the owner's drawing.
  *
- *   The artwork's red becomes `var(--color-mark-accent)`: the palette's wine
- *   on a light page and its glow on a dark one (ADR-0052). The wine is the
- *   owner's colour for the icon and is 1.7:1 on a dark ground, so the delta
- *   is toned per theme now, the way the ink is, and for the same reason.
+ *   The artwork's red becomes `var(--color-mark-accent)`: the owner's wine,
+ *   #68113C, the same on both grounds by the owner's ruling (ADR-0052).
  *
  * The diagonals are strokes, not filled shapes: `stroke-width`, the round cap
  * and `fill="none"` are copied across with the `d`, because each of them is

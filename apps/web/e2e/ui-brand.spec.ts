@@ -248,13 +248,9 @@ test.describe('brand candidates, side by side', () => {
             .trim(),
         ),
       ]);
-      // The owner's wine by day; its glow by night, where the wine itself would not read.
-      expect(declared, 'the brand hex the owner chose').toBe(
-        theme === 'dark' ? '#cb688c' : '#8a1a41',
-      );
-      expect(painted, `Sign in in ${theme}`).toBe(
-        theme === 'dark' ? 'rgb(203, 104, 140)' : 'rgb(138, 26, 65)',
-      );
+      // The owner's brand, the same hex on both pages: their ruling.
+      expect(declared, 'the brand hex the owner chose').toBe('#8a1a41');
+      expect(painted, `Sign in in ${theme}`).toBe('rgb(138, 26, 65)');
     });
 
     /**

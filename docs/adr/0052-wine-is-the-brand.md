@@ -1,6 +1,6 @@
 # ADR-0052: Wine is the brand
 
-Status: accepted · 2026-09-25
+Status: accepted · 2026-09-25 · amended the same day by the owner (see the end)
 
 Supersedes the colour decision in ADR-0034's brand review (the YouTube-adjacent
 red, #E62117). Extends ADR-0041 (chalk and marker) for the board's accent ink.
@@ -36,8 +36,9 @@ lesson's progress, a link, the board's accent ink (`oklch(0.422 0.148 6)`,
 `inverse-primary` is the glow. `secondary` stays neutral — it is a headline,
 and the owner's colours are for the confident places, not every heading.
 `tertiary` takes the mint: a green container with deep-green text, for the
-few chips that are not the brand. `--color-glow` is the focus ring, and
-`--color-highlight` (brand-light) is the live-voice colour on the board
+few chips that are not the brand. `--color-glow` is declared for an edge
+glow (the focus ring was tried in it and reverted to neutral: 2.6:1 on the
+highest light grey), and `--color-highlight` (brand-light) is the live-voice colour on the board
 (`--color-speaking`). Each member is also declared by name
 (`--color-brand-wine` … `--color-brand-mint`) for the places that ask for a
 member rather than a role; the check-in card's frame is blush, as the owner
@@ -84,3 +85,38 @@ being put somewhere to be seen.
   and follow the wine on the next paint; nothing on disk is re-rendered.
 - The `[data-brand]` candidate families are unchanged: they record the
   review that chose the red, and the tests that measure them still pass.
+
+## Amendment (2026-09-25, the owner)
+
+The first cut of this decision built a second scheme for the dark theme —
+the glow as the brand fill, a lightened glow `#D98BAA` for text, deep-wine
+`#2B0716` on it, greens for tertiary — and put the brand only on the label
+of a selected row. The owner rejected all of it:
+
+> *"I did not give you this D98BAA … I want the brand main color to be used
+> for these things … these colors can stay the same for both light and
+> dark, because those are not white or black. Why would you introduce dark
+> and light versions?"*
+
+So, as it stands:
+
+- **Only the seven colours.** Every hex outside them is gone from the
+  tokens, the generator, the tests and the artefacts.
+- **The brand `#8A1A41` is the fill** for Sign in, Start and every selection
+  (`primary-fixed` and `secondary-container`), with white on it (9.1:1), and
+  it is declared once: the dark blocks never redeclare it. The mark's delta
+  is the wine on both grounds. Glow, highlight, blush and mint are likewise
+  one value each.
+- **The one thing that moves** is brand-coloured *text* on a dark surface
+  (`primary`, the text role: links, the admin's active tab), and on a dark
+  board the accent ink. The owner's second ruling, the same day: *"instead of
+  CB688C use brand light on dark for the things you mentioned, AE2A58."* So
+  both are brand-light `#AE2A58` (white on it where it is ever a fill,
+  6.4:1). The green board keeps blush (4.4:1).
+- **Recorded, not gated:** the brand fill is 2.0:1 against the dark page;
+  brand-light text is 2.9:1 on the dark `surface`, 1.9:1 on the highest
+  grey, 2.5:1 on the blackboard and 2.6:1 on smoked glass, all under WCAG's
+  4.5 for text and 3 for graphics. The owner has ruled that the palette does
+  not change with the page, and the tests pin these numbers so they are a
+  known cost rather than a surprise. Glow (5.2:1) and blush (10.8:1) were
+  measured and offered; the owner chose brand-light.

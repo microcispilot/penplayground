@@ -230,9 +230,9 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
     const declared = [...tokens.matchAll(/--color-mark-accent:\s*(#[0-9a-f]{6})/gi)].map((m) =>
       (m[1] ?? '').toUpperCase(),
     );
-    // @theme, the prefers-color-scheme block, and [data-theme="dark"] — the
-    // same three places the ink is declared, in the same order.
-    expect(declared).toEqual([MARK_ACCENT.light, MARK_ACCENT.dark, MARK_ACCENT.dark]);
+    // @theme only: the delta is the same wine on both grounds (the owner's
+    // ruling), so the dark blocks never redeclare it.
+    expect(declared).toEqual([MARK_ACCENT]);
     // The artwork's red is recognised and never painted: no theme block declares it.
     // (The candidate families below `[data-brand=` still name it, as the seed they record.)
     expect(tokens.slice(0, tokens.indexOf(':root[data-brand=')).toUpperCase()).not.toContain(
@@ -243,12 +243,12 @@ describe('the two substitutions, which are the reason for the pipeline', () => {
   it('the favicon carries its own dark rule, since it has no document to inherit from', () => {
     const svg = faviconSvg();
     expect(svg).toContain('@media (prefers-color-scheme: dark)');
-    // The delta is themed with the ink: wine on a light strip, glow on a dark
-    // one. The artwork's red is nowhere in the file, and a client that ignores
-    // the media query gets the light drawing, which is still the mark.
+    // The delta is wine on both strips and sits outside the media query; the
+    // artwork's red is nowhere in the file.
     expect(svg).not.toMatch(new RegExp(BRAND_RED, 'i'));
-    expect(svg).toContain(`.delta-fill { fill: ${MARK_ACCENT.light} }`);
-    expect(svg).toContain(`.delta-fill { fill: ${MARK_ACCENT.dark} }`);
+    expect(svg.match(new RegExp(`\\.delta-fill \\{ fill: ${MARK_ACCENT} \\}`, 'g'))).toHaveLength(
+      1,
+    );
     expect(svg.match(/class="delta-fill"/g)).toHaveLength(1);
     expect(svg).not.toMatch(/\.brand\s*\{/);
   });

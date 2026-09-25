@@ -109,13 +109,15 @@ Calm, never alarming: no consent banners, no draft badges, no lock icons on
 gated rows. Limits are one friendly sentence with a link. The AI disclosure is
 one quiet line.
 
-Wine is the brand. The owner's palette (ADR-0052) is wine `#68113C` for pills
-and the mark's delta, brand `#8A1A41` for buttons — Sign in, Start, the
-lesson's progress and the board's ink, the ordinary, confident places —
-brand-light `#AE2A58` for highlights, glow `#CB688C` for an edge, blush
-`#DFBDC7` for a card's frame, mint `#D0F5EB` for a headline on a dark ground
-and berry `#95214E` for the middle of a gradient. By night the brand fill is
-the glow, because the wine is 2:1 on a dark page; every number is measured in
+The brand is `#8A1A41`, and the palette is the owner's seven colours and
+nothing else (ADR-0052): wine `#68113C` for pills and the mark's delta, brand
+`#8A1A41` for buttons, Sign in, selections, the lesson's progress and the
+board's ink, brand-light `#AE2A58` for highlights, glow `#CB688C` for an edge, blush
+`#DFBDC7` for a card's frame, mint `#D0F5EB` and berry `#95214E`; on a dark
+surface, brand-coloured text and the board's accent ink are brand-light.
+That text measures 2.9:1 on the dark page, the owner's ruling. The same values in both themes:
+they are neither white nor black, so a fill does not change with the page.
+Never introduce a hex outside these; every number is measured in
 `packages/design/test`. The error role is the owner's `#ED424A`, laddered so
 it can be read, and it is close enough to the brand that *colour alone never
 carries the message*: an error says what went wrong in words, and the red is

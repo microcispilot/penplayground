@@ -37,24 +37,26 @@
  *   would have made every dark panel read as lacquered blue-grey; that is the
  *   look this replaces.)
  *
- *   The brand. The owner's wine palette (2026-09-25): wine #68113C (pills,
- *   the mark's delta), berry #95214E (the middle of a gradient), brand
- *   #8A1A41 (buttons — the brand itself), brand-light #AE2A58 (highlights),
- *   glow #CB688C (an edge glow), blush #DFBDC7 (a card's frame) and mint
- *   #D0F5EB (a headline on a dark ground). Pinned, not generated: M3's tonal
- *   ladder would dull the wine to a mauve.
+ *   The brand. The owner's palette (2026-09-25), and nothing outside it:
+ *   wine #68113C (pills, the mark's delta), berry #95214E, brand #8A1A41
+ *   (buttons, Sign in, selections — the brand itself), brand-light #AE2A58
+ *   (highlights), glow #CB688C (an edge glow), blush #DFBDC7 (a card's
+ *   frame) and mint #D0F5EB. Pinned, not generated, and the owner's ruling
+ *   is that these are one set for both themes: they are neither white nor
+ *   black, so a fill of brand with white on it is the same object by day and
+ *   by night. `primary-fixed`, `secondary-container`, `mark-accent`, `glow`
+ *   and `highlight` are therefore declared once, in @theme, and the dark
+ *   blocks do not touch them.
  *
- *   The deep members read on light surfaces (brand is 8.7:1 on `surface`)
- *   and vanish on dark ones (2.0:1), so the dark scheme is built from the
- *   palette's light end: glow fills a button (5.2:1 on `surface`, with
- *   deep-wine text at 5.2:1), a lightened glow #D98BAA carries text (4.8:1
- *   on the highest grey), blush and mint are the containers' text. So
- *   `primary-fixed` — the brand fill — is per theme here, brand by day and
- *   glow by night, and the mark's delta (`mark-accent`) likewise wine by day
- *   and glow by night. The containers under selected rows stay the same
- *   chroma-0 greys as every other surface, `secondary` stays neutral (it is
- *   the headline), error stays the owner's #ED424A, and the board's accent
- *   ink moves with the brand: wine on paper, a lightened glow on a dark board.
+ *   The one thing that does move is brand-coloured *text* on a dark
+ *   surface, where `primary` — the text role — is brand-light #AE2A58 by the
+ *   owner's ruling (2026-09-25). Measured: 2.9:1 on the dark `surface`,
+ *   1.9:1 on the highest grey, under WCAG's 4.5 for text; the numbers are
+ *   pinned in the tests as a recorded cost. White on it is 6.4:1. Selected rows
+ *   and chips are the brand with white on them (9.1:1) in both themes; the
+ *   containers under `::selection` stay platform greys; error stays the
+ *   owner's #ED424A; the board's accent ink is the brand on a light board,
+ *   brand-light on a dark one and blush on the green board.
  */
 @import "tailwindcss/theme" layer(theme);
 
@@ -263,7 +265,7 @@
   --color-brand-glow: #cb688c;
   --color-brand-blush: #dfbdc7;
   --color-brand-mint: #d0f5eb;
-  /* An edge glow (the focus ring, a hover bloom) and a highlight (a live progress, a stressed word). */
+  /* An edge glow (a hover bloom; not the focus ring, which stays neutral at 3:1 everywhere) and a highlight. */
   --color-glow: #cb688c;
   --color-highlight: #ae2a58;
 
@@ -286,7 +288,7 @@
    * reads when a client ignores a colour-scheme rule.
    */
   --color-mark-ink: #000000;
-  /* The mark's delta: wine by day, glow by night, so it reads on both grounds. */
+  /* The mark's delta: the owner's wine, in both themes. */
   --color-mark-accent: #68113c;
 
   /*
@@ -313,13 +315,14 @@
    */
   --color-secondary: #474747;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #e2e2e2;
-  --color-on-secondary-container: #8a1a41;
+  /* Selected — a nav row, a chosen chip — is the brand with white on it (9.1:1), both themes. */
+  --color-secondary-container: #8a1a41;
+  --color-on-secondary-container: #ffffff;
 
-  --color-tertiary: #1e6b57;
+  --color-tertiary: #95214e;
   --color-on-tertiary: #ffffff;
   --color-tertiary-container: #d0f5eb;
-  --color-on-tertiary-container: #0f4a3a;
+  --color-on-tertiary-container: #68113c;
 
   /*
    * error: the owner's #ED424A, through M3's tonal machinery.
@@ -545,27 +548,19 @@
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-primary: #d98baa;
-    --color-on-primary: #2b0716;
+    /* Brand-coloured text on a dark surface is brand-light, by the owner's ruling: 2.9:1 on `surface`, 1.9:1 on the highest grey (recorded in the tests, not gated). */
+    --color-primary: #ae2a58;
+    --color-on-primary: #ffffff;
     --color-primary-container: #2a2a2a;
     --color-on-primary-container: #e2e2e2;
     --color-inverse-primary: #8a1a41;
-    /* The brand fill by night is the palette's glow: the wine itself is 2:1 on this page. */
-    --color-primary-fixed: #cb688c;
-    --color-on-primary-fixed: #2b0716;
-    --color-glow: #cb688c;
-    --color-highlight: #d98baa;
     /* The mark is pure white on a dark page, not `on-surface`. See @theme. */
     --color-mark-ink: #ffffff;
-    --color-mark-accent: #cb688c;
     --color-secondary: #c6c6c6;
     --color-on-secondary: #1b1b1b;
-    --color-secondary-container: #353535;
-    --color-on-secondary-container: #d98baa;
-    --color-tertiary: #d0f5eb;
-    --color-on-tertiary: #0f4a3a;
-    --color-tertiary-container: #16433a;
-    --color-on-tertiary-container: #d0f5eb;
+    /* Selected is the brand with white on it here too: the same object as by day. */
+    --color-secondary-container: #8a1a41;
+    --color-on-secondary-container: #ffffff;
     --color-error: #ffb3b0;
     --color-on-error: #68000f;
     --color-error-container: #93001a;
@@ -600,27 +595,19 @@
   }
 }
 :root[data-theme="dark"] {
-  --color-primary: #d98baa;
-  --color-on-primary: #2b0716;
+  /* Brand-coloured text on a dark surface is brand-light, by the owner's ruling: 2.9:1 on `surface`, 1.9:1 on the highest grey (recorded in the tests, not gated). */
+  --color-primary: #ae2a58;
+  --color-on-primary: #ffffff;
   --color-primary-container: #2a2a2a;
   --color-on-primary-container: #e2e2e2;
   --color-inverse-primary: #8a1a41;
-  /* The brand fill by night is the palette's glow: the wine itself is 2:1 on this page. */
-  --color-primary-fixed: #cb688c;
-  --color-on-primary-fixed: #2b0716;
-  --color-glow: #cb688c;
-  --color-highlight: #d98baa;
   /* The mark is pure white on a dark page, not `on-surface`. See @theme. */
   --color-mark-ink: #ffffff;
-  --color-mark-accent: #cb688c;
   --color-secondary: #c6c6c6;
   --color-on-secondary: #1b1b1b;
-  --color-secondary-container: #353535;
-  --color-on-secondary-container: #d98baa;
-  --color-tertiary: #d0f5eb;
-  --color-on-tertiary: #0f4a3a;
-  --color-tertiary-container: #16433a;
-  --color-on-tertiary-container: #d0f5eb;
+  /* Selected is the brand with white on it here too: the same object as by day. */
+  --color-secondary-container: #8a1a41;
+  --color-on-secondary-container: #ffffff;
   --color-error: #ffb3b0;
   --color-on-error: #68000f;
   --color-error-container: #93001a;
@@ -1212,8 +1199,8 @@
   --color-wall-deep: oklch(0.905 0.024 82);
   --color-paper-grid: oklch(0.95 0.01 85 / 14%);
   --color-ink: oklch(0.945 0.012 85);
-  /* The brand's glow, lightened: the wine itself is 1.7:1 here, this is 6.2:1. */
-  --color-ink-accent: oklch(0.725 0.102 354.5);
+  /* Brand-light, #AE2A58, by the owner's ruling: 2.5:1 on this board (the brand itself is 1.7). */
+  --color-ink-accent: oklch(0.506 0.17 4.9);
   --color-ink-warn: oklch(0.85 0.12 82);
   --color-ink-muted: oklch(0.72 0.012 85);
   --color-ink-highlight: oklch(0.85 0.14 90 / 26%);
@@ -1233,8 +1220,8 @@
   --color-paper: oklch(0.44 0.062 160);
   --color-paper-grid: oklch(0.95 0.01 85 / 14%);
   --color-ink: oklch(0.955 0.012 85);
-  /* Lighter still on green: 3.7:1, where #D98BAA is 2.9. */
-  --color-ink-accent: oklch(0.783 0.092 355.2);
+  /* Blush, #DFBDC7, on green: 4.4:1, where the glow is 2.1. */
+  --color-ink-accent: oklch(0.831 0.041 358.4);
   --color-ink-warn: oklch(0.86 0.12 84);
   --color-ink-muted: oklch(0.76 0.015 140);
   --color-ink-highlight: oklch(0.85 0.14 90 / 24%);
@@ -1255,7 +1242,9 @@
   --color-paper: oklch(0.235 0.008 60);
   --color-paper-grid: oklch(0.94 0.012 80 / 12%);
   --color-ink: oklch(0.93 0.014 80);
-  --color-ink-accent: oklch(0.725 0.102 354.5); /* 6.5:1 on smoked glass */
+  --color-ink-accent: oklch(
+    0.506 0.17 4.9
+  ); /* brand-light, 2.6:1 on smoked glass, the owner's ruling */
   --color-ink-warn: oklch(0.85 0.12 80);
   --color-ink-muted: oklch(0.7 0.012 70);
   --color-ink-highlight: oklch(0.85 0.14 90 / 22%);

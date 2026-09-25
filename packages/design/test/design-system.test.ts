@@ -405,6 +405,23 @@ describe('M3 roles carry text that can be read', () => {
   it.each(brands.flatMap((brand) => themes.map((theme) => [brand, theme] as const)))(
     '%s in %s: a primary label reads on every surface in the ladder',
     (brand, theme) => {
+      if (brand === 'default' && theme === 'dark') {
+        // The owner's ruling (ADR-0052, amended): brand-coloured text on a
+        // dark page is brand-light, #AE2A58, and it does not clear 4.5 on
+        // any step of the ladder — 2.9:1 on `surface` down to 1.9:1 on the
+        // highest grey. Recorded, not gated: the numbers are pinned so a
+        // drift in either direction is seen, and the exemption is one line
+        // that names its owner rather than a rule with a silent hole.
+        expect(rgb('primary', theme, brand)).toEqual(rgb('brand-light', 'light'));
+        expect(contrast(rgb('primary', theme, brand), rgb('surface', theme, brand))).toBeCloseTo(
+          2.89,
+          1,
+        );
+        expect(
+          contrast(rgb('primary', theme, brand), rgb('surface-container-highest', theme, brand)),
+        ).toBeCloseTo(1.91, 1);
+        return;
+      }
       for (const bg of LADDER) {
         expect(
           contrast(rgb('primary', theme, brand), rgb(bg, theme, brand)),
@@ -422,8 +439,10 @@ describe('M3 roles carry text that can be read', () => {
    * WCAG 1.4.11, the non-text half of the sweep above. Two things in this
    * product are graphics that have to be seen rather than read, and both are
    * painted from a brand role:
-   *   · the mark — `PenMark` draws its triangle in `primary-fixed`
-   *     (components/PenLogo.tsx), which is `primary`'s own seed;
+   *   · the mark — `PenMark` draws its triangle in `mark-accent`
+   *     (components/PenLogo.tsx), the owner's wine, declared once for both
+   *     grounds by their ruling (ADR-0052, amended). It is 1.5:1 on the dark
+   *     `surface`: recorded for the default in dark, gated everywhere else;
    *   · the focus ring — 3 px of `secondary` (styles/index.css :focus-visible).
    * A family that passed the text sweep can still lose either of these, so
    * they are measured on their own, on every surface, under every family.
@@ -431,11 +450,17 @@ describe('M3 roles carry text that can be read', () => {
   it.each(brands.flatMap((brand) => themes.map((theme) => [brand, theme] as const)))(
     '%s in %s: the mark and the focus ring clear 3:1 as graphics',
     (brand, theme) => {
+      // The candidate families draw their mark from `primary`; only the default
+      // has the owner's wine, and only the default in dark is exempt.
+      const drop = brand === 'default' ? rgb('mark-accent', 'light') : rgb('primary', theme, brand);
+      const exempt = brand === 'default' && theme === 'dark';
+      if (exempt) expect(contrast(drop, rgb('surface', theme, brand))).toBeCloseTo(1.53, 1);
       for (const bg of LADDER) {
-        expect(
-          contrast(rgb('primary', theme, brand), rgb(bg, theme, brand)),
-          `${brand}/${theme}: the mark's drop on ${bg}`,
-        ).toBeGreaterThanOrEqual(3);
+        if (!exempt)
+          expect(
+            contrast(drop, rgb(bg, theme, brand)),
+            `${brand}/${theme}: the mark's drop on ${bg}`,
+          ).toBeGreaterThanOrEqual(3);
         expect(
           contrast(rgb('secondary', theme, brand), rgb(bg, theme, brand)),
           `${brand}/${theme}: the focus ring on ${bg}`,
@@ -502,15 +527,15 @@ describe('a brand role and an error role have to be two colours', () => {
   const RECORDED: Record<string, readonly [number, number]> = {
     //         light   dark
     /*
-     * The brand — the owner's wine, #8A1A41 by day and a lightened glow by
-     * night — with the error role the owner chose, #ED424A. The wine sits
-     * at red's door, so this is still the one entry that does not clear the
-     * 0.15 below: 0.110 in light, four times the 0.025 the old red managed,
-     * but a failed request and the Start button remain neighbours. Recorded
-     * rather than gated so the cost is a number somebody can look at, and so
-     * moving it still fails.
+     * The brand — the owner's #8A1A41, with its text role brand-light by night —
+     * against the error role the owner chose, #ED424A. The brand sits at
+     * red's door, so light is still the one entry that does not clear the
+     * 0.15 below: 0.110, four times the 0.025 the old red managed, but a
+     * failed request and the Start button remain neighbours. Recorded rather
+     * than gated so the cost is a number somebody can look at, and so moving
+     * it still fails.
      */
-    default: [0.11, 0.122],
+    default: [0.11, 0.343],
     teal: [0.279, 0.17],
     green: [0.232, 0.148],
     forest: [0.273, 0.171],

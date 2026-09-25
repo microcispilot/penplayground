@@ -373,9 +373,8 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
    * The finding the four candidate families exist to record: M3 puts primary
    * at tone 80 in a dark scheme, and a red at tone 80 is #ffb4a8 — a salmon
    * with barely a tenth of the seed's chroma. Measured against them: all four
-   * land there, and the brand does not — by night it is the palette's own
-   * glow, #CB688C, chosen by the owner and not derived, at 0.131 of chroma
-   * and on the wine's hue.
+   * land there, and the brand does not — it is the owner's #8A1A41 in both
+   * themes, at 0.148 of chroma.
    */
   it('does not go pale in the dark the way every generated red does', () => {
     const chroma = (brand: string) =>
@@ -391,22 +390,27 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
   });
 
   /**
-   * Two hexes, by measurement (ADR-0052): the owner's wine is 2.0:1 on the
-   * dark `surface`, so the dark scheme re-declares the brand fill as the
-   * palette's glow. Both are pinned here so neither can drift quietly, and
-   * the reason is asserted rather than remembered.
+   * One hex, by the owner's ruling (ADR-0052, amended): the brand is neither
+   * white nor black, so the fill is the same object on both pages, and the
+   * dark blocks never redeclare it. What is asserted is the label on it —
+   * white at 9.1:1 — because that is what a person reads on Sign in; the
+   * fill's own 2.0:1 against the dark `surface` is recorded, not gated.
    */
-  it('is wine by day and glow by night, because the wine cannot fill a button in the dark', () => {
+  it('is one hex in both themes, because the dark scheme never redeclares it', () => {
     expect(brand('light')).toBe('#8a1a41');
-    expect(brand('dark')).toBe('#cb688c');
-    expect(onBrand('dark')).toBe('#2b0716');
+    expect(declared(themeBlock('dark'), 'primary-fixed')).toBeUndefined();
+    expect(declared(themeBlock('dark'), 'on-primary-fixed')).toBeUndefined();
+    expect(brand('dark')).toBe(brand('light'));
+    for (const theme of ['light', 'dark'] as const) {
+      expect(
+        contrast(rgb(onBrand(theme)), rgb(brand(theme))),
+        `${theme}: the label on the brand`,
+      ).toBeGreaterThan(4.5);
+    }
     const surface = rgb(declared(themeBlock('dark'), 'surface') ?? '');
-    expect(contrast(rgb(brand('light')), surface), 'the wine on the dark surface').toBeLessThan(3);
-    expect(contrast(rgb(brand('dark')), surface), 'the glow on the dark surface').toBeGreaterThan(
-      4.5,
-    );
-    expect(contrast(rgb(onBrand('dark')), rgb(brand('dark'))), 'text on the glow').toBeGreaterThan(
-      4.5,
+    expect(contrast(rgb(brand('dark')), surface), 'the brand on the dark surface').toBeCloseTo(
+      2.04,
+      1,
     );
   });
 
@@ -437,45 +441,73 @@ describe('the brand red keeps its red, and keeps everything else grey', () => {
    * them, not on the lightest one. This is the reason the dark scheme's brand
    * fill is the palette's glow and not its wine, which is 2.0:1 on `surface`.
    */
-  it.each(['light', 'dark'] as const)('%s: it reads on every surface it sits on', (theme) => {
+  it('reads on every light surface it sits on', () => {
     for (const role of ['surface', 'surface-container', 'surface-container-high']) {
-      const ground = declared(themeBlock(theme), role) ?? '';
+      const ground = declared(themeBlock('light'), role) ?? '';
       expect(
-        contrast(rgb(brand(theme)), rgb(ground)),
-        `${theme} brand ${brand(theme)} on --color-${role} ${ground}`,
+        contrast(rgb(brand('light')), rgb(ground)),
+        `light brand ${brand('light')} on --color-${role} ${ground}`,
       ).toBeGreaterThan(3);
     }
   });
 
   /**
-   * Selected — a nav row you are on, a chosen chip, a pressed toggle — is a
-   * platform grey **named in the brand**. The pill and the label are two
-   * decisions and only one of them has to be red: M3's generated fill for a
-   * red seed is a brown, a neutral fill with a neutral label loses the brand
-   * entirely, and a saturated red fill is a block on the one row a person
-   * keeps looking at. The grey carries the shape; the words carry the brand.
+   * And by night the text role is brand-light, by the owner's ruling
+   * (ADR-0052, amended): 2.9:1 on `surface`, 1.9:1 on the highest grey.
+   * Pinned so the cost is a number rather than a surprise; white on it is
+   * 6.4:1, which is what a filled control carries.
    */
-  it.each(['light', 'dark'] as const)('%s: every container fill is a platform grey', (theme) => {
-    const block = themeBlock(theme);
-    const neutral = new Set(
-      ['surface-container-high', 'surface-container-highest', 'surface-container', 'on-surface']
-        .map((role) => declared(block, role))
-        .filter((hex): hex is string => hex !== undefined),
-    );
-    for (const role of ['primary-container', 'on-primary-container', 'secondary-container']) {
-      const hex = declared(block, role) ?? '';
-      expect(neutral, `--color-${role} is ${hex}, which is not a platform neutral`).toContain(hex);
-    }
+  it('dark: brand-coloured text is brand-light, at the contrast the owner accepted', () => {
+    expect(primary('dark')).toBe('#ae2a58');
+    const surface = rgb(declared(themeBlock('dark'), 'surface') ?? '');
+    expect(contrast(rgb(primary('dark')), surface)).toBeCloseTo(2.89, 1);
+    expect(contrast(rgb('#ffffff'), rgb(primary('dark')))).toBeGreaterThan(4.5);
   });
 
-  it.each(['light', 'dark'] as const)('%s: and selected says so in the brand', (theme) => {
-    const block = themeBlock(theme);
-    const label = declared(block, 'on-secondary-container') ?? '';
-    const fill = declared(block, 'secondary-container') ?? '';
-    // The toned role, not the fixed one: by night the brand fill is the
-    // glow, 3.6:1 on this grey, and the wine would be 2.3:1.
-    expect(label, 'selected is labelled in `primary`').toBe(declared(block, 'primary'));
-    expect(contrast(rgb(label), rgb(fill)), `${label} on ${fill}`).toBeGreaterThan(4.5);
+  /**
+   * `::selection` sits on `primary-container`, and that stays a platform
+   * grey: highlighted text is not a brand moment.
+   */
+  it.each(['light', 'dark'] as const)(
+    '%s: the text-selection container is a platform grey',
+    (theme) => {
+      const block = themeBlock(theme);
+      const neutral = new Set(
+        ['surface-container-high', 'surface-container-highest', 'surface-container', 'on-surface']
+          .map((role) => declared(block, role))
+          .filter((hex): hex is string => hex !== undefined),
+      );
+      for (const role of ['primary-container', 'on-primary-container']) {
+        const hex = declared(block, role) ?? '';
+        expect(neutral, `--color-${role} is ${hex}, which is not a platform neutral`).toContain(
+          hex,
+        );
+      }
+    },
+  );
+
+  /**
+   * Selected — a nav row you are on, a chosen chip — is the brand itself with
+   * white on it, in both themes: the owner's ruling (ADR-0052, amended). The
+   * fill is the brand in both blocks, so a selection is the same object as
+   * Sign in.
+   */
+  it('selected is the brand with white on it, in both themes', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      const fill =
+        declared(themeBlock(theme), 'secondary-container') ??
+        declared(themeBlock('light'), 'secondary-container') ??
+        '';
+      const label =
+        declared(themeBlock(theme), 'on-secondary-container') ??
+        declared(themeBlock('light'), 'on-secondary-container') ??
+        '';
+      expect(fill, `${theme}: the selected fill is the brand`).toBe(brand(theme));
+      expect(label).toBe('#ffffff');
+      expect(contrast(rgb(label), rgb(fill)), `${theme}: ${label} on ${fill}`).toBeGreaterThan(4.5);
+    }
+    // The dark block reads whole (design-system.test.ts), so it says the same thing rather than nothing.
+    expect(declared(themeBlock('dark'), 'secondary-container')).toBe(brand('light'));
   });
 
   /**

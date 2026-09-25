@@ -1,13 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 505 505">
   <title>Pen Playground</title>
   <style>
-    /* The ink follows the tab strip, and so does the delta: the brand's wine
-       by day, its glow by night. */
+    /* The ink follows the tab strip. The delta does not: it is the owner's
+       wine on both. */
     .ink-stroke { stroke: #000000 }
     .delta-fill { fill: #68113C }
     @media (prefers-color-scheme: dark) {
       .ink-stroke { stroke: #FFFFFF }
-      .delta-fill { fill: #CB688C }
     }
   </style>
   <g transform="translate(-1020.6715 -194.5)">
