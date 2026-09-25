@@ -235,12 +235,15 @@ describe('the lesson voice store', () => {
     }
   });
 
-  it('never streams a lesson faster than a live one would arrive', () => {
-    // A store that delivers a whole lesson in seconds leaves the room minutes
-    // ahead of the learner, and every barge-in then discards far more audio.
+  it('streams a stored sentence well ahead of the player, but never a whole lesson at once', () => {
+    // Faster than 1×, or a re-take after a pause or a check-in starts with an
+    // empty bank and the player runs dry ("Buffering…" in a lesson that was
+    // all on disk). Bounded, because the pipeline's lookahead — three
+    // sentences, twenty seconds — is what keeps a barge-in cheap, and a store
+    // that delivered a whole lesson in seconds would defeat it.
     const cache = store(new CountingSynthesizer(1));
-    expect(cache.replayRate).toBeGreaterThan(1);
-    expect(cache.replayRate).toBeLessThanOrEqual(2);
+    expect(cache.replayRate).toBeGreaterThanOrEqual(3);
+    expect(cache.replayRate).toBeLessThanOrEqual(6);
   });
 
   it('shares one synthesis between two rooms teaching the same lesson at once', async () => {

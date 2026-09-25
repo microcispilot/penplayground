@@ -1,6 +1,6 @@
 # ADR-0017: The lesson's voice is stored beside the lesson — and a learner's own words never are
 
-Status: accepted · 2026-09-17 (on by default 2026-09-18)
+Status: accepted · replay speed raised from 1.25× to 4× realtime on 2026-09-24 (a re-take after a pause or a check-in started with an empty bank and ran dry; the pipeline's lookahead still bounds a barge-in) · 2026-09-17 (on by default 2026-09-18)
 
 ## Context
 

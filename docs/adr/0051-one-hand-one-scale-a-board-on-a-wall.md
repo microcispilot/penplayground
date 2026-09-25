@@ -26,9 +26,10 @@ block wore a language badge; the frame filled the viewport edge to edge.
 
 ### One scale
 
-`TYPE` is 40 / 28 / 23 / 21 / 21 (title, writing, label, code, prose): the
-title about 1.4× the writing, the writing 1.2× a label, code and prose a step
-under. A board reads as one hand at one distance, not a headline over
+`TYPE` is 34 / 28 / 23 / 24 / 22 (title, writing, label, code, prose): the
+title a little over the writing, the writing 1.2× a label, code a touch
+larger than the writing because a monospaced-looking line in a hand is read
+character by character. A board reads as one hand at one distance, not a headline over
 footnotes. The camera's legibility floor is 14 CSS pixels for the writing,
 which at this scale still lets a 1200-wide line fit a phone.
 
@@ -81,18 +82,26 @@ mid-lesson without moving what is already on the page.
 
 ### The card scales with its box
 
-The check-in card is sized in container units of the board it sits on: one
-card that is small in a small player and larger in full view, never one that
-needs scrolling in a short box.
+The check-in card is sized from the board frame's **measured width** (a CSS
+variable set by a resize observer): one card that is small in a small player
+and larger in full view, never one that needs scrolling in a short box. It
+was a container query for one release, and the layout containment that
+comes with `container-type` left the card unpainted in the room screen until
+a resize (the owner: *"it wasn't there first"*; the ledger: the room in
+`checking` for four and a half minutes before the answer). Nothing on the
+board wants containment; the measurement has none.
 
 ### A board on a wall
 
-Plaster: a cream with a fine grain (a turbulence filter in a data URI, so it
-ships with the stylesheet), darker towards the edges the way a lit wall is,
-in the room and inline, so the framed board reads as an object hanging in a
-room. Dark theme gets a darker warm plaster. The frame keeps its bevel and
-its shadow, which is what says it is standing off the wall. An inline
-session fades for half a second when it ends before the page comes back.
+Plaster: a cream-white with a fine grain (a turbulence filter in a data URI,
+so it ships with the stylesheet), darker towards the edges the way a lit
+wall is, in the room and inline, so the framed board reads as an object
+hanging in a room. The wall stays white at night — the owner: *"a wall
+texture always white and showing some shadows of the board"* — a lit room
+with a dark board on it. The frame's shadow is a mounted board's: low, soft
+and long, with a contact edge, which is what says it is installed. An
+inline session fades for half a second when it ends before the page comes
+back.
 
 ## Consequences
 

@@ -162,6 +162,22 @@ export function SessionPlayer({
     return () => window.clearTimeout(timer);
   }, [layout, ui.state?.phase, onOpenSaved]);
 
+  /*
+   * The board's width, as a CSS variable on its frame, for the check-in
+   * card's sizes (ADR-0050). Measured rather than a container query: the
+   * query's layout containment left the card unpainted until a resize in
+   * the room screen, and nothing else here wants containment.
+   */
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const apply = () => el.style.setProperty('--board-w', `${el.clientWidth}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const isHost = ui.state?.hostId === participant?.id;
   /**
    * A guest is told the room is being recorded — once, as they take their
@@ -407,7 +423,7 @@ export function SessionPlayer({
             ref={boardRef}
             tabIndex={-1}
             aria-label={`${firstName}'s board`}
-            className="pen-board-frame @container relative min-h-0 flex-1 overflow-hidden outline-none"
+            className="pen-board-frame relative min-h-0 flex-1 overflow-hidden outline-none"
           >
             <BoardSurface session={session} licenseKey={platform.tldrawLicenseKey} />
             {pressToPause ? (

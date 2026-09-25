@@ -1174,8 +1174,9 @@
 :root[data-board="blackboard"],
 [data-board="blackboard"] {
   --color-paper: oklch(0.255 0.016 250);
-  --color-wall: oklch(0.27 0.012 70);
-  --color-wall-deep: oklch(0.22 0.012 70);
+  /* The wall stays white at night (ADR-0051): a lit room, a dark board on it. */
+  --color-wall: oklch(0.945 0.02 85);
+  --color-wall-deep: oklch(0.905 0.024 82);
   --color-paper-grid: oklch(0.95 0.01 85 / 14%);
   --color-ink: oklch(0.945 0.012 85);
   --color-ink-accent: oklch(0.74 0.15 28);

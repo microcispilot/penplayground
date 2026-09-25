@@ -59,7 +59,16 @@ const FRAME_MS = 120;
  * chunk still goes out with no delay at all, which is the latency anyone
  * actually feels.
  */
-const DEFAULT_REPLAY_SPEED = 1.25;
+/*
+ * 4×, not 1.25×. The pipeline streams one sentence at a time, so at 1.25× a
+ * stored sentence had streamed only a quarter of its length ahead of the
+ * player by the time the next one could start, and a re-take after a pause,
+ * a check-in or a barge-in began every time with an empty bank and that
+ * thin margin: the player ran dry and said "Buffering…" in a lesson whose
+ * every sentence was already on disk. The lookahead (three sentences, twenty
+ * seconds) still bounds what a barge-in throws away.
+ */
+const DEFAULT_REPLAY_SPEED = 4;
 /** A sentence longer than this is not a sentence; it is a bug, and it is not stored. */
 const MAX_CACHEABLE_BYTES = 8 * 1024 * 1024;
 const MANIFEST = 'manifest.json';

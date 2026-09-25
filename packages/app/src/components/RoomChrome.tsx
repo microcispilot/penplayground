@@ -680,7 +680,7 @@ export function CheckCard({
     <div
       role="dialog"
       aria-labelledby="check-question"
-      className="absolute inset-x-3 top-1/2 z-[6] mx-auto max-h-[92%] w-[min(560px,86cqi,100%)] -translate-y-1/2 animate-rise overflow-y-auto rounded-xl bg-surface-container p-[clamp(12px,2.2cqi,24px)] shadow-level3 [scrollbar-width:none] sm:inset-x-0 [&::-webkit-scrollbar]:hidden"
+      className="absolute inset-x-3 top-1/2 z-[6] mx-auto max-h-[92%] w-[min(560px,calc(var(--board-w,1000px)*0.86),100%)] -translate-y-1/2 animate-rise overflow-y-auto rounded-xl bg-surface-container p-[clamp(12px,calc(var(--board-w,1000px)*0.022),24px)] shadow-level3 [scrollbar-width:none] sm:inset-x-0 [&::-webkit-scrollbar]:hidden"
       data-testid="check-card"
     >
       {/* Sized by the box it is in (container units), so it is one card in a small player and a full screen. */}

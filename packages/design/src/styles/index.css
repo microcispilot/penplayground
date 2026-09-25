@@ -219,28 +219,28 @@
 
 /*
  * The check-in card (ADR-0050, ADR-0051) is sized by the board it sits on —
- * container units of the board's frame — so it is one card in a small player
- * and in full view, never one that needs scrolling in a short box. These
- * sizes are the type scale's own roles at the ends of each clamp (label
- * small → medium, title small → large, body small → large); the middle is
- * the box talking.
+ * `--board-w`, the frame's measured width — so it is one card in a small
+ * player and in full view, never one that needs scrolling in a short box.
+ * The ends of each clamp are the type scale's own roles (label small →
+ * medium, title small → large, body small → large); the middle is the box
+ * talking. Measured, not a container query: see SessionPlayer.
  */
 .pen-check__label {
-  font-size: clamp(10px, 0.9cqi, 12px);
+  font-size: clamp(10px, calc(var(--board-w, 1000px) * 0.009), 12px);
 }
 .pen-check__question {
-  font-size: clamp(14px, 1.7cqi, 20px);
+  font-size: clamp(14px, calc(var(--board-w, 1000px) * 0.017), 20px);
 }
 .pen-check__option {
-  min-height: clamp(32px, 3.6cqi, 40px);
-  font-size: clamp(12px, 1.35cqi, 15px);
+  min-height: clamp(32px, calc(var(--board-w, 1000px) * 0.036), 40px);
+  font-size: clamp(12px, calc(var(--board-w, 1000px) * 0.0135), 15px);
 }
 .pen-check__letter {
-  width: clamp(18px, 2cqi, 24px);
-  height: clamp(18px, 2cqi, 24px);
-  font-size: clamp(10px, 0.95cqi, 12px);
+  width: clamp(18px, calc(var(--board-w, 1000px) * 0.02), 24px);
+  height: clamp(18px, calc(var(--board-w, 1000px) * 0.02), 24px);
+  font-size: clamp(10px, calc(var(--board-w, 1000px) * 0.0095), 12px);
 }
 .pen-check__input {
-  height: clamp(32px, 3.4cqi, 36px);
-  font-size: clamp(12px, 1.3cqi, 14px);
+  height: clamp(32px, calc(var(--board-w, 1000px) * 0.034), 36px);
+  font-size: clamp(12px, calc(var(--board-w, 1000px) * 0.013), 14px);
 }
