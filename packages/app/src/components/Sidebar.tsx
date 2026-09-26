@@ -87,12 +87,14 @@ function rowClass(rail: boolean, active: boolean): string {
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 pl-7 pr-4',
-    // The current row sits on the lightest surface step with the brand as its ink, icon and
-    // label alike, flush with the sidebar's left edge. The owner's choice (2026-09-26) after
-    // the brand as fill at several strengths and a rose tint: "use the previous one with
-    // foreground as the primary brand color". The brand on that step reads 5.4:1 by day and
-    // 2.5:1 by night; the owner chose it knowing the row is a label, not prose.
-    active ? 'bg-surface-container-highest text-brand' : 'text-on-surface-variant',
+    // "Tint + left bar" (the owner's mock, 2026-09-26: "clear and scannable, like VS Code or
+    // Linear"): the brand at 16 % letting the sidebar through, the page's own ink on it, and
+    // a 3 px rose bar on the flush left edge. The mock's bar was #F06A8E; the palette's rose
+    // stands in for it (ADR-0054: no hex outside the palette). On-surface on the tint reads
+    // 15:1 by night and 14:1 by day.
+    active
+      ? 'bg-brand/16 text-on-surface shadow-[inset_3px_0_0_var(--color-brand-rose)]'
+      : 'text-on-surface-variant',
   );
 }
 
@@ -297,7 +299,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                   className={cn(
                     'state-layer rounded-l-none rounded-r-[1px] pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
-                      ? 'bg-surface-container-highest text-brand'
+                      ? 'bg-brand/16 text-on-surface shadow-[inset_3px_0_0_var(--color-brand-rose)]'
                       : 'text-on-surface-variant',
                   )}
                   data-testid="sidebar-topic-all"
@@ -316,7 +318,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     className={cn(
                       'state-layer rounded-l-none rounded-r-[1px] pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
-                        ? 'bg-surface-container-highest text-brand'
+                        ? 'bg-brand/16 text-on-surface shadow-[inset_3px_0_0_var(--color-brand-rose)]'
                         : 'text-on-surface-variant',
                     )}
                   >

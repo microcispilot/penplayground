@@ -48,10 +48,9 @@
  *   the owner's ruling: `primary-fixed`, `secondary-container`,
  *   `mark-accent`, `glow` and `highlight` carry the same value by day and
  *   by night; `primary`, the text role, is rose by night (below). The
- *   sidebar's current row and a chosen topic are `surface-container-highest`
- *   with the brand as ink (the owner, 2026-09-26, after the brand as fill at
- *   several strengths and a rose tint: "the previous one with foreground as
- *   the primary brand color"). A chosen option in a dialog or a chosen
+ *   sidebar's current row and a chosen topic are "tint + left bar": the
+ *   brand at 16 %, `on-surface` on it, and a 3 px rose bar on the left edge
+ *   (the owner's mock, 2026-09-26). A chosen option in a dialog or a chosen
  *   feedback kind is `selected` with `on-surface`: rose at 45 %.
  *
  *   Measured: white on the brand is 7.3:1; the brand on the light `surface`

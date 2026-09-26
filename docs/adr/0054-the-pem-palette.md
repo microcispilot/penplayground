@@ -106,11 +106,14 @@ more transparent". A translucent brand followed (a token of its own,
 the owner asked for "the lighter background shade we have", running "all the
 way to the left edge". A neutral grey step was "black and not reddish"; a rose
 tint at 45 % followed; and the owner settled: "use the previous one with
-foreground as the primary brand color". So the sidebar's current row and a
-chosen topic sit on `surface-container-highest` with the brand as ink, icon
-and label alike, flush with the sidebar's left edge (the nav has no left
-inset; the rows carry the padding). The brand on that step is 5.4:1 by day
-and 2.5:1 by night; the owner chose it knowing. A chosen option in a dialog
+foreground as the primary brand color". Then the owner brought a mock of two
+styles and asked for the first, "tint + left bar: clear and scannable, like
+VS Code or Linear". So the sidebar's current row and a chosen topic are the
+brand at 16 % letting the sidebar through, `on-surface` on it (15:1 by
+night, 14:1 by day), and a 3 px bar of the palette's rose on the flush left
+edge (the mock's #F06A8E is outside the palette; rose stands in). The nav
+has no left inset and the rows carry the padding, so the bar sits on the
+sidebar's edge. A chosen option in a dialog
 and a chosen feedback kind keep `selected` (rose at 45 %) with `on-surface`.
 The `secondary-container` token itself stays the brand. The rows are flush on the left, where the fill meets the
 sidebar's edge, and end in a 1 px corner on the right: "rounded from the

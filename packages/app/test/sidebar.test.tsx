@@ -159,25 +159,26 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The current row sits on the lightest surface step with the brand as its
-   * ink, on the expanded sidebar and on the rail alike: the owner's choice
-   * of 2026-09-26 after the brand as fill at several strengths and a rose
-   * tint ("use the previous one with foreground as the primary brand
-   * color"). An unselected row is neither.
+   * The current row is "tint + left bar" (the owner's mock, 2026-09-26):
+   * the brand at 16 %, the page's own ink, and a 3 px rose bar on the flush
+   * left edge, on the expanded sidebar and on the rail alike. An unselected
+   * row has none of it.
    */
-  it('marks the current row on the lightest surface step in the brand ink, and no other row', async () => {
+  it('marks the current row with the tint and the left bar, and no other row', async () => {
     for (const rail of [true, false]) {
       cleanup();
       renderWithApp(<Sidebar rail={rail} />, { participant: ANONYMOUS, route: '/' });
       const current = (await screen.findByText('Home')).closest('a');
       expect(current?.getAttribute('aria-current')).toBe('page');
       const cls = current?.className ?? '';
-      expect(cls).toContain('text-brand');
-      expect(cls).toContain('bg-surface-container-highest');
+      expect(cls).toContain('text-on-surface');
+      expect(cls).toContain('bg-brand/16');
+      expect(cls).toContain('shadow-[inset_3px_0_0_var(--color-brand-rose)]');
       // And an unselected row is neither.
       const other = screen.getByText('Experts').closest('a')?.className ?? '';
       expect(other).toContain('text-on-surface-variant');
-      expect(other).not.toContain('bg-surface-container-highest');
+      expect(other).not.toContain('bg-brand/16');
+      expect(other).not.toContain('shadow-[inset_3px');
     }
   });
 
@@ -194,7 +195,7 @@ describe('Sidebar rows', () => {
     const experts = screen.getByText('Experts').closest('a');
     const all = screen.getByTestId('sidebar-topic-all');
     const computing = screen.getByRole('button', { name: 'Computing' });
-    expect(computing.className).toContain('bg-surface-container-highest');
+    expect(computing.className).toContain('bg-brand/16');
     for (const el of [home, experts, all, computing]) {
       expect(el?.className).toContain('rounded-l-none');
       expect(el?.className).toContain('rounded-r-[1px]');
