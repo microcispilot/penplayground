@@ -159,25 +159,25 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The current row is the `selected` fill (the brand letting the page
-   * through) with white on it, on the expanded sidebar and on the 72 px rail
-   * alike. The owner (2026-09-26): "the background is the primary and the
-   * foreground is white", then "too colory; maybe the brand color with a bit
-   * transparency", then "more transparent". An unselected row is neither.
+   * The current row sits on the lightest surface step with the page's own
+   * ink on it, on the expanded sidebar and on the rail alike: the owner's
+   * last word of 2026-09-26 after the brand as ink and as fills of several
+   * strengths ("the lighter background shade we have"). An unselected row is
+   * neither.
    */
-  it('marks the current row as the selected fill with white on it, and no other row', async () => {
+  it('marks the current row on the lightest surface step, and no other row', async () => {
     for (const rail of [true, false]) {
       cleanup();
       renderWithApp(<Sidebar rail={rail} />, { participant: ANONYMOUS, route: '/' });
       const current = (await screen.findByText('Home')).closest('a');
       expect(current?.getAttribute('aria-current')).toBe('page');
       const cls = current?.className ?? '';
-      expect(cls).toContain('text-on-primary-fixed');
-      expect(cls).toContain('bg-selected');
+      expect(cls).toContain('text-on-surface');
+      expect(cls).toContain('bg-surface-container-highest');
       // And an unselected row is neither.
       const other = screen.getByText('Experts').closest('a')?.className ?? '';
       expect(other).toContain('text-on-surface-variant');
-      expect(other).not.toContain('bg-selected');
+      expect(other).not.toContain('bg-surface-container-highest');
     }
   });
 
@@ -194,7 +194,7 @@ describe('Sidebar rows', () => {
     const experts = screen.getByText('Experts').closest('a');
     const all = screen.getByTestId('sidebar-topic-all');
     const computing = screen.getByRole('button', { name: 'Computing' });
-    expect(computing.className).toContain('bg-selected');
+    expect(computing.className).toContain('bg-surface-container-highest');
     for (const el of [home, experts, all, computing]) {
       expect(el?.className).toContain('rounded-none');
       expect(el?.className).not.toContain('rounded-full');

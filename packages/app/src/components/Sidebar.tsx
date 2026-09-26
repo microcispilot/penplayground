@@ -86,13 +86,12 @@ function rowClass(rail: boolean, active: boolean): string {
     'state-layer group relative flex items-center rounded-none transition-colors duration-[var(--duration-fast)]',
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
-    rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
-    // The current row is `selected` with white on it: the brand letting the page through,
-    // 75 % by day and 50 % by night (tokens.css says why and how much). The owner tried a
-    // brand-coloured label on a tint (2026-09-25), found it too dark at night, asked for
-    // "the background is the primary and the foreground is white", then "too colory; maybe
-    // the brand color with a bit transparency", then "more transparent" (2026-09-26).
-    active ? 'bg-selected text-on-primary-fixed' : 'text-on-surface-variant',
+    rail ? 'flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 pl-7 pr-4',
+    // The current row sits on the lightest surface step with the page's own ink on it, the
+    // way a tonal selection reads in Material: no colour, one shade up. The owner tried the
+    // brand as ink (2026-09-25) and as a fill at several strengths (2026-09-26), and settled
+    // on "the lighter background shade we have".
+    active ? 'bg-surface-container-highest text-on-surface' : 'text-on-surface-variant',
   );
 }
 
@@ -163,7 +162,7 @@ function Row({ to, icon, label, rail, railLabel, end = false, count, tag, onNavi
 function SectionLabel({ children, rail }: { children: ReactNode; rail: boolean }) {
   if (rail) return null;
   return (
-    <div className="px-4 pt-4 pb-1.5 text-label-small tracking-wider text-on-surface-variant uppercase">
+    <div className="pl-7 pr-4 pt-4 pb-1.5 text-label-small tracking-wider text-on-surface-variant uppercase">
       {children}
     </div>
   );
@@ -171,11 +170,11 @@ function SectionLabel({ children, rail }: { children: ReactNode; rail: boolean }
 
 /** A quiet horizontal rule between sections. */
 function Divider() {
-  return <div className="my-2 border-t border-outline-variant" aria-hidden />;
+  return <div className="my-2 ml-3 border-t border-outline-variant" aria-hidden />;
 }
 
 /**
- * The rail is 80 px, not the 72 it was, and its rows sit on `mx-0.5`.
+ * The rail is 80 px, not the 72 it was, and its rows run edge to edge.
  *
  * `Downloads` is the longest label in the list that has no shorter form —
  * `Learn later` becomes `Later` and `Your sessions` becomes `Sessions`, but a
@@ -220,7 +219,10 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
       data-rail={rail || undefined}
       className={cn(
         'flex h-full flex-col overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:thin]',
-        rail ? 'w-[5rem] px-0.5' : 'w-[16rem] px-3',
+        // No left inset: the current row's fill runs to the sidebar's left edge (the owner,
+        // 2026-09-26: "the background should go all the way to the left edge"); the content
+        // keeps its place through the rows' own left padding.
+        rail ? 'w-[5rem]' : 'w-[16rem] pr-3',
         className,
       )}
     >
@@ -280,7 +282,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
               />
             </button>
             {topicsOpen ? (
-              <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-[1.625rem]">
+              <div className="flex flex-col gap-0.5 pt-0.5 pb-1">
                 {/* The way back. A topic chosen here filtered Home with no row to
                     un-choose it (the owner, 2026-09-23); this is the chips' "All",
                     where the topics are. */}
@@ -292,9 +294,9 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     onNavigate?.();
                   }}
                   className={cn(
-                    'state-layer rounded-none px-4 py-1.5 text-left text-label-large transition-colors',
+                    'state-layer rounded-none pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
-                      ? 'bg-selected text-on-primary-fixed'
+                      ? 'bg-surface-container-highest text-on-surface'
                       : 'text-on-surface-variant',
                   )}
                   data-testid="sidebar-topic-all"
@@ -311,9 +313,9 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                       onNavigate?.();
                     }}
                     className={cn(
-                      'state-layer rounded-none px-4 py-1.5 text-left text-label-large transition-colors',
+                      'state-layer rounded-none pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
-                        ? 'bg-selected text-on-primary-fixed'
+                        ? 'bg-surface-container-highest text-on-surface'
                         : 'text-on-surface-variant',
                     )}
                   >
@@ -429,7 +431,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
 function SidebarFooter({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   return (
     <div
-      className="mt-6 flex flex-col gap-2 border-t border-outline-variant px-4 pt-4 text-body-small text-on-surface-dim"
+      className="mt-6 ml-3 flex flex-col gap-2 border-t border-outline-variant pl-4 pr-4 pt-4 text-body-small text-on-surface-dim"
       data-testid="sidebar-footer"
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

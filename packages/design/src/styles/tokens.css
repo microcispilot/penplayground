@@ -47,13 +47,12 @@
  *   where it stood. Pinned, not generated, and one set for both themes by
  *   the owner's ruling: `primary-fixed`, `secondary-container`,
  *   `mark-accent`, `glow` and `highlight` carry the same value by day and
- *   by night; `primary`, the text role, is rose by night (below). A selected
- *   row, chip or option is `selected` with white on it: the brand letting the
- *   page through, 75 % by day and 50 % by night (`bg-selected
- *   text-on-primary-fixed`, square). The owner (2026-09-26), after a
- *   brand-coloured label on a tint read too dark at night, asked for "the
- *   background is the primary and the foreground is white", then of the
- *   solid fill "too colory", then of 80 % "more transparent".
+ *   by night; `primary`, the text role, is rose by night (below). The
+ *   sidebar's current row is `surface-container-highest` with `on-surface`,
+ *   a tonal selection with no colour in it (the owner, 2026-09-26, after the
+ *   brand as ink and as fills of several strengths: "the lighter background
+ *   shade we have"). A chosen option in a dialog is `selected` with white on
+ *   it: the brand letting the page through, 75 % by day and 50 % by night.
  *
  *   Measured: white on the brand is 7.3:1; the brand on the light `surface`
  *   6.9:1 and on the highest light grey 5.6:1. On the dark `surface` it is

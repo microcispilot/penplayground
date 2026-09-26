@@ -101,11 +101,15 @@ ruled: "revert it back to the way it was: the background is the primary and
 the foreground is white." So the selected tinted state is M3's own pair,
 the brand fill with white on it. The solid fill was "too colory; maybe the
 brand color with a bit transparency", and 80 % still "too colory, I want it
-more transparent". So the fill is a token of its own, `selected`: the brand
-in oklch letting the page through, 75 % by day (white on it 4.6:1 over the
-light sidebar) and 50 % by night (13:1 over the dark one), used as
-`bg-selected text-on-primary-fixed`. The `secondary-container` token itself
-stays the brand. The rows are square again: "rounded from the sides", then
+more transparent". A translucent brand followed (a token of its own,
+`selected`: the brand in oklch at 75 % by day and 50 % by night), and then
+the owner asked for "the lighter background shade we have", running "all the
+way to the left edge". So the sidebar's current row, and a chosen topic, sit
+on `surface-container-highest` with `on-surface`: a tonal selection with no
+colour in it, flush with the sidebar's left edge (the nav has no left inset;
+the rows carry the padding). `selected` stays for a chosen option in a dialog
+and a chosen feedback kind, where a neutral step would vanish against the
+dialog's own surface. The `secondary-container` token itself stays the brand. The rows are square again: "rounded from the sides", then
 "make it 4 px rounded", then "no corner radius", all within the hour, and the
 last word stands, as it did on 2026-09-25. The rows are rounded
 on the sides ("make the background rounded from the sides"), replacing the
