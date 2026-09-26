@@ -60,6 +60,7 @@ grep -q 'if (\$pen_staging_gate_ok = 0)' "$st/web.inc" || fail "staging does not
 grep -q 'Set-Cookie "pen_gate=\$pen_staging_gate_token; Path=/; Max-Age=2592000; Secure; HttpOnly; SameSite=Lax"' "$st/web.inc" \
   || fail "staging's gate does not set the cookie, or sets it without Secure/HttpOnly/SameSite"
 grep -q 'include /etc/nginx/pen-staging.gate.conf;' "$st/http.inc" || fail "staging's http.inc does not load the cookie maps"
+grep -q 'proxy_set_header Authorization "";' "$st/web.inc" || fail "the gate's Basic credential would be forwarded to the platform"
 ! grep -q 'include' "$pr/http.inc" || fail "production's http.inc must be empty"
 grep -q 'auth_basic_user_file /etc/nginx/pen-staging.htpasswd;' "$st/web.inc" || fail "staging's gate reads the wrong htpasswd"
 { grep -q 'satisfy any;' "$st/web.inc" && grep -q 'allow 127.0.0.1;' "$st/web.inc"; } || fail "the host itself must pass staging's gate"

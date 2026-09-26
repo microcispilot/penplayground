@@ -363,6 +363,10 @@ rendered="$(mktemp -d)"
 trap 'rm -rf "$rendered"' EXIT
 deploy/nginx/render.sh "$ENVIRONMENT" "$rendered" || die "the edge templates did not render for $ENVIRONMENT"
 cp deploy/nginx/gate.conf.example "$rendered/"
+# The includes the installed vhost reads live here, so they are kept as a set: if nginx
+# refuses the new vhost, step 7 puts the previous includes back with the previous vhost
+# (a vhost restored alone once read the new includes and `nginx -t` stayed broken, 2026-09-26).
+remote "rm -rf '$PEN_DEPLOY_ROOT/nginx.prev'; [ -d '$PEN_DEPLOY_ROOT/nginx' ] && cp -a '$PEN_DEPLOY_ROOT/nginx' '$PEN_DEPLOY_ROOT/nginx.prev' || true"
 rsync -rltz -e "$RSYNC_SSH" "$rendered/" "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 echo "  $(ls "$rendered" | tr '\n' ' ')→ $PEN_DEPLOY_ROOT/nginx/"
 
@@ -380,7 +384,8 @@ if [ "$PEN_EDGE_GATE" = 1 ]; then
       umask 077
       pass=\$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24)
       hash=\$(printf '%s' \"\$pass\" | openssl passwd -apr1 -stdin)
-      token=\$(openssl rand -hex 32)
+      # 128 bits; as a map key a longer one overflows nginx's default map_hash_bucket_size (64).
+      token=\$(openssl rand -hex 16)
       printf 'pen:%s\n' \"\$hash\" > '$gate_htpasswd.next'
       chown root:www-data '$gate_htpasswd.next' && chmod 0640 '$gate_htpasswd.next'
       mv -f '$gate_htpasswd.next' '$gate_htpasswd'
@@ -555,9 +560,14 @@ if [ "$EDGE" = 1 ] || remote "[ -e '$enabled' ]"; then
     if nginx -t 2>/dev/null; then
       systemctl reload nginx
       rm -f '$site.prev'
+      rm -rf '$PEN_DEPLOY_ROOT/nginx.prev'
     else
       nginx -t || true
       if [ -e '$site.prev' ]; then mv -f '$site.prev' '$site'; else rm -f '$enabled' '$site'; fi
+      if [ -d '$PEN_DEPLOY_ROOT/nginx.prev' ]; then
+        rm -rf '$PEN_DEPLOY_ROOT/nginx' && mv '$PEN_DEPLOY_ROOT/nginx.prev' '$PEN_DEPLOY_ROOT/nginx'
+      fi
+      nginx -t >/dev/null 2>&1 && echo '  the previous vhost and its includes are back, and nginx accepts them'
       exit 1
     fi" || die "nginx refused the rendered vhost; the previous one is back in place"
   # Through the edge, as the world sees it.

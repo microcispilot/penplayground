@@ -35,6 +35,10 @@ location @gated {
     add_header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet" always;
     add_header Set-Cookie "pen_gate=$STACK_ID_gate_token; Path=/; Max-Age=2592000; Secure; HttpOnly; SameSite=Lax";
     include ENV_ROOT/nginx/proxy-web.inc;
+    # The gate's credential is the edge's business only. The platform never sees it: its API
+    # reads `Authorization: Bearer` for identity, and a Basic header is not one, but it is not
+    # forwarded either, so the gate cannot be mistaken for a sign-in by anything downstream.
+    proxy_set_header Authorization "";
 }
 location = /api/health {
     include ENV_ROOT/nginx/proxy-web.inc;

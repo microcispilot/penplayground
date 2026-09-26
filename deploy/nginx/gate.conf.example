@@ -1,7 +1,8 @@
 # The gate cookie's value for STACK (ADR-0061). deploy.sh renders this to /etc/nginx/STACK.gate.conf
 # on the host when it writes the password, and again on --rotate-gate; the token is a secret and
 # never enters the repository. A browser that has passed the password prompt once is handed this
-# value as a cookie and is not asked again for thirty days.
+# value as a cookie and is not asked again for thirty days. 32 hex characters: a longer key
+# overflows nginx's default map_hash_bucket_size (64) and the vhost is refused.
 map $host $STACK_ID_gate_token {
     default "TOKEN";
 }
