@@ -105,8 +105,9 @@ more transparent". So the fill is a token of its own, `selected`: the brand
 in oklch letting the page through, 75 % by day (white on it 4.6:1 over the
 light sidebar) and 50 % by night (13:1 over the dark one), used as
 `bg-selected text-on-primary-fixed`. The `secondary-container` token itself
-stays the brand. The corners are 4 px (`rounded-xs`): "make it 4 px rounded"
-replaced "rounded from the sides" the same hour. The rows are rounded
+stays the brand. The rows are square again: "rounded from the sides", then
+"make it 4 px rounded", then "no corner radius", all within the hour, and the
+last word stands, as it did on 2026-09-25. The rows are rounded
 on the sides ("make the background rounded from the sides"), replacing the
 square ruling of 2026-09-25. `primary` stays rose by night for prose, links
 and outlines. The sidebar test pins the classes and the shape.
