@@ -42,7 +42,7 @@ describe('the room invite page', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'How Transformers work in LLMs' }),
     ).toBeTruthy();
-    expect(document.body.textContent).toContain('Hosted by Sam.');
+    expect(document.body.textContent).toContain('Hosted by Sam');
     expect(screen.getByTestId('room-invite-company').textContent).toContain(
       'Sam, Ana and 6 others are learning together',
     );

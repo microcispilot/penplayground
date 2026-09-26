@@ -1,5 +1,5 @@
 import { describeCompany, type Expert, type RoomInvite } from '@pen/contracts';
-import { Avatar, Button, cn, Pill } from '@pen/design';
+import { Avatar, Button, cn, PenLogo, Pill } from '@pen/design';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { trackAction } from '../lib/analytics.js';
@@ -107,59 +107,71 @@ export function RoomInviteGate({
 
   return (
     <div
-      className={cn('pen-wall grid min-h-screen place-items-center px-5 py-10 sm:px-8', className)}
+      className={cn('flex min-h-screen flex-col bg-surface text-on-surface', className)}
       data-testid="session-player"
       data-phase="invite"
       data-reason={reason ?? ''}
     >
-      <section
+      {/* A screen, not a dialog (the owner, 2026-09-25): the product's own header line, then the page. */}
+      <header className="flex h-16 shrink-0 items-center px-5 sm:px-8">
+        <PenLogo />
+      </header>
+      <main
         aria-labelledby="room-invite-title"
-        className="hairline w-full max-w-[560px] rounded-xl bg-surface-container-low p-6 shadow-level2 sm:p-8"
+        className="mx-auto w-full max-w-[720px] flex-1 px-5 pt-6 pb-20 sm:px-8 sm:pt-12"
         data-testid="room-invite"
       >
-        <div className="flex items-start gap-4">
+        {live ? (
+          <Pill tone="live" dot>
+            Live now
+          </Pill>
+        ) : null}
+        <h1
+          id="room-invite-title"
+          className="mt-4 text-headline-medium text-on-surface text-pretty sm:text-headline-large"
+        >
+          {invite.title || invite.topic}
+        </h1>
+
+        <div className="mt-6 flex items-center gap-4">
           <Avatar name={expert?.displayName ?? 'Expert'} src={portrait} size={56} />
-          <div className="min-w-0 flex-1">
-            {live ? (
-              <Pill tone="live" dot>
-                Live now
-              </Pill>
+          <div className="min-w-0">
+            {expert ? (
+              <p className="text-body-large text-on-surface">Taught by {expert.displayName}</p>
             ) : null}
-            <h1
-              id="room-invite-title"
-              className="mt-2 text-headline-small text-on-surface text-pretty"
-            >
-              {invite.title || invite.topic}
-            </h1>
-            <p className="mt-1 text-body-medium text-on-surface-variant">
-              {expert ? `Taught by ${expert.displayName}. ` : ''}
-              Hosted by <span className="font-medium text-on-surface">{invite.host.name}</span>.
+            <p className="text-body-medium text-on-surface-variant">
+              Hosted by <span className="font-medium text-on-surface">{invite.host.name}</span>
             </p>
           </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-3" data-testid="room-invite-company">
-          <div className="flex -space-x-2">
-            {people.slice(0, FACES).map((p) => (
-              // A name and its colour are all the invite view shares (ADR-0058), so they are the key too.
-              <Avatar key={`${p.hue}:${p.name}`} name={p.name} hue={p.hue} size={32} ring />
-            ))}
+        <section className="mt-10" aria-label="In the room">
+          <p className="text-label-small font-semibold tracking-wider text-on-surface-variant uppercase">
+            In the room
+          </p>
+          <div className="mt-3 flex items-center gap-3" data-testid="room-invite-company">
+            <div className="flex -space-x-2">
+              {people.slice(0, FACES).map((p) => (
+                // A name and its colour are all the invite view shares (ADR-0058), so they are the key too.
+                <Avatar key={`${p.hue}:${p.name}`} name={p.name} hue={p.hue} size={36} ring />
+              ))}
+            </div>
+            <p className="text-body-large text-on-surface">{company}</p>
           </div>
-          <p className="text-body-medium text-on-surface">{company}</p>
-        </div>
-        <p className="mt-2 text-body-small text-on-surface-dim tabular">
-          {invite.seats.taken} of {invite.seats.total} seats taken
-        </p>
+          <p className="mt-2 text-body-small text-on-surface-dim tabular">
+            {invite.seats.taken} of {invite.seats.total} seats taken
+          </p>
+        </section>
 
-        <div className="mt-7 border-t border-outline-variant pt-6">
+        <section className="mt-10 border-t border-outline-variant pt-8">
           {reason === 'room_full' ? (
             <>
-              <h2 className="text-title-medium text-on-surface">This room is full.</h2>
-              <p className="mt-2 text-body-medium text-on-surface-variant text-pretty">
+              <h2 className="text-title-large text-on-surface">This room is full.</h2>
+              <p className="mt-2 max-w-[560px] text-body-large text-on-surface-variant text-pretty">
                 Every one of its {invite.seats.total} seats is taken. Ask the host to let you know
                 when one opens, or start a session of your own.
               </p>
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Button variant="primary" size="lg" onClick={onExit}>
                   Back to Explore
                 </Button>
@@ -167,14 +179,14 @@ export function RoomInviteGate({
             </>
           ) : (
             <>
-              <h2 className="text-title-medium text-on-surface">
+              <h2 className="text-title-large text-on-surface">
                 A subscription is required to join this session.
               </h2>
-              <p className="mt-2 text-body-medium text-on-surface-variant text-pretty">
+              <p className="mt-2 max-w-[560px] text-body-large text-on-surface-variant text-pretty">
                 Rooms are part of the Standard and Professional plans. Choose a plan and your seat
                 is ready the moment you come back.
               </p>
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   variant="primary"
                   size="lg"
@@ -194,8 +206,8 @@ export function RoomInviteGate({
               </div>
             </>
           )}
-        </div>
-      </section>
+        </section>
+      </main>
     </div>
   );
 }
