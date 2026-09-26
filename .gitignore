@@ -19,3 +19,6 @@ apps/desktop/out
 
 # Claude Code worktrees and session files
 .claude/
+
+# The deploy workflow used to write its SSH key here; it lives in the runner's temp dir now.
+.deploy/

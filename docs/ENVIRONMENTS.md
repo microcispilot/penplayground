@@ -102,6 +102,11 @@ A brand-new environment needs, once, on the host: its root with `api.env` and `p
 
 - **Same image, same behaviour.** Anything that must differ between the two goes through
   `deploy/env/*.conf` (identity) or the host's `api.env` (secrets), never through code.
+- **The build context is clean.** `.dockerignore` keeps `.env*`, keys, `.git`, host
+  `node_modules` and every `dist` out of the three `COPY . .` build stages, so a workstation
+  build is the build CI makes from a clean checkout. The web build reads the repository root for
+  `.env` (`envDir`); without this file a workstation image would have carried the developer's
+  `VITE_*` values.
 - **Secrets stay on the host.** CI never sees `api.env`. The deploy writes only the two public
   URLs and, when the operator's shell has them, the keys listed in `deploy/deploy.sh`'s header.
 - **Staging is private (ADR-0061).** Its edge asks for one shared password (HTTP Basic) before

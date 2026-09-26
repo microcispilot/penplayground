@@ -1,0 +1,37 @@
+# What never enters a Docker build context (ADR-0059). The three Dockerfiles `COPY . .` into
+# their build stage, so without this file every build would carry the workstation's .env, a
+# runner's deploy key, a gigabyte of host node_modules and yesterday's dist into a layer.
+# The runtime images copy only what the build stage produced, and CI builds from a clean
+# checkout; this makes a workstation build the same build.
+
+# Secrets and keys. The build gets what it needs as build args and BuildKit secrets.
+.env
+.env.*
+.env-use
+.deploy/
+**/*.pem
+**/id_ed25519*
+
+# Version control, CI, editors, agents.
+.git/
+.github/
+.claude/
+.DS_Store
+**/.DS_Store
+
+# Installed and generated on the host; the image installs and builds its own.
+node_modules/
+**/node_modules/
+**/dist/
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/*.log
+.turbo/
+**/.turbo/
+
+# Local state and scratch, never part of the product.
+.pen-data/
+tasks/
+docs/
+*.html

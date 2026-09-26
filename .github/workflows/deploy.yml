@@ -43,8 +43,10 @@ concurrency:
 
 env:
   PEN_DEPLOY_HOST: root@100.118.252.64
-  PEN_DEPLOY_SSH_IDENTITY_FILE: ${{ github.workspace }}/.deploy/id_ed25519
-  PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE: ${{ github.workspace }}/.deploy/known_hosts
+  # Outside the checkout: a file in the workspace is in every Docker build context and makes
+  # `git status` dirty, which named the images "<sha>-dirty" (2026-09-26).
+  PEN_DEPLOY_SSH_IDENTITY_FILE: ${{ runner.temp }}/deploy/id_ed25519
+  PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE: ${{ runner.temp }}/deploy/known_hosts
 
 jobs:
   staging:
@@ -106,10 +108,10 @@ jobs:
           exit 1
       - name: Install the deploy key
         run: |
-          mkdir -p .deploy && chmod 700 .deploy
-          printf '%s\n' "$DEPLOY_SSH_KEY" > .deploy/id_ed25519
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > .deploy/known_hosts
-          chmod 600 .deploy/id_ed25519 .deploy/known_hosts
+          mkdir -p "$RUNNER_TEMP/deploy" && chmod 700 "$RUNNER_TEMP/deploy"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/deploy/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/deploy/known_hosts"
+          chmod 600 "$RUNNER_TEMP/deploy/id_ed25519" "$RUNNER_TEMP/deploy/known_hosts"
           sudo apt-get install -y --no-install-recommends zstd rsync >/dev/null
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -177,10 +179,10 @@ jobs:
           exit 1
       - name: Install the deploy key
         run: |
-          mkdir -p .deploy && chmod 700 .deploy
-          printf '%s\n' "$DEPLOY_SSH_KEY" > .deploy/id_ed25519
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > .deploy/known_hosts
-          chmod 600 .deploy/id_ed25519 .deploy/known_hosts
+          mkdir -p "$RUNNER_TEMP/deploy" && chmod 700 "$RUNNER_TEMP/deploy"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/deploy/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/deploy/known_hosts"
+          chmod 600 "$RUNNER_TEMP/deploy/id_ed25519" "$RUNNER_TEMP/deploy/known_hosts"
           sudo apt-get install -y --no-install-recommends zstd rsync >/dev/null
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
