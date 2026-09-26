@@ -14,7 +14,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "verify": "pnpm lint && pnpm typecheck && pnpm test",
-    "e2e": "pnpm --filter @pen/web e2e"
+    "e2e": "pnpm --filter @pen/web e2e",
+    "test:edge": "deploy/nginx/test.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

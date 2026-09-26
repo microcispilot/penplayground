@@ -1,4 +1,4 @@
-import { LegalLayout, LegalLink, LI, Mail, P, Strong, UL } from './LegalLayout.js';
+import { Contact, LegalLayout, LegalLink, LI, P, Strong, UL } from './LegalLayout.js';
 
 /**
  * Privacy Policy. Simurgh's structure and entity, with the substance rewritten
@@ -22,7 +22,7 @@ export function Privacy() {
               <Strong>Microcis</Strong>, a California limited liability company, provides Pen
               Playground: a place where an AI expert teaches you live over voice and a shared
               whiteboard. This policy describes the personal information the Service processes and
-              the choices you have. Questions, or a request about your data, go to <Mail />.
+              the choices you have. Questions, or a request about your data, go through <Contact />.
             </P>
           ),
         },
@@ -158,15 +158,15 @@ export function Privacy() {
                 You choose whether your microphone is on, whether to sign in, and whether a session
                 is public or private. You can rename yourself, sign out — which returns you to a
                 fresh anonymous participant — and ask us to delete your account, your sessions, or a
-                single session, at <Mail />.
+                single session, through <Contact />.
               </P>
               <P>
                 Depending on where you live you may have rights to access, correct, export, delete
                 or restrict the processing of your personal information, to object to it, and to
                 complain to your data protection authority. California residents have the rights
                 described in the CCPA/CPRA, including the right not to be discriminated against for
-                using them. Write to <Mail /> and we will verify the request and act on it within
-                the time the law allows.
+                using them. Send the request through <Contact /> and we will verify it and act on it
+                within the time the law allows.
               </P>
             </>
           ),
@@ -191,8 +191,8 @@ export function Privacy() {
               <P>
                 The Service is for people aged 13 and over, and 16 and over in the European Economic
                 Area and the United Kingdom. We do not knowingly collect personal information from
-                children below those ages; if you believe a child has given us information, write to{' '}
-                <Mail /> and we will delete it.
+                children below those ages; if you believe a child has given us information, tell us
+                through <Contact /> and we will delete it.
               </P>
             </>
           ),
@@ -208,7 +208,7 @@ export function Privacy() {
                 top of this page will change.
               </P>
               <P>
-                Questions, or a request about your data: <Mail />. The{' '}
+                Questions, or a request about your data: <Contact>contact us</Contact>. The{' '}
                 <LegalLink to="/terms">Terms of Use</LegalLink> cover the agreement itself.
               </P>
             </>

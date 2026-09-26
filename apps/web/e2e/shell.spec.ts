@@ -168,14 +168,18 @@ test.describe('the app shell', () => {
     await expect(footer).toContainText('© 2026 Microcis');
     await footer.getByRole('link', { name: 'Terms' }).click();
     await expect(page.getByRole('heading', { name: 'Terms of Use', level: 1 })).toBeVisible();
-    await expect(page.getByText('Last updated 25 September 2026')).toBeVisible();
+    await expect(page.getByText('Last updated 26 September 2026')).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'On this page' })).toBeVisible();
     // No draft badge, no consent banner: the owner asked for a calm page.
     await expect(page.getByText(/draft|counsel/i)).toHaveCount(0);
 
     await page.getByTestId('sidebar-footer').getByRole('link', { name: 'Privacy' }).click();
     await expect(page.getByRole('heading', { name: 'Privacy Policy', level: 1 })).toBeVisible();
-    await expect(page.getByText('support@penplayground.com').first()).toBeVisible();
+    // No mailbox is named anywhere: the way to reach us is the contact form (ADR-0060).
+    await expect(page.getByText('support@penplayground.com')).toHaveCount(0);
+    await expect(
+      page.getByRole('main').getByRole('link', { name: 'the contact form' }).first(),
+    ).toHaveAttribute('href', '/feedback?kind=contact');
   });
 
   test('Terms, Privacy and the copyright are said once, wherever the sidebar is', async ({

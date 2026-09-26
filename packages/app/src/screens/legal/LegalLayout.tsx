@@ -3,8 +3,13 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router';
 
 /** The day these pages last changed; both pages show the same one. */
-export const LEGAL_UPDATED = '25 September 2026';
-export const LEGAL_CONTACT = 'support@penplayground.com';
+export const LEGAL_UPDATED = '26 September 2026';
+/**
+ * Where a reader of these pages reaches us: the contact form (ADR-0060), which
+ * lands in the console's Inbox with the account it came from. There is no
+ * mailbox behind the product, so no page names one.
+ */
+export const LEGAL_CONTACT_PATH = '/feedback?kind=contact';
 
 export interface LegalSection {
   /** Anchor and table-of-contents key. */
@@ -42,14 +47,15 @@ export function Strong({ children }: { children: ReactNode }) {
   return <strong className="font-semibold text-on-surface">{children}</strong>;
 }
 
-export function Mail({ address = LEGAL_CONTACT }: { address?: string }) {
+/** The way to reach us, inside the prose: "the contact form", or the words the sentence needs. */
+export function Contact({ children = 'the contact form' }: { children?: ReactNode }) {
   return (
-    <a
-      href={`mailto:${address}`}
+    <NavLink
+      to={LEGAL_CONTACT_PATH}
       className="font-medium text-primary underline decoration-primary/40 underline-offset-[3px] hover:decoration-primary"
     >
-      {address}
-    </a>
+      {children}
+    </NavLink>
   );
 }
 
@@ -143,7 +149,7 @@ export function LegalLayout({
           <footer className="mt-12 border-t border-outline-variant pt-6 text-body-medium text-on-surface-dim">
             <p>
               Pen Playground is a product of Microcis, a California limited liability company.
-              Questions about this page: <Mail />.
+              Questions about this page: <Contact>contact us</Contact>.
             </p>
             <p className="mt-2 flex flex-wrap gap-x-2">
               <LegalLink to="/terms">Terms of Use</LegalLink>

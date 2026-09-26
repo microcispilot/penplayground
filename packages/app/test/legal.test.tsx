@@ -1,12 +1,22 @@
 import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { LEGAL_CONTACT, LEGAL_UPDATED } from '../src/screens/legal/LegalLayout.js';
+import { LEGAL_CONTACT_PATH, LEGAL_UPDATED } from '../src/screens/legal/LegalLayout.js';
 import { Privacy } from '../src/screens/legal/Privacy.js';
 import { REFUND_WINDOW_HOURS, Refunds } from '../src/screens/legal/Refunds.js';
 import { Terms } from '../src/screens/legal/Terms.js';
 import { renderWithApp } from './harness.js';
 
 afterEach(cleanup);
+
+/**
+ * Every legal page reaches us through the contact form and names no mailbox
+ * (ADR-0060, ADR-0061 discussion of 2026-09-26: there is none).
+ */
+function expectContactForm() {
+  const links = screen.getAllByRole('link', { name: /contact/i });
+  expect(links.some((a) => a.getAttribute('href') === LEGAL_CONTACT_PATH)).toBe(true);
+  expect(document.body.textContent).not.toMatch(/@penplayground\.com|mailto:/);
+}
 
 /** What the owner asked these pages to say, in the words a reader would look for. */
 const TERMS_SECTIONS = [
@@ -41,7 +51,7 @@ describe('Terms of Use', () => {
     expect(headings).toEqual(TERMS_SECTIONS.map((t, i) => `${i + 1}. ${t}`));
     expect(document.body.textContent).toContain(`Last updated ${LEGAL_UPDATED}`);
     expect(document.body.textContent).toContain('Microcis, a California limited liability company');
-    expect(screen.getAllByRole('link', { name: LEGAL_CONTACT }).length).toBeGreaterThan(0);
+    expectContactForm();
   });
 
   it('says the true things about Pen Playground', () => {
@@ -91,7 +101,7 @@ describe('Privacy Policy', () => {
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(PRIVACY_SECTIONS.map((t, i) => `${i + 1}. ${t}`));
     expect(document.body.textContent).toContain(`Last updated ${LEGAL_UPDATED}`);
-    expect(screen.getAllByRole('link', { name: LEGAL_CONTACT }).length).toBeGreaterThan(0);
+    expectContactForm();
   });
 
   it('names what is actually collected, and who gets it', () => {
@@ -164,7 +174,7 @@ describe('Cancellation and Refund Policy', () => {
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(REFUND_SECTIONS.map((t, i) => `${i + 1}. ${t}`));
     expect(document.body.textContent).toContain(`Last updated ${LEGAL_UPDATED}`);
-    expect(screen.getAllByRole('link', { name: LEGAL_CONTACT }).length).toBeGreaterThan(0);
+    expectContactForm();
   });
 
   it('states the 48-hour rule both ways, and what stays', () => {

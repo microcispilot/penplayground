@@ -1,4 +1,4 @@
-import { LegalLayout, LegalLink, LI, Mail, P, Strong, UL } from './LegalLayout.js';
+import { Contact, LegalLayout, LegalLink, LI, P, Strong, UL } from './LegalLayout.js';
 
 /** The refund window, in hours, as the owner set it (2026-09-25, ADR-0057). Terms and Pricing quote this. */
 export const REFUND_WINDOW_HOURS = 48;
@@ -146,8 +146,8 @@ export function Refunds() {
           body: (
             <>
               <P>
-                Cancel your subscription in the billing portal, then email <Mail /> from the address
-                on your account with the date of the charge. We confirm the cancellation and the
+                Cancel your subscription in the billing portal, then tell us through <Contact />{' '}
+                from your account, with the date of the charge. We confirm the cancellation and the
                 refund by email, and the refund is issued to your original payment method.
               </P>
               <P>
@@ -164,7 +164,7 @@ export function Refunds() {
             <P>
               We may update this policy from time to time. The date at the top of the page is the
               date of the current version, and a change never shortens a refund window that has
-              already started. Questions about this page: <Mail />.
+              already started. Questions about this page: <Contact>contact us</Contact>.
             </P>
           ),
         },

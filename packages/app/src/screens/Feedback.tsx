@@ -102,7 +102,7 @@ export function Feedback() {
   return (
     <ShellPage
       title="Feedback and support"
-      intro="Tell us what went wrong, what could be better, or what you would like next. Every message is read by the team."
+      intro="Tell us what went wrong, what could be better, or what you would like next."
     >
       <div className="max-w-[720px]">
         {sent ? (
@@ -239,10 +239,7 @@ export function Feedback() {
                 {kind === 'contact' ? 'Send message' : 'Send feedback'}
               </Button>
               <span className="text-body-small text-on-surface-dim">
-                Prefer email?{' '}
-                <a className="underline" href="mailto:support@penplayground.com">
-                  support@penplayground.com
-                </a>
+                Every message is read by the team.
               </span>
             </div>
           </form>

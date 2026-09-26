@@ -91,7 +91,11 @@ added; the user agent and address the visit stores are cleared after thirty days
 
 - Migration `0020_feedback_surveys` adds `feedback` and `survey_responses`; both are per
   environment like every other table.
-- `PEN_FEEDBACK_INBOX` is set to `support@penplayground.com` on staging and production; it is
+- `PEN_FEEDBACK_INBOX` was set to `support@penplayground.com` on both environments on the first
+  day and unset the same day: the owner confirmed no such mailbox exists, and the rule is that
+  the database and the console's Inbox are the record. The app names no mailbox anywhere; the
+  legal pages and the footer point at the contact form. The setting stays for a day a real inbox
+  wants a copy; it is
   an address, not a setting, so the console does not edit it.
 - `feedback-surveys.test.ts` (API), `feedback-surveys.test.ts` (db), `feedback-screen`,
   `survey-dialog`, `account-delete` (app) and `inbox-screen` (admin) pin the behaviour;

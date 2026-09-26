@@ -3,8 +3,9 @@
 # /etc/nginx/sites-available/STACK.conf (+ the sites-enabled link), then `nginx -t` and reload.
 #
 # Placeholders: DOMAIN, STACK (pen-staging / pen-production), STACK_ID (the same with
-# underscores, for nginx variable names), API_PORT, WEB_PORT, LIVEKIT_UPSTREAM, ENV_ROOT (the
-# stack's directory on the host, where the two includes below are rendered).
+# underscores, for nginx variable names), ENVIRONMENT, API_PORT, WEB_PORT, LIVEKIT_UPSTREAM,
+# ENV_ROOT (the stack's directory on the host, where the includes below are rendered by
+# deploy/nginx/render.sh).
 #
 # Everything is forwarded to the environment's web container, which serves the SPA and proxies
 # /api, /experts/portraits, /s and the /ws WebSocket to its own API container. /livekit/ goes
@@ -17,7 +18,7 @@ map $http_upgrade $STACK_ID_connection_upgrade {
     ""      close;
 }
 
-# Environment-specific server blocks (production: www → apex). Empty for staging.
+# Per-environment server blocks (production: www → apex). Empty for staging.
 include ENV_ROOT/nginx/servers.inc;
 
 server {
@@ -79,22 +80,8 @@ server {
         proxy_send_timeout 3600s;
     }
 
-    location / {
-        proxy_pass http://127.0.0.1:WEB_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $STACK_ID_connection_upgrade;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Request-ID $request_id;
-        # Lessons stream over one WebSocket for up to an hour; never buffer streamed responses.
-        proxy_buffering off;
-        proxy_request_buffering off;
-        proxy_connect_timeout 5s;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
+    # The web location: open (production) or gated behind one shared password (staging,
+    # ADR-0061), as the environment's PEN_EDGE_GATE says. Both forms forward through
+    # proxy-web.inc, so they differ only in who gets in.
+    include ENV_ROOT/nginx/web.inc;
 }

@@ -82,14 +82,28 @@ jobs:
 
       # The action reports success even when the key was refused ("invalid key" in its log),
       # and the deploy would then die at its first ssh with nothing said about why. Say it here.
+      # Two different failures, told apart: the runner never joined (the key was refused; the
+      # status below says "Logged out"), or it joined and the host's SSH port is not answering
+      # yet (a relayed path can take a little while to come up, so this waits up to 90 s).
       - name: Check the host is reachable over the tailnet
         run: |
-          if ! tailscale ping -c 3 --timeout 5s 100.118.252.64 >/dev/null 2>&1; then
-            echo "::error::The runner is not on the tailnet, or cannot reach prod-app-01. Most likely the TS_AUTHKEY secret was refused: an auth key must be REUSABLE (and ephemeral, pre-authorized) or it is spent by the first run. Mint one at https://login.tailscale.com/admin/settings/keys and run: gh secret set TS_AUTHKEY"
+          if ! tailscale status --self --peers=false >/dev/null 2>&1; then
+            echo "::error::The runner is not on the tailnet: the TS_AUTHKEY secret was refused. An auth key must be REUSABLE (and ephemeral, pre-authorized) or it is spent by the first run. Mint one at https://login.tailscale.com/admin/settings/keys and run: gh secret set TS_AUTHKEY"
             tailscale status || true
             exit 1
           fi
-          tailscale status --self
+          for i in $(seq 1 18); do
+            if timeout 5 bash -c '</dev/tcp/100.118.252.64/22' 2>/dev/null; then
+              echo "prod-app-01 answers on :22 (after $i attempt(s))"
+              tailscale ping -c 1 --timeout 5s 100.118.252.64 || true
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Joined the tailnet, but prod-app-01 (100.118.252.64) did not answer on :22 within 90 s. Is the host up, and is it still on the tailnet?"
+          tailscale ping -c 3 --timeout 5s 100.118.252.64 || true
+          tailscale status || true
+          exit 1
       - name: Install the deploy key
         run: |
           mkdir -p .deploy && chmod 700 .deploy
@@ -139,14 +153,28 @@ jobs:
 
       # The action reports success even when the key was refused ("invalid key" in its log),
       # and the deploy would then die at its first ssh with nothing said about why. Say it here.
+      # Two different failures, told apart: the runner never joined (the key was refused; the
+      # status below says "Logged out"), or it joined and the host's SSH port is not answering
+      # yet (a relayed path can take a little while to come up, so this waits up to 90 s).
       - name: Check the host is reachable over the tailnet
         run: |
-          if ! tailscale ping -c 3 --timeout 5s 100.118.252.64 >/dev/null 2>&1; then
-            echo "::error::The runner is not on the tailnet, or cannot reach prod-app-01. Most likely the TS_AUTHKEY secret was refused: an auth key must be REUSABLE (and ephemeral, pre-authorized) or it is spent by the first run. Mint one at https://login.tailscale.com/admin/settings/keys and run: gh secret set TS_AUTHKEY"
+          if ! tailscale status --self --peers=false >/dev/null 2>&1; then
+            echo "::error::The runner is not on the tailnet: the TS_AUTHKEY secret was refused. An auth key must be REUSABLE (and ephemeral, pre-authorized) or it is spent by the first run. Mint one at https://login.tailscale.com/admin/settings/keys and run: gh secret set TS_AUTHKEY"
             tailscale status || true
             exit 1
           fi
-          tailscale status --self
+          for i in $(seq 1 18); do
+            if timeout 5 bash -c '</dev/tcp/100.118.252.64/22' 2>/dev/null; then
+              echo "prod-app-01 answers on :22 (after $i attempt(s))"
+              tailscale ping -c 1 --timeout 5s 100.118.252.64 || true
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Joined the tailnet, but prod-app-01 (100.118.252.64) did not answer on :22 within 90 s. Is the host up, and is it still on the tailnet?"
+          tailscale ping -c 3 --timeout 5s 100.118.252.64 || true
+          tailscale status || true
+          exit 1
       - name: Install the deploy key
         run: |
           mkdir -p .deploy && chmod 700 .deploy

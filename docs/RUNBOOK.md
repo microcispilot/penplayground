@@ -73,6 +73,18 @@ deployed — **write it down**; that is the rollback target.
 Config-only change (`api.env`): edit on the host, then
 `docker compose up -d api`. Nothing else needs restarting.
 
+### Staging's password (ADR-0061)
+
+```sh
+# read it (root only; never printed by a deploy)
+ssh root@100.118.252.64 cat /srv/pen-staging/edge.credentials
+# replace it; the old one stops working at the reload
+deploy/deploy.sh staging --rotate-gate
+```
+
+`/api/health`, `/api/billing/webhook` and `/ws/` are open on purpose (the ADR says why); a
+`401` anywhere else on staging is the gate, not an outage.
+
 ### Rollback
 
 ```sh
@@ -386,7 +398,7 @@ git-ignored `.env`:
 | `PEN_BACKUP_SSH_KEY_B64` | the private key, base64 so the PEM survives as one line |
 | `PEN_BACKUP_SSH_PUBLIC_KEY` | the half already authorised on the box |
 | `PEN_BACKUP_REMOTE_USER` / `_HOST` / `_PORT` | `u672371` / `u672371.your-storagebox.de` / `23` |
-| `PEN_FEEDBACK_INBOX` | `support@penplayground.com` (ADR-0060; the console's Inbox is the record, the mail is a copy) |
+| `PEN_FEEDBACK_INBOX` | unset on both environments: no mailbox exists, and the console's Inbox is the record (ADR-0060). Set it, with SMTP, only if a real inbox should get a copy |
 | `PEN_BACKUP_RCLONE_REMOTE` | `hetzner:pen-staging` / `hetzner:pen-production` (deploy/env/*.conf; staging's copies before 2026-09-26 are under `hetzner:pen-playground`) |
 
 `deploy/deploy.sh` installs it on any host that does not already have one:

@@ -1,4 +1,4 @@
-import { LegalLayout, LegalLink, LI, Mail, P, Strong, UL } from './LegalLayout.js';
+import { Contact, LegalLayout, LegalLink, LI, P, Strong, UL } from './LegalLayout.js';
 
 /**
  * Terms of Use. Ported from Simurgh's structure and entity (Microcis, a
@@ -76,8 +76,8 @@ export function Terms() {
                 the device you are using, and your sessions belong to it. Signing in with Google
                 attaches a name, email address and profile picture to that same participant, so what
                 you already started comes with you and follows you to your other devices. Keep your
-                Google account secure, and tell us at <Mail /> if you believe someone else has
-                reached your Pen Playground account.
+                Google account secure, and tell us through <Contact /> if you believe someone else
+                has reached your Pen Playground account.
               </P>
             </>
           ),
@@ -95,10 +95,10 @@ export function Terms() {
               </P>
               <P>
                 You can create a session as private instead, and you can ask us to remove one of
-                yours at <Mail />. What you say out loud or type during a session becomes part of
-                that recording, so treat a session the way you would treat a room with the door
-                open: do not share secrets, credentials, someone else&rsquo;s personal information,
-                or material you do not have the right to share.
+                yours through <Contact />. What you say out loud or type during a session becomes
+                part of that recording, so treat a session the way you would treat a room with the
+                door open: do not share secrets, credentials, someone else&rsquo;s personal
+                information, or material you do not have the right to share.
               </P>
               <P>
                 The <LegalLink to="/privacy">Privacy Policy</LegalLink> describes what is processed
@@ -251,12 +251,12 @@ export function Terms() {
               </P>
               <P>
                 You can stop using the Service at any time, and you can ask us to delete your
-                account and your sessions at <Mail />. Sections that are meant to survive — your
-                grant for sessions already public, disclaimers, liability limits and governing law —
-                continue to apply afterwards.
+                account and your sessions through <Contact />. Sections that are meant to survive —
+                your grant for sessions already public, disclaimers, liability limits and governing
+                law — continue to apply afterwards.
               </P>
               <P>
-                Questions about these Terms: <Mail />.
+                Questions about these Terms: <Contact>contact us</Contact>.
               </P>
             </>
           ),

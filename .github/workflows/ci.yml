@@ -117,6 +117,12 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # The edge before the images: both environments' vhosts rendered as deploy.sh renders
+      # them, asserted (staging gated and unindexed, production open), and accepted by the nginx
+      # the host runs (ADR-0059, ADR-0061).
+      - name: Check the edge vhosts
+        run: deploy/nginx/test.sh
+
       # Built, never pushed: this job exists to catch a broken bundle, a missing
       # external, or a base image that moved — the same two images deploy.sh
       # ships. WITH_RENDER=1 is what production runs (Playwright + ffmpeg), so

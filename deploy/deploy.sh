@@ -27,6 +27,9 @@
 #   --edge           install the vhost even if this environment's site is not enabled yet: the
 #                    first time a domain goes live (certbot runs if the certificate is missing).
 #                    Once enabled, every later deploy refreshes the vhost on its own.
+#   --rotate-gate    a gated environment (PEN_EDGE_GATE=1, ADR-0061) gets a new password; the
+#                    old one stops working at the reload. Read the new one on the host in
+#                    <root>/edge.credentials. It is never printed here.
 #
 # Connection: PEN_DEPLOY_HOST (default root@100.118.252.64), PEN_DEPLOY_SSH_IDENTITY_FILE
 # (default ~/.ssh/id_ed25519), PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE (default ~/.ssh/known_hosts),
@@ -63,6 +66,7 @@ SKIP_SHIP=0
 NO_UP=0
 PROMOTE=0
 EDGE=0
+ROTATE_GATE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     staging|production) ENVIRONMENT="$1"; shift ;;
@@ -72,6 +76,7 @@ while [ $# -gt 0 ]; do
     --skip-ship) SKIP_SHIP=1; shift ;;
     --no-up) NO_UP=1; shift ;;
     --edge) EDGE=1; shift ;;
+    --rotate-gate) ROTATE_GATE=1; shift ;;
     # The whole header comment, however long it grows — up to `set -Eeuo pipefail`.
     -h|--help) sed -n '2,/^set -/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -80,24 +85,14 @@ done
 [ -n "$ENVIRONMENT" ] || die "which environment? deploy/deploy.sh staging | production [--promote]"
 
 # ── the environment (deploy/env/<name>.conf: identity, never secrets) ────────
-ENV_FILE="deploy/env/$ENVIRONMENT.conf"
-[ -f "$ENV_FILE" ] || die "missing $ENV_FILE"
-# Only KEY=VALUE lines are honoured, and the file is authoritative: an environment's identity
-# is not something a shell variable may nudge. What the shell may add is listed in the header.
-while IFS='=' read -r key value; do
-  case "$key" in ''|\#*) continue ;; esac
-  [[ "$key" =~ ^PEN_[A-Z_]+$ ]] || die "$ENV_FILE: '$key' is not a PEN_* setting"
-  printf -v "$key" '%s' "$value"
-done < "$ENV_FILE"
-for required in PEN_ENVIRONMENT PEN_DOMAIN PEN_WWW PEN_STACK PEN_DEPLOY_ROOT PEN_API_PORT PEN_WEB_PORT \
-  PEN_ADMIN_PORT PEN_PG_PORT PEN_SEARXNG_PORT PEN_INDEXABLE PEN_LIVEKIT_HOST PEN_BACKUP_RCLONE_REMOTE; do
-  [ -n "${!required:-}" ] || die "$ENV_FILE: $required is not set"
-done
-[ "$PEN_ENVIRONMENT" = "$ENVIRONMENT" ] || die "$ENV_FILE says PEN_ENVIRONMENT=$PEN_ENVIRONMENT"
-PEN_LEGACY_PREFIX="${PEN_LEGACY_PREFIX:-}"
-STACK_ID="${PEN_STACK//-/_}"
-SERVER_NAMES_EXTRA=""
-[ "$PEN_WWW" = 1 ] && SERVER_NAMES_EXTRA="www.$PEN_DOMAIN"
+# deploy/env/load.sh reads the file and derives the rest; deploy/nginx/render.sh uses the same
+# loader, so a vhost checked by deploy/nginx/test.sh is the vhost installed here. The file is
+# authoritative: an environment's identity is not something a shell variable may nudge. What
+# the shell may add is listed in the header.
+# shellcheck source=deploy/env/load.sh
+source deploy/env/load.sh
+load_env "$ENVIRONMENT" || die "deploy/env/$ENVIRONMENT.conf could not be loaded"
+[ "$ROTATE_GATE" = 0 ] || [ "$PEN_EDGE_GATE" = 1 ] || die "$ENVIRONMENT has no gate to rotate (PEN_EDGE_GATE=0)"
 
 # ── connection ───────────────────────────────────────────────────────────────
 PEN_DEPLOY_HOST="${PEN_DEPLOY_HOST:-root@100.118.252.64}"
@@ -165,7 +160,6 @@ API_IMAGE="pen-playground-api:${PEN_IMAGE_TAG}"
 WEB_IMAGE="pen-playground-web:${PEN_IMAGE_TAG}"
 ADMIN_IMAGE="pen-playground-admin:${PEN_IMAGE_TAG}"
 WITH_ADMIN="${PEN_WITH_ADMIN:-0}"
-LIVEKIT_UPSTREAM="$PEN_LIVEKIT_HOST:7880"
 echo "host: $PEN_DEPLOY_HOST ($remote_hostname)   env: $ENVIRONMENT   stack: $PEN_STACK   root: $PEN_DEPLOY_ROOT"
 echo "tag: $PEN_IMAGE_TAG   release: $GIT_SHA   domain: https://$PEN_DOMAIN   ports: api $PEN_API_PORT / web $PEN_WEB_PORT"
 
@@ -285,9 +279,6 @@ rsync -rltz -e "$RSYNC_SSH" \
   deploy/searxng/docker-compose.yml deploy/searxng/settings.yml deploy/searxng/README.md \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/searxng/"
 rsync -rltz -e "$RSYNC_SSH" \
-  deploy/nginx/site.conf.example deploy/nginx/acme.conf.example \
-  deploy/nginx/server-staging.inc deploy/nginx/server-production.inc \
-  deploy/nginx/servers-staging.inc deploy/nginx/servers-production.inc \
   deploy/nginx/pen-playground-admin.conf.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 rsync -rltz -e "$RSYNC_SSH" \
@@ -365,22 +356,44 @@ remote "mkdir -p '$PEN_DEPLOY_ROOT/livekit/certs' && chmod 0750 '$PEN_DEPLOY_ROO
 remote "find '$PEN_DEPLOY_ROOT' -maxdepth 2 -type f \\( -name '*.yml' -o -name '*.example' -o -name '*.md' -o -name '*.inc' \\) -exec chmod 0644 {} +"
 
 # ── 4. render the edge for this environment ──────────────────────────────────
-# The vhost and its two includes, from the templates, with this environment's values.
+# The vhost and its includes, from the templates, with this environment's values: rendered here
+# by deploy/nginx/render.sh (the script deploy/nginx/test.sh runs against nginx), then synced.
 log "rendering vhost $PEN_STACK.conf"
-render="sed -e 's|SERVER_NAMES_EXTRA|$SERVER_NAMES_EXTRA|g' -e 's|DOMAIN|$PEN_DOMAIN|g' -e 's|STACK_ID|$STACK_ID|g' -e 's|STACK|$PEN_STACK|g' \
-  -e 's|API_PORT|$PEN_API_PORT|g' -e 's|WEB_PORT|$PEN_WEB_PORT|g' -e 's|LIVEKIT_UPSTREAM|$LIVEKIT_UPSTREAM|g' \
-  -e 's|ENV_ROOT|$PEN_DEPLOY_ROOT|g' -e 's|LEGACY_PREFIX|$PEN_LEGACY_PREFIX|g'"
-remote "set -e; cd '$PEN_DEPLOY_ROOT/nginx'
-  $render site.conf.example > '$PEN_STACK.conf'
-  $render acme.conf.example > '$PEN_STACK-acme.conf'
-  $render servers-$ENVIRONMENT.inc > servers.inc
-  $render server-$ENVIRONMENT.inc > server.inc"
-if [ "$ENVIRONMENT" = staging ] && [ -z "$PEN_LEGACY_PREFIX" ]; then
-  # No prefix to redirect from: the two locations would otherwise match "/".
-  remote "cd '$PEN_DEPLOY_ROOT/nginx' && sed -i '/^location ^~ \\//,\$d' server.inc"
+rendered="$(mktemp -d)"
+trap 'rm -rf "$rendered"' EXIT
+deploy/nginx/render.sh "$ENVIRONMENT" "$rendered" || die "the edge templates did not render for $ENVIRONMENT"
+rsync -rltz -e "$RSYNC_SSH" "$rendered/" "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
+echo "  $(ls "$rendered" | tr '\n' ' ')→ $PEN_DEPLOY_ROOT/nginx/"
+
+# The gate (ADR-0061): one shared user, its hash where nginx's workers can read it, the password
+# where only root can, and neither in this output. Written once, kept across deploys, replaced
+# on --rotate-gate. An open environment keeps no gate files at all.
+gate_htpasswd="/etc/nginx/$PEN_STACK.htpasswd"
+gate_credentials="$PEN_DEPLOY_ROOT/edge.credentials"
+if [ "$PEN_EDGE_GATE" = 1 ]; then
+  if [ "$ROTATE_GATE" = 1 ] || ! remote "[ -s '$gate_htpasswd' ] && [ -s '$gate_credentials' ]"; then
+    log "gate: writing a new password for https://$PEN_DOMAIN"
+    remote "set -e
+      umask 077
+      pass=\$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24)
+      hash=\$(printf '%s' \"\$pass\" | openssl passwd -apr1 -stdin)
+      printf 'pen:%s\n' \"\$hash\" > '$gate_htpasswd.next'
+      chown root:www-data '$gate_htpasswd.next' && chmod 0640 '$gate_htpasswd.next'
+      mv -f '$gate_htpasswd.next' '$gate_htpasswd'
+      {
+        printf '# The gate on https://%s (ADR-0061). Share with whoever should see %s.\n' '$PEN_DOMAIN' '$ENVIRONMENT'
+        printf '# Rotate with: deploy/deploy.sh %s --rotate-gate\n' '$ENVIRONMENT'
+        printf 'user=pen\npassword=%s\n' \"\$pass\"
+      } > '$gate_credentials.next'
+      chmod 0600 '$gate_credentials.next' && mv -f '$gate_credentials.next' '$gate_credentials'" \
+      || die "could not write the gate's password on the host"
+    echo "  written: $gate_htpasswd (root:www-data 0640) and $gate_credentials (root 0600)"
+  else
+    echo "  gate: on; the password is kept (read it on the host: $gate_credentials; new one: --rotate-gate)"
+  fi
+else
+  remote "rm -f '$gate_htpasswd' '$gate_credentials'"
 fi
-[ "$PEN_INDEXABLE" = 1 ] || remote "grep -q 'X-Robots-Tag' '$PEN_DEPLOY_ROOT/nginx/server.inc'" \
-  || die "$ENVIRONMENT is not indexable but its server.inc carries no X-Robots-Tag"
 
 # ── 5. secrets present? (.env is managed here; api.env / postgres.env are never generated) ──
 log "checking secrets"
@@ -548,11 +561,31 @@ if [ "$EDGE" = 1 ] || remote "[ -e '$enabled' ]"; then
   else
     die "https://$PEN_DOMAIN/api/health did not answer as $PEN_ENVIRONMENT @ $GIT_SHA: ${edge_health:-no answer}"
   fi
+  # The front door, as a stranger and (for a gated environment) as someone with the password.
+  front="$(curl -sSI -m 10 "https://$PEN_DOMAIN/" | tr -d '\r')"
+  front_status="$(printf '%s\n' "$front" | head -1 | awk '{print $2}')"
+  if [ "$PEN_EDGE_GATE" = 1 ]; then
+    [ "$front_status" = 401 ] || die "the gate is not on: https://$PEN_DOMAIN/ answered $front_status, not 401"
+    printf '%s\n' "$front" | grep -qi '^www-authenticate: basic' || die "https://$PEN_DOMAIN/ answered 401 without WWW-Authenticate: Basic"
+    # The password never enters this process's arguments or output: curl reads it as a config line.
+    gate_user="$(remote "sed -n 's/^user=//p' '$gate_credentials'")"
+    gate_pass="$(remote "sed -n 's/^password=//p' '$gate_credentials'")"
+    [ -n "$gate_user" ] && [ -n "$gate_pass" ] || die "$gate_credentials on the host names no user/password"
+    printf 'user = "%s:%s"\n' "$gate_user" "$gate_pass" \
+      | curl -fsS -m 10 -K - "https://$PEN_DOMAIN/" | grep -q "name=\"pen-environment\" content=\"$PEN_ENVIRONMENT\"" \
+      || die "https://$PEN_DOMAIN/ did not open with the gate's password"
+    unset gate_pass
+    webhook_status="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' -X POST "https://$PEN_DOMAIN/api/billing/webhook")"
+    [ "$webhook_status" != 401 ] || die "the gate is in front of Stripe's webhook (401); it must reach the API"
+    echo "  gate: on — 401 for a stranger, the app with the password, /api/health and Stripe's webhook open"
+  else
+    [ "$front_status" = 200 ] || die "https://$PEN_DOMAIN/ answered $front_status, not 200"
+  fi
   if [ "$PEN_INDEXABLE" = 1 ]; then
     curl -fsS -m 10 "https://$PEN_DOMAIN/robots.txt" | grep -q '^Allow\|^Disallow: /api' \
       && echo "  robots: indexable" || echo "  robots: WARNING, /robots.txt did not read as production's"
   else
-    curl -fsSI -m 10 "https://$PEN_DOMAIN/" | grep -qi '^x-robots-tag: noindex' \
+    printf '%s\n' "$front" | grep -qi '^x-robots-tag: noindex' \
       && echo "  robots: noindex on every response" || die "https://$PEN_DOMAIN/ is missing X-Robots-Tag: noindex"
   fi
 else
