@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { createNodeWebSocket } from '@hono/node-ws';
 import {
+  avatarHue,
   BoardPreference,
   ClientMessage,
   CommentBody,
@@ -10,6 +11,7 @@ import {
   decodeAudioFrame,
   FeatureFlagsMutation,
   FeatureFlagsRollback,
+  MAX_PARTICIPANTS,
   PACE_DEFAULT,
   Pace,
   ParticipantId,
@@ -20,6 +22,7 @@ import {
   type Platform,
   planAllowsExpert,
   platformFromHeader,
+  type RoomInvite,
   RuntimeConfigMutation,
   RuntimeConfigRollback,
   recordingIsPrivateTo,
@@ -1315,6 +1318,78 @@ export function buildApp(services: Services): App {
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
     return c.json(await usageFor(claims));
   });
+  /**
+   * May this caller take a seat in this room (ADR-0058)? The host always; a
+   * guest only with `join_rooms`, which is a paid plan on either tier and
+   * never a visitor without an account; nobody once the seats are taken.
+   * One answer for the invite page and for the socket, so the page never
+   * promises what the socket refuses.
+   */
+  const roomAccess = (
+    live: LiveRoom,
+    caller: Claims | null,
+    platform: Platform,
+  ): RoomInvite['access'] => {
+    const state = live.room.getState();
+    if (state.phase === 'ended') return { canJoin: false, reason: 'ended' };
+    if (caller && caller.sub === live.record.hostId) return { canJoin: true, reason: 'host' };
+    const seated = caller ? state.participants.some((p) => p.id === caller.sub) : false;
+    const allowed =
+      caller !== null &&
+      services.features.enabled('join_rooms', {
+        plan: caller.plan,
+        platform,
+        anonymous: caller.anonymous,
+      });
+    if (!allowed) return { canJoin: false, reason: 'subscription_required' };
+    if (!seated && state.participants.length >= MAX_PARTICIPANTS)
+      return { canJoin: false, reason: 'room_full' };
+    return { canJoin: true, reason: null };
+  };
+
+  /**
+   * The invite page's facts (ADR-0058): whose room, what is taught, who is
+   * in it, and whether this caller may come in. Readable without a bearer,
+   * because the link is what a host hands out and the page has to make sense
+   * to somebody who has never been here; a visitor is offered a plan.
+   */
+  app.get('/api/sessions/:id/invite', async (c) => {
+    const id = c.req.param('id');
+    const record = await services.sessions.resolve(id);
+    if (!record) return c.json({ error: 'NOT_FOUND' }, 404);
+    const claims = await bearer(c.req.header('authorization'));
+    const live = rooms.get(record.id);
+    const state = live?.room.getState() ?? null;
+    const hostSeat = state?.participants.find((p) => p.id === record.hostId);
+    const guests = (state?.participants ?? [])
+      .filter((p) => p.id !== record.hostId)
+      .map((p) => ({ name: p.name, hue: p.hue }));
+    const access: RoomInvite['access'] = live
+      ? roomAccess(live, claims, platformOf(c))
+      : { canJoin: false, reason: 'ended' };
+    if (claims && claims.sub !== record.hostId)
+      services.analytics.capture(claims.sub, 'room_invite_viewed', {
+        sessionId: record.id,
+        canJoin: access.canJoin,
+        reason: access.reason,
+      });
+    const invite: RoomInvite = {
+      sessionId: record.id,
+      topic: record.topic,
+      title: record.title,
+      expertId: record.expertId,
+      host: {
+        name: hostSeat?.name ?? record.hostName,
+        hue: hostSeat?.hue ?? avatarHue(record.hostId),
+      },
+      guests,
+      seats: { taken: state?.participants.length ?? 0, total: MAX_PARTICIPANTS },
+      phase: state?.phase ?? 'ended',
+      startedAt: record.startedAt,
+      access,
+    };
+    return c.json(invite);
+  });
   app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
     // `resolve`, not `get`: an id collapsed into another telling of the same
@@ -2515,7 +2590,9 @@ export function buildApp(services: Services): App {
   // ── room socket ──────────────────────────────────────────────────────────
   app.get(
     '/ws/room',
-    upgradeWebSocket(() => {
+    upgradeWebSocket((c) => {
+      // The caller's platform, read at the upgrade: the flags a seat is judged by (ADR-0036).
+      const platform = platformOf(c);
       let claims: Claims | null = null;
       let sessionId: string | null = null;
       let authTimer: NodeJS.Timeout | null = null;
@@ -2700,6 +2777,25 @@ export function buildApp(services: Services): App {
             return;
           }
           if (msg.kind === 'join') {
+            // A seat is a paid plan's (ADR-0058). Judged here as well as on the
+            // invite page, because the page is advice and the socket is the door.
+            const wanted = rooms.get(msg.sessionId);
+            if (wanted) {
+              const access = roomAccess(wanted, claims, platform);
+              if (!access.canJoin && access.reason === 'subscription_required') {
+                observer.event('rooms.join_refused', { reason: access.reason, plan: claims.plan });
+                services.analytics.capture(claims.sub, 'room_join_refused', {
+                  sessionId: msg.sessionId,
+                  reason: access.reason,
+                });
+                fail(
+                  ws,
+                  'SUBSCRIPTION_REQUIRED',
+                  'Joining a room is part of the Standard and Professional plans.',
+                );
+                return;
+              }
+            }
             const attached = rooms.attach(msg.sessionId, raw, {
               id: claims.sub,
               name: msg.name ? safeName(msg.name) : claims.name,

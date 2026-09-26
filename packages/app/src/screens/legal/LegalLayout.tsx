@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router';
 
 /** The day these pages last changed; both pages show the same one. */
-export const LEGAL_UPDATED = '17 September 2026';
+export const LEGAL_UPDATED = '25 September 2026';
 export const LEGAL_CONTACT = 'support@penplayground.com';
 
 export interface LegalSection {
@@ -53,7 +53,7 @@ export function Mail({ address = LEGAL_CONTACT }: { address?: string }) {
   );
 }
 
-/** A cross-link between the two legal pages, inside the prose. */
+/** A cross-link between the legal pages, inside the prose. */
 export function LegalLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <NavLink
@@ -149,6 +149,8 @@ export function LegalLayout({
               <LegalLink to="/terms">Terms of Use</LegalLink>
               <span aria-hidden>·</span>
               <LegalLink to="/privacy">Privacy Policy</LegalLink>
+              <span aria-hidden>·</span>
+              <LegalLink to="/refunds">Cancellation and Refunds</LegalLink>
             </p>
           </footer>
         </article>

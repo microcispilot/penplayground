@@ -168,7 +168,7 @@ test.describe('the app shell', () => {
     await expect(footer).toContainText('© 2026 Microcis');
     await footer.getByRole('link', { name: 'Terms' }).click();
     await expect(page.getByRole('heading', { name: 'Terms of Use', level: 1 })).toBeVisible();
-    await expect(page.getByText('Last updated 17 September 2026')).toBeVisible();
+    await expect(page.getByText('Last updated 25 September 2026')).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'On this page' })).toBeVisible();
     // No draft badge, no consent banner: the owner asked for a calm page.
     await expect(page.getByText(/draft|counsel/i)).toHaveCount(0);

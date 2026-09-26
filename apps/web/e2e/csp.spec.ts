@@ -93,6 +93,10 @@ test.describe('content security policy', () => {
       await expect(p.getByRole('heading', { name: /Terms/ }).first()).toBeVisible({
         timeout: 20_000,
       });
+      await p.goto('/refunds');
+      await expect(p.getByRole('heading', { name: /Refund/ }).first()).toBeVisible({
+        timeout: 20_000,
+      });
       await p.goto('/privacy');
       await expect(p.getByRole('heading', { name: /Privacy/ }).first()).toBeVisible({
         timeout: 20_000,

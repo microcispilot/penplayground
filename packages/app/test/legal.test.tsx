@@ -2,6 +2,7 @@ import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LEGAL_CONTACT, LEGAL_UPDATED } from '../src/screens/legal/LegalLayout.js';
 import { Privacy } from '../src/screens/legal/Privacy.js';
+import { REFUND_WINDOW_HOURS, Refunds } from '../src/screens/legal/Refunds.js';
 import { Terms } from '../src/screens/legal/Terms.js';
 import { renderWithApp } from './harness.js';
 
@@ -135,5 +136,57 @@ describe('Privacy Policy', () => {
     cleanup();
     const terms = renderWithApp(<Terms />, { route: '/terms' });
     expect(terms.container.querySelector('a[href="/privacy"]')).toBeTruthy();
+  });
+});
+
+const REFUND_SECTIONS = [
+  'Overview',
+  'Cancelling your subscription',
+  'The 48-hour refund window',
+  'After 48 hours',
+  'Yearly plans',
+  'The free plan',
+  'Billing errors and your legal rights',
+  'How to request a refund',
+  'Changes and contact',
+];
+
+/**
+ * The owner's rule (2026-09-25, ADR-0057): "People can cancel within 48
+ * hours for full refund, otherwise they're not receiving any refund."
+ */
+describe('Cancellation and Refund Policy', () => {
+  it('renders every section, in order, with the date and the contact', () => {
+    renderWithApp(<Refunds />, { route: '/refunds' });
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Cancellation and Refund Policy' }),
+    ).toBeTruthy();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual(REFUND_SECTIONS.map((t, i) => `${i + 1}. ${t}`));
+    expect(document.body.textContent).toContain(`Last updated ${LEGAL_UPDATED}`);
+    expect(screen.getAllByRole('link', { name: LEGAL_CONTACT }).length).toBeGreaterThan(0);
+  });
+
+  it('states the 48-hour rule both ways, and what stays', () => {
+    expect(REFUND_WINDOW_HOURS).toBe(48);
+    renderWithApp(<Refunds />, { route: '/refunds' });
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('cancel within 48 hours of the charge, that charge is refunded in full');
+    expect(text).toContain('more than 48 hours old is not refunded, in whole or in part');
+    expect(text).toContain('stays active until the end of the period you have paid for');
+    expect(text).toContain('Every charge, whether it is your first payment or a renewal');
+    expect(text).toContain('Stripe');
+    expect(text).toContain('nothing in this policy limits it');
+    expect(text).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  it('is linked from the Terms, and links to both other pages', () => {
+    const refunds = renderWithApp(<Refunds />, { route: '/refunds' });
+    expect(refunds.container.querySelector('a[href="/terms"]')).toBeTruthy();
+    expect(refunds.container.querySelector('a[href="/privacy"]')).toBeTruthy();
+    cleanup();
+    const terms = renderWithApp(<Terms />, { route: '/terms' });
+    expect(terms.container.querySelector('a[href="/refunds"]')).toBeTruthy();
+    expect(document.body.textContent).toContain('within 48 hours');
   });
 });

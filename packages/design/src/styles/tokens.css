@@ -476,7 +476,8 @@
    * not make them zoomed").
    */
   --shadow-thumb: 0 0 0 1px color-mix(in oklch, var(--color-outline-variant) 45%, transparent);
-  --shadow-thumb-hover: 0 0 0 1px color-mix(in oklch, var(--color-outline-variant) 70%, transparent),
+  --shadow-thumb-hover:
+    0 0 0 1px color-mix(in oklch, var(--color-outline-variant) 70%, transparent),
     var(--shadow-level1);
   /* The board itself: paper, so it needs the same boundary at room scale. */
   --shadow-board: 0 0 0 1px var(--color-outline-variant), var(--shadow-level2);

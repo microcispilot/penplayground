@@ -155,3 +155,62 @@ export const RoomState = z.object({
 export type RoomState = z.infer<typeof RoomState>;
 
 export const MAX_PARTICIPANTS = 12;
+
+/**
+ * What somebody who opens a room's link is shown before they take a seat
+ * (ADR-0058): whose room it is, what is being taught, who is already in it,
+ * and whether this caller may come in. The server decides `access` from the
+ * caller's plan and the room's seats, so a client never reasons about plans.
+ */
+export const RoomInviteReason = z.enum([
+  /** The caller is the host. */
+  'host',
+  /** Joining a room needs a paid plan (`join_rooms`). */
+  'subscription_required',
+  'room_full',
+  /** The session has ended, or is not live yet. */
+  'ended',
+]);
+export type RoomInviteReason = z.infer<typeof RoomInviteReason>;
+
+export const RoomInvitePerson = z.object({
+  name: z.string().min(1).max(60),
+  /** Deterministic avatar colour index, the same one the roster draws. */
+  hue: z.number().int().min(0).max(359),
+});
+export type RoomInvitePerson = z.infer<typeof RoomInvitePerson>;
+
+export const RoomInvite = z.object({
+  sessionId: SessionId,
+  topic: z.string().max(200),
+  title: z.string().max(200),
+  expertId: ExpertId,
+  host: RoomInvitePerson,
+  /** Everyone seated but the host, in the order they arrived. */
+  guests: z.array(RoomInvitePerson).max(MAX_PARTICIPANTS),
+  seats: z.object({
+    taken: z.number().int().nonnegative(),
+    total: z.number().int().positive(),
+  }),
+  phase: SessionPhase,
+  startedAt: z.number().int(),
+  access: z.object({
+    canJoin: z.boolean(),
+    reason: RoomInviteReason.nullable(),
+  }),
+});
+export type RoomInvite = z.infer<typeof RoomInvite>;
+
+/**
+ * "Sam, Ana and 5 others are learning together": the host first, then the
+ * guests as they arrived, two names at most and the rest counted. One name
+ * is a host waiting for company, and says so.
+ */
+export function describeCompany(names: readonly string[]): string {
+  const [first, second, ...rest] = names;
+  if (!first) return 'The room is open';
+  if (!second) return `${first} is waiting for you`;
+  if (rest.length === 0) return `${first} and ${second} are learning together`;
+  if (rest.length === 1) return `${first}, ${second} and ${rest[0]} are learning together`;
+  return `${first}, ${second} and ${rest.length} others are learning together`;
+}

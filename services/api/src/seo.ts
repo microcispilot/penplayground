@@ -24,6 +24,7 @@ export const STATIC_PAGES: ReadonlyArray<{
   { path: '/pricing', changefreq: 'monthly', priority: '0.5' },
   { path: '/terms', changefreq: 'monthly', priority: '0.3' },
   { path: '/privacy', changefreq: 'monthly', priority: '0.3' },
+  { path: '/refunds', changefreq: 'monthly', priority: '0.3' },
 ];
 
 export function xmlEscape(s: string): string {

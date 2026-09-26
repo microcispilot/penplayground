@@ -19,6 +19,7 @@ import {
   RecapPanel,
   RoomStatus,
 } from './RoomChrome.js';
+import { RoomInviteGate, useRoomAccess } from './RoomInviteGate.js';
 import { SessionPanel, useSessionPanel } from './SessionPanel.js';
 import { SoloPresence } from './SoloPresence.js';
 import { VideoAd } from './VideoAd.js';
@@ -107,6 +108,16 @@ export function SessionPlayer({
   const ui = useRoomStore();
   const docked = useDocked();
   const inline = layout === 'inline';
+  /**
+   * Whether this learner may take a seat, before the socket is opened
+   * (ADR-0058). Only the room screen asks: the inline player is the
+   * learner's own fresh session, and there is no seat to be refused.
+   */
+  const access = useRoomAccess(
+    inline ? null : id,
+    participant,
+    ui.errorCode === 'SUBSCRIPTION_REQUIRED',
+  );
   // Remembered across visits, like the shell's own sidebar (ADR-0015).
   const { open: panelOpen, toggle: toggleDockedPanel } = useSessionPanel(platform.storage);
   // On a narrow screen the panel is a drawer over the board: a remembered
@@ -146,7 +157,7 @@ export function SessionPlayer({
   // Start the session once we have a participant. Audio needs a user gesture: if we arrived
   // from a click (Start session) the context unlocks silently; otherwise we show one button.
   useEffect(() => {
-    if (!participant) return;
+    if (!participant || access.status !== 'open') return;
     const s = new RoomSession({
       api,
       platform,
@@ -164,7 +175,7 @@ export function SessionPlayer({
       s.dispose();
       setSession(null);
     };
-  }, [api, platform, id, participant]);
+  }, [api, platform, id, participant, access.status]);
 
   /**
    * Inline, an ended session hands the page back the moment it ends: the
@@ -279,6 +290,10 @@ export function SessionPlayer({
       window.setTimeout(() => setFlash(null), 600);
     }
   }, [session, ui.state, ui.phase, inline]);
+
+  // The invite page (ADR-0058): the server said this seat is a paid plan's, or the room is full.
+  if (access.status === 'gated' && access.invite)
+    return <RoomInviteGate invite={access.invite} expert={expert} onExit={onExit} />;
 
   if (ui.errorText) {
     return (

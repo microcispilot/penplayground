@@ -7,8 +7,9 @@ import {
 import { Button, cn, Pill, SegmentedButtons, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '../api/client.js';
+import { RETURN_TO_KEY } from '../components/RoomInviteGate.js';
 import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 
@@ -83,7 +84,7 @@ const PLANS = [
       'Everything in Standard',
       `All ${LEGENDS_BY_PLAN.professional} legendary teachers, including Newton and Shakespeare`,
       'Every board, including smoked glass',
-      'Live rooms for up to 12 people',
+      'Live rooms for up to 12 people, each on a plan of their own',
       'The expert hears the whole room and answers each person by name',
       'A chat that shows who asked what, so no one is talked over',
       'The whole class recorded, to watch again or export',
@@ -96,6 +97,7 @@ export function Pricing() {
   const { participant, api, platform } = useApp();
   const toast = useToast();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const [interval, setInterval] = useState<'month' | 'year'>('month');
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -107,9 +109,20 @@ export function Pricing() {
   }, [api]);
   useEffect(() => {
     const r = params.get('checkout');
-    if (r === 'success') toast('Welcome aboard. Your plan is active.', 'success');
+    if (r === 'success') {
+      toast('Welcome aboard. Your plan is active.', 'success');
+      // Back to the room whose link brought them here (ADR-0058), if one did.
+      let returnTo: string | null = null;
+      try {
+        returnTo = sessionStorage.getItem(RETURN_TO_KEY);
+        sessionStorage.removeItem(RETURN_TO_KEY);
+      } catch {
+        /* nothing remembered */
+      }
+      if (returnTo?.startsWith('/room/')) navigate(returnTo, { replace: true });
+    }
     if (r === 'cancelled') toast('Checkout cancelled.');
-  }, [params, toast]);
+  }, [params, toast, navigate]);
   const buy = async (plan: 'standard' | 'professional') => {
     trackAction('plan_selected', { plan, interval, from: participant?.plan ?? 'free' });
     setBusy(plan);
@@ -223,7 +236,11 @@ export function Pricing() {
             })}
           </div>
           <p className="mt-8 text-center text-body-small text-on-surface-dim">
-            Cancel any time. Prices in USD.
+            Cancel any time. A full refund within 48 hours of any charge; see the{' '}
+            <Link to="/refunds" className="underline underline-offset-[3px] hover:text-on-surface">
+              refund policy
+            </Link>
+            . Prices in USD.
           </p>
         </div>
       </div>

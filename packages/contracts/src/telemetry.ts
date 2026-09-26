@@ -220,6 +220,8 @@ export const ActionName = z.enum([
   'topic_chosen',
   'session_opened',
   'join_clicked',
+  /** The invite page stood between a visitor and a room; `reason` says why (subscription_required, room_full). */
+  'room_invite_shown',
   'watch_recording_clicked',
   // what the page put in the way
   /** The allowance or capacity line appeared on Home; `reason`. */

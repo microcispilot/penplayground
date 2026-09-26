@@ -84,6 +84,8 @@ export const FeatureName = z.enum([
   'session_download',
   /** Host a room with guests. */
   'rooms',
+  /** Take a seat in someone else's room: a paid plan, either one (ADR-0058). */
+  'join_rooms',
   /** Video ads between segments and while a topic is prepared. */
   'ads',
   /** The chat between the people in a room. */
@@ -189,6 +191,13 @@ export const FEATURES: Readonly<Record<FeatureName, FeatureDefinition>> = Object
     description: 'Host a session with guests: invitations, guest voice, the roster.',
     group: 'Sessions',
     rule: fromEntitlement('rooms'),
+  },
+  join_rooms: {
+    label: 'Join rooms',
+    description:
+      "Take a seat in someone else's room by its link. A subscription on either paid plan; a visitor or a free account sees who is in the room and is offered a plan instead (ADR-0058).",
+    group: 'Sessions',
+    rule: fromEntitlement('join_rooms'),
   },
   recording_playback: {
     label: 'Watch your recording',

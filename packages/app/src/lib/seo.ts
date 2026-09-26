@@ -164,6 +164,11 @@ export function seoForPath(pathname: string): Seo {
       title: 'Privacy Policy',
       description: 'What Pen Playground collects, why, and what you can ask us to delete.',
     };
+  if (pathname === '/refunds')
+    return {
+      title: 'Cancellation and Refund Policy',
+      description: 'How to cancel a Pen Playground plan, and the 48-hour full refund window.',
+    };
   // The shelves are one learner's own: a real title in the tab, never in an index.
   const SHELVES: Record<string, string> = {
     '/history': 'History',

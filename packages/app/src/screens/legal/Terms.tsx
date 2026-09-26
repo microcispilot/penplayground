@@ -34,7 +34,9 @@ export function Terms() {
               </P>
               <P>
                 On the Professional plan a session can be a room: you host, and the people you
-                invite listen, watch the same board and ask their own questions.
+                invite listen, watch the same board and ask their own questions. A seat in a room is
+                part of the Standard and Professional plans, so each guest joins on a plan of their
+                own.
               </P>
             </>
           ),
@@ -124,9 +126,12 @@ export function Terms() {
               <P>
                 Paid plans are billed in advance through Stripe and renew automatically until you
                 cancel. Cancelling stops the next renewal and leaves your paid access in place until
-                the end of the period you have already paid for. You can manage or cancel your
-                subscription from the billing portal at any time. Where the law gives you a
-                withdrawal or refund right, that right applies regardless of anything here.
+                the end of the period you have already paid for. A charge is refunded in full when
+                you cancel within 48 hours of it, and is not refunded after that; the{' '}
+                <LegalLink to="/refunds">Cancellation and Refund Policy</LegalLink> has the detail.
+                You can manage or cancel your subscription from the billing portal at any time.
+                Where the law gives you a withdrawal or refund right, that right applies regardless
+                of anything here.
               </P>
             </>
           ),

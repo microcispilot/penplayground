@@ -59,6 +59,9 @@ const Terms = lazy(async () => ({ default: (await import('./screens/legal/Terms.
 const Privacy = lazy(async () => ({
   default: (await import('./screens/legal/Privacy.js')).Privacy,
 }));
+const Refunds = lazy(async () => ({
+  default: (await import('./screens/legal/Refunds.js')).Refunds,
+}));
 
 /** Which screen is on: a route pattern, never the id in it (ids are not content, but screens are what we chart). */
 function screenOf(pathname: string): string {
@@ -78,6 +81,7 @@ function screenOf(pathname: string): string {
   if (pathname === '/rooms') return 'rooms';
   if (pathname === '/terms') return 'terms';
   if (pathname === '/privacy') return 'privacy';
+  if (pathname === '/refunds') return 'refunds';
   return 'not-found';
 }
 
@@ -184,6 +188,7 @@ export function PenApp({ platform }: { platform: Platform }) {
                 <Route path="/account" element={<Account />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
+                <Route path="/refunds" element={<Refunds />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               {/* The board is the whole screen here: no shell, no sidebar. */}

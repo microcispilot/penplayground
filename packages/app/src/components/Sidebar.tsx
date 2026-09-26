@@ -429,6 +429,10 @@ function SidebarFooter({ onNavigate }: { onNavigate?: (() => void) | undefined }
         <NavLink to="/privacy" onClick={onNavigate} className="hover:text-on-surface">
           Privacy
         </NavLink>
+        <span aria-hidden>·</span>
+        <NavLink to="/refunds" onClick={onNavigate} className="hover:text-on-surface">
+          Refunds
+        </NavLink>
       </div>
       {/* The AI line moved to the Terms page, where it is stated in full; the
           copyright takes the place it had, so the footer keeps its two lines. */}

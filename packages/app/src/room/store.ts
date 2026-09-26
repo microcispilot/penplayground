@@ -6,6 +6,7 @@ import type {
   NoteEvent,
   PreparationProgress,
   RoomState,
+  ServerErrorCode,
 } from '@pen/contracts';
 import { create } from 'zustand';
 import type { RoomAudioUi } from './audio/RoomAudio.js';
@@ -87,6 +88,8 @@ export interface RoomUiState {
   /** Wall-clock derived lesson clock for the bottom bar. */
   clockMs: number;
   errorText: string | null;
+  /** The code behind `errorText`, when the server sent one; the player picks a screen by it (ADR-0058). */
+  errorCode: ServerErrorCode | null;
   /** Human-to-human audio (LiveKit): presence, speaking, mute state. `status: 'off'` in solo sessions. */
   audio: RoomAudioUi;
 }
@@ -121,6 +124,7 @@ const initial: RoomUiState = {
   notes: [],
   clockMs: 0,
   errorText: null,
+  errorCode: null,
   audio: {
     status: 'off',
     participants: {},

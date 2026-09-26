@@ -78,7 +78,7 @@ afterAll(async () => {
   await stop?.();
 });
 
-async function caller(name: string, plan: 'free' | 'professional') {
+async function caller(name: string, plan: 'free' | 'standard' | 'professional') {
   const issued = await identity.issue({ name, plan, anonymous: false });
   await services.participants.ensure({ id: issued.claims.sub, name, plan, anonymous: false });
   return {
@@ -123,7 +123,8 @@ const settle = () => new Promise((r) => setTimeout(r, 400));
 describe('ending a room over the socket', () => {
   it("is the host's alone: a guest is refused and the lesson goes on", async () => {
     const hostCaller = await caller('Ada', 'professional');
-    const guestCaller = await caller('Kim', 'free');
+    // A seat is a paid plan's (ADR-0058); Standard is enough to sit, not to host or to end.
+    const guestCaller = await caller('Kim', 'standard');
     const created = await fetch(`${apiUrl}/api/sessions`, {
       method: 'POST',
       headers: hostCaller.headers,

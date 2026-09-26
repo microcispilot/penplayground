@@ -18,6 +18,7 @@ export type KeyOwner = z.infer<typeof KeyOwner>;
 export const Entitlement = z.enum([
   'no_ads',
   'rooms', // host multi-participant sessions
+  'join_rooms', // take a seat in someone else's room (ADR-0058: a paid plan, either one)
   'export', // MP4 download of an ended session (paid plans)
   'premium_voices',
   'priority_preparation',
@@ -27,10 +28,18 @@ export type Entitlement = z.infer<typeof Entitlement>;
 
 export const PLAN_ENTITLEMENTS: Record<PlanCode, readonly Entitlement[]> = {
   free: [],
-  standard: ['no_ads', 'export', 'premium_voices', 'priority_preparation', 'unlimited_sessions'],
+  standard: [
+    'no_ads',
+    'join_rooms',
+    'export',
+    'premium_voices',
+    'priority_preparation',
+    'unlimited_sessions',
+  ],
   professional: [
     'no_ads',
     'rooms',
+    'join_rooms',
     'export',
     'premium_voices',
     'priority_preparation',

@@ -438,9 +438,10 @@ export class RoomSession {
               m.code === 'UNAUTHORIZED' ||
               m.code === 'ROOM_FULL' ||
               m.code === 'REMOVED' ||
-              m.code === 'ENTITLEMENT_REQUIRED'
+              m.code === 'ENTITLEMENT_REQUIRED' ||
+              m.code === 'SUBSCRIPTION_REQUIRED'
             )
-              set({ errorText: m.message });
+              set({ errorText: m.message, errorCode: m.code });
           }
         },
         onAudio: (header, pcm) => this.conductor.handleAudio(header, pcm),

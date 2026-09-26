@@ -12,6 +12,7 @@ import {
   PLATFORM_HEADER,
   PlanUsage,
   type Platform,
+  RoomInvite,
   RoomState,
   SaveResult,
   SessionComment,
@@ -691,6 +692,10 @@ export class ApiClient {
   /** This learner's own cell of the feature matrix (ADR-0036). */
   features() {
     return this.request('/api/me/features', MyFeatures);
+  }
+  /** Whose room this is, who is in it, and whether this caller may take a seat (ADR-0058). */
+  roomInvite(id: string) {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/invite`, RoomInvite);
   }
   getSession(id: string) {
     return this.request(

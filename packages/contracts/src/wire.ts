@@ -274,6 +274,8 @@ export const ServerError = z.object({
     'REMOVED',
     'NOT_HOST',
     'ENTITLEMENT_REQUIRED',
+    /** A guest without a paid plan asked for a seat (ADR-0058); the invite page says what to do. */
+    'SUBSCRIPTION_REQUIRED',
     'RATE_LIMITED',
     /** The frame did not match the protocol; repeated ones close the socket. */
     'BAD_MESSAGE',
