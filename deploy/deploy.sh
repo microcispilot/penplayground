@@ -236,7 +236,7 @@ if [ "$SKIP_SHIP" = 0 ]; then
     echo "  $(du -h "$ship_file" | cut -f1) compressed"
     remote "mkdir -p '$PEN_DEPLOY_ROOT/ships'"
     attempt=1
-    until rsync --partial --inplace --info=progress2 -e "$RSYNC_SSH" \
+    until rsync --partial --inplace --progress -e "$RSYNC_SSH" \
       "$ship_file" "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/ships/"; do
       [ "$attempt" -lt 8 ] || { rm -rf "$ship_dir"; die "shipping images failed after $attempt attempts"; }
       attempt=$((attempt + 1))
