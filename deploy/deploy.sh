@@ -122,9 +122,13 @@ SSH_OPTS=(
   -o BatchMode=yes
   -o ConnectTimeout=10
   -o ServerAliveInterval=15
+  # Six missed keepalives (90 s), not the default three: the path to the host is a relayed
+  # Tailscale link that stalls for tens of seconds under load, and a stall is not a dead peer.
+  -o ServerAliveCountMax=6
 )
 # shellcheck disable=SC2029  # remote commands are composed here on purpose, with quoted values
 remote() { ssh "${SSH_OPTS[@]}" "$PEN_DEPLOY_HOST" "$@"; }
+RSYNC_SSH="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
 log() { printf '\n\033[1;34m▸ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✖ %s\033[0m\n' "$*" >&2; exit 1; }
 
@@ -218,7 +222,29 @@ if [ "$SKIP_SHIP" = 0 ]; then
   done
   if [ "${#to_ship[@]}" -gt 0 ]; then
     echo "  sending: ${to_ship[*]}"
-    docker save "${to_ship[@]}" | gzip -1 | remote 'gunzip | docker load'
+    # Not a pipe. `docker save | gzip | ssh docker load` moved a 1 GB API image over a
+    # relayed Tailscale link (DERP, no direct path from this network), and one stall of the
+    # link killed the whole pipe with "Timeout, server not responding" and nothing kept: the
+    # next attempt started from byte zero (2026-09-25). So the images are saved once to a
+    # zstd file, rsync'd with --partial so an interrupted transfer *continues* on retry,
+    # and loaded on the host from that file. zstd is on both ends (checked), threads on
+    # ours, and it is both faster and smaller than gzip -1.
+    ship_dir="$(mktemp -d)"
+    ship_name="images-${PEN_IMAGE_TAG}.tar.zst"
+    ship_file="$ship_dir/$ship_name"
+    docker save "${to_ship[@]}" | zstd -T0 -3 -q -o "$ship_file"
+    echo "  $(du -h "$ship_file" | cut -f1) compressed"
+    remote "mkdir -p '$PEN_DEPLOY_ROOT/ships'"
+    attempt=1
+    until rsync --partial --inplace --info=progress2 -e "$RSYNC_SSH" \
+      "$ship_file" "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/ships/"; do
+      [ "$attempt" -lt 8 ] || { rm -rf "$ship_dir"; die "shipping images failed after $attempt attempts"; }
+      attempt=$((attempt + 1))
+      echo "  transfer interrupted; resuming (attempt $attempt)"
+      sleep 5
+    done
+    rm -rf "$ship_dir"
+    remote "set -e; cd '$PEN_DEPLOY_ROOT/ships' && zstd -dc '$ship_name' | docker load && rm -f '$ship_name'"
   fi
 else
   log "skipping ship (--skip-ship)"
@@ -230,7 +256,6 @@ log "syncing stack files to $PEN_DEPLOY_ROOT"
 remote "mkdir -p '$PEN_DEPLOY_ROOT/searxng' '$PEN_DEPLOY_ROOT/nginx' '$PEN_DEPLOY_ROOT/livekit' '$PEN_DEPLOY_ROOT/data' \
   '$PEN_DEPLOY_ROOT/backup/rclone' '$PEN_DEPLOY_ROOT/backups' \
   && chown 1000:1000 '$PEN_DEPLOY_ROOT/data'"
-RSYNC_SSH="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
 rsync -rltz -e "$RSYNC_SSH" \
   deploy/docker-compose.yml deploy/api.env.example deploy/postgres.env.example \
   "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/"

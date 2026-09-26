@@ -113,7 +113,8 @@ prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving b
    described under [Google sign-in](#google-sign-in) and [Stripe webhook](#stripe-webhook).
 
 2. **Deploy**: from the repo root, `deploy/deploy.sh`. It builds both images for linux/amd64
-   (tag = git short sha), `docker save | ssh docker load`s only what the host lacks, rsyncs the
+   (tag = git short sha), ships only the images the host lacks as one zstd file over a resumable
+   `rsync --partial` (a relayed Tailscale link stalls; a stall used to restart a 1 GB pipe from zero), loads them there, rsyncs the
    stack files, writes `PEN_IMAGE_TAG` into `/srv/pen-playground/.env`, runs
    `docker compose up -d --remove-orphans`, and waits until `/api/health` answers directly
    (4200) and through the web container (4201).
