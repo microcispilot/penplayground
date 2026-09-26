@@ -133,9 +133,19 @@ export function AppProvider({ platform, children }: { platform: Platform; childr
     [adoptAccountPace],
   );
   const [served, setServed] = useState<FeatureSet | null>(null);
+  // Until the served set arrives, and whenever it cannot be read, the compiled-in rule stands
+  // in — evaluated for who this is, not just for the plan. A visitor is anonymous until an
+  // account says otherwise, so the account-only features (the "You" shelf, saving, liking)
+  // never show for a visitor, not even for a moment or behind a failed request. Before this
+  // they did: on 2026-09-26 the staging edge answered the features request with a 401 and an
+  // anonymous visitor saw History, Learn later and Liked.
   const features = useMemo(
-    () => served ?? defaultFeaturesFor(participant?.plan ?? 'free', platform.id),
-    [served, participant?.plan, platform.id],
+    () =>
+      served ??
+      defaultFeaturesFor(participant?.plan ?? 'free', platform.id, {
+        anonymous: participant?.anonymous ?? true,
+      }),
+    [served, participant?.plan, participant?.anonymous, platform.id],
   );
   const [authError, setAuthError] = useState<string | null>(null);
   // Read before anything starts: the choice has to apply to the first network

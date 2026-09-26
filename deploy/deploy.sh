@@ -371,38 +371,54 @@ rsync -rltz -e "$RSYNC_SSH" "$rendered/" "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/ngin
 echo "  $(ls "$rendered" | tr '\n' ' ')→ $PEN_DEPLOY_ROOT/nginx/"
 
 # The gate (ADR-0061): one shared user, its hash where nginx's workers can read it, the password
-# where only root can, the cookie token in a config only nginx's master reads, and none of the
-# three in this output. Written once, kept across deploys, replaced together on --rotate-gate
-# (which also signs every remembered browser out). An open environment keeps no gate files.
+# and the cookie token where only root can (edge.credentials), and none of the three in this
+# output. The password is written once and kept across deploys; the cookie map is rendered from
+# its template on every deploy, so a template change reaches the host (a kept copy once carried
+# a token too long for nginx's map and every deploy was refused until it was rewritten,
+# 2026-09-26). --rotate-gate replaces password and token together, which also signs every
+# remembered browser out. An open environment keeps no gate files.
 gate_htpasswd="/etc/nginx/$PEN_STACK.htpasswd"
 gate_conf="/etc/nginx/$PEN_STACK.gate.conf"
 gate_credentials="$PEN_DEPLOY_ROOT/edge.credentials"
 if [ "$PEN_EDGE_GATE" = 1 ]; then
-  if [ "$ROTATE_GATE" = 1 ] || ! remote "[ -s '$gate_htpasswd' ] && [ -s '$gate_credentials' ] && [ -s '$gate_conf' ]"; then
-    log "gate: writing a new password and cookie token for https://$PEN_DOMAIN"
-    remote "set -e
-      umask 077
+  gate_report="$(remote "set -e
+    umask 077
+    rotate=$ROTATE_GATE
+    creds='$gate_credentials'
+    user=\$(sed -n 's/^user=//p' \"\$creds\" 2>/dev/null | head -1)
+    pass=\$(sed -n 's/^password=//p' \"\$creds\" 2>/dev/null | head -1)
+    token=\$(sed -n 's/^token=//p' \"\$creds\" 2>/dev/null | head -1)
+    wrote=''
+    if [ \"\$rotate\" = 1 ] || [ ! -s '$gate_htpasswd' ] || [ -z \"\$user\" ] || [ -z \"\$pass\" ]; then
+      user=pen
       pass=\$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24)
       hash=\$(printf '%s' \"\$pass\" | openssl passwd -apr1 -stdin)
-      # 128 bits; as a map key a longer one overflows nginx's default map_hash_bucket_size (64).
-      token=\$(openssl rand -hex 16)
-      printf 'pen:%s\n' \"\$hash\" > '$gate_htpasswd.next'
+      printf '%s:%s\\n' \"\$user\" \"\$hash\" > '$gate_htpasswd.next'
       chown root:www-data '$gate_htpasswd.next' && chmod 0640 '$gate_htpasswd.next'
       mv -f '$gate_htpasswd.next' '$gate_htpasswd'
-      sed -e \"s|TOKEN|\$token|g\" -e 's|STACK_ID|$STACK_ID|g' -e 's|STACK|$PEN_STACK|g' \
-        '$PEN_DEPLOY_ROOT/nginx/gate.conf.example' > '$gate_conf.next'
-      chmod 0600 '$gate_conf.next' && mv -f '$gate_conf.next' '$gate_conf'
-      {
-        printf '# The gate on https://%s (ADR-0061). Share with whoever should see %s.\n' '$PEN_DOMAIN' '$ENVIRONMENT'
-        printf '# Rotate with: deploy/deploy.sh %s --rotate-gate\n' '$ENVIRONMENT'
-        printf 'user=pen\npassword=%s\n' \"\$pass\"
-      } > '$gate_credentials.next'
-      chmod 0600 '$gate_credentials.next' && mv -f '$gate_credentials.next' '$gate_credentials'" \
-      || die "could not write the gate's password on the host"
-    echo "  written: $gate_htpasswd (root:www-data 0640), $gate_conf (root 0600) and $gate_credentials (root 0600)"
-  else
-    echo "  gate: on; the password is kept (read it on the host: $gate_credentials; new one: --rotate-gate)"
-  fi
+      wrote=\"\$wrote password\"
+    fi
+    # 128 bits as 32 hex characters; a longer map key overflows nginx's default map_hash_bucket_size.
+    if [ \"\$rotate\" = 1 ] || ! printf '%s' \"\$token\" | grep -Eq '^[0-9a-f]{32}\$'; then
+      token=\$(openssl rand -hex 16)
+      wrote=\"\$wrote token\"
+    fi
+    {
+      printf '# The gate on https://%s (ADR-0061). Share the user and password with whoever should see %s.\\n' '$PEN_DOMAIN' '$ENVIRONMENT'
+      printf '# The token is the cookie a browser holds once through; it is not for sharing.\\n'
+      printf '# Rotate both with: deploy/deploy.sh %s --rotate-gate\\n' '$ENVIRONMENT'
+      printf 'user=%s\\npassword=%s\\ntoken=%s\\n' \"\$user\" \"\$pass\" \"\$token\"
+    } > \"\$creds.next\"
+    chmod 0600 \"\$creds.next\" && mv -f \"\$creds.next\" \"\$creds\"
+    sed -e \"s|TOKEN|\$token|g\" -e 's|STACK_ID|$STACK_ID|g' -e 's|STACK|$PEN_STACK|g' \
+      '$PEN_DEPLOY_ROOT/nginx/gate.conf.example' > '$gate_conf.next'
+    chmod 0600 '$gate_conf.next' && mv -f '$gate_conf.next' '$gate_conf'
+    printf '%s' \"\${wrote:- kept}\"")" || die "could not write the gate's files on the host"
+  case "$gate_report" in
+    *password*|*token*) log "gate: new$gate_report written for https://$PEN_DOMAIN"
+      echo "  $gate_htpasswd (root:www-data 0640), $gate_conf (root 0600), $gate_credentials (root 0600); nothing printed here" ;;
+    *) echo "  gate: on; password and token kept (read them on the host: $gate_credentials; new ones: --rotate-gate)" ;;
+  esac
 else
   remote "rm -f '$gate_htpasswd' '$gate_conf' '$gate_credentials'"
 fi

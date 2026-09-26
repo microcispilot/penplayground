@@ -59,6 +59,35 @@ describe('Sidebar rows', () => {
   });
 
   /**
+   * The same visitor when the features request never answers: the compiled-in
+   * rule stands in, and it must stand in for a *visitor*. On 2026-09-26 the
+   * staging edge answered that request with a 401 and an anonymous visitor
+   * saw History, Learn later and Liked, because the fallback was evaluated
+   * for the plan alone. A gate, an outage or a slow network must never look
+   * like a sign-in.
+   */
+  it('shows a visitor no shelf even when the features request fails', async () => {
+    const { calls } = renderWithApp(<Sidebar />, {
+      participant: ANONYMOUS,
+      routes: { '/api/me/features': { __status: 401, error: 'UNAUTHORIZED' } },
+    });
+    for (const label of LEARN_ROWS) expect(await screen.findByText(label)).toBeTruthy();
+    await waitFor(() => expect(calls).toContain('GET /api/me/features'));
+    for (const label of YOU_ROWS) expect(screen.queryByText(label), label).toBeNull();
+    expect(screen.queryByText('You')).toBeNull();
+  });
+
+  it('shows an account its shelf even when the features request fails', async () => {
+    const { calls } = renderWithApp(<Sidebar />, {
+      participant: SIGNED_IN,
+      routes: { '/api/me/features': { __status: 500, error: 'INTERNAL' } },
+    });
+    await waitFor(() => expect(calls).toContain('GET /api/me/features'));
+    for (const label of ['History', 'Learn later', 'Liked', 'Your sessions'])
+      expect(await screen.findByText(label)).toBeTruthy();
+  });
+
+  /**
    * Settings is a route now, and the sidebar is how you reach it.
    *
    * This test used to assert the opposite — that the sidebar carried no
@@ -86,7 +115,8 @@ describe('Sidebar rows', () => {
   });
 
   it('marks the active route, and only that one', async () => {
-    renderWithApp(<Sidebar />, { route: '/liked' });
+    // Liked is a shelf row, and only an account has a shelf.
+    renderWithApp(<Sidebar />, { participant: SIGNED_IN, route: '/liked' });
     const liked = (await screen.findByText('Liked')).closest('a');
     const history = screen.getByText('History').closest('a');
     expect(liked?.getAttribute('aria-current')).toBe('page');
@@ -116,7 +146,8 @@ describe('Sidebar rows', () => {
   });
 
   it('the rail keeps every destination and drops the labels’ chrome', async () => {
-    renderWithApp(<Sidebar rail />, { participant: ANONYMOUS });
+    // Every destination includes the shelf, so this is an account's rail.
+    renderWithApp(<Sidebar rail />, { participant: SIGNED_IN });
     const nav = await screen.findByTestId('sidebar');
     expect(nav.getAttribute('data-rail')).toBe('true');
     for (const label of ['Home', 'Experts', 'Pricing', 'History', 'Liked'])
