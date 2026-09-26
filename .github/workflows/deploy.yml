@@ -14,9 +14,9 @@ name: Deploy
 #
 # Variables (repository): DEPLOY_ENABLED=true turns both jobs on.
 # Secrets (repository): DEPLOY_SSH_KEY (ed25519 private key), DEPLOY_KNOWN_HOSTS (the host's
-# keys, `ssh-keyscan 100.118.252.64`), TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET (a Tailscale OAuth
-# client with the `ci` tag), SENTRY_AUTH_TOKEN, VITE_TLDRAW_LICENSE_KEY, VITE_SENTRY_DSN,
-# VITE_POSTHOG_TOKEN, VITE_POSTHOG_HOST, VITE_GOOGLE_CLIENT_ID.
+# keys, `ssh-keyscan 100.118.252.64`), TS_AUTHKEY (a Tailscale auth key; see the step below),
+# SENTRY_AUTH_TOKEN, VITE_TLDRAW_LICENSE_KEY, VITE_SENTRY_DSN, VITE_POSTHOG_TOKEN,
+# VITE_POSTHOG_HOST, VITE_GOOGLE_CLIENT_ID.
 
 on:
   workflow_run:
@@ -70,12 +70,15 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # An auth key from the admin console (TS_AUTHKEY). Auth keys expire (90 days at most):
+      # when a deploy fails at this step with "invalid key", mint a new one and replace the
+      # secret. An OAuth client (oauth-client-id / oauth-secret, tag:ci) never expires and is
+      # the better long-term choice once one exists.
       - name: Connect to the tailnet
         uses: tailscale/github-action@v3
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          hostname: pen-ci
 
       - name: Install the deploy key
         run: |
@@ -114,12 +117,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      # An auth key from the admin console (TS_AUTHKEY). Auth keys expire (90 days at most):
+      # when a deploy fails at this step with "invalid key", mint a new one and replace the
+      # secret. An OAuth client (oauth-client-id / oauth-secret, tag:ci) never expires and is
+      # the better long-term choice once one exists.
       - name: Connect to the tailnet
         uses: tailscale/github-action@v3
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          hostname: pen-ci
 
       - name: Install the deploy key
         run: |
