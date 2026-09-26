@@ -51,9 +51,12 @@ it is per environment; otherwise it is shared. Do not add a third category.
 
 The workflow is switched on by the repository variable `DEPLOY_ENABLED=true` (set on
 2026-09-26). It reaches the host over Tailscale with the secret `TS_AUTHKEY`, an auth key from
-the admin console. Auth keys expire (90 days at most): when a deploy fails at "Connect to the
-tailnet", mint a new key at <https://login.tailscale.com/admin/settings/keys> and replace the
-secret (`gh secret set TS_AUTHKEY`). An OAuth client (`oauth-client-id` / `oauth-secret` with
+the admin console. The key must be **reusable** (and ephemeral, pre-authorized): a single-use
+key is spent by the first run and every later run is refused with "invalid key" (this is what
+happened on 2026-09-26). Auth keys also expire (90 days at most). When a deploy fails at
+"Check the host is reachable", mint a new key at
+<https://login.tailscale.com/admin/settings/keys> with Reusable, Ephemeral and Pre-authorized
+ticked, and replace the secret (`gh secret set TS_AUTHKEY`). An OAuth client (`oauth-client-id` / `oauth-secret` with
 `tag:ci`) never expires and is the better long-term choice once one exists; the workflow file
 says where to switch. The deploy key, the host keys and the web build arguments are stored.
 

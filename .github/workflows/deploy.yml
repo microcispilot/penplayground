@@ -70,16 +70,26 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      # An auth key from the admin console (TS_AUTHKEY). Auth keys expire (90 days at most):
-      # when a deploy fails at this step with "invalid key", mint a new one and replace the
-      # secret. An OAuth client (oauth-client-id / oauth-secret, tag:ci) never expires and is
-      # the better long-term choice once one exists.
+      # An auth key from the admin console (TS_AUTHKEY): it must be REUSABLE, ephemeral and
+      # pre-authorized, or the first run spends it and every later run is refused with "invalid
+      # key" (2026-09-26). Auth keys also expire (90 days at most). An OAuth client
+      # (oauth-client-id / oauth-secret, tag:ci) never expires and is the better long-term choice.
       - name: Connect to the tailnet
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
           hostname: pen-ci
 
+      # The action reports success even when the key was refused ("invalid key" in its log),
+      # and the deploy would then die at its first ssh with nothing said about why. Say it here.
+      - name: Check the host is reachable over the tailnet
+        run: |
+          if ! tailscale ping -c 3 --timeout 5s 100.118.252.64 >/dev/null 2>&1; then
+            echo "::error::The runner is not on the tailnet, or cannot reach prod-app-01. Most likely the TS_AUTHKEY secret was refused: an auth key must be REUSABLE (and ephemeral, pre-authorized) or it is spent by the first run. Mint one at https://login.tailscale.com/admin/settings/keys and run: gh secret set TS_AUTHKEY"
+            tailscale status || true
+            exit 1
+          fi
+          tailscale status --self
       - name: Install the deploy key
         run: |
           mkdir -p .deploy && chmod 700 .deploy
@@ -117,16 +127,26 @@ jobs:
         with:
           fetch-depth: 1
 
-      # An auth key from the admin console (TS_AUTHKEY). Auth keys expire (90 days at most):
-      # when a deploy fails at this step with "invalid key", mint a new one and replace the
-      # secret. An OAuth client (oauth-client-id / oauth-secret, tag:ci) never expires and is
-      # the better long-term choice once one exists.
+      # An auth key from the admin console (TS_AUTHKEY): it must be REUSABLE, ephemeral and
+      # pre-authorized, or the first run spends it and every later run is refused with "invalid
+      # key" (2026-09-26). Auth keys also expire (90 days at most). An OAuth client
+      # (oauth-client-id / oauth-secret, tag:ci) never expires and is the better long-term choice.
       - name: Connect to the tailnet
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
           hostname: pen-ci
 
+      # The action reports success even when the key was refused ("invalid key" in its log),
+      # and the deploy would then die at its first ssh with nothing said about why. Say it here.
+      - name: Check the host is reachable over the tailnet
+        run: |
+          if ! tailscale ping -c 3 --timeout 5s 100.118.252.64 >/dev/null 2>&1; then
+            echo "::error::The runner is not on the tailnet, or cannot reach prod-app-01. Most likely the TS_AUTHKEY secret was refused: an auth key must be REUSABLE (and ephemeral, pre-authorized) or it is spent by the first run. Mint one at https://login.tailscale.com/admin/settings/keys and run: gh secret set TS_AUTHKEY"
+            tailscale status || true
+            exit 1
+          fi
+          tailscale status --self
       - name: Install the deploy key
         run: |
           mkdir -p .deploy && chmod 700 .deploy
