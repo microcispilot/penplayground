@@ -182,12 +182,12 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The rows are square. The owner (2026-09-25): "no corner radius"; on
-   * 2026-09-26 "rounded from the sides", then "4 px", then "no corner radius"
-   * again, which stands. `rounded-none` on every row and on the topic
-   * sub-rows alike; the state layer inherits it.
+   * The rows are flush on the left and end in a 1 px corner on the right:
+   * the fill runs off the sidebar's edge (the owner, 2026-09-26: "put 1px
+   * corner radius on the right, not the left"). On every row and on the
+   * topic sub-rows alike; the state layer inherits it.
    */
-  it('every row and sub-row is square', async () => {
+  it('every row and sub-row is square on the left and 1 px rounded on the right', async () => {
     // A topic in the URL opens the Topics list, so the sub-rows are on screen too.
     renderWithApp(<Sidebar />, { participant: ANONYMOUS, route: '/?topic=computing-data' });
     const home = (await screen.findByText('Home')).closest('a');
@@ -196,9 +196,9 @@ describe('Sidebar rows', () => {
     const computing = screen.getByRole('button', { name: 'Computing' });
     expect(computing.className).toContain('bg-surface-container-highest');
     for (const el of [home, experts, all, computing]) {
-      expect(el?.className).toContain('rounded-none');
+      expect(el?.className).toContain('rounded-l-none');
+      expect(el?.className).toContain('rounded-r-[1px]');
       expect(el?.className).not.toContain('rounded-full');
-      expect(el?.className).not.toContain('rounded-xs');
     }
   });
 

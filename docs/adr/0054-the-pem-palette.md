@@ -112,9 +112,10 @@ and label alike, flush with the sidebar's left edge (the nav has no left
 inset; the rows carry the padding). The brand on that step is 5.4:1 by day
 and 2.5:1 by night; the owner chose it knowing. A chosen option in a dialog
 and a chosen feedback kind keep `selected` (rose at 45 %) with `on-surface`.
-The `secondary-container` token itself stays the brand. The rows are square again: "rounded from the sides", then
-"make it 4 px rounded", then "no corner radius", all within the hour, and the
-last word stands, as it did on 2026-09-25. The rows are rounded
+The `secondary-container` token itself stays the brand. The rows are flush on the left, where the fill meets the
+sidebar's edge, and end in a 1 px corner on the right: "rounded from the
+sides", then "4 px", then "no corner radius", then "1px corner radius on the
+right, not the left", all within the hour, and the last word stands. The rows are rounded
 on the sides ("make the background rounded from the sides"), replacing the
 square ruling of 2026-09-25. `primary` stays rose by night for prose, links
 and outlines. The sidebar test pins the classes and the shape.

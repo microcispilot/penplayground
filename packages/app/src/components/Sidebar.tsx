@@ -81,9 +81,9 @@ interface RowProps {
  */
 function rowClass(rail: boolean, active: boolean): string {
   return cn(
-    // Square. The owner (2026-09-25): "no corner radius"; on 2026-09-26 "rounded from the
-    // sides", then "4 px", then "no corner radius" again, which stands.
-    'state-layer group relative flex items-center rounded-none transition-colors duration-[var(--duration-fast)]',
+    // Flush on the left, a 1 px corner on the right: the fill runs off the sidebar's edge and
+    // ends softly (the owner, 2026-09-26: "put 1px corner radius on the right, not the left").
+    'state-layer group relative flex items-center rounded-l-none rounded-r-[1px] transition-colors duration-[var(--duration-fast)]',
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 pl-7 pr-4',
@@ -295,7 +295,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     onNavigate?.();
                   }}
                   className={cn(
-                    'state-layer rounded-none pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
+                    'state-layer rounded-l-none rounded-r-[1px] pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
                       ? 'bg-surface-container-highest text-brand'
                       : 'text-on-surface-variant',
@@ -314,7 +314,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                       onNavigate?.();
                     }}
                     className={cn(
-                      'state-layer rounded-none pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
+                      'state-layer rounded-l-none rounded-r-[1px] pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
                         ? 'bg-surface-container-highest text-brand'
                         : 'text-on-surface-variant',
