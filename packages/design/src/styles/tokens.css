@@ -47,11 +47,12 @@
  *   where it stood. Pinned, not generated, and one set for both themes by
  *   the owner's ruling: `primary-fixed`, `secondary-container`,
  *   `mark-accent`, `glow` and `highlight` carry the same value by day and
- *   by night; `primary`, the text role, is rose by night (below). A selected
- *   row, topic, option or chosen kind is `selected` with `on-surface`: the
- *   palette's rose at 45 % letting the page through, a lighter shade of the
- *   brand (the owner, 2026-09-26, after the brand as ink and as fills of
- *   several strengths: "the lighter background shade we have", "reddish").
+ *   by night; `primary`, the text role, is rose by night (below). The
+ *   sidebar's current row and a chosen topic are `surface-container-highest`
+ *   with the brand as ink (the owner, 2026-09-26, after the brand as fill at
+ *   several strengths and a rose tint: "the previous one with foreground as
+ *   the primary brand color"). A chosen option in a dialog or a chosen
+ *   feedback kind is `selected` with `on-surface`: rose at 45 %.
  *
  *   Measured: white on the brand is 7.3:1; the brand on the light `surface`
  *   6.9:1 and on the highest light grey 5.6:1. On the dark `surface` it is

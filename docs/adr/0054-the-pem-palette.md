@@ -104,14 +104,15 @@ brand color with a bit transparency", and 80 % still "too colory, I want it
 more transparent". A translucent brand followed (a token of its own,
 `selected`: the brand in oklch at 75 % by day and 50 % by night), and then
 the owner asked for "the lighter background shade we have", running "all the
-way to the left edge". A neutral grey step was tried and was "black and not
-reddish". So `selected` is the palette's rose in oklch at 45 %, a lighter
-shade of the brand letting the page through: a dusty rose over the dark
-sidebar and a pale pink over the light one, with `on-surface` on it (6.3:1
-and 11:1), flush with the sidebar's left edge (the nav has no left inset; the
-rows carry the padding). The same pair marks a chosen topic, a chosen option
-in a dialog and a chosen feedback kind. The `secondary-container` token
-itself stays the brand. The rows are square again: "rounded from the sides", then
+way to the left edge". A neutral grey step was "black and not reddish"; a rose
+tint at 45 % followed; and the owner settled: "use the previous one with
+foreground as the primary brand color". So the sidebar's current row and a
+chosen topic sit on `surface-container-highest` with the brand as ink, icon
+and label alike, flush with the sidebar's left edge (the nav has no left
+inset; the rows carry the padding). The brand on that step is 5.4:1 by day
+and 2.5:1 by night; the owner chose it knowing. A chosen option in a dialog
+and a chosen feedback kind keep `selected` (rose at 45 %) with `on-surface`.
+The `secondary-container` token itself stays the brand. The rows are square again: "rounded from the sides", then
 "make it 4 px rounded", then "no corner radius", all within the hour, and the
 last word stands, as it did on 2026-09-25. The rows are rounded
 on the sides ("make the background rounded from the sides"), replacing the
