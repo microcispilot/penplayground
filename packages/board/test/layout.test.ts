@@ -36,6 +36,27 @@ describe('Layout', () => {
     expect(n).toMatchObject({ x: MARGIN, y: MARGIN });
   });
 
+  it('gapBefore adds room above a new line under writing, and nothing at the top of a column', () => {
+    const top = new Layout().place({ w: 100, h: 40, place: 'newline', gapBefore: 8 });
+    expect(top.y).toBe(MARGIN);
+    const l = new Layout();
+    l.place({ w: 100, h: 40, place: 'flow' });
+    const under = l.place({ w: 100, h: 40, place: 'newline', gapBefore: 8 });
+    expect(under.y).toBe(MARGIN + 40 + DEFAULT_LAYOUT.lineGap + 8);
+    // The line after it sits at the ordinary gap again.
+    const next = l.place({ w: 100, h: 40, place: 'newline' });
+    expect(next.y).toBe(under.y + 40 + DEFAULT_LAYOUT.lineGap);
+    // Flow never takes it: only a line that starts under something breathes.
+    const f = new Layout();
+    f.place({ w: 100, h: 40, place: 'flow' });
+    expect(f.place({ w: 100, h: 40, place: 'flow', gapBefore: 8 }).y).toBe(MARGIN);
+  });
+
+  it('the page pads 36 and the lines sit 4 apart (the owner, 2026-09-25)', () => {
+    expect(MARGIN).toBe(36);
+    expect(DEFAULT_LAYOUT.lineGap).toBe(4);
+  });
+
   it('column opens the next column to the right, then a new page when there is no room', () => {
     const l = new Layout();
     // Full-width lines: the next column starts a full column away (ADR-0051

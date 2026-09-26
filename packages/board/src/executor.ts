@@ -46,6 +46,7 @@ import {
   SHAPE_TYPE,
   STROKE_STYLE,
   type StrokeRole,
+  TITLE_GAP,
   TYPE,
 } from './shapes/props.js';
 import {
@@ -511,7 +512,14 @@ export class BoardExecutor implements BoardPort {
     this.reportInvalidGlyphs(tl, op.id);
     const w = Math.ceil(tl.width + 6);
     const h = Math.ceil(tl.height + (underline ? 14 : 0));
-    const placed = this.layout.place({ w, h, place, ...(op.ref ? { ref: op.ref } : {}) });
+    const placed = this.layout.place({
+      w,
+      h,
+      place,
+      ...(op.ref ? { ref: op.ref } : {}),
+      // A heading breathes before it begins; the lines under it sit close.
+      ...(style === 'title' ? { gapBefore: TITLE_GAP } : {}),
+    });
     const sid = toShapeId(op.id);
     const props: InkTextProps = {
       text,

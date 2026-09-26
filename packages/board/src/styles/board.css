@@ -130,7 +130,8 @@
   /* An editor's face for code (the owner, 2026-09-25); the hand is for everything else. */
   font-family: var(--font-mono);
   color: var(--color-ink);
-  line-height: 1.55;
+  /* TYPE.codeLineHeight in shapes/props.ts; the two are held equal by test. */
+  line-height: 1.5;
 }
 .pen-code__pre {
   margin: 0;
@@ -139,7 +140,7 @@
   tab-size: 2;
 }
 .pen-code__line {
-  min-height: 1.55em;
+  min-height: 1.5em;
 }
 .pen-code__lang {
   position: absolute;

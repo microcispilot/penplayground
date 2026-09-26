@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ManualTicker } from '../src/clock.js';
 import { BoardExecutor, type BoardWarning } from '../src/executor.js';
 import { plainLines } from '../src/highlight.js';
-import { Layout, MARGIN, PAGE_H, PAGE_STRIDE } from '../src/layout.js';
+import { DEFAULT_LAYOUT, Layout, MARGIN, PAGE_H, PAGE_STRIDE } from '../src/layout.js';
 import { FADE_MS, HAND_CPS, handwritingMs, MAX_STRETCH } from '../src/pacing.js';
-import { SHAPE_TYPE, UNDERLINE_UNITS } from '../src/shapes/props.js';
+import { CODE_PADDING, SHAPE_TYPE, TITLE_GAP, TYPE, UNDERLINE_UNITS } from '../src/shapes/props.js';
 import { boardOp, FakeEditor, flush, loadTestFont } from './helpers.js';
+
+type Bx = { y: number; h: number };
 
 function setup(opts: { camera?: boolean } = {}) {
   const editor = new FakeEditor();
@@ -48,6 +50,52 @@ describe('BoardExecutor', () => {
     await exec.done;
     expect(editor.progress('shape:b1')).toBe(1);
     expect(executor.activeCount).toBe(0);
+  });
+
+  it('a title under writing breathes TITLE_GAP; lines under it sit at the line gap (2026-09-25)', async () => {
+    const { editor, executor } = ctx;
+    executor.execute(
+      boardOp('b1', { op: 'write', text: 'value = stored data', place: 'newline' }),
+      {
+        paceMs: null,
+      },
+    );
+    executor.execute(
+      boardOp('b2', { op: 'code', text: 'let v = 11.0', lang: 'swift', place: 'newline' }),
+      {
+        paceMs: null,
+      },
+    );
+    executor.execute(boardOp('b3', { op: 'title', text: 'Constants' }), { paceMs: null });
+    executor.execute(
+      boardOp('b4', { op: 'code', text: 'let max = 100', lang: 'swift', place: 'newline' }),
+      {
+        paceMs: null,
+      },
+    );
+    executor.execute(
+      boardOp('b5', { op: 'code', text: 'var score = 0', lang: 'swift', place: 'newline' }),
+      {
+        paceMs: null,
+      },
+    );
+    await flush();
+    const [b1, b2, b3, b4, b5] = ['b1', 'b2', 'b3', 'b4', 'b5'].map((id) => {
+      const s = editor.shapes.get(`shape:${id}`);
+      return { y: s?.y ?? NaN, h: Number(s?.props.h ?? NaN) };
+    }) as [Bx, Bx, Bx, Bx, Bx];
+    const gap = DEFAULT_LAYOUT.lineGap;
+    // writing → code: the line gap only.
+    expect(b2.y).toBe(b1.y + b1.h + gap);
+    // code → title: the line gap and the title's own breath.
+    expect(b3.y).toBe(b2.y + b2.h + gap + TITLE_GAP);
+    // title → code and code → code: the line gap only.
+    expect(b4.y).toBe(b3.y + b3.h + gap);
+    expect(b5.y).toBe(b4.y + b4.h + gap);
+    // A one-line code op is its line height and a hair of padding, nothing more.
+    expect(b4.h).toBe(Math.ceil(TYPE.codeFont * TYPE.codeLineHeight + CODE_PADDING * 2));
+    // From one code line to the next: under 1.9 em of the code face.
+    expect(b5.y - b4.y).toBeLessThan(TYPE.codeFont * 1.9);
   });
 
   it('write: never faster than the human constant, stretched to a long sentence, capped', async () => {
@@ -372,13 +420,13 @@ describe('BoardExecutor', () => {
 
   it('camera follows content that leaves the viewport, within the zoom limits', async () => {
     const { editor, executor } = setup({ camera: true });
-    editor.viewport = { x: 0, y: 0, w: 800, h: 500 };
+    editor.viewport = { x: 0, y: 0, w: 700, h: 500 };
     editor.zoom = 1;
     executor
       .execute(
         boardOp('b1', {
           op: 'write',
-          // Wide enough to fill the column, so the next column lands outside an 800 px view.
+          // ~590 wide from the 36 margin, so the next column (a 64 gap on) starts past a 700 px view.
           text: 'in view, and a good deal more of it than fits on one narrow screen of board',
         }),
         { paceMs: null },

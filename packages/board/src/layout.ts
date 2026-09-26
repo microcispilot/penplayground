@@ -21,7 +21,13 @@ import { type Bounds, bottom, right } from './geometry.js';
 
 export const PAGE_W = 1600;
 export const PAGE_H = 900;
-export const MARGIN = 80;
+/**
+ * The page's own padding, top and left (the owner, 2026-09-25: *"top and left
+ * padding should be 36px"*). 36 world units is 36 CSS px at zoom 1; the
+ * camera frames the page flush, so this is the whole of the space before
+ * the first word.
+ */
+export const MARGIN = 36;
 export const PAGE_STRIDE = 1100;
 /** A column never starts closer than this to the last one's start, whatever was in it. */
 export const MIN_COLUMN_ADVANCE = 240;
@@ -35,7 +41,12 @@ export interface LayoutOptions {
   columnGap: number;
   /** Horizontal gap between items on one line. */
   itemGap: number;
-  /** Vertical gap between lines. */
+  /**
+   * Vertical gap between lines. Small: each item already carries its own
+   * leading (1.3 em for the hand, 1.5 em for code), and the owner found the
+   * lines too far apart at 10 (2026-09-25). A title asks for more with
+   * `gapBefore`.
+   */
   lineGap: number;
   /** Offset used by beside/below. */
   relativeGap: number;
@@ -59,8 +70,8 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   columnWidth: 640,
   columnGap: 64,
   itemGap: 18,
-  lineGap: 10,
-  relativeGap: 24,
+  lineGap: 4,
+  relativeGap: 12,
   noteWidth: 300,
   noteGap: 16,
   direction: 'ltr',
@@ -72,6 +83,12 @@ export interface PlaceRequest {
   place: Placement;
   /** Board id for beside/below. Unknown ids fall back to `flow`. */
   ref?: string;
+  /**
+   * Extra room above the item when it starts a new line under something
+   * (`newline` only). A title breathes before it begins; a line of writing
+   * does not. Nothing is added at the top of a column or page.
+   */
+  gapBefore?: number;
 }
 
 export interface Placed extends Bounds {
@@ -223,7 +240,7 @@ export class Layout {
       case 'column':
         return this.placeColumn(w, h);
       case 'newline':
-        return this.placeNewline(w, h);
+        return this.placeNewline(w, h, req.gapBefore ?? 0);
       default:
         return this.placeFlow(w, h, 'flow');
     }
@@ -289,8 +306,13 @@ export class Layout {
     return placed;
   }
 
-  private placeNewline(w: number, h: number): Placed {
-    if (!this.atLineStart() || this.cursor.lineHeight > 0) this.newline();
+  private placeNewline(w: number, h: number, gapBefore: number): Placed {
+    if (!this.atLineStart() || this.cursor.lineHeight > 0) {
+      const under = this.cursor.lineHeight > 0;
+      this.newline();
+      // Only under something already written: the top of a column is its own gap.
+      if (under && gapBefore > 0) this.cursor = { ...this.cursor, y: this.cursor.y + gapBefore };
+    }
     const p = this.placeFlow(w, h, 'newline');
     return p;
   }

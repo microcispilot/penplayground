@@ -112,19 +112,36 @@ describe('a page is a frame (ADR-0051)', () => {
   });
 });
 
+describe('the page sits flush with the screen (2026-09-25)', () => {
+  it('frames the page at the zoom that exactly fits it, from its own top-left, with no inset', () => {
+    for (const [w, h] of [
+      [1600, 900],
+      [1000, 700],
+      [390, 844],
+    ] as const) {
+      const { editor, moves } = fakeEditor(w, h);
+      new CameraDirector(editor).showPage(page, false);
+      const move = moves.at(-1);
+      expect(move?.opts.inset).toBe(0);
+      expect(move?.opts.targetZoom).toBeCloseTo(Math.min(w / PAGE_W, h / PAGE_H, 1.2), 9);
+      // The window starts where the page starts: the page's margin is the whole of the padding.
+      expect(move?.bounds.x).toBe(0);
+      expect(move?.bounds.y).toBe(0);
+    }
+  });
+});
+
 describe('the page hangs from its leading edge (ADR-0051)', () => {
   it('left for left-to-right, right for right-to-left, when the screen is wider than the page', () => {
     // A 2.1:1 screen: the page fits by height and leaves spare board beside it.
     const ltr = fakeEditor(2000, 950);
     new CameraDirector(ltr.editor).showPage(page, false);
     const left = ltr.moves.at(-1)?.bounds;
-    expect(left?.x).toBeLessThanOrEqual(0);
-    expect(left?.x).toBeGreaterThan(-200);
+    expect(left?.x).toBe(0);
     const rtl = fakeEditor(2000, 950);
     new CameraDirector(rtl.editor, { direction: 'rtl' }).showPage(page, false);
     const right = rtl.moves.at(-1)?.bounds;
-    // The window ends at the page's right edge (plus the same small padding).
-    expect((right?.x ?? 0) + (right?.w ?? 0)).toBeGreaterThanOrEqual(PAGE_W);
-    expect((right?.x ?? 0) + (right?.w ?? 0)).toBeLessThan(PAGE_W + 200);
+    // The window ends at the page's right edge.
+    expect((right?.x ?? 0) + (right?.w ?? 0)).toBeCloseTo(PAGE_W, 9);
   });
 });

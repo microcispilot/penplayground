@@ -102,9 +102,18 @@ export const TYPE = {
   codeFont: 24,
   mdFont: 22,
   /** Prose is set in the hand (ADR-0051), its advance `HAND_ADVANCE_RATIO`; code in the editor's mono, `MONO_ADVANCE_RATIO`. */
-  codeLineHeight: 1.55,
+  /** Also `.pen-code` in board.css; `type-scale.test.ts` holds the two together. */
+  codeLineHeight: 1.5,
   mdLineHeight: 1.5,
 } as const;
+
+/**
+ * Room above a title that follows other writing, in world units. The owner
+ * (2026-09-25) tightened the lines but kept the space before a heading:
+ * *"the spacing before titles are fine, but the spacing between other lines
+ * are not."* With `lineGap` at 4 this puts a title where it stood at 10.
+ */
+export const TITLE_GAP = 8;
 
 /** Extra reveal "characters" the title underline costs, so pacing includes it. */
 export const UNDERLINE_UNITS = 3;
@@ -122,8 +131,8 @@ export const STROKE_STYLE = {
   simulatePressure: true,
 } as const;
 
-/* A hair of air around a code line: bare lines (ADR-0051), not a box, and the owner found 18 too far apart. */
-export const CODE_PADDING = 6;
+/* A hair of air around a code line: bare lines (ADR-0051), not a box. The owner found 18 too far apart, then 6 (2026-09-25). */
+export const CODE_PADDING = 2;
 export const FRAME_INSET = 10;
 export const MD_PADDING = 16;
 export const NOTE_WIDTH = 300;

@@ -38,15 +38,13 @@ const FORBIDDEN = [
   /--color-speaking/,
 ];
 
-const ALLOWED = [
-  '--color-paper',
-  '--color-paper-grid',
-  '--color-ink',
-  '--color-ink-accent',
-  '--color-ink-warn',
-  '--color-ink-muted',
-  '--color-ink-highlight',
-];
+/**
+ * One ink (ADR-0054, amended 2026-09-25): every emphasis is written in the
+ * chalk the learner chose, so the board asks for `--color-ink` and nothing
+ * else in the ink family. `--color-ink-accent` in particular — the brand —
+ * is what the owner saw as red on the blackboard and asked off it.
+ */
+const ALLOWED = ['--color-paper', '--color-paper-grid', '--color-ink'];
 
 /**
  * The non-colour board tokens the board sources may ask for. Not colours, so

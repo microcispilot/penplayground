@@ -75,3 +75,16 @@ owner asked for a colour between them and chose the stop three quarters of
 the way, blended in OKLCH: `#A9124A` (0.478 / 0.182 / 7.6°). Every place the
 brand is painted follows it. White on it is 7.3:1; on the light `surface`
 6.9:1; on the dark page 2.5:1, recorded as before.
+
+## Amendment (2026-09-25, later): the brand is off the board
+
+The one-ink ruling above landed in the export path (`resolveInk`) and not in
+the live one (`inkVar`), so an `accent` line on the blackboard was still
+drawn in `--color-ink-accent` — the brand, at 2.2:1 on that board — and the
+owner saw it as red: *"why we have the red color on the board?"* and then
+*"do not use this color on the board: --color-ink-accent, the brand #A9124A,
+remove it."* Both paths now read one table, every emphasis is the chalk the
+learner chose, and the board's token allowlist (`paper-tokens.test.ts`) no
+longer admits `--color-ink-accent`, `-warn`, `-muted` or `-highlight`. The
+tokens themselves stay declared in `tokens.css` for the brand families'
+tuning; nothing on the board asks for them. `ink.test.ts` pins it.

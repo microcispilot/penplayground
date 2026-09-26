@@ -162,20 +162,23 @@ export class CameraDirector {
    * left-to-right writing, the right for right-to-left — with the spare
    * board on the trailing side. Centring a page narrower than the screen put
    * the first word of every line near the middle.
+   *
+   * The page sits flush with the screen's edge: no inset. Its own margin
+   * (`layout.MARGIN`) is the padding before the first word, and it used to
+   * arrive on top of half the camera inset, which is where the owner saw "a
+   * lot of spaces on the top" (2026-09-25).
    */
   showPage(area: Bounds, animate = true): void {
     this.page = area;
     const s = this.screen();
-    const fit = this.fitZoom(area);
-    if (fit === null || !s) return;
+    if (!s) return;
+    const fit = Math.min(s.w / Math.max(1, area.w), s.h / Math.max(1, area.h));
     const targetZoom = Math.min(fit, this.opts.maxZoom);
-    const inset = this.inset() * 0.5;
     const w = Math.max(1, s.w) / targetZoom;
     const h = Math.max(1, s.h) / targetZoom;
-    const pad = inset / targetZoom;
-    const x = this.opts.direction === 'rtl' ? area.x + area.w + pad - w : area.x - pad;
+    const x = this.opts.direction === 'rtl' ? area.x + area.w - w : area.x;
     this.editor.zoomToBounds(
-      { x, y: area.y - pad, w, h },
+      { x, y: area.y, w, h },
       {
         targetZoom,
         inset: 0,

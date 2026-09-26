@@ -121,3 +121,31 @@ back.
   lesson's.
 - Wrap and camera tests were made independent of the scale where they had
   assumed one.
+
+## Amendment (2026-09-25): the lines sit close, the page pads 36, a title breathes
+
+The owner, on a Swift lesson on the blackboard: *"the spacing before titles
+are fine, but the spacing between other lines are not, they should be less.
+Also the starting should be more from the top. a lot of spaces on the top.
+also start a bit less from the left. so top and left padding should be
+36px."*
+
+- **The page's margin is 36**, from 80. It is 36 CSS px at zoom 1 and
+  scales with the writing on a smaller box, as everything on the page does.
+- **The camera frames the page flush.** `showPage` used to fit the page
+  inside the camera inset and then pad it by half that inset again, so the
+  first word arrived after the inset *and* the margin. It now fits the page
+  to the screen exactly, from the page's own top-left (or top-right for a
+  right-to-left lesson): the margin is the whole of the padding.
+- **`lineGap` is 4**, from 10. A line already carries its leading (1.3 em
+  for the hand, 1.5 em for code), and 10 on top of it was the air the owner
+  saw. `relativeGap` — `below` — is 12, from 24, for the same reason.
+- **Code is 1.5 em with a 2-unit pad**, from 1.55 em and 6. One code line
+  under another is now 44 world units apart (60 before); a line of writing
+  under another, 41 (47 before).
+- **A title asks for `TITLE_GAP` (8) before it** when it follows other
+  writing, so the space before a heading stays where the owner found it
+  fine. Nothing is added at the top of a column or page.
+
+`layout.test.ts`, `camera.test.ts` and `executor.test.ts` pin the numbers;
+`ink.test.ts` holds the code line height in TypeScript and CSS together.

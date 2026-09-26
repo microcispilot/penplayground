@@ -47,25 +47,14 @@ export abstract class PaperShapeUtil<
   }
 }
 
-/** Ink colour token for an emphasis. Components never use raw colour values (ADR-0007). */
-export function inkVar(emphasis: Emphasis): string {
-  switch (emphasis) {
-    case 'accent':
-      return 'var(--color-ink-accent)';
-    case 'warn':
-      return 'var(--color-ink-warn)';
-    case 'muted':
-      return 'var(--color-ink-muted)';
-    default:
-      return 'var(--color-ink)';
-  }
-}
-
 /**
  * Every emphasis is written in the chalk or marker the learner chose (the
- * owner, 2026-09-25: "the rest should stay exactly as the selected colour").
- * Emphasis still shapes the writing — size, underline, weight — never its
- * colour; only code takes an editor's colours (highlight.ts).
+ * owner, 2026-09-25: "the rest should stay exactly as the selected colour",
+ * and again that afternoon, of the brand on the blackboard: "do not use this
+ * color on the board"). Emphasis still shapes the writing — size, underline,
+ * weight — never its colour; only code takes an editor's colours
+ * (highlight.ts). `inkVar` (the live board) and `resolveInk` (an export) read
+ * this one table, so the two can never disagree again.
  */
 const TOKEN: Record<Emphasis, string> = {
   ink: '--color-ink',
@@ -73,6 +62,11 @@ const TOKEN: Record<Emphasis, string> = {
   warn: '--color-ink',
   muted: '--color-ink',
 };
+
+/** Ink colour token for an emphasis. Components never use raw colour values (ADR-0007). */
+export function inkVar(emphasis: Emphasis): string {
+  return `var(${TOKEN[emphasis]})`;
+}
 
 /**
  * Resolve an ink token to a concrete colour for SVG export (exports are
