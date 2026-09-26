@@ -49,6 +49,14 @@ it is per environment; otherwise it is shared. Do not add a third category.
    same images to production with production's own `.env`. No build, no ship: the images are
    already on the host. The same assertions run against production's ports and its edge.
 
+The workflow is switched on by the repository variable `DEPLOY_ENABLED=true` (Settings →
+Secrets and variables → Actions → Variables). It needs two secrets only a Tailscale admin can
+mint: `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, an OAuth client from
+<https://login.tailscale.com/admin/settings/oauth> with the `auth_keys` write scope and the tag
+`tag:ci` (add `tag:ci` to the tailnet ACL's `tagOwners` first). The deploy key, the host keys
+and the web build arguments are already stored. Until the variable is set, pushes to `main`
+run CI only and deploys are made from a workstation.
+
 The two commands work from a workstation too, with the same guarantees:
 
 ```sh

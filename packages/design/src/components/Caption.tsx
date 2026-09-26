@@ -30,6 +30,7 @@ export function Caption({ text, live = false, hint, className, lang, dir }: Capt
       dir={dir}
     >
       <span
+        data-caption-text
         className="inline rounded-xs px-[0.4em] py-[0.18em] text-body-medium text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone]"
         style={{ background: 'var(--color-caption-scrim)', textWrap: 'pretty' }}
       >

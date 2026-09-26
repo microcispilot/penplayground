@@ -45,8 +45,10 @@ test.describe('a learner starts a session', () => {
      * read at their own speed. So the caption holds one sentence entire, and
      * never a fragment of the next one on top of it.
      */
-    const caption = page.getByTestId('caption');
-    const sentence = (await caption.innerText()).trim();
+    // The sentence alone: on a headless runner the browser holds the audio back and the box
+    // also carries the "enable sound" hint under the subtitle, which is not part of the sentence.
+    const caption = page.getByTestId('caption').locator('[data-caption-text]');
+    const sentence = (await caption.innerText()).replace(/\|$/, '').trim();
     expect(sentence, 'the sentence arrives whole').toMatch(/[.!?…]$/);
     expect(sentence.split(/[.!?…]\s/).length, 'one sentence, not a paragraph').toBeLessThanOrEqual(
       2,

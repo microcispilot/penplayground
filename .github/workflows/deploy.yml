@@ -12,6 +12,7 @@ name: Deploy
 # environment's identity (URLs, ports, tag) and forwards nothing from here except the web
 # build arguments, which are public values baked into the bundle.
 #
+# Variables (repository): DEPLOY_ENABLED=true turns both jobs on.
 # Secrets (repository): DEPLOY_SSH_KEY (ed25519 private key), DEPLOY_KNOWN_HOSTS (the host's
 # keys, `ssh-keyscan 100.118.252.64`), TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET (a Tailscale OAuth
 # client with the `ci` tag), SENTRY_AUTH_TOKEN, VITE_TLDRAW_LICENSE_KEY, VITE_SENTRY_DSN,
@@ -49,9 +50,12 @@ jobs:
   staging:
     name: deploy staging
     # A push to main whose CI passed, or a person asking for staging by hand.
+    # DEPLOY_ENABLED (a repository variable) is the switch: unset until the Tailscale OAuth client
+    # exists, so a push does not produce a failing run that never reached the host.
     if: >-
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+      vars.DEPLOY_ENABLED == 'true'
+      && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'))
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment:
@@ -97,7 +101,7 @@ jobs:
 
   production:
     name: deploy production (promote)
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # The environment's protection rule (a required reviewer) is what holds the run here

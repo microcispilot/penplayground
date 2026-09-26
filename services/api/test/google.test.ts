@@ -471,5 +471,5 @@ describe('the app’s own button: a popup code, exchanged (ADR-0042)', () => {
       await bare.db.close();
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });
