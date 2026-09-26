@@ -159,12 +159,12 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The current row is "tint + left bar" (the owner's mock, 2026-09-26):
-   * the brand at 16 %, the page's own ink, and a 3 px rose bar on the flush
-   * left edge, on the expanded sidebar and on the rail alike. An unselected
-   * row has none of it.
+   * The current row is "indicator bar only" (the owner's mock, 2026-09-26,
+   * the second style): no fill, the page's own ink, and a 3 px rose bar on
+   * the flush left edge, on the expanded sidebar and on the rail alike. An
+   * unselected row is muted and has no bar.
    */
-  it('marks the current row with the tint and the left bar, and no other row', async () => {
+  it('marks the current row with the left bar alone, and no other row', async () => {
     for (const rail of [true, false]) {
       cleanup();
       renderWithApp(<Sidebar rail={rail} />, { participant: ANONYMOUS, route: '/' });
@@ -172,12 +172,11 @@ describe('Sidebar rows', () => {
       expect(current?.getAttribute('aria-current')).toBe('page');
       const cls = current?.className ?? '';
       expect(cls).toContain('text-on-surface');
-      expect(cls).toContain('bg-brand/16');
+      expect(cls).not.toContain('bg-');
       expect(cls).toContain('shadow-[inset_3px_0_0_var(--color-brand-rose)]');
       // And an unselected row is neither.
       const other = screen.getByText('Experts').closest('a')?.className ?? '';
       expect(other).toContain('text-on-surface-variant');
-      expect(other).not.toContain('bg-brand/16');
       expect(other).not.toContain('shadow-[inset_3px');
     }
   });
@@ -195,7 +194,7 @@ describe('Sidebar rows', () => {
     const experts = screen.getByText('Experts').closest('a');
     const all = screen.getByTestId('sidebar-topic-all');
     const computing = screen.getByRole('button', { name: 'Computing' });
-    expect(computing.className).toContain('bg-brand/16');
+    expect(computing.className).toContain('shadow-[inset_3px_0_0_var(--color-brand-rose)]');
     for (const el of [home, experts, all, computing]) {
       expect(el?.className).toContain('rounded-l-none');
       expect(el?.className).toContain('rounded-r-[1px]');
