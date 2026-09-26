@@ -146,7 +146,7 @@ export function Feedback() {
                     className={cn(
                       'state-layer flex cursor-pointer items-start gap-3 rounded-lg px-4 py-3.5 text-left transition-colors',
                       chosen
-                        ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_1px_var(--color-primary)]'
+                        ? 'bg-brand-blush text-brand shadow-[inset_0_0_0_1px_var(--color-brand)]'
                         : 'hairline text-on-surface-variant',
                     )}
                   >

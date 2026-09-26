@@ -86,10 +86,13 @@ function rowClass(rail: boolean, active: boolean): string {
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
-    // The current row is the brand's ink, icon and label alike, on a tint of the same
-    // colour (the owner, 2026-09-25: "make the text that primary color with icon, and use a
+    // The current row is the brand's ink, icon and label alike, on the palette's blush
+    // (the owner, 2026-09-25: "make the text that primary color with icon, and use a
     // different background that properly matches"), never a filled block with white on it.
-    active ? 'bg-primary/10 text-primary' : 'text-on-surface-variant',
+    // The same two colours by day and by night: at night `primary` is rose, and the owner
+    // asked why the row was "not reddish, like the background of the login button"
+    // (2026-09-26). Brand on blush reads at 5.3:1 on either page.
+    active ? 'bg-brand-blush text-brand' : 'text-on-surface-variant',
   );
 }
 
@@ -291,7 +294,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                   className={cn(
                     'state-layer rounded-none px-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
-                      ? 'bg-primary/10 text-primary'
+                      ? 'bg-brand-blush text-brand'
                       : 'text-on-surface-variant',
                   )}
                   data-testid="sidebar-topic-all"
@@ -310,7 +313,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     className={cn(
                       'state-layer rounded-none px-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-brand-blush text-brand'
                         : 'text-on-surface-variant',
                     )}
                   >
