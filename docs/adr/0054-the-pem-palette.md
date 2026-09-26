@@ -89,14 +89,15 @@ longer admits `--color-ink-accent`, `-warn`, `-muted` or `-highlight`. The
 tokens themselves stay declared in `tokens.css` for the brand families'
 tuning; nothing on the board asks for them. `ink.test.ts` pins it.
 
-## Amendment (2026-09-26): a selected row is the brand on blush, by night too
+## Amendment (2026-09-26): a selected row's ink is the brand, by night too
 
 "Rose by night" made the sidebar's current row, a chosen topic, a chosen
-feedback kind and a survey answer rose on a rose tint after dark, and the
-owner asked why the row was "not reddish, like the background of the login
-button". The brand itself on the dark surface is 2.5:1 and was the reason
-for rose. So the selected tinted state no longer follows `primary`: it is
-the brand's ink on the palette's blush (`text-brand bg-brand-blush`), the
-same two values in both themes, 5.3:1 on the blush wherever the page is.
-`primary` stays rose by night for prose, links and outlines, where there is
-no fill to carry the brand. The sidebar test pins the classes.
+feedback kind and a survey answer rose after dark, and the owner asked why
+the row was "not reddish, like the background of the login button". The ink
+of a selected tinted state is now the brand itself (`text-brand`) in both
+themes. Its background is unchanged: the `primary` tint at 10 %, as the
+owner set it on 2026-09-25 (a first attempt put the row on blush, and the
+owner rejected the changed background at once). The brand on the dark tint
+is 2.5:1; that is the owner's choice for this one state, and `primary` stays
+rose by night for prose, links and outlines. The sidebar test pins the
+classes.

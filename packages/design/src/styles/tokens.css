@@ -47,10 +47,11 @@
  *   where it stood. Pinned, not generated, and one set for both themes by
  *   the owner's ruling: `primary-fixed`, `secondary-container`,
  *   `mark-accent`, `glow` and `highlight` carry the same value by day and
- *   by night; `primary`, the text role, is rose by night (below). A selected
- *   row, chip or option is the brand on blush (`text-brand bg-brand-blush`)
- *   in both themes, 5.3:1, because the owner wants it "reddish, like the
- *   background of the login button" at night too (2026-09-26).
+ *   by night; `primary`, the text role, is rose by night (below). The ink of
+ *   a selected row, chip or option is the brand itself (`text-brand`) in both
+ *   themes, on the `primary` tint it always had, because the owner wants it
+ *   "reddish, like the background of the login button" at night too
+ *   (2026-09-26).
  *
  *   Measured: white on the brand is 7.3:1; the brand on the light `surface`
  *   6.9:1 and on the highest light grey 5.6:1. On the dark `surface` it is

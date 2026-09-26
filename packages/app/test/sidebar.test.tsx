@@ -177,12 +177,12 @@ describe('Sidebar rows', () => {
       expect(current?.getAttribute('aria-current')).toBe('page');
       const cls = current?.className ?? '';
       expect(cls).toContain('text-brand');
-      expect(cls).toContain('bg-brand-blush');
+      expect(cls).toContain('bg-primary/10');
       expect(cls).not.toContain('bg-secondary-container');
       // And an unselected row is neither.
       const other = screen.getByText('Experts').closest('a')?.className ?? '';
       expect(other).toContain('text-on-surface-variant');
-      expect(other).not.toContain('bg-brand-blush');
+      expect(other).not.toContain('bg-primary/10');
     }
   });
 
@@ -199,7 +199,7 @@ describe('Sidebar rows', () => {
     const experts = screen.getByText('Experts').closest('a');
     const all = screen.getByTestId('sidebar-topic-all');
     const computing = screen.getByRole('button', { name: 'Computing' });
-    expect(computing.className).toContain('bg-brand-blush');
+    expect(computing.className).toContain('bg-primary/10');
     for (const el of [home, experts, all, computing]) {
       expect(el?.className).toContain('rounded-none');
       expect(el?.className).not.toContain('rounded-full');
