@@ -218,6 +218,28 @@ describe('the picker', () => {
       expect(html()).toEqual({ board: 'greenboard', ink: 'yellow', tool: 'marker' }),
     );
   });
+
+  /**
+   * The chosen colour is drawn the way the chosen board is (the owner,
+   * 2026-09-25): the filled card with a check, not a ring around the dot.
+   */
+  it('shows the chosen ink as a filled card with a check, like a chosen board', async () => {
+    const storage = memoryStorage();
+    renderWithApp(<Settings />, { participant: SIGNED_IN, storage });
+    fireEvent.click(await paidBoardsReady('greenboard'));
+    fireEvent.click(screen.getByTestId('ink-yellow'));
+    await waitFor(() => expect(html().ink).toBe('yellow'));
+    const yellow = screen.getByTestId('ink-yellow');
+    const board = screen.getByTestId('board-greenboard');
+    expect(yellow.getAttribute('aria-pressed')).toBe('true');
+    for (const el of [yellow, board]) {
+      expect(el.className).toContain('bg-secondary-container');
+      expect(el.querySelector('svg')).toBeTruthy();
+    }
+    const white = screen.getByTestId('ink-white');
+    expect(white.getAttribute('aria-pressed')).not.toBe('true');
+    expect(white.className).not.toContain('bg-secondary-container');
+  });
 });
 
 /**

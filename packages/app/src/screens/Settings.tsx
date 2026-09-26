@@ -322,7 +322,8 @@ function InkDot({
         aria-hidden
         className={cn(
           'block size-7 rounded-full border-2 bg-[var(--color-ink)]',
-          chosen ? 'border-primary' : 'border-outline-variant',
+          // The choice is the card's fill, as it is for a board; the dot keeps a quiet edge.
+          chosen ? 'border-on-secondary-container/40' : 'border-outline-variant',
           unusable && 'opacity-disabled',
         )}
       />
@@ -333,8 +334,16 @@ function InkDot({
         )}
       >
         {ink.name}
+        {chosen ? (
+          <Check size={13} className="shrink-0 text-on-secondary-container" aria-hidden />
+        ) : null}
       </span>
-      <span className="block max-w-[64px] min-h-[1em] text-label-tiny text-on-surface-variant text-balance">
+      <span
+        className={cn(
+          'block max-w-[64px] min-h-[1em] text-label-tiny text-balance',
+          chosen ? 'text-on-secondary-container' : 'text-on-surface-variant',
+        )}
+      >
         {unusable ? 'The board’s colour' : (locked ?? '')}
       </span>
     </>
@@ -342,8 +351,13 @@ function InkDot({
   // Three rows on a fixed grid — dot, name, plan — so a colour without a plan
   // tag keeps its dot on the same line as the others rather than dropping to
   // sit on the baseline. `grid-rows-subgrid` takes the rows from the fieldset.
+  // Chosen is drawn the way a chosen board is (the owner, 2026-09-25: "the
+  // selected options should be properly shown selected, not with just a
+  // border around the colour; the same as the board selections"): the
+  // secondary-container fill with a check, never only a ring on the dot.
   const shell = cn(
-    'state-layer grid grid-rows-subgrid row-span-3 justify-items-center rounded-lg px-1.5 pt-1.5 pb-1 text-center',
+    'state-layer grid grid-rows-subgrid row-span-3 justify-items-center rounded-lg px-1.5 pt-1.5 pb-1 text-center transition-colors',
+    chosen && 'bg-secondary-container text-on-secondary-container',
   );
   if (unusable) {
     return (
