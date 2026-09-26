@@ -75,7 +75,10 @@ async function harness(opts: { grader?: Grader; language?: string }): Promise<Ha
   const observer: RoomObserver = {
     event: (name, data) => events.push({ name, data }),
     error: (area, _error, data) => {
-      errors.push({ area, stage: data?.stage });
+      // The Onten mock's 20 ms budget is a measurement of the machine, not of
+      // the grader: on a slow CI runner the context stage reports it and the
+      // exact error list below would count it as the room's (CI, 2026-09-26).
+      if (area !== 'onten.over_budget') errors.push({ area, stage: data?.stage });
       return 'sentry-ref';
     },
   };
