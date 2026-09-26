@@ -2,7 +2,8 @@
 #
 # A browser without the gate cookie is sent to @gated, which asks for the shared password
 # (one user in /etc/nginx/STACK.htpasswd, written by deploy.sh; the password is on the host
-# in ENV_ROOT/edge.credentials, rotated with `deploy/deploy.sh ENVIRONMENT --rotate-gate`).
+# in ENV_ROOT/edge.credentials, the cookie's token in ENV_ROOT/edge.gate-token, both rotated
+# with `deploy/deploy.sh ENVIRONMENT --rotate-gate`).
 # The response that passes sets the cookie, and from then on every request goes straight
 # through. The cookie exists because the app authenticates its own API calls with
 # `Authorization: Bearer`, the header Basic auth also uses: gating /api with the password

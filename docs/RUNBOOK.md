@@ -76,7 +76,8 @@ Config-only change (`api.env`): edit on the host, then
 ### Staging's password (ADR-0061)
 
 ```sh
-# read it (root only; never printed by a deploy)
+# read it (root only; never printed by a deploy). The file holds the user and the password and
+# nothing else; the cookie's token is the edge's own, in edge.gate-token, and is never typed.
 ssh root@100.118.252.64 cat /srv/pen-staging/edge.credentials
 # replace it; the old one stops working at the reload, and every remembered browser is asked again
 deploy/deploy.sh staging --rotate-gate

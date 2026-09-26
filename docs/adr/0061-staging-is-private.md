@@ -54,8 +54,10 @@ property of the environment (`PEN_EDGE_GATE=1` in `deploy/env/staging.conf`; pro
   should remember"). So the password is asked only of a request without the gate cookie: the
   response that passes sets `pen_gate` (Secure, HttpOnly, SameSite=Lax, thirty days), and every
   request carrying it goes straight through with its own Authorization header untouched. The
-  cookie's value is a 32-byte random token in `/etc/nginx/pen-staging.gate.conf`, written with
-  the password and rotated with it, so rotating signs every remembered browser out.
+  cookie's value is a 128-bit random token, kept in `/srv/pen-staging/edge.gate-token` and
+  rendered into `/etc/nginx/pen-staging.gate.conf` on every deploy; it is the edge's own, never
+  something a person types or shares. It rotates with the password, so rotating signs every
+  remembered browser out.
 - **The host itself passes** (`satisfy any; allow 127.0.0.1`), so the deploy's own checks need
   no password.
 - **The credential** is one user (`pen`) with a 24-character random password. `deploy.sh`

@@ -380,6 +380,9 @@ echo "  $(ls "$rendered" | tr '\n' ' ')→ $PEN_DEPLOY_ROOT/nginx/"
 gate_htpasswd="/etc/nginx/$PEN_STACK.htpasswd"
 gate_conf="/etc/nginx/$PEN_STACK.gate.conf"
 gate_credentials="$PEN_DEPLOY_ROOT/edge.credentials"
+# The cookie token is the edge's own and is nothing a person acts on, so it is kept apart from
+# the file a person reads for the password (the owner, seeing it there: "what is that token?").
+gate_token_file="$PEN_DEPLOY_ROOT/edge.gate-token"
 if [ "$PEN_EDGE_GATE" = 1 ]; then
   gate_report="$(remote "set -e
     umask 077
@@ -387,7 +390,9 @@ if [ "$PEN_EDGE_GATE" = 1 ]; then
     creds='$gate_credentials'
     user=\$(sed -n 's/^user=//p' \"\$creds\" 2>/dev/null | head -1)
     pass=\$(sed -n 's/^password=//p' \"\$creds\" 2>/dev/null | head -1)
-    token=\$(sed -n 's/^token=//p' \"\$creds\" 2>/dev/null | head -1)
+    token=\$(cat '$gate_token_file' 2>/dev/null | head -1)
+    # Before 2026-09-26 the token lived in the credentials file; it moves out, and the password stays.
+    [ -n \"\$token\" ] || token=\$(sed -n 's/^token=//p' \"\$creds\" 2>/dev/null | head -1)
     wrote=''
     if [ \"\$rotate\" = 1 ] || [ ! -s '$gate_htpasswd' ] || [ -z \"\$user\" ] || [ -z \"\$pass\" ]; then
       user=pen
@@ -404,23 +409,25 @@ if [ "$PEN_EDGE_GATE" = 1 ]; then
       wrote=\"\$wrote token\"
     fi
     {
-      printf '# The gate on https://%s (ADR-0061). Share the user and password with whoever should see %s.\\n' '$PEN_DOMAIN' '$ENVIRONMENT'
-      printf '# The token is the cookie a browser holds once through; it is not for sharing.\\n'
-      printf '# Rotate both with: deploy/deploy.sh %s --rotate-gate\\n' '$ENVIRONMENT'
-      printf 'user=%s\\npassword=%s\\ntoken=%s\\n' \"\$user\" \"\$pass\" \"\$token\"
+      printf '# The gate on https://%s (ADR-0061): what a browser is asked for, once.\\n' '$PEN_DOMAIN'
+      printf '# Share these two lines with whoever should see %s. Written by deploy.sh on %s.\\n' '$ENVIRONMENT' \"\$(date -u +%Y-%m-%dT%H:%MZ)\"
+      printf '# New ones: deploy/deploy.sh %s --rotate-gate\\n' '$ENVIRONMENT'
+      printf 'user=%s\\npassword=%s\\n' \"\$user\" \"\$pass\"
     } > \"\$creds.next\"
     chmod 0600 \"\$creds.next\" && mv -f \"\$creds.next\" \"\$creds\"
+    printf '%s\\n' \"\$token\" > '$gate_token_file.next'
+    chmod 0600 '$gate_token_file.next' && mv -f '$gate_token_file.next' '$gate_token_file'
     sed -e \"s|TOKEN|\$token|g\" -e 's|STACK_ID|$STACK_ID|g' -e 's|STACK|$PEN_STACK|g' \
       '$PEN_DEPLOY_ROOT/nginx/gate.conf.example' > '$gate_conf.next'
     chmod 0600 '$gate_conf.next' && mv -f '$gate_conf.next' '$gate_conf'
     printf '%s' \"\${wrote:- kept}\"")" || die "could not write the gate's files on the host"
   case "$gate_report" in
     *password*|*token*) log "gate: new$gate_report written for https://$PEN_DOMAIN"
-      echo "  $gate_htpasswd (root:www-data 0640), $gate_conf (root 0600), $gate_credentials (root 0600); nothing printed here" ;;
-    *) echo "  gate: on; password and token kept (read them on the host: $gate_credentials; new ones: --rotate-gate)" ;;
+      echo "  $gate_htpasswd (root:www-data 0640), $gate_conf and $gate_token_file (root 0600), $gate_credentials (root 0600); nothing printed here" ;;
+    *) echo "  gate: on; password kept (read it on the host: $gate_credentials; new one: --rotate-gate)" ;;
   esac
 else
-  remote "rm -f '$gate_htpasswd' '$gate_conf' '$gate_credentials'"
+  remote "rm -f '$gate_htpasswd' '$gate_conf' '$gate_credentials' '$gate_token_file'"
 fi
 
 # ── 5. secrets present? (.env is managed here; api.env / postgres.env are never generated) ──
