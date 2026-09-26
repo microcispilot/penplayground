@@ -198,7 +198,7 @@ describe('Sidebar rows', () => {
     expect(computing.className).toContain('shadow-[inset_4px_0_0_var(--color-brand)]');
     for (const el of [home, experts, all, computing]) {
       expect(el?.className).toContain('rounded-l-none');
-      expect(el?.className).toContain('rounded-r-[1px]');
+      expect(el?.className).toContain('rounded-r-hairline');
       expect(el?.className).not.toContain('rounded-full');
     }
   });

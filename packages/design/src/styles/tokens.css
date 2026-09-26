@@ -228,6 +228,8 @@
    * of the Home and Computing pills) wants those square (`rounded-none`).
    * ────────────────────────────────────────────────────────────────────── */
   --radius-*: initial;
+  /* A corner that only softens an edge: the sidebar row's right side (the owner, 2026-09-26). */
+  --radius-hairline: 1px;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;

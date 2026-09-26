@@ -32,8 +32,13 @@ for (const theme of ['light', 'dark'] as const) {
             0,
           );
           const box = await preview.locator('> span').first().boundingBox();
+          // 100 px at the browser's default root size; the desktop scale is 85 % of it
+          // (packages/design/src/styles/index.css), so the bar is read in rem, not px.
+          const rem = await page.evaluate(
+            () => Number.parseFloat(getComputedStyle(document.documentElement).fontSize) / 16,
+          );
           expect(box?.height ?? 0, 'the preview is tall enough to read').toBeGreaterThanOrEqual(
-            100,
+            100 * rem,
           );
         }
 
