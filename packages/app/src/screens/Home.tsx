@@ -345,8 +345,11 @@ export function Home() {
             }}
           >
             <Search size={19} className="shrink-0 text-on-surface-dim" aria-hidden />
+            {/* The chip's words and its × are the sidebar's muted grey (`on-surface-dim`), not
+                the container's own ink: the owner (2026-09-26), of "with Soren", "make this with
+                also the same color". 4.9:1 on the chip in both themes. */}
             {withExpert ? (
-              <span className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary-container py-0.5 pr-1.5 pl-1 text-label-large text-on-primary-container">
+              <span className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary-container py-0.5 pr-1.5 pl-1 text-label-large text-on-surface-dim">
                 <img
                   src={api.portraitUrl(withExpert.portrait?.src, 192) ?? undefined}
                   alt=""
@@ -373,7 +376,7 @@ export function Home() {
               // The learner just sent an expert away; the chip says who is
               // coming instead, so the field is never silently "anyone".
               <span
-                className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary-container py-0.5 pr-2.5 pl-2 text-label-large text-on-primary-container"
+                className="ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary-container py-0.5 pr-2.5 pl-2 text-label-large text-on-surface-dim"
                 data-testid="random-expert"
               >
                 <Shuffle size={14} aria-hidden />
