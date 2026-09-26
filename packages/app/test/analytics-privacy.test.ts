@@ -85,7 +85,10 @@ describe('privacy choices and the lazily-loaded SDK', () => {
     initAnalytics(withAnalytics(), { analytics: true });
     await settle();
     expect(posthog.inits).toEqual(['phc_test']);
-    expect(posthog.registered).toEqual([{ app: 'pen-academy-web', platform: 'web' }]);
+    // `environment` rides on every event (ADR-0059); the test platform names none, so development.
+    expect(posthog.registered).toEqual([
+      { app: 'pen-academy-web', platform: 'web', environment: 'development' },
+    ]);
   });
 
   it('never fetches or starts the SDK for a learner who has opted out', async () => {
@@ -164,8 +167,20 @@ describe('actions outside a room', () => {
     // analytics off) clears every registered property, and this is what
     // puts `app` and `platform` back on every later event.
     expect(posthog.registered).toEqual([
-      { app: 'pen-academy-web', platform: 'web', anonymous: true, plan: 'free' },
-      { app: 'pen-academy-web', platform: 'web', anonymous: true, plan: 'free' },
+      {
+        app: 'pen-academy-web',
+        platform: 'web',
+        environment: 'development',
+        anonymous: true,
+        plan: 'free',
+      },
+      {
+        app: 'pen-academy-web',
+        platform: 'web',
+        environment: 'development',
+        anonymous: true,
+        plan: 'free',
+      },
     ]);
   });
 

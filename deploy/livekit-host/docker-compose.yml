@@ -7,9 +7,10 @@
 # the single-host stack (deploy/livekit/livekit.yaml) is mounted unchanged; the cert-sync hook
 # copies the TURN certificate beside it exactly as it does on the app host.
 #
-#   /srv/pen-livekit/.env          LIVEKIT_API_KEY / LIVEKIT_API_SECRET — the same pair the API
-#                                  signs join tokens with (deploy/livekit-host/deploy.sh copies
-#                                  them from the app host so the two can never drift)
+#   /srv/pen-livekit/.env          LIVEKIT_KEYS — a YAML map of every environment's API key to
+#                                  its secret ({staging's: …, production's: …}), written by
+#                                  deploy/livekit-host/deploy.sh from the app host's /srv/pen-*/.env
+#                                  so the pairs can never drift (ADR-0059)
 #   /srv/pen-livekit/livekit.yaml  from deploy/livekit/livekit.yaml
 #   /srv/pen-livekit/certs/        fullchain.pem + privkey.pem for turn.penplayground.com
 #
@@ -24,7 +25,7 @@ services:
     network_mode: host
     command: --config /etc/livekit.yaml
     environment:
-      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?set in .env}: ${LIVEKIT_API_SECRET:?set in .env}"
+      LIVEKIT_KEYS: ${LIVEKIT_KEYS:?set in .env by deploy/livekit-host/deploy.sh}
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
       - ./certs:/etc/livekit/certs:ro

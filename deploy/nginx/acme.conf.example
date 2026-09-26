@@ -1,0 +1,19 @@
+# The port-80 answer for a domain whose certificate does not exist yet (ADR-0059): only the
+# ACME challenge, so certbot's webroot check can pass before the full vhost is installed.
+# deploy.sh installs it as /etc/nginx/sites-available/STACK-acme.conf for the certbot run and
+# removes it once the real vhost is in place.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name DOMAIN SERVER_NAMES_EXTRA;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 404;
+    }
+}

@@ -3,7 +3,7 @@
 `deploy/backup/backup.sh` copies each night's backup to
 `$PEN_BACKUP_RCLONE_REMOTE` when that variable is set. The remote itself is
 defined by `rclone.conf` **in this directory** on the host
-(`/srv/pen-playground/backup/rclone/rclone.conf`), which the `backup`
+(`/srv/pen-<env>/backup/rclone/rclone.conf`), which the `backup`
 container mounts read-only at `/rclone`.
 
 Unset `PEN_BACKUP_RCLONE_REMOTE` (the default) and backups stay on the host
@@ -77,13 +77,13 @@ everything after it is copy-paste on the app host.
    ```
 
    Copy the **private** key here too (`cp /root/.ssh/pen-backup
-   /srv/pen-playground/backup/rclone/ && chmod 600 …/pen-backup`); the
+   /srv/pen-<env>/backup/rclone/ && chmod 600 …/pen-backup`); the
    container sees it at `/rclone/pen-backup`, which is what `key_file` names.
 
 4. Point the stack at it and restart the service:
 
    ```sh
-   cd /srv/pen-playground
+   cd /srv/pen-<env>
    echo 'PEN_BACKUP_RCLONE_REMOTE=hetzner:pen-playground' >> .env
    docker compose --profile backup up -d backup
    docker compose --profile backup run --rm backup /backup.sh   # prove it now
@@ -117,7 +117,7 @@ ls restore-2026-09-17            # postgres.dump  data.tar.gz  manifest.txt  SHA
 
 Then stand the stack up on the new host as far as "secrets in place, `docker
 compose up -d postgres`", copy that directory into
-`/srv/pen-playground/backups/2026-09-17/`, and run the ordinary restore —
+`/srv/pen-<env>/backups/2026-09-17/`, and run the ordinary restore —
 `docker compose --profile backup run --rm backup /restore.sh 2026-09-17`
 (docs/RUNBOOK.md → "Backups"). Nothing about the restore path is special to
 having come from the remote.

@@ -307,6 +307,10 @@ export const NOT_SETTINGS = {
   // Development affordances `loadConfig` already refuses in production. A
   // stored value arrives after that check runs, so this would be a way round it.
   NODE_ENV: 'environment',
+  // Which deployment this is and which commit it runs (ADR-0059): facts about the process,
+  // written by deploy.sh into the stack's .env, never a setting.
+  PEN_ENVIRONMENT: 'environment',
+  PEN_RELEASE: 'environment',
   PEN_DEV_PLAN: 'development-only',
   PEN_AD_TEST_TAGS: 'development-only',
   PEN_FEATURE_OVERLAY: 'development-only',

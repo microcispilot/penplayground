@@ -39,7 +39,7 @@ Everything above is a VAST tag to us: `PEN_AD_TAG_URL` is the whole integration 
 4. **Tag** — Inventory › Ad units › `pen-free-instream` › **Generate tags** › *Google Publisher
    Tag for Video and Audio* › IMA SDK › copy the tag. It looks like
    `https://pubads.g.doubleclick.net/gampad/ads?iu=/NNNNNNNN/pen-free-instream&sz=640x480&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&correlator=`.
-5. **Configure the API** — in `/srv/pen-playground/api.env`:
+5. **Configure the API** — in `/srv/pen-<env>/api.env`:
 
    ```
    PEN_AD_TAG_URL=<the tag>

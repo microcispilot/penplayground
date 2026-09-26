@@ -37,6 +37,16 @@ export interface Platform {
   /** Where the tldraw licence key comes from (empty in dev). */
   readonly tldrawLicenseKey: string;
   readonly sentryDsn: string | null;
+  /**
+   * Which deployment this is (ADR-0059). The web image is the same for
+   * staging and production, so the value is not baked in: the container's
+   * nginx injects `<meta name="pen-environment">` from its own environment
+   * and the host reads it. Tags every Sentry event and PostHog event; never
+   * read by product logic. Absent means development.
+   */
+  readonly environment?: 'development' | 'staging' | 'production';
+  /** The commit this bundle was built from, for Sentry's `release`; absent in dev. */
+  readonly release?: string;
   /** PostHog project token + host; null disables analytics. */
   readonly analytics: { token: string; host: string } | null;
   /**

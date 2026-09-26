@@ -1,26 +1,29 @@
-# Pen Playground edge vhost for prod-app-01 — copy to /etc/nginx/sites-available/pen-playground.conf,
-# replace DOMAIN (all occurrences), symlink into sites-enabled, `nginx -t && systemctl reload nginx`.
+# Pen Playground edge vhost — one template for every environment (ADR-0059). deploy/deploy.sh
+# renders it with the environment's values and installs it as
+# /etc/nginx/sites-available/STACK.conf (+ the sites-enabled link), then `nginx -t` and reload.
 #
-# First pass (before the certificate exists): keep ONLY the port-80 server block enabled, run
-#   certbot certonly --webroot -w /var/www/letsencrypt -d DOMAIN -d www.DOMAIN
-# then enable the two TLS blocks. Style follows /etc/nginx/sites-enabled/simurghlabs.conf.
+# Placeholders: DOMAIN, STACK (pen-staging / pen-production), STACK_ID (the same with
+# underscores, for nginx variable names), API_PORT, WEB_PORT, LIVEKIT_UPSTREAM, ENV_ROOT (the
+# stack's directory on the host, where the two includes below are rendered).
 #
-# Everything is forwarded to the web container (127.0.0.1:4201), which serves the SPA and proxies
-# /api, /experts/portraits, /s and the /ws WebSocket to the API container itself. /livekit/ goes straight to
-# the LiveKit signalling port (127.0.0.1:7880); media itself flows over 7881/tcp + 7882/udp, not
-# through nginx.
+# Everything is forwarded to the environment's web container, which serves the SPA and proxies
+# /api, /experts/portraits, /s and the /ws WebSocket to its own API container. /livekit/ goes
+# straight to the media server's signalling port; media itself flows over 7881/tcp + 7882/udp.
 #
-# WebSocket upgrade map. prod-app-01 already defines `$connection_upgrade` globally in
-# /etc/nginx/conf.d/ws_upgrade.conf; this one uses its own name so the two never conflict.
-map $http_upgrade $pen_connection_upgrade {
+# WebSocket upgrade map, named per stack so both environments' vhosts load side by side
+# (prod-app-01 also defines a global `$connection_upgrade` in /etc/nginx/conf.d/ws_upgrade.conf).
+map $http_upgrade $STACK_ID_connection_upgrade {
     default upgrade;
     ""      close;
 }
 
+# Environment-specific server blocks (production: www → apex). Empty for staging.
+include ENV_ROOT/nginx/servers.inc;
+
 server {
     listen 80;
     listen [::]:80;
-    server_name DOMAIN www.DOMAIN;
+    server_name DOMAIN SERVER_NAMES_EXTRA;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;
@@ -31,19 +34,6 @@ server {
     location / {
         return 308 https://DOMAIN$request_uri;
     }
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name www.DOMAIN;
-
-    ssl_certificate /etc/letsencrypt/live/DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/DOMAIN/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    return 308 https://DOMAIN$request_uri;
 }
 
 server {
@@ -64,18 +54,21 @@ server {
     # browser would enforce the intersection and silently break whichever tier
     # was older. To see what the container serves:
     #   pnpm --filter @pen/web csp:print
-    # If you ever terminate TLS somewhere that does not proxy to that container,
-    # paste that output here as `add_header Content-Security-Policy "..." always;`.
 
     client_max_body_size 10m;
 
-    # LiveKit signalling (wss://DOMAIN/livekit → ws://127.0.0.1:7880/rtc) and its HTTP API. The
+    # What differs by environment inside this server: for staging, the crawler shutters
+    # (X-Robots-Tag, robots.txt, no sitemap) and the redirect from the old path prefix;
+    # for production, nothing.
+    include ENV_ROOT/nginx/server.inc;
+
+    # LiveKit signalling (wss://DOMAIN/livekit → ws://LIVEKIT_UPSTREAM/rtc) and its HTTP API. The
     # trailing slashes strip the /livekit prefix; a room lives for up to three hours.
     location /livekit/ {
         proxy_pass http://LIVEKIT_UPSTREAM/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $pen_connection_upgrade;
+        proxy_set_header Connection $STACK_ID_connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -87,10 +80,10 @@ server {
     }
 
     location / {
-        proxy_pass http://127.0.0.1:4201;
+        proxy_pass http://127.0.0.1:WEB_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $pen_connection_upgrade;
+        proxy_set_header Connection $STACK_ID_connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Proto https;

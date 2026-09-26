@@ -138,7 +138,12 @@ export function initAnalytics(platform: Platform, choice: { analytics: boolean }
         cross_subdomain_cookie: false,
         person_profiles: 'identified_only',
       });
-      base = { app: `pen-academy-${platform.name}`, platform: platform.id };
+      base = {
+        app: `pen-academy-${platform.name}`,
+        platform: platform.id,
+        // One PostHog project for staging and production (ADR-0059); every event says which.
+        environment: platform.environment ?? 'development',
+      };
       posthog.register({ ...base, ...person });
       client = posthog;
       for (const fn of pending.splice(0)) fn(posthog);
@@ -194,7 +199,7 @@ let person: { anonymous?: boolean; plan?: string } = {};
  * `reset()` — sign-out, delete, analytics off — clears every registered
  * property, and the next `setAnalyticsPerson` is what puts them back.
  */
-let base: { app?: string; platform?: string } = {};
+let base: { app?: string; platform?: string; environment?: string } = {};
 export function setAnalyticsPerson(next: { anonymous: boolean; plan: string }): void {
   person = { ...next };
   monitor?.setTag('anonymous', String(next.anonymous));

@@ -1,39 +1,41 @@
 # Deploying Pen Playground
 
-Production runs on the Hetzner host **prod-app-01** (Ubuntu 24.04, 4 vCPU, 7.6 GB, Docker 29,
-host nginx on :80/:443 with certbot). The stack is five containers behind the host nginx:
+Two environments, **staging** and **production**, run on the Hetzner host **prod-app-01**
+(Ubuntu 24.04, 4 vCPU, 7.6 GB, Docker 29, host nginx on :80/:443 with certbot) as two instances
+of one stack (ADR-0059; the operating model is **`docs/ENVIRONMENTS.md`**). Each is five
+containers behind the host nginx:
 
 ```
-browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/sites-enabled/pen-playground.conf
-                      │ proxy 127.0.0.1:4201
+browser ──https──▶ host nginx (:443, certbot)          /etc/nginx/sites-enabled/pen-<env>.conf
+                      │ proxy 127.0.0.1:<web port>
                       ▼
-                web  (nginx:1.30-alpine, SPA + proxy)   pen-playground-web:<tag>
+                web  (nginx:1.30-alpine, SPA + proxy)   pen-playground-web:<tag>   PEN_ENVIRONMENT stamped into the shell
                       │ /api /experts/portraits /s /ws → api:4000
                       ▼
-                api  (node:22-alpine, bundled, uid 1000) pen-playground-api:<tag>   /srv/pen-playground/data:/data
-                      ├── postgres:18                                             volume pen-postgres
+                api  (node:22, bundled, uid 1000)       pen-playground-api:<tag>   /srv/pen-<env>/data:/data
+                      ├── postgres:18                                             volume pen-<env>_pen-postgres
                       ├── searxng (2026.9.16-461f174b0, JSON API, loopback only)
-                      └── livekit (livekit-server v1.9.12, rooms audio)
-                            ▲ signalling: host nginx /livekit → 127.0.0.1:7880
-                            ▲ media: 7881/tcp + 7882/udp, public
+                      └── backup sidecar (nightly pg_dump + /data → <root>/backups, rclone off-host)
+                      ▲ rooms audio: the media host prod-livekit-01 (ADR-0043), /livekit → 10.10.0.4:7880
 ```
 
-Everything binds to `127.0.0.1` (api 4200, web 4201, postgres 5432, searxng 8080, livekit
-signalling 7880); only the host nginx and LiveKit's media and TURN ports (7881/tcp, 7882/udp,
-3478/udp, 30000-30200/udp) are reachable from the internet. `deploy/` holds every file involved:
+Everything binds to `127.0.0.1`: staging on 4200 (api) / 4201 (web) / 4202 (admin) / 5432
+(postgres) / 8080 (searxng), production on 4300 / 4301 / 4302 / 5433 / 8081. Only the host nginx
+and the media host's ports are reachable from the internet. `deploy/` holds every file involved:
 
 | file | purpose |
 | --- | --- |
-| `deploy/deploy.sh` | build → ship → sync → `compose up` → health check, idempotent |
-| `deploy/docker-compose.yml` | the stack (`/srv/pen-playground/docker-compose.yml` on the host) |
-| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-playground/api.env`. `deploy.sh` overwrites `PEN_PUBLIC_URL`, `PEN_API_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PEN_TYPESAFE_API_KEY`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `SENTRY_DSN` and `PEN_SMTP_*` from the operator's shell whenever they are set there, so those never drift from the workstation's `.env` |
-| `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-playground/postgres.env` |
+| `deploy/deploy.sh <env>` | build → ship → sync → `compose up` → assert the environment → install the edge, idempotent; `production --promote` takes what staging runs |
+| `deploy/env/staging.conf`, `deploy/env/production.conf` | what each environment *is*: domain, stack, root, ports, indexability, media host, backup folder. No secrets |
+| `deploy/docker-compose.yml` | the stack, one file for both (`/srv/pen-<env>/docker-compose.yml` on the host); project name and ports from the `.env` the script writes |
+| `deploy/api.env.example` | every API variable, with comments → `/srv/pen-<env>/api.env`. `deploy.sh` always writes `PEN_PUBLIC_URL` / `PEN_API_URL` from the environment's domain, and overwrites `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PEN_TYPESAFE_API_KEY`, `FISH_AUDIO_API_KEY`, `CARTESIA_API_KEY`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `SENTRY_DSN` and `PEN_SMTP_*` from the operator's shell whenever they are set there |
+| `deploy/postgres.env.example` | Postgres credentials → `/srv/pen-<env>/postgres.env` |
 | `deploy/searxng/` | SearXNG compose + `settings.yml` (included by the stack) |
 | `deploy/livekit/livekit.yaml` | LiveKit server config (ports, TURN, room limits; no secrets) |
 | `deploy/livekit/livekit.dev.yaml` | the same with TURN on, for the local relay test |
 | `deploy/livekit/cert-sync.sh` | certbot deploy hook: the TURN certificate → the container |
-| `deploy/web/nginx.conf` | nginx inside the web container (baked into the image) |
-| `deploy/nginx/pen-playground.conf.example` | host vhost template (`DOMAIN` placeholder) |
+| `deploy/web/nginx.conf` | nginx inside the web container, rendered at start with `PEN_ENVIRONMENT` |
+| `deploy/nginx/site.conf.example` + `server-*.inc`, `servers-*.inc`, `acme.conf.example` | the host vhost template and its per-environment includes; rendered and installed by `deploy.sh` |
 | `deploy/backup/` | the nightly backup sidecar: `backup.sh`, `restore.sh`, cron entrypoint, rclone setup |
 | `deploy/uptime.md` | the external uptime check the owner creates |
 | `services/api/Dockerfile`, `apps/web/Dockerfile` | the images (build context = repo root) |
@@ -50,16 +52,18 @@ scaling — is **`docs/RUNBOOK.md`**.
 - Environment for `deploy/deploy.sh`:
 
 ```sh
+# Defaults, shown for completeness: root@100.118.252.64, ~/.ssh/id_ed25519, ~/.ssh/known_hosts.
 export PEN_DEPLOY_HOST=root@100.118.252.64
 export PEN_DEPLOY_SSH_IDENTITY_FILE=$HOME/.ssh/id_ed25519
 export PEN_DEPLOY_SSH_KNOWN_HOSTS_FILE=$HOME/.ssh/known_hosts
-export PEN_DOMAIN=penplayground.com          # the public hostname (default)
-export VITE_TLDRAW_LICENSE_KEY=…             # optional web build args
+export VITE_TLDRAW_LICENSE_KEY=…             # web build args, from the workstation .env
 export VITE_SENTRY_DSN=…
 ```
 
-The script refuses to run unless the remote hostname is `prod-app-01`
-(`PEN_DEPLOY_EXPECTED_HOSTNAME` overrides).
+The domain, ports and root are the environment's (`deploy/env/<env>.conf`), never shell
+variables. The script refuses to run unless the remote hostname is `prod-app-01`
+(`PEN_DEPLOY_EXPECTED_HOSTNAME` overrides). Tailscale must be up (`/usr/local/bin/tailscale up`)
+and Docker Desktop running.
 
 ## Releases and branches
 
@@ -93,58 +97,42 @@ The script refuses to run unless the remote hostname is `prod-app-01`
 Create `A` (and `AAAA` if the host has IPv6) records for `DOMAIN` and `www.DOMAIN` pointing at
 prod-app-01's public address. Certbot's HTTP-01 challenge needs them resolving before step 4.
 
-## First deploy
+## First deploy of an environment
 
-1. **Secrets on the host** (once; never generated by the script):
+1. **Secrets on the host** (once per environment; never generated by the script):
 
    ```sh
    ssh root@100.118.252.64
-   mkdir -p /srv/pen-playground && cd /srv/pen-playground
-   # after the first `deploy.sh --no-up` run the .example files are already here; otherwise scp them
+   mkdir -p /srv/pen-production && cd /srv/pen-production
+   # the .example files land here on the first `deploy.sh production --no-up`; or copy another
+   # environment's api.env and change PEN_JWT_SECRET, the DATABASE_URL password and the Stripe keys
    cp api.env.example api.env && cp postgres.env.example postgres.env && chmod 600 *.env
    $EDITOR postgres.env      # POSTGRES_PASSWORD=$(openssl rand -hex 24)
-   $EDITOR api.env           # PEN_PUBLIC_URL/PEN_API_URL=https://DOMAIN, PEN_JWT_SECRET,
-                             # DATABASE_URL (same password), OPENAI_API_KEY_*, FISH_AUDIO_API_KEY,
-                             # SENTRY_DSN, Stripe ids when billing goes live
+   $EDITOR api.env           # PEN_JWT_SECRET, DATABASE_URL (same password), OPENAI_API_KEY_*, voice
+                             # keys, SENTRY_DSN, Stripe keys for THIS environment (test for staging,
+                             # live for production). PEN_PUBLIC_URL/PEN_API_URL are written by the script.
    ```
 
-   `SEARXNG_URL=http://searxng:8080` is already in the template. `.env` (image tag + SearXNG
-   secret) is maintained by the script. `GOOGLE_CLIENT_ID` and `STRIPE_WEBHOOK_SECRET` are
-   described under [Google sign-in](#google-sign-in) and [Stripe webhook](#stripe-webhook).
+2. **Deploy**: `deploy/deploy.sh staging` builds both images for linux/amd64 (tag = git short
+   sha), ships only the images the host lacks as one zstd file over a resumable `rsync --partial`,
+   syncs the stack files, writes the environment's `.env` (project name, ports, tag, release,
+   media host, backup folder), runs `docker compose up -d --remove-orphans`, waits until
+   `/api/health` answers on the environment's ports, and asserts it calls itself that
+   environment on that release. Production: `deploy/deploy.sh production --promote`.
 
-2. **Deploy**: from the repo root, `deploy/deploy.sh`. It builds both images for linux/amd64
-   (tag = git short sha), ships only the images the host lacks as one zstd file over a resumable
-   `rsync --partial` (a relayed Tailscale link stalls; a stall used to restart a 1 GB pipe from zero), loads them there, rsyncs the
-   stack files, writes `PEN_IMAGE_TAG` into `/srv/pen-playground/.env`, runs
-   `docker compose up -d --remove-orphans`, and waits until `/api/health` answers directly
-   (4200) and through the web container (4201).
+3. **Edge**: the first time a domain goes live, add `--edge`. The script installs a port-80
+   ACME answer for the name if it has no certificate yet, runs certbot (webroot;
+   `PEN_ACME_EMAIL` for the registration), installs the rendered vhost with `nginx -t` and a
+   put-back on failure, reloads, and checks `https://<domain>/api/health` through the edge. Once
+   the site is enabled, every later deploy refreshes the vhost without `--edge`.
 
-3. **Edge vhost**: the script prints the exact commands. In short, on the host:
+4. **Media server**: a new environment has a new LiveKit key pair in its `.env`; run
+   `deploy/livekit-host/deploy.sh` so prod-livekit-01 accepts it (it gathers every
+   `/srv/pen-*/.env`).
 
-   ```sh
-   cp /srv/pen-playground/nginx/pen-playground.conf /etc/nginx/sites-available/pen-playground.conf
-   # first time only: comment out the two `listen 443` server blocks until the cert exists
-   ln -sf /etc/nginx/sites-available/pen-playground.conf /etc/nginx/sites-enabled/
-   nginx -t && systemctl reload nginx
-   ```
-
-4. **Certificate** (once DNS resolves):
-
-   ```sh
-   mkdir -p /var/www/letsencrypt
-   certbot certonly --webroot -w /var/www/letsencrypt -d DOMAIN -d www.DOMAIN \
-     --non-interactive --agree-tos -m ops@example.com
-   # restore the 443 blocks, then
-   nginx -t && systemctl reload nginx
-   curl -fsS https://DOMAIN/api/health
-   ```
-
-   Renewal is automatic (certbot's systemd timer); the vhost keeps the
-   `/.well-known/acme-challenge/` location so renewals keep working.
-
-5. **Smoke test** in a browser: open `https://DOMAIN`, type a topic, press Start — the lesson
-   must start speaking (Fish Audio) and the board must draw. `docker compose logs -f api` on the
-   host shows the room events; Sentry (`SENTRY_DSN`) receives failures.
+5. **Smoke test** in a browser: open the domain, type a topic, press Start — the lesson must
+   start speaking and the board must draw. `docker compose logs -f api` in the environment's
+   root shows the room events; Sentry receives failures under that environment.
 
 ## Google sign-in
 
@@ -168,7 +156,7 @@ verified by `google-auth-library` against `GOOGLE_CLIENT_ID` (`services/api/src/
      the operator's shell and says so when only one is set.
    - web build arg `VITE_GOOGLE_CLIENT_ID=…` (`deploy.sh` passes it when exported; the button is
      hidden when the build has no value).
-3. `cd /srv/pen-playground && docker compose up -d api`, redeploy the web image, then check
+3. `cd /srv/pen-<env> && docker compose up -d api`, redeploy the web image, then check
    `curl -s http://127.0.0.1:4200/api/health` shows `"google":true` and the account chip offers
    **Continue with Google**.
 
@@ -291,7 +279,7 @@ from a client. Kernel UDP buffers are raised in `/etc/sysctl.d/90-pen-livekit.co
 `use_external_ip: true` in `livekit.yaml` makes the server discover its public address with
 STUN and advertise it in ICE candidates.
 
-**Secrets.** `deploy.sh` writes the key pair once into `/srv/pen-playground/.env`
+**Secrets.** `deploy.sh` writes the key pair once into each environment’s `/srv/pen-<env>/.env`
 (`LIVEKIT_API_KEY=API…`, `LIVEKIT_API_SECRET=…`) and sets `LIVEKIT_URL=wss://DOMAIN/livekit`
 on every run; `deploy/livekit-host/deploy.sh` copies the same two lines to the media host's
 `/srv/pen-livekit/.env`, so the pair can never drift. If any of it is missing the feature is
@@ -447,61 +435,25 @@ curl -s https://DOMAIN/sitemap.xml | head -5
 curl -s https://DOMAIN/s/<session id> | grep -o 'application/ld+json'
 ```
 
-## Serving the app under a path prefix
+## Staging and production
 
-The product normally sits at the root of its host. It can also be served under a URL path
-prefix — `https://sdjust.penplayground.com/testingxyzbdc/` — so a hostname can show one thing
-at `/` while the app lives somewhere unguessable. Nothing about the containers changes: the
-edge strips the prefix before it proxies, and they serve what they always serve.
+See **`docs/ENVIRONMENTS.md`** (ADR-0059). In one paragraph: staging (`sdjust.penplayground.com`,
+`/srv/pen-staging`, ports 42xx) and production (`penplayground.com`, `/srv/pen-production`,
+ports 43xx) are two instances of the same compose file with their own databases, `/data`,
+secrets, backups and LiveKit key pair; every push to `main` that passes CI is deployed to
+staging by `.github/workflows/deploy.yml`, and production is deployed by promoting exactly the
+image staging runs (`deploy/deploy.sh production --promote`), after a reviewer approves the run.
+Staging is kept out of every index by its vhost (`X-Robots-Tag: noindex`, `Disallow: /`, no
+sitemap); links from the days it lived under `/testingxyzbdc` redirect to the root.
 
-Three things have to agree, and all three come from one deploy:
-
-| where | what | why |
-| --- | --- | --- |
-| the web **image** | `--build-arg PEN_BASE_PATH=/testingxyzbdc` | Vite's `base`: asset, lazy-chunk and preload URLs, and `import.meta.env.BASE_URL`, which the app reads back for react-router's `basename` and for the API origin |
-| the **API** | `PEN_PUBLIC_URL` / `PEN_API_URL` with the prefix | share pages, `og:image`, the sitemap, `robots.txt`, MP4 download links and Stripe's return URLs are all built from them |
-| the **edge** | `deploy/nginx/pen-playground-test.conf.example` | serves `/testingxyzbdc/`, strips it before proxying, redirects `/` into it, and keeps the host out of every index |
-
-One command does all three:
-
-```sh
-PEN_VHOST=test \
-PEN_DOMAIN=sdjust.penplayground.com \
-PEN_BASE_PATH=/testingxyzbdc \
-PEN_PUBLIC_URL=https://sdjust.penplayground.com/testingxyzbdc \
-PEN_API_URL=https://sdjust.penplayground.com/testingxyzbdc \
-PEN_DEPLOY_HOST=… deploy/deploy.sh
-```
-
-Then, on the host, the usual three steps the script prints — copy the rendered
-`pen-playground-test.conf`, get the certificate for the one name, reload.
-
-The base path is **baked into the image**. A container started from an image built for `/` and
-put behind a prefixed vhost paints nothing and fills the console with 404s, and the other way
-round too. `docker image inspect` will not tell you which it is; the honest check is
-`curl -s https://HOST/testingxyzbdc/ | grep -o 'src="[^"]*"'` — the entry script must be under
-the prefix.
-
-Two things to know about a prefixed host:
-
-- **Crawlers.** The vhost serves its own `robots.txt` at the root of the host (`Disallow: /`) and
-  adds `X-Robots-Tag: noindex, nofollow` to every response, which is what actually keeps a test
-  deployment out of an index. The app's own `robots.txt` under the prefix is never read by a
-  crawler — `/robots.txt` is only ever fetched from the root of an origin.
-- **MP4 export.** `PEN_RENDER_BASE_URL` is `http://web` in `docker-compose.yml`, which reaches the
-  web container directly — and that container knows nothing about the prefix, so a prefixed
-  bundle's assets 404 there. On a prefixed host set `PEN_RENDER_BASE_URL` to the public URL with
-  the prefix, so the renderer goes out through the edge like a browser does.
-
-Locally, the whole thing can be rehearsed in the real nginx image before it is deployed:
+The app can still be served under a URL path prefix (Vite's `PEN_BASE_PATH`, react-router's
+`basename`, the API's `PEN_PUBLIC_URL`), and the rehearsal for it still runs locally:
 
 ```sh
 CI=true pnpm --filter @pen/web exec playwright test --config=playwright.basepath.config.ts
 ```
 
-which builds the bundle with `PEN_BASE_PATH`, serves it behind `nginx:1.30-alpine` running both
-tiers with the prefix stripped, and drives the full journey through it
-(`apps/web/e2e/base-path.spec.ts`, which fails on any response ≥ 400).
+The deploy no longer uses it: one web image serves every environment, so nothing may be baked in.
 
 ## Video ads (free plan)
 
@@ -556,7 +508,7 @@ What the lesson voice store has saved, and how much of it is on disk:
 
 ```sh
 curl -s -H "authorization: Bearer <token>" https://DOMAIN/api/admin/costs | jq '.tts'
-du -sh /srv/pen-playground/data/lesson-voice
+du -sh /srv/pen-<env>/data/lesson-voice
 ```
 
 `personal` in that snapshot counts the sentences it deliberately did **not**
@@ -635,14 +587,17 @@ would be worse than leaving it.
 ## Updates
 
 ```sh
-deploy/deploy.sh                 # new tag from HEAD; builds, ships, compose up, health check
+deploy/deploy.sh staging                 # new tag from HEAD: build, ship, compose up, assert, edge
+deploy/deploy.sh production --promote    # production takes exactly what staging runs
 ```
+
+Or let the `Deploy` workflow do both (docs/ENVIRONMENTS.md → "How a change reaches production").
 
 `docker compose up -d` only recreates containers whose image or config changed; postgres and
 searxng keep running. Database migrations (Drizzle, `dist/drizzle`) run automatically when the
 API boots — deploys with schema changes are one step.
 
-Config-only changes (`api.env`): edit on the host, then `cd /srv/pen-playground && docker compose
+Config-only changes (`api.env`): edit on the host, then `cd /srv/pen-<env> && docker compose
 up -d api`.
 
 Schema changes ship as Drizzle migrations (`pnpm --filter @pen/db generate` after editing
@@ -656,8 +611,8 @@ applied migration (`db.migration_timestamp_reconciled` in the logs when it happe
 Every shipped tag stays on the host (`docker image ls pen-playground-api`). To go back:
 
 ```sh
-PEN_IMAGE_TAG=<previous tag> deploy/deploy.sh --skip-build --skip-ship
-# or on the host: edit PEN_IMAGE_TAG in /srv/pen-playground/.env && docker compose up -d
+deploy/deploy.sh <env> --tag <previous tag> --skip-build --skip-ship
+# or on the host: edit PEN_IMAGE_TAG (and PEN_RELEASE) in /srv/pen-<env>/.env && docker compose up -d
 ```
 
 Migrations are forward-only; rolling the API back across a migration that dropped or renamed a
@@ -667,12 +622,12 @@ column needs a database restore (below). Prune old images now and then:
 ## Logs and health
 
 ```sh
-cd /srv/pen-playground
+cd /srv/pen-staging          # or /srv/pen-production
 docker compose ps                                   # health column per service
 docker compose logs -f --tail=200 api               # pino JSON lines (level 30 info, 40 warn, 50 error)
 docker compose logs -f web                          # nginx access/error
-curl -s http://127.0.0.1:4200/api/health            # {"ok":true,"tts":…,"llm":…,"acquirer":true,"render":…,"rooms":true}
-docker compose logs -f --tail=100 livekit           # media server (json)
+curl -s http://127.0.0.1:4200/api/health            # {"ok":true,"environment":"staging","release":"<sha>","tts":…,"rooms":true}
+ssh root@100.95.64.21 'cd /srv/pen-livekit && docker compose logs -f --tail=100'   # media server
 curl -s 'http://127.0.0.1:8080/search?q=test&format=json' | head -c 300   # searxng
 ```
 
@@ -687,14 +642,14 @@ that sidecar does, for when you need to do it by hand.
 
 State lives in two places:
 
-- **`/srv/pen-playground/data`** — session ledger (transcripts, audio) and Onten packs, owned by
+- **`/srv/pen-<env>/data`** — session ledger (transcripts, audio) and Onten packs, owned by
   uid 1000 (the container's `node` user; `deploy.sh` sets this). Plain files; snapshot with
   rsync/restic:
-  `rsync -a /srv/pen-playground/data/ /backups/pen-playground/data/`
+  `rsync -a /srv/pen-<env>/data/ /backups/pen-<env>/data/`
 - **Postgres** (participants, sessions):
 
   ```sh
-  cd /srv/pen-playground
+  cd /srv/pen-<env>
   docker compose exec -T postgres pg_dump -U pen -Fc pen > /backups/pen-playground/pen-$(date -u +%F).dump
   # restore (stop the api first):
   docker compose stop api

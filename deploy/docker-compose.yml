@@ -1,21 +1,23 @@
-# Pen Playground on prod-app-01 — lives at /srv/pen-playground/docker-compose.yml (deploy/deploy.sh
-# copies it there). Everything binds to 127.0.0.1; the host nginx terminates TLS and forwards the
-# DOMAIN to the web container, which proxies /api, /experts/portraits, /s and /ws to the API internally.
+# Pen Playground stack — one file for every environment (ADR-0059). deploy/deploy.sh copies it
+# to the environment's root on the host (/srv/pen-staging, /srv/pen-production) and writes the
+# .env beside it; staging and production are two instances of this file with different .env
+# values and nothing else. Everything binds to 127.0.0.1; the host nginx terminates TLS and
+# forwards the environment's domain to its web container, which proxies /api, /experts/portraits,
+# /s and /ws to its API internally.
 #
 # Files next to this one on the host:
-#   .env           PEN_IMAGE_TAG (written by deploy.sh) and SEARXNG_SECRET
-#   api.env        every API variable (template: api.env.example)
+#   .env           written by deploy.sh: COMPOSE_PROJECT_NAME, PEN_ENVIRONMENT, the host ports,
+#                  PEN_IMAGE_TAG, PEN_RELEASE, LIVEKIT_*, SEARXNG_SECRET, PEN_BACKUP_RCLONE_REMOTE
+#   api.env        every API variable (template: api.env.example) — the environment's secrets
 #   postgres.env   POSTGRES_USER/PASSWORD/DB (template: postgres.env.example)
-#   data/          API state (sessions ledger, onten packs) — back this up
+#   data/          API state (sessions ledger, onten packs) — backed up nightly
 #   searxng/       settings.yml + the included compose file
 #   livekit/       livekit.yaml (no secrets; keys come from .env)
 #
-# Host ports: 4200 (api), 4201 (web) and 4202 (admin console, `admin` profile only) — 4100 was already taken on prod-app-01 by another
-# node process, 4000 by the onten backend. Postgres 18 mounts its volume at /var/lib/postgresql.
-# LiveKit: 127.0.0.1:7880 (signalling, behind nginx at /livekit), 7881/tcp and 7882/udp public
-# (media) — see docs/DEPLOY.md → "Rooms audio (LiveKit)".
-
-name: pen-playground
+# Host ports (deploy/env/<environment>.conf): staging 4200 api / 4201 web / 4202 admin / 5432
+# postgres / 8080 searxng; production 4300 / 4301 / 4302 / 5433 / 8081. 4100 and 4000 belong to
+# other processes on prod-app-01. Postgres 18 mounts its volume at /var/lib/postgresql.
+# LiveKit runs on the media host (ADR-0043); the `livekit` profile is for a single-host stack.
 
 include:
   - path: ./searxng/docker-compose.yml
@@ -36,6 +38,10 @@ services:
       - ./api.env
     environment:
       NODE_ENV: production
+      # Which deployment this is, and from which commit (ADR-0059). Same image everywhere;
+      # these two lines are the difference. /api/health reports both.
+      PEN_ENVIRONMENT: ${PEN_ENVIRONMENT:?set PEN_ENVIRONMENT in .env (deploy.sh writes it)}
+      PEN_RELEASE: ${PEN_RELEASE:-}
       PEN_PORT: "4000"
       PEN_DATA_DIR: /data
       # MP4 export renders the replay page headlessly; reach the web container directly rather
@@ -56,7 +62,7 @@ services:
     volumes:
       - ./data:/data
     ports:
-      - "127.0.0.1:4200:4000"
+      - "127.0.0.1:${PEN_API_PORT:-4200}:4000"
     # /api/ready, not /api/health: health says "the process is up and this is
     # its configuration" and stays 200 through an outage on purpose, while
     # ready fails when the database, the data volume or the provider keys are
@@ -87,8 +93,12 @@ services:
   web:
     image: pen-playground-web:${PEN_IMAGE_TAG:-latest}
     restart: unless-stopped
+    environment:
+      # Injected into index.html as <meta name="pen-environment"> by the container's nginx
+      # (deploy/web/nginx.conf), so the bundle knows which deployment it is (ADR-0059).
+      PEN_ENVIRONMENT: ${PEN_ENVIRONMENT:?set PEN_ENVIRONMENT in .env (deploy.sh writes it)}
     ports:
-      - "127.0.0.1:4201:80"
+      - "127.0.0.1:${PEN_WEB_PORT:-4201}:80"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 30s
@@ -119,7 +129,7 @@ services:
     image: pen-playground-admin:${PEN_IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
-      - "127.0.0.1:4202:80"
+      - "127.0.0.1:${PEN_ADMIN_PORT:-4202}:80"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 30s
@@ -179,7 +189,7 @@ services:
     volumes:
       - pen-postgres:/var/lib/postgresql
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${PEN_PG_PORT:-5432}:5432"
     shm_size: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-pen}\" -d \"$${POSTGRES_DB:-pen}\""]
@@ -194,7 +204,7 @@ services:
         max-file: "5"
 
   # ── backups (profile: backup) ───────────────────────────────────────────────
-  # Nightly pg_dump + a tarball of /data into /srv/pen-playground/backups, kept
+  # Nightly pg_dump + a tarball of /data into <root>/backups, kept
   # for PEN_BACKUP_KEEP_DAYS, optionally copied off-host with rclone. It is in a
   # profile so `docker compose up -d` (the deploy path) never starts it by
   # accident and `--profile backup` is an explicit choice; deploy.sh passes it.
@@ -214,8 +224,9 @@ services:
     environment:
       POSTGRES_HOST: postgres
       PEN_BACKUP_KEEP_DAYS: ${PEN_BACKUP_KEEP_DAYS:-14}
-      # e.g. "hetzner:pen-playground" for a Storage Box over SFTP; unset = local
-      # only. The remote itself is defined in ./backup/rclone.conf (chmod 600).
+      # e.g. "hetzner:pen-production" for a Storage Box over SFTP (one folder per
+      # environment; deploy/env/<environment>.conf names it); unset = local only.
+      # The remote itself is defined in ./backup/rclone.conf (chmod 600).
       PEN_BACKUP_RCLONE_REMOTE: ${PEN_BACKUP_RCLONE_REMOTE:-}
       RCLONE_CONFIG: /rclone/rclone.conf
       PEN_BACKUP_CRON: ${PEN_BACKUP_CRON:-15 3 * * *}

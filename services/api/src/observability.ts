@@ -38,6 +38,7 @@ export function initSentry(cfg: Config): boolean {
   Sentry.init({
     dsn: cfg.SENTRY_DSN,
     environment: cfg.SENTRY_ENVIRONMENT,
+    ...(cfg.PEN_RELEASE ? { release: cfg.PEN_RELEASE } : {}),
     sendDefaultPii: false,
     tracesSampleRate: 0,
     beforeSend(event) {

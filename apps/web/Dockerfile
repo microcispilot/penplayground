@@ -77,7 +77,11 @@ FROM ${NGINX_IMAGE} AS runtime
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.title="Pen Playground web" \
       org.opencontainers.image.revision="${GIT_SHA}"
-COPY deploy/web/nginx.conf /etc/nginx/conf.d/default.conf
+# A template, not a config: the image's entrypoint renders it at start with the container's
+# PEN_ENVIRONMENT (ADR-0059). The filter keeps envsubst away from nginx's own $variables.
+RUN rm -f /etc/nginx/conf.d/default.conf
+COPY deploy/web/nginx.conf /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_FILTER='^PEN_' PEN_ENVIRONMENT=development
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

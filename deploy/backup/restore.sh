@@ -1,7 +1,7 @@
 #!/bin/sh
 # Pen Playground — restore one dated backup into a STOPPED stack.
 #
-#   cd /srv/pen-playground
+#   cd /srv/pen-<env>
 #   docker compose stop api                       # nothing may write while we restore
 #   docker compose --profile backup run --rm backup /restore.sh 2026-09-17
 #   docker compose start api

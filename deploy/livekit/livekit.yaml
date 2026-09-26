@@ -1,6 +1,6 @@
 # LiveKit server for Pen Playground rooms (human-to-human audio, up to 12 participants).
 # Mounted read-only into the `livekit` container by deploy/docker-compose.yml; the API keys come
-# from the LIVEKIT_KEYS environment variable (deploy.sh writes them to /srv/pen-playground/.env),
+# from the LIVEKIT_KEYS environment variable (one pair per environment, /srv/pen-<env>/.env; ADR-0059),
 # so this file holds no secrets and is safe to commit.
 #
 # Ports (all fixed; the container publishes them 1:1 so ICE candidates match):

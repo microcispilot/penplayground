@@ -9,7 +9,7 @@ running five containers behind the host nginx, plus a backup sidecar. One API
 process serves every live session.
 
 ```
-you ─ssh─▶ prod-app-01 : /srv/pen-playground
+you ─ssh─▶ prod-app-01 : /srv/pen-staging | /srv/pen-production   (two environments, ADR-0059)
              docker compose ps           what is running
              docker compose logs -f api  what it is doing
              curl 127.0.0.1:4200/api/ready   whether it can serve
@@ -22,7 +22,7 @@ you ─ssh─▶ prod-app-01 : /srv/pen-playground
 In order. Do not skip to fixing.
 
 ```sh
-ssh root@100.118.252.64 && cd /srv/pen-playground
+ssh root@100.118.252.64 && cd /srv/pen-production     # or /srv/pen-staging
 
 docker compose ps                                 # 1. what is up, what is restarting
 curl -s http://127.0.0.1:4200/api/ready | jq       # 2. can the API serve? which check fails?
@@ -61,7 +61,8 @@ From a workstation with Docker, Tailscale and the deploy env exported
 
 ```sh
 git switch release/web/0.0.2          # deploy a release branch, not main
-deploy/deploy.sh                      # build → ship → sync → up → health check
+deploy/deploy.sh staging              # build → ship → sync → up → assert env → edge
+deploy/deploy.sh production --promote # production takes exactly what staging runs
 ```
 
 The script refuses any host that is not `prod-app-01`, builds both images for
@@ -75,8 +76,8 @@ Config-only change (`api.env`): edit on the host, then
 ### Rollback
 
 ```sh
-PEN_IMAGE_TAG=<previous tag> deploy/deploy.sh --skip-build --skip-ship
-# or on the host: edit PEN_IMAGE_TAG in /srv/pen-playground/.env && docker compose up -d
+deploy/deploy.sh <env> --tag <previous tag> --skip-build --skip-ship
+# or on the host: edit PEN_IMAGE_TAG (and PEN_RELEASE) in /srv/pen-<env>/.env && docker compose up -d
 ```
 
 Every shipped tag stays on the host (`docker image ls pen-playground-api`).
@@ -115,7 +116,7 @@ body names the failing check:
 | failing check | what to do |
 | --- | --- |
 | `db` | `docker compose ps postgres`, `docker compose logs postgres`; disk full? § Disk |
-| `dataDir` | `df -h /srv`; is `/srv/pen-playground/data` owned by uid 1000? |
+| `dataDir` | `df -h /srv`; is `/srv/pen-<env>/data` owned by uid 1000? |
 | `providers` | a key is missing from `api.env` — the detail names it. `OPENROUTER_API_KEY` is deliberately not one of them: without it the room classifies with the session model and the stack can still serve a lesson (ADR-0025) |
 
 ---
@@ -349,12 +350,12 @@ counts, timings.
 
 A `backup` sidecar (compose profile `backup`) runs nightly at **03:15 UTC**:
 `pg_dump -Fc` of Postgres and a tarball of `/data` into
-`/srv/pen-playground/backups/<YYYY-MM-DD>/`, with `SHA256SUMS` and a manifest,
+`/srv/pen-<env>/backups/<YYYY-MM-DD>/`, with `SHA256SUMS` and a manifest,
 keeping **14 days**. Derived data is excluded (the TTS cache and rendered
 `*.mp4` exports regenerate on demand).
 
 ```sh
-cd /srv/pen-playground
+cd /srv/pen-<env>
 docker compose --profile backup up -d backup                    # start the schedule
 docker compose --profile backup run --rm backup /backup.sh      # one now
 docker compose logs --tail=50 backup                            # did last night's run work?
@@ -385,7 +386,7 @@ git-ignored `.env`:
 | `PEN_BACKUP_SSH_KEY_B64` | the private key, base64 so the PEM survives as one line |
 | `PEN_BACKUP_SSH_PUBLIC_KEY` | the half already authorised on the box |
 | `PEN_BACKUP_REMOTE_USER` / `_HOST` / `_PORT` | `u672371` / `u672371.your-storagebox.de` / `23` |
-| `PEN_BACKUP_RCLONE_REMOTE` | `hetzner:pen-playground` |
+| `PEN_BACKUP_RCLONE_REMOTE` | `hetzner:pen-staging` / `hetzner:pen-production` (deploy/env/*.conf; staging's copies before 2026-09-26 are under `hetzner:pen-playground`) |
 
 `deploy/deploy.sh` installs it on any host that does not already have one:
 decodes it to `/root/.ssh/pen-backup` (0600), derives the `.pub`, copies it to
@@ -419,7 +420,7 @@ only then remove the old key from the Console.
 Nothing may write while restoring, so the API stops first:
 
 ```sh
-cd /srv/pen-playground
+cd /srv/pen-<env>
 docker compose stop api
 docker compose --profile backup run --rm backup /restore.sh 2026-09-17
 #   … --db-only    only Postgres
@@ -441,10 +442,10 @@ rows and the directory were back.
 
 ## 6. Secrets rotation
 
-All of them live in `/srv/pen-playground/api.env` (mode 600). After any edit:
+All of them live in each environment's `/srv/pen-<env>/api.env` (mode 600); staging and production have their own. After any edit:
 
 ```sh
-cd /srv/pen-playground && docker compose up -d api && curl -s http://127.0.0.1:4200/api/health | jq
+cd /srv/pen-<env> && docker compose up -d api && curl -s http://127.0.0.1:<api port>/api/health | jq
 ```
 
 | secret | where it comes from | rotate by | blast radius |
@@ -521,8 +522,8 @@ and there is no flag for it.
 
 ```sh
 df -h /srv
-du -sh /srv/pen-playground/data/* | sort -h | tail
-du -sh /srv/pen-playground/backups
+du -sh /srv/pen-*/data/* | sort -h | tail
+du -sh /srv/pen-*/backups
 docker system df                                   # images and build cache
 ```
 

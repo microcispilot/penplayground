@@ -180,6 +180,8 @@ export default defineConfig(({ mode }) => {
       : [];
   return {
     plugins: [react(), tailwindcss(), headHints(env), ...sentry],
+    // The commit the bundle is from, so Sentry's `release` in the browser matches the uploaded maps.
+    define: { 'import.meta.env.VITE_RELEASE': JSON.stringify(releaseName()) },
     base: basePath(),
     // One .env at the repo root for every app and service.
     envDir: '../..',

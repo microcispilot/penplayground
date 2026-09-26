@@ -17,7 +17,11 @@ export class Analytics {
    */
   private readonly optedOut = new Set<string>();
 
+  /** Which deployment sent the event (ADR-0059): one PostHog project, filtered by this. */
+  private readonly environment: string;
+
   constructor(cfg: Config) {
+    this.environment = cfg.PEN_ENVIRONMENT;
     this.client = cfg.POSTHOG_PROJECT_TOKEN
       ? new PostHog(cfg.POSTHOG_PROJECT_TOKEN, {
           host: cfg.POSTHOG_HOST,
@@ -47,7 +51,7 @@ export class Analytics {
     this.client?.capture({
       distinctId,
       event,
-      properties: { ...properties, app: 'pen-academy-api' },
+      properties: { ...properties, app: 'pen-academy-api', environment: this.environment },
     });
   }
 

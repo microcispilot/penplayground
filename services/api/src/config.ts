@@ -7,6 +7,16 @@ import { z } from 'zod';
  */
 export const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /**
+   * Which deployment this process is (ADR-0059): `staging` and `production`
+   * run the same image with `NODE_ENV=production`; this is the one thing
+   * that tells them apart. Read by /api/health, Sentry (`environment`) and
+   * PostHog (the `environment` property), never by product logic — a
+   * behaviour that differs between the two is a bug, not a feature.
+   */
+  PEN_ENVIRONMENT: z.enum(['development', 'staging', 'production']).default('development'),
+  /** The commit this build is from (the image tag's full sha); /api/health and Sentry report it. */
+  PEN_RELEASE: z.string().min(1).optional(),
   PEN_PORT: z.coerce.number().int().positive().default(4000),
   PEN_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
   PEN_API_URL: z.string().url().default('http://localhost:4000'),
@@ -199,7 +209,8 @@ export const Env = z.object({
   POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
 
   SENTRY_DSN: z.string().optional(),
-  SENTRY_ENVIRONMENT: z.string().default('development'),
+  /** Defaults to PEN_ENVIRONMENT (resolved in loadConfig); set only to file events under another name. */
+  SENTRY_ENVIRONMENT: z.string().min(1).optional(),
   /**
    * Sentry Cron Monitor slug the API checks in to every `SENTRY_CRON_INTERVAL_MINUTES`
    * (`pen-api-heartbeat` in production). Unset = no heartbeat. A process that dies,
@@ -388,6 +399,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cfg,
     Object.freeze(Object.fromEntries(Object.entries(cleaned).filter(([key]) => key in Env.shape))),
   );
+  // Sentry files events under the environment's own name unless told otherwise.
+  cfg.SENTRY_ENVIRONMENT ??= cfg.PEN_ENVIRONMENT;
+  if (cfg.PEN_ENVIRONMENT === 'production' && cfg.NODE_ENV !== 'production')
+    throw new Error('PEN_ENVIRONMENT=production requires NODE_ENV=production');
   if (cfg.NODE_ENV === 'production') {
     if (cfg.PEN_TTS_PROVIDER === 'silent')
       throw new Error('PEN_TTS_PROVIDER=silent is not allowed in production');

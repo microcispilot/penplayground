@@ -62,7 +62,7 @@ An untested alert is a guess:
 
 ```sh
 # on prod-app-01, take the API away for a few minutes
-cd /srv/pen-playground && docker compose stop api
+cd /srv/pen-<env> && docker compose stop api
 # …two failed checks (~10 min) later, a Sentry issue and an email…
 docker compose start api
 ```

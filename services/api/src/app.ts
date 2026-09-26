@@ -555,6 +555,9 @@ export function buildApp(services: Services): App {
   app.get('/api/health', (c) =>
     c.json({
       ok: true,
+      /** Which deployment answered, and from which commit (ADR-0059): what a promote checks. */
+      environment: services.cfg.PEN_ENVIRONMENT,
+      release: services.cfg.PEN_RELEASE ?? null,
       tts: voiceEngineIds(services),
       llm: services.llmProvider,
       stt: services.recognizer?.id ?? 'browser',

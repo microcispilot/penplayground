@@ -9,7 +9,7 @@
 # Install it as a certbot deploy hook (runs after every successful renewal, and never when
 # nothing changed):
 #
-#   cp /srv/pen-playground/livekit/cert-sync.sh /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
+#   cp /srv/pen-<env>/livekit/cert-sync.sh /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
 #   chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh
 #   /etc/letsencrypt/renewal-hooks/deploy/pen-livekit.sh          # once, by hand, for the first copy
 #
@@ -18,13 +18,13 @@
 #
 # Environment (all optional):
 #   PEN_TURN_DOMAIN   certificate to copy      (default turn.penplayground.com)
-#   PEN_DEPLOY_ROOT   stack directory          (default /srv/pen-playground)
+#   PEN_DEPLOY_ROOT   stack directory          (default /srv/pen-livekit; deploy/livekit-host/deploy.sh sets it)
 #   PEN_CERT_DIR      where the container reads (default $PEN_DEPLOY_ROOT/livekit/certs; the
 #                     media host's stack keeps them at $PEN_DEPLOY_ROOT/certs, ADR-0043)
 set -Eeuo pipefail
 
 PEN_TURN_DOMAIN="${PEN_TURN_DOMAIN:-turn.penplayground.com}"
-PEN_DEPLOY_ROOT="${PEN_DEPLOY_ROOT:-/srv/pen-playground}"
+PEN_DEPLOY_ROOT="${PEN_DEPLOY_ROOT:-/srv/pen-livekit}"
 LIVE_DIR="/etc/letsencrypt/live/${PEN_TURN_DOMAIN}"
 CERT_DIR="${PEN_CERT_DIR:-${PEN_DEPLOY_ROOT}/livekit/certs}"
 

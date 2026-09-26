@@ -6,9 +6,8 @@
 # the API serves the same policy at /robots.txt in production. The sitemap is built by
 # the API from the public catalogue and cached for an hour.
 #
-# The paths below are root-absolute on purpose. A crawler only ever fetches /robots.txt from the
-# ROOT of an origin, so when the app is served under a path prefix this file is never read at all —
-# the host's own vhost answers there instead (deploy/nginx/pen-playground-test.conf.example).
+# The paths below are root-absolute on purpose. Staging never serves this file: its vhost
+# answers /robots.txt with "Disallow: /" itself (deploy/nginx/server-staging.inc, ADR-0059).
 
 User-agent: *
 Allow: /

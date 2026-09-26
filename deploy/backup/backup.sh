@@ -5,7 +5,7 @@
 # Run by the `backup` service's cron (deploy/docker-compose.yml, profile
 # `backup`), and by hand for an out-of-band backup:
 #
-#   cd /srv/pen-playground && docker compose --profile backup run --rm backup /backup.sh
+#   cd /srv/pen-<env> && docker compose --profile backup run --rm backup /backup.sh
 #
 # Everything it needs comes from the environment (the compose service sets it):
 #   POSTGRES_HOST/USER/PASSWORD/DB   the database to dump

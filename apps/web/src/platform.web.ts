@@ -64,6 +64,21 @@ const sentryMonitor: Monitor = {
  */
 const BASE_PATH = import.meta.env.BASE_URL;
 
+/**
+ * Which deployment this is (ADR-0059): read from the <meta> the web
+ * container's nginx injects into index.html from PEN_ENVIRONMENT. The same
+ * image serves staging and production, so nothing about it is baked in.
+ */
+function environmentOf(): 'development' | 'staging' | 'production' {
+  const content = document
+    .querySelector('meta[name="pen-environment"]')
+    ?.getAttribute('content')
+    ?.trim();
+  return content === 'staging' || content === 'production' ? content : 'development';
+}
+const ENVIRONMENT = environmentOf();
+const RELEASE: string | undefined = import.meta.env.VITE_RELEASE || undefined;
+
 export const webPlatform: Platform = {
   name: 'web',
   id: 'web',
@@ -81,6 +96,8 @@ export const webPlatform: Platform = {
   openExternal: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
   tldrawLicenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY ?? '',
   sentryDsn: import.meta.env.VITE_SENTRY_DSN ?? null,
+  environment: ENVIRONMENT,
+  ...(RELEASE ? { release: RELEASE } : {}),
   ...(import.meta.env.VITE_SENTRY_DSN ? { monitor: sentryMonitor } : {}),
   analytics: import.meta.env.VITE_POSTHOG_TOKEN
     ? {

@@ -8,6 +8,9 @@ import { webPlatform } from './platform.web.js';
 if (webPlatform.sentryDsn) {
   Sentry.init({
     dsn: webPlatform.sentryDsn,
+    // Staging and production share a DSN (one image, ADR-0059); this is what keeps their events apart.
+    environment: webPlatform.environment ?? 'development',
+    ...(webPlatform.release ? { release: webPlatform.release } : {}),
     sendDefaultPii: false,
     tracesSampleRate: 0,
     // Never ship what was said or typed: only codes, areas and numbers (ADR-0011).
