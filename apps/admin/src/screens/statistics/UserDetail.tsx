@@ -1,3 +1,4 @@
+import { FEEDBACK_KIND_LABEL, SURVEY_OPTIONS, SURVEY_QUESTION } from '@pen/contracts';
 import { Pill } from '@pen/design';
 import { ArrowLeft } from 'lucide-react';
 import { Link, useParams } from 'react-router';
@@ -104,6 +105,34 @@ export function UserDetail() {
                 />
                 <StatTile label="Cost to teach" value={usd(spend)} note="Across those lessons" />
               </TileRow>
+              <TileRow>
+                <StatTile
+                  label="Visits"
+                  value={count(detail.totals.visits)}
+                  note={`${duration(detail.totals.activeMs)} on the site in this window`}
+                />
+                <StatTile
+                  label="Per visit"
+                  value={duration(
+                    detail.totals.visits > 0 ? detail.totals.activeMs / detail.totals.visits : null,
+                  )}
+                  note="Engaged time, their own average"
+                />
+                <StatTile
+                  label="Wrote to us"
+                  value={count(detail.feedback.length)}
+                  note={detail.feedback.length === 0 ? 'Nothing yet' : 'Messages, below'}
+                />
+                <StatTile
+                  label="Plan changes"
+                  value={count(detail.planEvents.length)}
+                  note={
+                    detail.planEvents[0]
+                      ? `Last ${moment(detail.planEvents[0].at).text}`
+                      : 'None recorded'
+                  }
+                />
+              </TileRow>
 
               <Section
                 title="Their lessons"
@@ -160,6 +189,96 @@ export function UserDetail() {
                   query — so they describe the lessons shown and nothing outside them.
                 </Caveat>
               </Section>
+
+              {/* The person's own history (ADR-0060). */}
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                <Section
+                  title="Subscription"
+                  note="Every plan change Stripe told us about, newest first."
+                >
+                  {detail.planEvents.length === 0 ? (
+                    <EmptyNote>They have never subscribed.</EmptyNote>
+                  ) : (
+                    <TableFrame>
+                      <thead>
+                        <tr>
+                          <Th>When</Th>
+                          <Th>Change</Th>
+                          <Th>Status</Th>
+                          <Th numeric>Amount</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.planEvents.map((e) => {
+                          const at = moment(e.at);
+                          return (
+                            <tr key={`${e.at}-${e.toPlan}`}>
+                              <Td className="whitespace-nowrap">
+                                <time dateTime={at.iso}>{at.text}</time>
+                              </Td>
+                              <Td className="whitespace-nowrap">
+                                {planLabel(e.fromPlan ?? 'free')} →{' '}
+                                {planLabel(e.toPlan, e.interval)}
+                              </Td>
+                              <Td className="whitespace-nowrap">{e.status ?? '—'}</Td>
+                              <Td numeric>
+                                {e.amountCents === null ? '—' : usd(e.amountCents / 100)}
+                              </Td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </TableFrame>
+                  )}
+                </Section>
+
+                <Section
+                  title="What they told us"
+                  note="Their survey answers, and every message they sent."
+                >
+                  {detail.surveys.length === 0 && detail.feedback.length === 0 ? (
+                    <EmptyNote>Nothing yet.</EmptyNote>
+                  ) : (
+                    <ul className="flex flex-col gap-3 text-body-medium">
+                      {detail.surveys.map((sv) => {
+                        const at = moment(sv.createdAt);
+                        const label =
+                          sv.option === 'skipped'
+                            ? 'Skipped'
+                            : (SURVEY_OPTIONS[sv.kind].find((o) => o.id === sv.option)?.label ??
+                              sv.option);
+                        return (
+                          <li key={sv.id} className="flex flex-col gap-0.5">
+                            <span className="text-body-small text-on-surface-dim">
+                              <time dateTime={at.iso}>{at.text}</time> · {SURVEY_QUESTION[sv.kind]}
+                            </span>
+                            <span>
+                              {label}
+                              {sv.other ? (
+                                <span className="text-on-surface-variant"> “{sv.other}”</span>
+                              ) : null}
+                            </span>
+                          </li>
+                        );
+                      })}
+                      {detail.feedback.map((f) => {
+                        const at = moment(f.createdAt);
+                        return (
+                          <li key={f.id} className="flex flex-col gap-0.5">
+                            <span className="text-body-small text-on-surface-dim">
+                              <time dateTime={at.iso}>{at.text}</time> ·{' '}
+                              {FEEDBACK_KIND_LABEL[f.kind]} · {f.status}
+                            </span>
+                            <span className="whitespace-pre-wrap" dir="auto">
+                              {f.message}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </Section>
+              </div>
             </>
           );
         }}

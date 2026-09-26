@@ -15,6 +15,7 @@ export {
   type FeatureFlagsSnapshot,
   type FeatureFlagsWrite,
 } from './feature-flags.js';
+export { FeedbackRepository } from './feedback.js';
 export {
   type HistoryEntry,
   ListRepository,
@@ -29,7 +30,9 @@ export {
   type DeviceRowOut,
   type GeographyRowOut,
   type OverviewReport,
+  type PeopleSummary,
   type PlanChangeRow,
+  type PlanEventRow,
   type PlanMixRow,
   ReportRepository,
   type RetentionRow,
@@ -41,6 +44,7 @@ export {
   type UsageClockReport,
   type UserQuery,
   type UserRow,
+  type UserTotals,
   type VisitPointRow,
   type VisitTotals,
   type Window as ReportWindow,
@@ -74,3 +78,4 @@ export {
   StatsRepository,
   type VisitBeaconWrite,
 } from './stats.js';
+export { SurveyRepository } from './surveys.js';

@@ -11,11 +11,13 @@ import {
   DevicesPayload,
   GeographyPayload,
   OverviewPayload,
+  PeoplePayload,
   PlansPayload,
   RetentionPayload,
   SessionDetail,
   SessionsPayload,
   StagesPayload,
+  SurveysPayload,
   UsersPayload,
   VisitsPayload,
 } from '../src/lib/stats-schemas.js';
@@ -96,6 +98,8 @@ describe('the fixture is the shape the API really answers with', () => {
         [DevicesPayload, 'devices'],
         [ClockPayload, 'clock'],
         [PlansPayload, 'plans'],
+        [PeoplePayload, 'people'],
+        [SurveysPayload, 'surveys'],
       ] as const;
       for (const [schema, path] of pairs) {
         const parsed = schema.safeParse(reports[path]);
@@ -121,10 +125,31 @@ describe('the statistics section', () => {
     mount('/statistics');
     await screen.findAllByTestId('report-body');
     expect(screen.getByText('Lessons taught')).toBeTruthy();
-    // 30 days of sessions, summed by the fixture.
-    const tiles = screen.getAllByTestId('stat-tiles')[0];
+    // 30 days of sessions, summed by the fixture. The lessons row follows the two people rows (ADR-0060).
+    const tiles = screen
+      .getAllByTestId('stat-tiles')
+      .find((el) => el.textContent?.includes('Lessons taught'));
     expect(tiles?.textContent).toContain('Reached the recap');
     expect(tiles?.textContent).toContain('Spent');
+  });
+
+  it('opens on who is here: accounts, visitors, paying, active, cost per learner, and the top learners (ADR-0060)', async () => {
+    mount('/statistics');
+    await screen.findAllByTestId('report-body');
+    for (const label of [
+      'Accounts',
+      'Unique visitors',
+      'Paying',
+      'Free accounts',
+      'Active learners',
+      'Time per visitor',
+      'Cost per learner',
+      'Subscription revenue',
+    ])
+      expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.getByText('Top learners')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Time on site' })).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: 'Ada Okafor' }).length).toBeGreaterThan(0);
   });
 
   it('asks every endpoint for the same window, and for the API’s own default', async () => {
@@ -222,6 +247,10 @@ describe('each page renders what it was given', () => {
     expect(screen.getByText('Retention')).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'Per lesson' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Ada Okafor' })).toBeTruthy();
+    // The two surveys, by option, with the words behind "other" (ADR-0060).
+    expect(screen.getByText('How did you hear about Pen Playground?')).toBeTruthy();
+    expect(screen.getByText('What made you decide to leave?')).toBeTruthy();
+    expect(screen.getByText('“A conference talk”')).toBeTruthy();
   });
 
   it('Visits separates signed-in from anonymous and prints the active-time definition', async () => {
@@ -266,9 +295,14 @@ describe('a deployment with no data yet', () => {
   it('still prints zero as a number rather than as a gap', async () => {
     mount('/statistics', 'empty');
     await screen.findAllByTestId('report-body');
-    const tiles = screen.getAllByTestId('stat-tiles')[0];
+    const tiles = screen
+      .getAllByTestId('stat-tiles')
+      .find((el) => el.textContent?.includes('Lessons taught'));
     expect(tiles?.textContent).toContain('$0.00');
     expect(tiles?.textContent).toContain('0%');
+    // The people rows print zero too, never a gap (ADR-0060).
+    const people = screen.getAllByTestId('stat-tiles')[0];
+    expect(people?.textContent).toContain('Accounts0');
   });
 });
 

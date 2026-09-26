@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '../api/client.js';
 import { RETURN_TO_KEY } from '../components/RoomInviteGate.js';
+import { SurveyDialog } from '../components/SurveyDialog.js';
 import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 
@@ -101,6 +102,8 @@ export function Pricing() {
   const [interval, setInterval] = useState<'month' | 'year'>('month');
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  /** Where a successful checkout goes next, held while the arrival survey is up (ADR-0060). */
+  const [afterCheckout, setAfterCheckout] = useState<{ returnTo: string | null } | null>(null);
   useEffect(() => {
     api
       .billingStatus()
@@ -119,10 +122,22 @@ export function Pricing() {
       } catch {
         /* nothing remembered */
       }
-      if (returnTo?.startsWith('/room/')) navigate(returnTo, { replace: true });
+      const next = returnTo?.startsWith('/room/') ? returnTo : null;
+      // One question first, if the server has it waiting (ADR-0060): how they heard of us.
+      // Anything but a clear yes goes straight on; the survey never holds a new subscriber.
+      api
+        .pendingSurveys()
+        .then((p) => {
+          if (p.pending.some((s) => s.kind === 'signup_source'))
+            setAfterCheckout({ returnTo: next });
+          else if (next) navigate(next, { replace: true });
+        })
+        .catch(() => {
+          if (next) navigate(next, { replace: true });
+        });
     }
     if (r === 'cancelled') toast('Checkout cancelled.');
-  }, [params, toast, navigate]);
+  }, [params, toast, navigate, api]);
   const buy = async (plan: 'standard' | 'professional') => {
     trackAction('plan_selected', { plan, interval, from: participant?.plan ?? 'free' });
     setBusy(plan);
@@ -149,6 +164,18 @@ export function Pricing() {
   };
   return (
     <div className="flex flex-1 flex-col">
+      {afterCheckout ? (
+        <SurveyDialog
+          open
+          kind="signup_source"
+          trigger="checkout"
+          onDone={() => {
+            const next = afterCheckout.returnTo;
+            setAfterCheckout(null);
+            if (next) navigate(next, { replace: true });
+          }}
+        />
+      ) : null}
       <div className="flex-1 px-6 pt-14 pb-20 sm:px-8">
         <div className="mx-auto flex max-w-[1100px] flex-col items-center">
           <h1 className="text-center text-headline-small">Free to learn. Pay only for more.</h1>
@@ -236,11 +263,11 @@ export function Pricing() {
             })}
           </div>
           <p className="mt-8 text-center text-body-small text-on-surface-dim">
-            Cancel any time. A full refund within 48 hours of any charge; see the{' '}
+            Cancel any time. Our{' '}
             <Link to="/refunds" className="underline underline-offset-[3px] hover:text-on-surface">
               refund policy
-            </Link>
-            . Prices in USD.
+            </Link>{' '}
+            applies. Prices in USD.
           </p>
         </div>
       </div>

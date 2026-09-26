@@ -7,6 +7,7 @@ import {
   Download,
   Heart,
   History,
+  MessageSquareText,
   PlaySquare,
   Settings2,
   Sparkles,
@@ -85,11 +86,10 @@ function rowClass(rail: boolean, active: boolean): string {
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
-    active
-      ? rail
-        ? 'text-primary'
-        : 'bg-secondary-container text-on-secondary-container'
-      : 'text-on-surface-variant',
+    // The current row is the brand's ink, icon and label alike, on a tint of the same
+    // colour (the owner, 2026-09-25: "make the text that primary color with icon, and use a
+    // different background that properly matches"), never a filled block with white on it.
+    active ? 'bg-primary/10 text-primary' : 'text-on-surface-variant',
   );
 }
 
@@ -291,7 +291,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                   className={cn(
                     'state-layer rounded-none px-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
-                      ? 'bg-secondary-container text-on-secondary-container'
+                      ? 'bg-primary/10 text-primary'
                       : 'text-on-surface-variant',
                   )}
                   data-testid="sidebar-topic-all"
@@ -310,7 +310,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     className={cn(
                       'state-layer rounded-none px-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
-                        ? 'bg-secondary-container text-on-secondary-container'
+                        ? 'bg-primary/10 text-primary'
                         : 'text-on-surface-variant',
                     )}
                   >
@@ -407,6 +407,14 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
           rail={rail}
           onNavigate={onNavigate}
         />
+        {/* Feedback and support (ADR-0060): an issue, an idea, a feature, or a word to us. */}
+        <Row
+          to="/feedback"
+          icon={<MessageSquareText size={19} />}
+          label="Feedback"
+          rail={rail}
+          onNavigate={onNavigate}
+        />
       </div>
 
       <span className="flex-1" />
@@ -430,8 +438,8 @@ function SidebarFooter({ onNavigate }: { onNavigate?: (() => void) | undefined }
           Privacy
         </NavLink>
         <span aria-hidden>·</span>
-        <NavLink to="/refunds" onClick={onNavigate} className="hover:text-on-surface">
-          Refunds
+        <NavLink to="/feedback?kind=contact" onClick={onNavigate} className="hover:text-on-surface">
+          Contact
         </NavLink>
       </div>
       {/* The AI line moved to the Terms page, where it is stated in full; the

@@ -304,6 +304,21 @@ other one.
 
 ---
 
+## Who is here, and what they told us (ADR-0060)
+
+`GET /api/admin/stats/people` is the console's first answer: accounts, unique visitors,
+paying by plan, free accounts, active learners (a day, a week, thirty days), returning
+visitors, engaged time per visitor, cost per learner and per paying account, subscription
+revenue, and the ten learners who cost, learned and stayed the most. The stocks (accounts,
+paying, free) are counted as of now, the flows for the window. A visitor is a device: the
+participant id when the beacon carried one, else the visit id; an anonymous participant is
+minted once per browser, so the same device coming back is one visitor.
+
+`GET /api/admin/stats/surveys` gives the two one-step surveys by option with the free text
+behind "other". `GET /api/admin/feedback` is the inbox: every issue, suggestion, feature
+request and contact message, with a status the operator moves. The message is user content
+and appears only there and in the inbox mail; events carry the kind and the length.
+
 ## The reporting API
 
 All under `/api/admin/stats`, all admin-only, all SQL. Every one takes

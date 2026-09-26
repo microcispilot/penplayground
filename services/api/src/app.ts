@@ -9,8 +9,14 @@ import {
   CommentBody,
   clampPace,
   decodeAudioFrame,
+  FEEDBACK_KIND_LABEL,
+  FEEDBACK_PER_DAY,
   FeatureFlagsMutation,
   FeatureFlagsRollback,
+  FeedbackBody,
+  FeedbackKind,
+  FeedbackStatus,
+  FeedbackUpdate,
   MAX_PARTICIPANTS,
   PACE_DEFAULT,
   Pace,
@@ -30,6 +36,9 @@ import {
   type ServerErrorCode,
   type ServerMessage,
   SessionId,
+  SURVEY_SKIPPED,
+  SurveyAnswerBody,
+  type SurveyPending,
   sessionsRemaining,
   sttUsd,
   utcDayStart,
@@ -972,6 +981,11 @@ export function buildApp(services: Services): App {
     await services.stats
       .removeParticipant(claims.sub)
       .catch((error: unknown) => observer.error('stats.remove_participant', error));
+    // Feedback and survey answers stay as statistics with nothing personal on them (ADR-0060).
+    await Promise.all([
+      services.feedback.anonymise(claims.sub),
+      services.surveys.anonymise(claims.sub),
+    ]).catch((error: unknown) => observer.error('privacy.anonymise', error));
     const removed = await services.participants.remove(claims.sub);
     services.analytics.setOptOut(claims.sub, true);
     observer.event('privacy.account_deleted', { sessions: ids.length, removed });
@@ -1539,6 +1553,156 @@ export function buildApp(services: Services): App {
     });
     return c.json({ comment });
   });
+  /**
+   * Feedback, suggestions, feature requests and contact (ADR-0060). Any bearer
+   * may write, once it has said where to reply if it has no account; the daily
+   * allowance is counted from rows, so a restart does not reset it. The row is
+   * the record; the inbox mail is a courtesy that may fail without the
+   * submission failing. Nothing the learner wrote reaches a log or an event.
+   */
+  const feedbackBurst = new RateLimiter(5, 60_000);
+  app.post('/api/feedback', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    if (!feedbackBurst.allow(claims.sub))
+      return c.json(
+        { error: 'RATE_LIMITED', message: 'That is a lot at once. Give it a minute.' },
+        429,
+      );
+    const body = FeedbackBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const participant = await services.participants.get(claims.sub);
+    const email = body.data.email ?? participant?.email ?? null;
+    if (!email && (claims.anonymous || body.data.kind === 'contact'))
+      return c.json(
+        { error: 'EMAIL_REQUIRED', message: 'Add an email address so we can reply to you.' },
+        400,
+      );
+    const since = Date.now() - 86_400_000;
+    if ((await services.feedback.countSince(claims.sub, since)) >= FEEDBACK_PER_DAY)
+      return c.json(
+        {
+          error: 'RATE_LIMITED',
+          message:
+            'You have sent everything we can take in one day. Thank you, and please continue tomorrow.',
+        },
+        429,
+      );
+    const entry = await services.feedback.create({
+      id: `f_${nanoid(16)}`,
+      kind: body.data.kind,
+      message: body.data.message,
+      email,
+      name: body.data.name ?? (participant && !participant.anonymous ? participant.name : null),
+      participantId: claims.sub,
+      screen: body.data.screen ?? null,
+      platform: platformOf(c),
+      release: services.cfg.PEN_RELEASE ?? null,
+      environment: services.cfg.PEN_ENVIRONMENT,
+    });
+    if (!entry) return c.json({ error: 'INTERNAL', message: 'Could not save that.' }, 500);
+    observer.event('feedback.sent', { kind: entry.kind, length: entry.message.length });
+    services.analytics.capture(claims.sub, 'feedback_sent', {
+      kind: entry.kind,
+      length: entry.message.length,
+      screen: entry.screen,
+    });
+    // The inbox copy: after the row, and never the reason the row fails.
+    const inbox = services.cfg.PEN_FEEDBACK_INBOX;
+    if (inbox && services.mailer.kind === 'smtp') {
+      const who = entry.name ?? entry.email ?? 'a learner';
+      const lines = [
+        entry.message,
+        '',
+        '——',
+        `Kind: ${FEEDBACK_KIND_LABEL[entry.kind]}`,
+        `From: ${who}${entry.email ? ` <${entry.email}>` : ''}`,
+        `Plan: ${entry.participantPlan ?? 'unknown'}${entry.participantAnonymous ? ' (no account)' : ''}`,
+        `Screen: ${entry.screen ?? 'unknown'} · ${entry.platform ?? 'web'} · ${entry.environment ?? ''} ${entry.release?.slice(0, 7) ?? ''}`,
+        `Reply: ${entry.email ?? 'no address given'}`,
+        `Console: ${publicUrl(services.cfg.PEN_PUBLIC_URL, '/')}`,
+      ];
+      services.mailer
+        .send({
+          to: inbox,
+          subject: `[Pen ${FEEDBACK_KIND_LABEL[entry.kind]}] from ${who}`,
+          text: `${lines.join('\n')}\n`,
+        })
+        .catch((error: unknown) => observer.error('feedback.mail', error, { kind: entry.kind }));
+    }
+    return c.json({ feedback: { id: entry.id, kind: entry.kind, createdAt: entry.createdAt } });
+  });
+
+  /**
+   * The two one-step surveys (ADR-0060). `GET` says which are waiting for
+   * this participant; `POST` records an answer or a skip, and a survey once
+   * answered or skipped is not waiting again until the situation recurs.
+   */
+  const pendingSurveys = async (participantId: string): Promise<SurveyPending['pending']> => {
+    const participant = await services.participants.get(participantId);
+    if (!participant || participant.anonymous) return [];
+    const pending: SurveyPending['pending'] = [];
+    if (participant.plan !== 'free') {
+      const answered = await services.surveys.latest(participantId, 'signup_source');
+      const since = participant.planSince?.getTime() ?? 0;
+      if (!answered || answered.createdAt < since)
+        pending.push({ kind: 'signup_source', trigger: 'checkout' });
+    }
+    // Leaving: Stripe has the subscription ending at the period's close, or the plan has
+    // already fallen back to free from a paid one.
+    const history = await services.reports.planEventsFor(participantId);
+    const lastPaidEnd = history.find(
+      (e) => e.toPlan === 'free' && e.fromPlan !== null && e.fromPlan !== 'free',
+    );
+    const leaving =
+      participant.planStatus === 'cancelling' ||
+      (participant.plan === 'free' && lastPaidEnd !== undefined);
+    if (leaving) {
+      const answered = await services.surveys.latest(participantId, 'cancel_reason');
+      const since =
+        participant.planStatus === 'cancelling'
+          ? (participant.planSince?.getTime() ?? 0)
+          : (lastPaidEnd?.at ?? 0);
+      if (!answered || answered.createdAt < since)
+        pending.push({ kind: 'cancel_reason', trigger: 'subscription_cancelled' });
+    }
+    return pending;
+  };
+  app.get('/api/me/surveys', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    c.header('cache-control', 'no-store');
+    return c.json({ pending: await pendingSurveys(claims.sub) } satisfies SurveyPending);
+  });
+  app.post('/api/me/surveys', async (c) => {
+    const claims = await bearer(c.req.header('authorization'));
+    if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
+    const body = SurveyAnswerBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    const participant = await services.participants.get(claims.sub);
+    await services.surveys.record({
+      id: `sv_${nanoid(16)}`,
+      participantId: claims.sub,
+      kind: body.data.kind,
+      option: body.data.option,
+      other: body.data.other ?? null,
+      trigger: body.data.trigger,
+      plan: participant?.plan ?? claims.plan,
+      planInterval: participant?.planInterval ?? null,
+    });
+    const skipped = body.data.option === SURVEY_SKIPPED;
+    observer.event(skipped ? 'survey.skipped' : 'survey.answered', {
+      kind: body.data.kind,
+      trigger: body.data.trigger,
+    });
+    services.analytics.capture(claims.sub, skipped ? 'survey_skipped' : 'survey_answered', {
+      kind: body.data.kind,
+      option: body.data.option,
+      trigger: body.data.trigger,
+    });
+    return c.json({ ok: true });
+  });
+
   app.delete('/api/sessions/:id/comments/:commentId', async (c) => {
     const claims = await bearer(c.req.header('authorization'));
     if (!claims) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -2474,6 +2638,36 @@ export function buildApp(services: Services): App {
    * admin app calls it on load: one answer decides between the console and
    * the sign-in screen, and it never leaks the allow-list to anyone else.
    */
+  /** The inbox (ADR-0060): every submission, filterable, with the counts the badge reads. */
+  app.get('/api/admin/feedback', async (c) => {
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ error: 'FORBIDDEN', message: 'This is not your inbox.' }, 403);
+    const status = FeedbackStatus.safeParse(c.req.query('status'));
+    const kind = FeedbackKind.safeParse(c.req.query('kind'));
+    const page = await services.feedback.list({
+      ...(status.success ? { status: status.data } : {}),
+      ...(kind.success ? { kind: kind.data } : {}),
+      limit: Number(c.req.query('limit') ?? 50),
+      offset: Number(c.req.query('offset') ?? 0),
+    });
+    c.header('cache-control', 'no-store');
+    return c.json({ feedback: page.rows, total: page.total, counts: page.counts });
+  });
+  app.patch('/api/admin/feedback/:id', async (c) => {
+    const actor = await admin(c.req.header('authorization'));
+    if (!actor) return c.json({ error: 'FORBIDDEN', message: 'This is not your inbox.' }, 403);
+    const body = FeedbackUpdate.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'INVALID', issues: body.error.issues }, 400);
+    if (!(await services.feedback.get(c.req.param('id'))))
+      return c.json({ error: 'NOT_FOUND' }, 404);
+    const entry = await services.feedback.update(c.req.param('id'), {
+      ...(body.data.status ? { status: body.data.status } : {}),
+      ...(body.data.adminNote !== undefined ? { adminNote: body.data.adminNote } : {}),
+    });
+    observer.event('feedback.updated', { status: entry?.status ?? 'unknown', by: actor.email });
+    return c.json({ feedback: entry });
+  });
+
   app.get('/api/admin/session', async (c) => {
     c.header('cache-control', 'no-store');
     const actor = await admin(c.req.header('authorization'));

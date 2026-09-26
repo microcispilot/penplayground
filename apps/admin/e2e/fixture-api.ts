@@ -162,6 +162,9 @@ const server = createServer((req, res) => {
     return json(res, 200, featuresDocument());
   }
 
+  // The inbox (ADR-0060): empty, so the section renders its empty state; a PATCH is echoed.
+  if (path.startsWith('/api/admin/feedback'))
+    return json(res, 200, { feedback: [], total: 0, counts: { new: 0, seen: 0, resolved: 0 } });
   if (path.startsWith('/api/admin/stats/')) {
     const report = path.slice('/api/admin/stats/'.length);
     if (report.startsWith('sessions/'))
@@ -202,6 +205,32 @@ const server = createServer((req, res) => {
         },
         window: fixture.window,
         sessions: sessions.slice(0, 6),
+        // The person's own history (ADR-0060).
+        planEvents:
+          found.plan === 'free'
+            ? []
+            : [
+                {
+                  at: NOW - 12 * 86_400_000,
+                  fromPlan: 'free',
+                  toPlan: found.plan,
+                  interval: found.planInterval,
+                  status: 'active',
+                  source: 'stripe',
+                  amountCents: found.plan === 'professional' ? 4900 : 2900,
+                  currency: 'usd',
+                },
+              ],
+        feedback: [],
+        surveys: [],
+        totals: {
+          sessions: 6,
+          completed: 4,
+          totalUsd: 1.84,
+          sessionMs: 54 * 60_000,
+          visits: 9,
+          activeMs: 41 * 60_000,
+        },
       });
     }
     const body = fixture.reports[report];

@@ -54,6 +54,14 @@ export class Billing {
      * them. Optional so a test can build `Billing` without one.
      */
     private readonly stats?: Pick<StatsRepository, 'recordPlanEvent'>,
+    /** PostHog: every plan change is an event with the plan and the interval, never an amount a person typed (ADR-0060). */
+    private readonly analytics?: {
+      capture(
+        distinctId: string,
+        event: string,
+        props?: Record<string, string | number | boolean | null>,
+      ): void;
+    },
   ) {
     const complete =
       cfg.STRIPE_SECRET_KEY &&
@@ -226,6 +234,11 @@ export class Billing {
           // event, so the history stays true even when the row does not move.
           this.record(event.created * 1000, participantId, before?.plan ?? null, plan, terms);
           if (!applied) observer.event('billing.out_of_order', { type: event.type, plan });
+          this.analytics?.capture(participantId, 'checkout_completed', {
+            plan,
+            interval: terms.interval,
+            amountCents: terms.amountCents,
+          });
         }
         observer.event('billing.checkout_completed', {
           plan: plan ?? 'unknown',
@@ -255,11 +268,20 @@ export class Billing {
             // A cancellation keeps the interval it was on: it is how the row
             // reads afterwards, and churn is counted by interval.
             interval: plan === 'free' ? (before?.planInterval ?? terms.interval) : terms.interval,
-            status: sub.status,
+            // `cancelling` while Stripe still bills to the period's end (ADR-0060): the row
+            // says a leaving is under way before the plan itself changes.
+            status: terms.status,
             since: new Date(event.created * 1000),
           },
         );
         this.record(event.created * 1000, participantId, before?.plan ?? null, plan, terms);
+        this.analytics?.capture(participantId, 'subscription_changed', {
+          type: event.type,
+          plan,
+          fromPlan: before?.plan ?? null,
+          status: terms.status,
+          interval: terms.interval,
+        });
         observer.event('billing.subscription', {
           type: event.type,
           status: sub.status,
@@ -336,7 +358,9 @@ export function termsOfSubscription(sub: Stripe.Subscription): SubscriptionTerms
   const interval: string | undefined = price?.recurring?.interval;
   return {
     interval: interval === 'month' || interval === 'year' ? interval : null,
-    status: sub.status ?? null,
+    // A subscription set to end at the period's close is still `active` to Stripe; to us it is
+    // leaving, and the exit survey asks why while the learner is still here (ADR-0060).
+    status: sub.cancel_at_period_end ? 'cancelling' : (sub.status ?? null),
     amountCents: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
     currency: price?.currency ?? null,
   };

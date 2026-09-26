@@ -1,3 +1,4 @@
+import { FeedbackEntry, SurveyResponseRow, SurveySummary } from '@pen/contracts';
 import { z } from 'zod';
 
 /**
@@ -327,6 +328,29 @@ export const UserDetail = z.object({
   }),
   window: Window,
   sessions: z.array(SessionListRow),
+  /** The person's own history (ADR-0060). */
+  planEvents: z.array(
+    z.object({
+      at: epoch,
+      fromPlan: z.string().nullable(),
+      toPlan: z.string(),
+      interval: z.string().nullable(),
+      status: z.string().nullable(),
+      source: z.string().nullable(),
+      amountCents: int.nullable(),
+      currency: z.string().nullable(),
+    }),
+  ),
+  feedback: z.array(FeedbackEntry),
+  surveys: z.array(SurveyResponseRow),
+  totals: z.object({
+    sessions: int,
+    completed: int,
+    totalUsd: num,
+    sessionMs: num,
+    visits: int,
+    activeMs: num,
+  }),
 });
 export type UserDetail = z.infer<typeof UserDetail>;
 
@@ -465,3 +489,44 @@ export const PlansPayload = z.object({
   ),
 });
 export type PlansPayload = z.infer<typeof PlansPayload>;
+
+// ── /people and /surveys (ADR-0060) ──────────────────────────────────────────
+
+export const PeopleSummary = z.object({
+  accounts: int,
+  newAccounts: int,
+  anonymous: int,
+  freeAccounts: int,
+  paying: int,
+  byPlan: z.object({ standard: int, professional: int }),
+  byInterval: z.object({ month: int, year: int }),
+  cancelling: int,
+  visitors: int,
+  returning: int,
+  active: z.object({ day: int, week: int, month: int }),
+  learners: int,
+  sessions: int,
+  avgActiveMsPerVisitor: num,
+  avgSessionMs: num,
+  totalUsd: num,
+  costPerLearnerUsd: num,
+  costPerPayingUsd: num,
+  revenueUsd: num,
+  subscribed: int,
+  churned: int,
+});
+export type PeopleSummary = z.infer<typeof PeopleSummary>;
+
+export const PeoplePayload = z.object({
+  window: Window,
+  summary: PeopleSummary,
+  top: z.object({
+    byCost: z.array(UserRow),
+    bySessions: z.array(UserRow),
+    byTime: z.array(UserRow),
+  }),
+});
+export type PeoplePayload = z.infer<typeof PeoplePayload>;
+
+export const SurveysPayload = z.object({ window: Window, surveys: z.array(SurveySummary) });
+export type SurveysPayload = z.infer<typeof SurveysPayload>;

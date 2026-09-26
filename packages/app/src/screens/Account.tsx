@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ShellPage } from '../components/AppShell.js';
 import { PrivacyDialog } from '../components/PrivacyDialog.js';
+import { SurveyDialog } from '../components/SurveyDialog.js';
 import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 import { useSeo } from '../lib/seo.js';
@@ -62,6 +63,27 @@ export function Account() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  /** The leaving survey stands between "Delete everything" and the deletion (ADR-0060); Skip is one press. */
+  const [askingWhy, setAskingWhy] = useState(false);
+
+  const performDelete = async () => {
+    setDeleting(true);
+    try {
+      const removed = await deleteAccount();
+      toast(
+        removed === 0
+          ? 'Your account was deleted'
+          : `Your account and ${removed} session${removed === 1 ? '' : 's'} were deleted`,
+        'success',
+      );
+      navigate('/');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not delete the account', 'danger');
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
+  };
 
   const signedIn = participant !== null && !participant.anonymous;
   const plan = participant?.plan ?? 'free';
@@ -69,6 +91,17 @@ export function Account() {
 
   return (
     <ShellPage title="Account" intro="Your name, your plan, and your privacy choices.">
+      {askingWhy ? (
+        <SurveyDialog
+          open
+          kind="cancel_reason"
+          trigger="account_deleted"
+          onDone={() => {
+            setAskingWhy(false);
+            void performDelete();
+          }}
+        />
+      ) : null}
       <div className="max-w-[720px]">
         <Section title="You">
           <div className="flex flex-wrap items-center gap-3.5">
@@ -210,26 +243,10 @@ export function Account() {
                   variant="danger"
                   loading={deleting}
                   data-testid="confirm-delete-account"
-                  onClick={async () => {
-                    setDeleting(true);
-                    try {
-                      const removed = await deleteAccount();
-                      toast(
-                        removed === 0
-                          ? 'Your account was deleted'
-                          : `Your account and ${removed} session${removed === 1 ? '' : 's'} were deleted`,
-                        'success',
-                      );
-                      navigate('/');
-                    } catch (error) {
-                      toast(
-                        error instanceof Error ? error.message : 'Could not delete the account',
-                        'danger',
-                      );
-                    } finally {
-                      setDeleting(false);
-                      setConfirmingDelete(false);
-                    }
+                  onClick={() => {
+                    // A visitor without an account has nothing to tell us about leaving.
+                    if (signedIn) setAskingWhy(true);
+                    else void performDelete();
                   }}
                 >
                   Delete everything

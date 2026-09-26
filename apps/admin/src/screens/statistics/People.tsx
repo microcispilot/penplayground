@@ -1,5 +1,6 @@
 import { Button, Chip } from '@pen/design';
 import { Link, useSearchParams } from 'react-router';
+import { BarList } from '../../charts/BarList.js';
 import { HeatGrid } from '../../charts/HeatGrid.js';
 import {
   bucketLabel,
@@ -12,7 +13,12 @@ import {
   usd,
 } from '../../lib/format.js';
 import { periodsElapsed, rangeQuery } from '../../lib/range.js';
-import { OverviewPayload, RetentionPayload, UsersPayload } from '../../lib/stats-schemas.js';
+import {
+  OverviewPayload,
+  RetentionPayload,
+  SurveysPayload,
+  UsersPayload,
+} from '../../lib/stats-schemas.js';
 import {
   Caveat,
   EmptyNote,
@@ -76,9 +82,10 @@ export function People() {
   const state = useReport(
     async (api, signal) => {
       const q = rangeQuery(range);
-      const [headline, retention, users] = await Promise.all([
+      const [headline, retention, surveys, users] = await Promise.all([
         api.report('overview', OverviewPayload, q, signal),
         api.report('retention', RetentionPayload, { ...q, metric }, signal),
+        api.report('surveys', SurveysPayload, q, signal),
         api.report(
           'users',
           UsersPayload,
@@ -86,7 +93,7 @@ export function People() {
           signal,
         ),
       ]);
-      return { headline, retention, users };
+      return { headline, retention, surveys, users };
     },
     [key, metric, orderBy, page],
   );
@@ -99,7 +106,7 @@ export function People() {
       </PageLead>
 
       <ReportBody state={state}>
-        {({ headline, retention, users }) => {
+        {({ headline, retention, surveys, users }) => {
           const o = headline.overview;
           const widest = retention.cohorts.reduce((a, c) => Math.max(a, c.periods.length), 0);
           const gridRows = retention.cohorts.map((cohort) => ({
@@ -307,6 +314,42 @@ export function People() {
                   by their own choice.
                 </Caveat>
               </Section>
+
+              {/* The two one-step surveys (ADR-0060): arrivals and leavings, by option. */}
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                {surveys.surveys.map((survey) => (
+                  <Section
+                    key={survey.kind}
+                    title={survey.question}
+                    note={`${count(survey.answered)} answered · ${count(survey.skipped)} skipped, in this window.`}
+                  >
+                    <BarList
+                      rows={survey.options.map((o) => ({
+                        key: o.id,
+                        label: o.label,
+                        value: o.count,
+                      }))}
+                      format={(v) => count(v)}
+                      emptyLabel="Nobody has been asked yet."
+                    />
+                    {survey.others.length > 0 ? (
+                      <ul className="mt-4 flex flex-col gap-1.5 text-body-small text-on-surface-variant">
+                        {survey.others.map((o) => {
+                          const at = moment(o.at);
+                          return (
+                            <li key={`${o.at}-${o.text}`} className="flex gap-2">
+                              <time dateTime={at.iso} className="shrink-0 text-on-surface-dim">
+                                {at.text}
+                              </time>
+                              <span dir="auto">“{o.text}”</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </Section>
+                ))}
+              </div>
             </>
           );
         }}

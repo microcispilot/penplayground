@@ -6,6 +6,7 @@ import { useLists } from '../lib/lists.js';
 import { readSidebarPreference, writeSidebarPreference } from '../lib/sidebar-preference.js';
 import { AppHeader } from './AppHeader.js';
 import { Sidebar, SidebarDrawer } from './Sidebar.js';
+import { SurveyPrompt } from './SurveyDialog.js';
 
 /**
  * The app shell (ADR-0015): header, the persistent left sidebar, and the
@@ -59,7 +60,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <Sidebar rail={rail} />
         </aside>
-        <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+        <main className="flex min-w-0 flex-1 flex-col">
+          {children}
+          {/* The surveys the server has waiting for a signed-in learner (ADR-0060), asked once per load. */}
+          <SurveyPrompt />
+        </main>
       </div>
       <SidebarDrawer open={drawer} onClose={() => setDrawer(false)} />
     </div>

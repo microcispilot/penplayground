@@ -274,6 +274,7 @@ export const NOT_SETTINGS = {
   PEN_SMTP_PORT: 'address',
   PEN_SMTP_USERNAME: 'address',
   PEN_SMTP_FROM: 'address',
+  PEN_FEEDBACK_INBOX: 'address',
   PEN_PORT: 'address',
   PEN_PUBLIC_URL: 'address',
   PEN_API_URL: 'address',

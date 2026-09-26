@@ -386,6 +386,7 @@ git-ignored `.env`:
 | `PEN_BACKUP_SSH_KEY_B64` | the private key, base64 so the PEM survives as one line |
 | `PEN_BACKUP_SSH_PUBLIC_KEY` | the half already authorised on the box |
 | `PEN_BACKUP_REMOTE_USER` / `_HOST` / `_PORT` | `u672371` / `u672371.your-storagebox.de` / `23` |
+| `PEN_FEEDBACK_INBOX` | `support@penplayground.com` (ADR-0060; the console's Inbox is the record, the mail is a copy) |
 | `PEN_BACKUP_RCLONE_REMOTE` | `hetzner:pen-staging` / `hetzner:pen-production` (deploy/env/*.conf; staging's copies before 2026-09-26 are under `hetzner:pen-playground`) |
 
 `deploy/deploy.sh` installs it on any host that does not already have one:

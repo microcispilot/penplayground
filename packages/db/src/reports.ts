@@ -48,6 +48,8 @@ export interface Window {
   to: number;
 }
 
+const DAY_MS = 86_400_000;
+
 export class ReportRepository {
   constructor(private readonly db: Database) {}
 
@@ -641,6 +643,156 @@ export class ReportRepository {
     return { rows, total };
   }
 
+  // ── people (ADR-0060) ──────────────────────────────────────────────────────
+  /**
+   * Who is here, in one answer: accounts, visitors, who pays and for what,
+   * who is active and who came back, what they cost and what they paid. The
+   * window governs the flows (new accounts, visitors, activity, cost,
+   * revenue); the stocks (accounts, paying, free) are counted as of now,
+   * because a plan is a present-tense fact about a row.
+   *
+   * A visitor is `coalesce(participant_id, visit id)`: the participant when
+   * the beacon carried a bearer, else the visit. An anonymous participant is
+   * minted per browser and kept in its storage, so a device that comes back
+   * is the same visitor and a new device is a new one (ADR-0027).
+   */
+  async peopleSummary(w: Window): Promise<PeopleSummary> {
+    const [stock, flow, activity, learners, money] = await Promise.all([
+      this.db.execute(sql`
+        select count(*) filter (where not anonymous)::int                                       as accounts,
+               count(*) filter (where not anonymous and created_at >= ${new Date(w.from).toISOString()}::timestamptz
+                                  and created_at < ${new Date(w.to).toISOString()}::timestamptz)::int as new_accounts,
+               count(*) filter (where plan <> 'free')::int                                        as paying,
+               count(*) filter (where plan = 'standard')::int                                     as standard,
+               count(*) filter (where plan = 'professional')::int                                 as professional,
+               count(*) filter (where plan <> 'free' and plan_interval = 'month')::int             as monthly,
+               count(*) filter (where plan <> 'free' and plan_interval = 'year')::int              as yearly,
+               count(*) filter (where plan <> 'free' and plan_status = 'cancelling')::int          as cancelling,
+               count(*) filter (where not anonymous and plan = 'free')::int                        as free_accounts,
+               count(*) filter (where anonymous)::int                                             as anonymous
+        from participants
+      `),
+      this.db.execute(sql`
+        select count(distinct v)::int                                as visitors,
+               count(distinct v) filter (where days >= 2)::int       as returning,
+               coalesce(sum(active_ms), 0)::bigint                   as active_ms
+        from (
+          select coalesce(participant_id, id) as v,
+                 count(distinct (started_at / 86400000)) as days,
+                 sum(active_ms) as active_ms
+          from site_visits
+          where started_at >= ${w.from} and started_at < ${w.to}
+          group by 1
+        ) x
+      `),
+      this.db.execute(sql`
+        select count(distinct coalesce(participant_id, id)) filter (where last_seen_at >= ${w.to - DAY_MS})::int      as day,
+               count(distinct coalesce(participant_id, id)) filter (where last_seen_at >= ${w.to - 7 * DAY_MS})::int  as week,
+               count(distinct coalesce(participant_id, id)) filter (where last_seen_at >= ${w.to - 30 * DAY_MS})::int as month
+        from site_visits
+        where last_seen_at >= ${w.to - 30 * DAY_MS} and started_at < ${w.to}
+      `),
+      this.db.execute(sql`
+        select count(distinct host_id)::int                    as learners,
+               count(*)::int                                   as sessions,
+               coalesce(sum(total_usd), 0)                     as total_usd,
+               coalesce(avg(duration_ms), 0)::bigint           as avg_session_ms
+        from session_stats
+        where started_at >= ${w.from} and started_at < ${w.to}
+      `),
+      this.db.execute(sql`
+        select coalesce(sum(amount_cents) filter (where to_plan <> 'free'), 0)::int as revenue_cents,
+               count(*) filter (where to_plan <> 'free' and (from_plan is null or from_plan = 'free'))::int as subscribed,
+               count(*) filter (where to_plan = 'free' and from_plan is not null and from_plan <> 'free')::int as churned
+        from plan_events
+        where at >= ${w.from} and at < ${w.to}
+      `),
+    ]);
+    const st = rowsOf<Record<string, unknown>>(stock)[0] ?? {};
+    const fl = rowsOf<Record<string, unknown>>(flow)[0] ?? {};
+    const ac = rowsOf<Record<string, unknown>>(activity)[0] ?? {};
+    const le = rowsOf<Record<string, unknown>>(learners)[0] ?? {};
+    const mo = rowsOf<Record<string, unknown>>(money)[0] ?? {};
+    const visitors = n(fl.visitors);
+    const paying = n(st.paying);
+    const totalUsd = n(le.total_usd);
+    const learnerCount = n(le.learners);
+    return {
+      accounts: n(st.accounts),
+      newAccounts: n(st.new_accounts),
+      anonymous: n(st.anonymous),
+      freeAccounts: n(st.free_accounts),
+      paying,
+      byPlan: { standard: n(st.standard), professional: n(st.professional) },
+      byInterval: { month: n(st.monthly), year: n(st.yearly) },
+      cancelling: n(st.cancelling),
+      visitors,
+      returning: n(fl.returning),
+      active: { day: n(ac.day), week: n(ac.week), month: n(ac.month) },
+      learners: learnerCount,
+      sessions: n(le.sessions),
+      avgActiveMsPerVisitor: visitors > 0 ? Math.round(n(fl.active_ms) / visitors) : 0,
+      avgSessionMs: n(le.avg_session_ms),
+      totalUsd,
+      costPerLearnerUsd: learnerCount > 0 ? totalUsd / learnerCount : 0,
+      costPerPayingUsd: paying > 0 ? totalUsd / paying : 0,
+      revenueUsd: n(mo.revenue_cents) / 100,
+      subscribed: n(mo.subscribed),
+      churned: n(mo.churned),
+    };
+  }
+
+  /** One participant's totals for the window: the same arithmetic as `users()`, for one row. */
+  async userTotals(participantId: string, w: Window): Promise<UserTotals> {
+    const r =
+      rowsOf<Record<string, unknown>>(
+        await this.db.execute(sql`
+          select
+            (select count(*)::int from session_stats
+              where host_id = ${participantId} and started_at >= ${w.from} and started_at < ${w.to}) as sessions,
+            (select count(*) filter (where completed)::int from session_stats
+              where host_id = ${participantId} and started_at >= ${w.from} and started_at < ${w.to}) as completed,
+            (select coalesce(sum(total_usd), 0) from session_stats
+              where host_id = ${participantId} and started_at >= ${w.from} and started_at < ${w.to}) as total_usd,
+            (select coalesce(sum(duration_ms), 0)::bigint from session_stats
+              where host_id = ${participantId} and started_at >= ${w.from} and started_at < ${w.to}) as session_ms,
+            (select count(*)::int from site_visits
+              where participant_id = ${participantId} and started_at >= ${w.from} and started_at < ${w.to}) as visits,
+            (select coalesce(sum(active_ms), 0)::bigint from site_visits
+              where participant_id = ${participantId} and started_at >= ${w.from} and started_at < ${w.to}) as active_ms
+        `),
+      )[0] ?? {};
+    return {
+      sessions: n(r.sessions),
+      completed: n(r.completed),
+      totalUsd: n(r.total_usd),
+      sessionMs: n(r.session_ms),
+      visits: n(r.visits),
+      activeMs: n(r.active_ms),
+    };
+  }
+
+  /** One participant's subscription history, newest first. */
+  async planEventsFor(participantId: string): Promise<PlanEventRow[]> {
+    return rowsOf<Record<string, unknown>>(
+      await this.db.execute(sql`
+        select at, from_plan, to_plan, interval, status, source, amount_cents, currency
+        from plan_events where participant_id = ${participantId}
+        order by at desc limit 100
+      `),
+    ).map((r) => ({
+      at: n(r.at),
+      fromPlan: s(r.from_plan),
+      toPlan: s(r.to_plan) ?? 'free',
+      interval: s(r.interval) as 'month' | 'year' | null,
+      status: s(r.status),
+      source: s(r.source),
+      amountCents:
+        r.amount_cents === null || r.amount_cents === undefined ? null : n(r.amount_cents),
+      currency: s(r.currency),
+    }));
+  }
+
   // ── retention ──────────────────────────────────────────────────────────────
   /**
    * Cohorts by the bucket a participant was created in, against the buckets
@@ -949,6 +1101,50 @@ const ORDERABLE = new Map<string, SQL>(
     views: sql`s.views`,
   }),
 );
+
+export interface PeopleSummary {
+  accounts: number;
+  newAccounts: number;
+  anonymous: number;
+  freeAccounts: number;
+  paying: number;
+  byPlan: { standard: number; professional: number };
+  byInterval: { month: number; year: number };
+  cancelling: number;
+  visitors: number;
+  returning: number;
+  active: { day: number; week: number; month: number };
+  learners: number;
+  sessions: number;
+  avgActiveMsPerVisitor: number;
+  avgSessionMs: number;
+  totalUsd: number;
+  costPerLearnerUsd: number;
+  costPerPayingUsd: number;
+  revenueUsd: number;
+  subscribed: number;
+  churned: number;
+}
+
+export interface UserTotals {
+  sessions: number;
+  completed: number;
+  totalUsd: number;
+  sessionMs: number;
+  visits: number;
+  activeMs: number;
+}
+
+export interface PlanEventRow {
+  at: number;
+  fromPlan: string | null;
+  toPlan: string;
+  interval: 'month' | 'year' | null;
+  status: string | null;
+  source: string | null;
+  amountCents: number | null;
+  currency: string | null;
+}
 
 const USER_ORDER = new Map<string, SQL>(
   Object.entries({

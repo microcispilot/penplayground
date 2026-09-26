@@ -128,6 +128,8 @@ export const Env = z.object({
   PEN_SMTP_PASSWORD: z.string().optional(),
   /** The From: address. Must be one the relay is allowed to send as. */
   PEN_SMTP_FROM: z.string().optional(),
+  /** Where new feedback and contact messages are mailed (ADR-0060); unset = database and console only. */
+  PEN_FEEDBACK_INBOX: z.string().email().optional(),
   /**
    * Keys the HMAC that verification codes are stored under.
    *

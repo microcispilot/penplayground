@@ -93,6 +93,8 @@ export function renderWithApp(
   options: HarnessOptions = {},
 ): RenderResult & {
   storage: KeyValueStorage & { data: Map<string, string> };
+  /** Every request the screen made, as `METHOD /path`, in order. */
+  calls: string[];
 } {
   const storage = (options.storage ?? memoryStorage()) as KeyValueStorage & {
     data: Map<string, string>;
@@ -110,13 +112,31 @@ export function renderWithApp(
   // A token must already be there, or the client mints an anonymous one of its own.
   if (participant) storage.set('pen.token', 'test-token');
 
-  const fetchMock = async (input: RequestInfo | URL): Promise<Response> => {
+  // Answers are looked up by `METHOD /path` first, then by path alone, so a screen that
+  // reads and writes the same path can be given both. An answer may name its own status
+  // (`{ __status: 429, error, message }`) for what a screen says when the server declines.
+  const calls: string[] = [];
+  const fetchMock = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(typeof input === 'string' ? input : input.toString(), 'http://api.test');
-    const body = answers[url.pathname];
-    return new Response(JSON.stringify(body ?? { error: 'NOT_FOUND' }), {
-      status: body === undefined ? 404 : 200,
-      headers: { 'content-type': 'application/json' },
-    });
+    const method = init?.method ?? 'GET';
+    calls.push(`${method} ${url.pathname}`);
+    const body = answers[`${method} ${url.pathname}`] ?? answers[url.pathname];
+    if (body === undefined)
+      return new Response(JSON.stringify({ error: 'NOT_FOUND' }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      });
+    const { __status, ...payload } =
+      typeof body === 'object' && body !== null
+        ? (body as { __status?: number } & Record<string, unknown>)
+        : { __status: undefined };
+    return new Response(
+      JSON.stringify(typeof body === 'object' && body !== null ? payload : body),
+      {
+        status: typeof __status === 'number' ? __status : 200,
+        headers: { 'content-type': 'application/json' },
+      },
+    );
   };
   globalThis.fetch = fetchMock as typeof fetch;
 
@@ -129,7 +149,7 @@ export function renderWithApp(
       </ToastProvider>
     </AppProvider>,
   );
-  return { ...result, storage };
+  return { ...result, storage, calls };
 }
 
 /** The API client the store tests drive directly, with a scripted transport. */
@@ -144,10 +164,19 @@ export function testApi(answers: Record<string, unknown>, calls: string[] = []):
       return new Response(JSON.stringify({ error: 'BOOM', message: body.message }), {
         status: 500,
       });
-    return new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
+    // An answer may name its own status (`{ __status: 429, error, message }`) for the
+    // screens that have something to say when the server declines.
+    const { __status, ...payload } = (body ?? {}) as { __status?: number } & Record<
+      string,
+      unknown
+    >;
+    return new Response(
+      JSON.stringify(typeof body === 'object' && body !== null ? payload : body),
+      {
+        status: typeof __status === 'number' ? __status : 200,
+        headers: { 'content-type': 'application/json' },
+      },
+    );
   }) as typeof fetch;
   return new ApiClient('http://api.test', memoryStorage({ 'pen.token': 'test-token' }));
 }

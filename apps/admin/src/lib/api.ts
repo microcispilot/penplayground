@@ -3,6 +3,9 @@ import {
   FeatureFlagsHistory,
   type FeatureFlagsMutation,
   type FeatureFlagsRollback,
+  FeedbackEntry,
+  FeedbackList,
+  type FeedbackUpdate,
   RuntimeConfigDocument,
   RuntimeConfigHistory,
   type RuntimeConfigMutation,
@@ -257,6 +260,29 @@ export class AdminApi {
       `/api/admin/features/history${query}`,
       FeatureFlagsHistory,
       ...(signal ? [{ signal }] : []),
+    );
+  }
+
+  // ── the inbox (ADR-0060) ──────────────────────────────────────────────────
+  feedback(
+    query: { status?: string; kind?: string; limit?: number; offset?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<FeedbackList> {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    const qs = search.toString();
+    return this.request(
+      `/api/admin/feedback${qs ? `?${qs}` : ''}`,
+      FeedbackList,
+      ...(signal ? [{ signal }] : []),
+    );
+  }
+  updateFeedback(id: string, patch: FeedbackUpdate): Promise<{ feedback: FeedbackEntry }> {
+    return this.request(
+      `/api/admin/feedback/${encodeURIComponent(id)}`,
+      z.object({ feedback: FeedbackEntry }),
+      { method: 'PATCH', body: patch },
     );
   }
 

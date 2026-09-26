@@ -8,6 +8,7 @@ export * from './cues.js';
 export * from './expert.js';
 export * from './expert-access.js';
 export * from './features.js';
+export * from './feedback.js';
 export * from './flags.js';
 export * from './ids.js';
 export * from './ledger.js';

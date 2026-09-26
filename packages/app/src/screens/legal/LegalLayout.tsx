@@ -149,8 +149,6 @@ export function LegalLayout({
               <LegalLink to="/terms">Terms of Use</LegalLink>
               <span aria-hidden>·</span>
               <LegalLink to="/privacy">Privacy Policy</LegalLink>
-              <span aria-hidden>·</span>
-              <LegalLink to="/refunds">Cancellation and Refunds</LegalLink>
             </p>
           </footer>
         </article>

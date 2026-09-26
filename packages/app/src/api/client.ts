@@ -4,6 +4,8 @@ import {
   CommentPage,
   clampPace,
   Expert,
+  type FeedbackBody,
+  FeedbackKind,
   LedgerEntry,
   LikeResult,
   ListSummary,
@@ -17,6 +19,8 @@ import {
   SaveResult,
   SessionComment,
   SessionTelemetry,
+  type SurveyAnswerBody,
+  SurveyPending,
   Visit,
 } from '@pen/contracts';
 import { z } from 'zod';
@@ -692,6 +696,26 @@ export class ApiClient {
   /** This learner's own cell of the feature matrix (ADR-0036). */
   features() {
     return this.request('/api/me/features', MyFeatures);
+  }
+  /** Feedback, a suggestion, a feature request or a message to us (ADR-0060). */
+  sendFeedback(body: FeedbackBody) {
+    return this.request(
+      '/api/feedback',
+      z.object({
+        feedback: z.object({ id: z.string(), kind: FeedbackKind, createdAt: z.number() }),
+      }),
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  }
+  /** Which one-step surveys are waiting for this participant (ADR-0060). */
+  pendingSurveys() {
+    return this.request('/api/me/surveys', SurveyPending);
+  }
+  answerSurvey(body: SurveyAnswerBody) {
+    return this.request('/api/me/surveys', z.object({ ok: z.boolean() }), {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
   /** Whose room this is, who is in it, and whether this caller may take a seat (ADR-0058). */
   roomInvite(id: string) {

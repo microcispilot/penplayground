@@ -292,7 +292,7 @@ export function Home() {
           hero becomes what it always was underneath — a question and the field
           that answers it — at a measure wide enough to carry the display type.
         */}
-        <div className="mx-auto flex w-full max-w-[820px] flex-col items-center px-6 pt-16 pb-20 text-center sm:pt-20 lg:pt-24 lg:pb-24">
+        <div className="mx-auto flex w-full max-w-[1000px] flex-col items-center px-6 pt-16 pb-20 text-center sm:pt-20 lg:pt-24 lg:pb-24">
           {/*
             One sentence, one voice: no word set apart in another colour, style
             or weight, and nothing underlining it. The question is the whole
@@ -325,7 +325,7 @@ export function Home() {
                * now: the bar is told from the page by its tone and its
                * border, which is what matte means.
                */
-              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[720px] items-center gap-1 rounded-xl-increased border border-outline-variant bg-surface-container-high p-2 pl-5 text-left transition-colors duration-[var(--duration-base)]',
+              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[900px] items-center gap-1 rounded-xl-increased border border-outline-variant bg-surface-container-high p-2 pl-5 text-left transition-colors duration-[var(--duration-base)]',
               /*
                * Focus thickens the same edge rather than adding a second
                * thing. It is deliberately **not** the brand: two pixels of
@@ -463,7 +463,7 @@ export function Home() {
           */}
           {unprepared ? (
             <div
-              className="animate-rise mt-5 flex w-full max-w-[720px] flex-col items-start gap-3.5"
+              className="animate-rise mt-5 flex w-full max-w-[900px] flex-col items-start gap-3.5"
               data-testid="home-unprepared"
             >
               <p className="text-body-medium text-on-surface-variant text-pretty">

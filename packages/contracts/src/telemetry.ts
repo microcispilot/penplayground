@@ -281,6 +281,13 @@ export const ActionName = z.enum([
   'data_download_clicked',
   // recovering
   'retry_clicked',
+  // feedback and surveys (ADR-0060): the kind and the option id, never the words
+  'feedback_opened',
+  'feedback_sent',
+  'feedback_failed',
+  'survey_shown',
+  'survey_answered',
+  'survey_skipped',
 ]);
 export type ActionName = z.infer<typeof ActionName>;
 

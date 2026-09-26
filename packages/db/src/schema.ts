@@ -422,3 +422,69 @@ export const authChallenges = pgTable(
 );
 
 export type AuthChallengeRow = typeof authChallenges.$inferSelect;
+
+/**
+ * Feedback, suggestions, feature requests and contact (ADR-0060). One row per
+ * submission; the message is user content and is read only by the console
+ * and the inbox mail. `participant_id` is kept so the console can show who
+ * wrote it and their plan at listing time; it is nulled (with the email and
+ * name) when the account is deleted, so the count and the words survive the
+ * person's leaving and nothing personal does.
+ */
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind', { enum: ['issue', 'suggestion', 'feature', 'contact'] }).notNull(),
+    status: text('status', { enum: ['new', 'seen', 'resolved'] })
+      .notNull()
+      .default('new'),
+    message: text('message').notNull(),
+    email: text('email'),
+    name: text('name'),
+    participantId: text('participant_id'),
+    /** Where it was sent from: the app's screen name, the platform header, the build, the environment. */
+    screen: text('screen'),
+    platform: text('platform'),
+    release: text('release'),
+    environment: text('environment'),
+    adminNote: text('admin_note'),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    index('feedback_created_idx').on(t.createdAt),
+    index('feedback_status_idx').on(t.status, t.createdAt),
+    index('feedback_participant_idx').on(t.participantId, t.createdAt),
+  ],
+);
+export type FeedbackRow = typeof feedback.$inferSelect;
+
+/**
+ * Survey answers (ADR-0060): how a subscriber heard of the product, why a
+ * subscriber left. One row per time the survey was shown and answered or
+ * skipped; `option` is an id from the contract's list (or `skipped`), and
+ * only `other` carries words, at most 500. The plan at the time is copied in
+ * so the answers can be read by plan after the participant has moved on.
+ */
+export const surveyResponses = pgTable(
+  'survey_responses',
+  {
+    id: text('id').primaryKey(),
+    participantId: text('participant_id'),
+    kind: text('kind', { enum: ['signup_source', 'cancel_reason'] }).notNull(),
+    option: text('option').notNull(),
+    other: text('other'),
+    trigger: text('trigger', {
+      enum: ['checkout', 'subscription_cancelled', 'account_deleted'],
+    }).notNull(),
+    plan: text('plan', { enum: ['free', 'standard', 'professional'] }),
+    planInterval: text('plan_interval', { enum: ['month', 'year'] }),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    index('survey_responses_kind_idx').on(t.kind, t.createdAt),
+    index('survey_responses_participant_idx').on(t.participantId, t.kind, t.createdAt),
+  ],
+);
+export type SurveyResponseDbRow = typeof surveyResponses.$inferSelect;

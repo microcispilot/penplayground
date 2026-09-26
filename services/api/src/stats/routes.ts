@@ -263,6 +263,32 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
     return detail ? c.json(detail) : c.json({ error: 'NOT_FOUND' }, 404);
   });
 
+  /** Who is here (ADR-0060): the stocks and flows of people, and the ten who use it most. */
+  app.get('/api/admin/stats/people', async (c) => {
+    const refused = await admin(c);
+    if (refused) return refused;
+    const w = windowOf(c, now());
+    const [summary, byCost, bySessions, byTime] = await Promise.all([
+      services.reports.peopleSummary(w),
+      services.reports.users({ window: w, orderBy: 'totalUsd', limit: 10 }),
+      services.reports.users({ window: w, orderBy: 'sessions', limit: 10 }),
+      services.reports.users({ window: w, orderBy: 'activeMs', limit: 10 }),
+    ]);
+    return c.json({
+      window: w,
+      summary,
+      top: { byCost: byCost.rows, bySessions: bySessions.rows, byTime: byTime.rows },
+    });
+  });
+
+  /** The two surveys, by option, with the words behind "other" (ADR-0060). */
+  app.get('/api/admin/stats/surveys', async (c) => {
+    const refused = await admin(c);
+    if (refused) return refused;
+    const w = windowOf(c, now());
+    return c.json({ window: w, surveys: await services.surveys.summary(w) });
+  });
+
   app.get('/api/admin/stats/users', async (c) => {
     const refused = await admin(c);
     if (refused) return refused;
@@ -284,12 +310,19 @@ export function registerStatsRoutes(app: Hono, deps: StatsRouteDeps): void {
     const w = windowOf(c, now());
     const participant = await services.participants.get(id);
     if (!participant) return c.json({ error: 'NOT_FOUND' }, 404);
-    const { rows } = await services.reports.sessions({
-      window: w,
-      hostId: id,
-      limit: 200,
-    });
+    const [{ rows }, planEvents, feedback, surveys, totals] = await Promise.all([
+      services.reports.sessions({ window: w, hostId: id, limit: 200 }),
+      services.reports.planEventsFor(id),
+      services.feedback.forParticipant(id),
+      services.surveys.forParticipant(id),
+      services.reports.userTotals(id, w),
+    ]);
     return c.json({
+      /** The person's own history (ADR-0060): what they paid for, said, and answered. */
+      planEvents,
+      feedback,
+      surveys,
+      totals,
       participant: {
         id: participant.id,
         name: participant.name,

@@ -164,6 +164,11 @@ export function seoForPath(pathname: string): Seo {
       title: 'Privacy Policy',
       description: 'What Pen Playground collects, why, and what you can ask us to delete.',
     };
+  if (pathname === '/feedback')
+    return {
+      title: 'Feedback and support',
+      description: 'Report an issue, suggest an improvement, ask for a feature, or contact us.',
+    };
   if (pathname === '/refunds')
     return {
       title: 'Cancellation and Refund Policy',

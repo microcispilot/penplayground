@@ -10,13 +10,29 @@ import {
   duration,
   leaveReasonLabel,
   percent,
+  planLabel,
   reuseKindLabel,
   usd,
   usdCompact,
 } from '../../lib/format.js';
 import { rangeQuery } from '../../lib/range.js';
-import { CostPayload, OverviewPayload, VisitsPayload } from '../../lib/stats-schemas.js';
-import { Caveat, EmptyNote, ReportBody, Section, StatTile, TileRow } from './parts.js';
+import {
+  CostPayload,
+  OverviewPayload,
+  PeoplePayload,
+  VisitsPayload,
+} from '../../lib/stats-schemas.js';
+import {
+  Caveat,
+  EmptyNote,
+  ReportBody,
+  Section,
+  StatTile,
+  TableFrame,
+  Td,
+  Th,
+  TileRow,
+} from './parts.js';
 import { PageLead, useStatisticsRange } from './Statistics.js';
 import { useReport } from './use-report.js';
 
@@ -33,12 +49,13 @@ export function Overview() {
   const state = useReport(
     async (api, signal) => {
       const q = rangeQuery(range);
-      const [headline, cost, visits] = await Promise.all([
+      const [headline, cost, visits, people] = await Promise.all([
         api.report('overview', OverviewPayload, q, signal),
         api.report('cost', CostPayload, q, signal),
         api.report('visits', VisitsPayload, q, signal),
+        api.report('people', PeoplePayload, q, signal),
       ]);
-      return { headline, cost, visits };
+      return { headline, cost, visits, people };
     },
     [key],
   );
@@ -50,8 +67,9 @@ export function Overview() {
         the truth rather than a fault.
       </PageLead>
       <ReportBody state={state}>
-        {({ headline, cost, visits }) => {
+        {({ headline, cost, visits, people }) => {
           const o = headline.overview;
+          const ppl = people.summary;
           const sessionPoints = cost.series.map((p) => ({
             label: bucketLabel(p.at, cost.bucket),
             values: [p.sessions],
@@ -65,6 +83,52 @@ export function Overview() {
 
           return (
             <>
+              {/* Who is here (ADR-0060): stocks as of now, flows for the window. */}
+              <TileRow>
+                <StatTile
+                  label="Accounts"
+                  value={countCompact(ppl.accounts)}
+                  note={`${count(ppl.newAccounts)} new in this window · ${count(ppl.anonymous)} visitors never signed in`}
+                />
+                <StatTile
+                  label="Unique visitors"
+                  value={countCompact(ppl.visitors)}
+                  note={`${count(ppl.returning)} came back on another day · a device that returns is one visitor`}
+                />
+                <StatTile
+                  label="Paying"
+                  value={countCompact(ppl.paying)}
+                  note={`${count(ppl.byPlan.standard)} Standard · ${count(ppl.byPlan.professional)} Professional · ${count(ppl.byInterval.year)} yearly${ppl.cancelling > 0 ? ` · ${count(ppl.cancelling)} leaving` : ''}`}
+                />
+                <StatTile
+                  label="Free accounts"
+                  value={countCompact(ppl.freeAccounts)}
+                  note="Signed in, not paying"
+                />
+              </TileRow>
+              <TileRow>
+                <StatTile
+                  label="Active learners"
+                  value={countCompact(ppl.active.month)}
+                  note={`${count(ppl.active.day)} today · ${count(ppl.active.week)} this week · ${count(ppl.active.month)} in 30 days`}
+                />
+                <StatTile
+                  label="Time per visitor"
+                  value={duration(ppl.avgActiveMsPerVisitor)}
+                  note={`Engaged time · lessons average ${duration(ppl.avgSessionMs)}`}
+                />
+                <StatTile
+                  label="Cost per learner"
+                  value={usd(ppl.costPerLearnerUsd)}
+                  note={`${usd(ppl.costPerPayingUsd)} per paying account · ${usdCompact(ppl.totalUsd)} in all`}
+                />
+                <StatTile
+                  label="Subscription revenue"
+                  value={usdCompact(ppl.revenueUsd)}
+                  note={`${count(ppl.subscribed)} subscribed · ${count(ppl.churned)} left`}
+                />
+              </TileRow>
+
               <TileRow>
                 <StatTile
                   label="Lessons taught"
@@ -124,6 +188,51 @@ export function Overview() {
                   note={`p95 ${duration(o.timeToFirstAudioP95Ms)}`}
                 />
               </TileRow>
+
+              <Section
+                title="Top learners"
+                note="The ten who cost the most to teach in this window, with what they got for it. Open a name for their whole history."
+              >
+                {people.top.byCost.length === 0 ? (
+                  <EmptyNote>Nobody has been taught in this window yet.</EmptyNote>
+                ) : (
+                  <TableFrame>
+                    <thead>
+                      <tr>
+                        <Th>Learner</Th>
+                        <Th>Plan</Th>
+                        <Th numeric>Lessons</Th>
+                        <Th numeric>Finished</Th>
+                        <Th numeric>Lesson time</Th>
+                        <Th numeric>Time on site</Th>
+                        <Th numeric>Cost</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {people.top.byCost.map((u) => (
+                        <tr key={u.id}>
+                          <Td className="max-w-[16rem]">
+                            <Link
+                              to={`/statistics/people/${encodeURIComponent(u.id)}`}
+                              className="block truncate text-primary underline"
+                            >
+                              {u.name || u.id}
+                            </Link>
+                          </Td>
+                          <Td className="whitespace-nowrap">
+                            {u.anonymous ? 'No account' : planLabel(u.plan, u.planInterval)}
+                          </Td>
+                          <Td numeric>{count(u.sessions)}</Td>
+                          <Td numeric>{count(u.completed)}</Td>
+                          <Td numeric>{duration(u.sessionMs)}</Td>
+                          <Td numeric>{duration(u.activeMs)}</Td>
+                          <Td numeric>{usd(u.totalUsd)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </TableFrame>
+                )}
+              </Section>
 
               <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
                 <Section

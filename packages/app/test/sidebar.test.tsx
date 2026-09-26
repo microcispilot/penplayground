@@ -138,23 +138,21 @@ describe('Sidebar rows', () => {
    * exactly that, and it is the kind of rule a later refactor of `rowClass`
    * would quietly collapse back into one branch.
    */
-  it('the rail marks the current row in ink, never with a filled pill', async () => {
-    renderWithApp(<Sidebar rail />, { participant: ANONYMOUS, route: '/' });
-    const current = (await screen.findByText('Home')).closest('a');
-    expect(current?.getAttribute('aria-current')).toBe('page');
-    const cls = current?.className ?? '';
-    expect(cls).toContain('text-primary');
-    expect(cls).not.toContain('bg-secondary-container');
-    // And an unselected row is neither.
-    const other = screen.getByText('Experts').closest('a')?.className ?? '';
-    expect(other).toContain('text-on-surface-variant');
-    expect(other).not.toContain('bg-secondary-container');
-  });
-
-  it('expanded, the current row keeps the filled indicator', async () => {
-    renderWithApp(<Sidebar />, { participant: ANONYMOUS, route: '/' });
-    const current = (await screen.findByText('Home')).closest('a');
-    expect(current?.className).toContain('bg-secondary-container');
+  it('marks the current row in the brand ink on a tint of it, never a filled block', async () => {
+    for (const rail of [true, false]) {
+      cleanup();
+      renderWithApp(<Sidebar rail={rail} />, { participant: ANONYMOUS, route: '/' });
+      const current = (await screen.findByText('Home')).closest('a');
+      expect(current?.getAttribute('aria-current')).toBe('page');
+      const cls = current?.className ?? '';
+      expect(cls).toContain('text-primary');
+      expect(cls).toContain('bg-primary/10');
+      expect(cls).not.toContain('bg-secondary-container');
+      // And an unselected row is neither.
+      const other = screen.getByText('Experts').closest('a')?.className ?? '';
+      expect(other).toContain('text-on-surface-variant');
+      expect(other).not.toContain('bg-primary/10');
+    }
   });
 
   /**
@@ -170,7 +168,7 @@ describe('Sidebar rows', () => {
     const experts = screen.getByText('Experts').closest('a');
     const all = screen.getByTestId('sidebar-topic-all');
     const computing = screen.getByRole('button', { name: 'Computing' });
-    expect(computing.className).toContain('bg-secondary-container');
+    expect(computing.className).toContain('bg-primary/10');
     for (const el of [home, experts, all, computing]) {
       expect(el?.className).toContain('rounded-none');
       expect(el?.className).not.toContain('rounded-full');

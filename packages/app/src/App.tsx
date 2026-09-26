@@ -59,6 +59,9 @@ const Terms = lazy(async () => ({ default: (await import('./screens/legal/Terms.
 const Privacy = lazy(async () => ({
   default: (await import('./screens/legal/Privacy.js')).Privacy,
 }));
+const Feedback = lazy(async () => ({
+  default: (await import('./screens/Feedback.js')).Feedback,
+}));
 const Refunds = lazy(async () => ({
   default: (await import('./screens/legal/Refunds.js')).Refunds,
 }));
@@ -82,6 +85,7 @@ function screenOf(pathname: string): string {
   if (pathname === '/terms') return 'terms';
   if (pathname === '/privacy') return 'privacy';
   if (pathname === '/refunds') return 'refunds';
+  if (pathname === '/feedback') return 'feedback';
   return 'not-found';
 }
 
@@ -185,6 +189,7 @@ export function PenApp({ platform }: { platform: Platform }) {
                 <Route path="/rooms" element={<RoomsScreen />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/feedback" element={<Feedback />} />
                 <Route path="/account" element={<Account />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />

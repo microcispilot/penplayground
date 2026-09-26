@@ -9,12 +9,14 @@ import {
   type Connection,
   connect,
   FeatureFlagsRepository,
+  FeedbackRepository,
   ListRepository,
   ParticipantRepository,
   ReportRepository,
   RuntimeConfigRepository,
   SessionRepository,
   StatsRepository,
+  SurveyRepository,
 } from '@pen/db';
 import {
   type CostMeter,
@@ -146,6 +148,10 @@ export interface Services {
   lists: ListRepository;
   /** Comments under a session (ADR-0044). */
   comments: CommentRepository;
+  /** Feedback, suggestions, feature requests and contact (ADR-0060). */
+  feedback: FeedbackRepository;
+  /** The two one-step surveys: how a subscriber heard of us, why one left (ADR-0060). */
+  surveys: SurveyRepository;
   /** Writing the statistics: derived session rows, visits, plan history (ADR-0027). */
   stats: StatsRepository;
   /** Reading them: every aggregate the owner's dashboard asks for, as SQL. */
@@ -291,6 +297,8 @@ export async function buildServices(
   });
   const lists = new ListRepository(db.db);
   const comments = new CommentRepository(db.db);
+  const feedback = new FeedbackRepository(db.db);
+  const surveys = new SurveyRepository(db.db);
   /** Statistics and reports (ADR-0027): one repository writes, the other reads. */
   const stats = new StatsRepository(db.db);
   const reports = new ReportRepository(db.db);
@@ -594,7 +602,9 @@ export async function buildServices(
       'OPENAI_API_KEY_PLATFORM is not set: backfills and probes have no key of their own',
     );
 
-  const billing = new Billing(cfg, participants, stats);
+  const analytics = new Analytics(cfg);
+  // What the page shows and what Checkout charges are set by different hands; agree or say so (ADR-0056).
+  const billing = new Billing(cfg, participants, stats, analytics);
   // What the page shows and what Checkout charges are set by different hands; agree or say so (ADR-0056).
   if (billing.enabled)
     void billing.verifyPrices().catch((error: unknown) => observer.error('billing.verify', error));
@@ -620,7 +630,6 @@ export async function buildServices(
     logger.warn(
       'google sign-in: GOOGLE_CLIENT_SECRET is not set, so the app’s own Continue with Google (the code flow) will be refused; only ID tokens are accepted',
     );
-  const analytics = new Analytics(cfg);
   // Finished sessions are queued here and derived by `main`'s drain loop,
   // never inline with a room's own teardown (ADR-0027).
   const deriver = new StatsDeriver({
@@ -750,6 +759,8 @@ export async function buildServices(
     mailer,
     lists,
     comments,
+    feedback,
+    surveys,
     stats,
     reports,
     deriver,
