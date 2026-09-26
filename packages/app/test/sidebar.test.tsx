@@ -187,12 +187,12 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The rows are square. The owner (2026-09-25), of the selected Home and
-   * Computing rows: "i don't like these to be rounded", then, of a 2 px
-   * corner, "no corner radius". `rounded-none` on every row and on the topic
+   * The rows are rounded on the sides. The owner (2026-09-25) first wanted
+   * them square ("no corner radius"), then (2026-09-26) "make the background
+   * rounded from the sides". `rounded-full` on every row and on the topic
    * sub-rows alike; the state layer inherits it.
    */
-  it('every row and sub-row is square, not a pill', async () => {
+  it('every row and sub-row is rounded on the sides', async () => {
     // A topic in the URL opens the Topics list, so the sub-rows are on screen too.
     renderWithApp(<Sidebar />, { participant: ANONYMOUS, route: '/?topic=computing-data' });
     const home = (await screen.findByText('Home')).closest('a');
@@ -201,8 +201,8 @@ describe('Sidebar rows', () => {
     const computing = screen.getByRole('button', { name: 'Computing' });
     expect(computing.className).toContain('bg-primary/10');
     for (const el of [home, experts, all, computing]) {
-      expect(el?.className).toContain('rounded-none');
-      expect(el?.className).not.toContain('rounded-full');
+      expect(el?.className).toContain('rounded-full');
+      expect(el?.className).not.toContain('rounded-none');
     }
   });
 
