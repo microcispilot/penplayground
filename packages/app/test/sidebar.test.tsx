@@ -158,12 +158,12 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The rows are not pills. The owner (2026-09-25), of the selected Home and
-   * Computing rows: "i don't like these to be rounded. only 2px round is
-   * fine." `rounded-xxs` is that 2 px (`--radius-xxs`), on every row and on
-   * the topic sub-rows alike; the state layer inherits it.
+   * The rows are square. The owner (2026-09-25), of the selected Home and
+   * Computing rows: "i don't like these to be rounded", then, of a 2 px
+   * corner, "no corner radius". `rounded-none` on every row and on the topic
+   * sub-rows alike; the state layer inherits it.
    */
-  it('every row and sub-row is squared to 2px, not a pill', async () => {
+  it('every row and sub-row is square, not a pill', async () => {
     // A topic in the URL opens the Topics list, so the sub-rows are on screen too.
     renderWithApp(<Sidebar />, { participant: ANONYMOUS, route: '/?topic=computing-data' });
     const home = (await screen.findByText('Home')).closest('a');
@@ -172,7 +172,7 @@ describe('Sidebar rows', () => {
     const computing = screen.getByRole('button', { name: 'Computing' });
     expect(computing.className).toContain('bg-secondary-container');
     for (const el of [home, experts, all, computing]) {
-      expect(el?.className).toContain('rounded-xxs');
+      expect(el?.className).toContain('rounded-none');
       expect(el?.className).not.toContain('rounded-full');
     }
   });

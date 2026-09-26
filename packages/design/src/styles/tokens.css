@@ -221,11 +221,9 @@
    * Shape — the M3 corner scale. `rounded-full` is Tailwind's own and is the
    * Expressive default for anything that reads as a control: buttons, chips,
    * segmented selectors, FABs. Not the sidebar's rows: the owner (2026-09-25,
-   * of the Home and Computing pills) — "i don't like these to be rounded.
-   * only 2px round is fine" — so they take `xxs`.
+   * of the Home and Computing pills) wants those square (`rounded-none`).
    * ────────────────────────────────────────────────────────────────────── */
   --radius-*: initial;
-  --radius-xxs: 2px;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
