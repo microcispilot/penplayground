@@ -112,7 +112,8 @@ app, and kept the first with two changes: "the main brand color for the left
 vertical line, and make the line a bit wider". So the current row and a
 chosen topic are the brand at 16 % letting the sidebar through, `on-surface`
 on it (15:1 by night, 14:1 by day), and a 4 px bar of the brand itself on
-the flush left edge. The nav has no left inset and the rows carry the
+the flush left edge; every other row is `on-surface-dim`, the mock's muted
+grey ("the unselected ones are not white, use this color"). The nav has no left inset and the rows carry the
 padding, so the bar sits on the sidebar's edge. A chosen option in a dialog
 and a chosen feedback kind keep `selected` (rose at 45 %) with `on-surface`.
 The `secondary-container` token itself stays the brand. The rows are flush on the left, where the fill meets the

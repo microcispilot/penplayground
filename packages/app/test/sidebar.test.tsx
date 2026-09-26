@@ -176,7 +176,7 @@ describe('Sidebar rows', () => {
       expect(cls).toContain('shadow-[inset_4px_0_0_var(--color-brand)]');
       // And an unselected row is neither.
       const other = screen.getByText('Experts').closest('a')?.className ?? '';
-      expect(other).toContain('text-on-surface-variant');
+      expect(other).toContain('text-on-surface-dim');
       expect(other).not.toContain('bg-brand/16');
       expect(other).not.toContain('shadow-[inset_4px');
     }

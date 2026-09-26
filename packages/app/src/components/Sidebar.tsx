@@ -91,10 +91,12 @@ function rowClass(rail: boolean, active: boolean): string {
     // Linear"), chosen over "indicator bar only" after trying both: the brand at 16 % letting
     // the sidebar through, the page's own ink on it, and a 4 px bar of the brand itself on
     // the flush left edge ("the main brand color for the left vertical line, and make the
-    // line a bit wider"). On-surface on the tint reads 15:1 by night and 14:1 by day.
+    // line a bit wider"). On-surface on the tint reads 15:1 by night and 14:1 by day. The
+    // other rows are `on-surface-dim`, the mock's muted grey ("the unselected ones are not
+    // white, use this color"): 7.2:1 by night, 6.5:1 by day.
     active
       ? 'bg-brand/16 text-on-surface shadow-[inset_4px_0_0_var(--color-brand)]'
-      : 'text-on-surface-variant',
+      : 'text-on-surface-dim',
   );
 }
 
@@ -300,7 +302,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     'state-layer rounded-l-none rounded-r-[1px] pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
                       ? 'bg-brand/16 text-on-surface shadow-[inset_4px_0_0_var(--color-brand)]'
-                      : 'text-on-surface-variant',
+                      : 'text-on-surface-dim',
                   )}
                   data-testid="sidebar-topic-all"
                 >
@@ -319,7 +321,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                       'state-layer rounded-l-none rounded-r-[1px] pl-[3.375rem] pr-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
                         ? 'bg-brand/16 text-on-surface shadow-[inset_4px_0_0_var(--color-brand)]'
-                        : 'text-on-surface-variant',
+                        : 'text-on-surface-dim',
                     )}
                   >
                     {d.label}
