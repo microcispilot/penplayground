@@ -64,7 +64,7 @@ export function NotFound() {
 
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden px-6 py-16">
-      <div className="flex w-full max-w-[560px] flex-col items-center text-center">
+      <div className="flex w-full max-w-[35rem] flex-col items-center text-center">
         <span className="animate-rise mb-6 grid size-14 place-items-center rounded-lg-increased border border-outline-variant bg-surface-container text-on-surface">
           <PenMark size={28} />
         </span>
@@ -75,7 +75,7 @@ export function NotFound() {
           This page wandered off
         </h1>
         <p
-          className="animate-rise mt-4 max-w-[420px] text-body-large text-on-surface-variant text-pretty"
+          className="animate-rise mt-4 max-w-[26.25rem] text-body-large text-on-surface-variant text-pretty"
           style={{ animationDelay: '120ms' }}
         >
           The link may be old, or the session was private. What you came to learn is still one
@@ -91,7 +91,7 @@ export function NotFound() {
            * validation error on a field that has done nothing wrong.
            */
           className={cn(
-            'animate-rise mt-8 flex min-h-[58px] w-full items-center gap-1 rounded-lg-increased border border-outline-variant bg-surface-container p-2 pl-4 transition-colors duration-[var(--duration-base)]',
+            'animate-rise mt-8 flex min-h-[3.625rem] w-full items-center gap-1 rounded-lg-increased border border-outline-variant bg-surface-container p-2 pl-4 transition-colors duration-[var(--duration-base)]',
             'focus-within:border-outline',
           )}
           style={{ animationDelay: '180ms' }}

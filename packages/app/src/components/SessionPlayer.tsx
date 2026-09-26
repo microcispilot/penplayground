@@ -306,7 +306,7 @@ export function SessionPlayer({
         data-layout={layout}
         data-phase="error"
       >
-        <div className="flex max-w-[420px] flex-col items-center gap-4 text-center">
+        <div className="flex max-w-[26.25rem] flex-col items-center gap-4 text-center">
           <p className="text-body-large text-on-surface">{ui.errorText}</p>
           <Button variant="primary" onClick={onExit}>
             {inline ? 'Close' : 'Back to Explore'}
@@ -537,7 +537,7 @@ export function SessionPlayer({
               <div
                 role="status"
                 data-testid="room-nudge"
-                className="animate-rise absolute right-3 bottom-3 left-3 z-[20] mx-auto flex max-w-[520px] flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-container px-4 py-3 shadow-level2 sm:left-auto"
+                className="animate-rise absolute right-3 bottom-3 left-3 z-[20] mx-auto flex max-w-[32.5rem] flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-container px-4 py-3 shadow-level2 sm:left-auto"
               >
                 <p className="min-w-0 flex-1 text-body-medium text-on-surface text-pretty">
                   {firstName} heard you. Answering questions live comes with a paid plan.

@@ -40,7 +40,7 @@ export function Library() {
       <div className="flex flex-col gap-3">
         {sessions === null ? (
           Array.from({ length: 3 }, (_, i) => `sk-${i}`).map((k) => (
-            <Skeleton key={k} className="h-[136px]" />
+            <Skeleton key={k} className="h-[8.5rem]" />
           ))
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-start gap-3 rounded-lg bg-surface-container-low p-6 hairline">
@@ -59,12 +59,12 @@ export function Library() {
             return (
               <div
                 key={s.id}
-                className="flex gap-[18px] rounded-lg bg-surface-container-low p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-outline)]"
+                className="flex gap-[1.125rem] rounded-lg bg-surface-container-low p-3.5 hairline transition-colors hover:shadow-[0_0_0_1px_var(--color-outline)]"
               >
                 <SessionThumb
                   session={s}
                   watch={live}
-                  className="relative h-[106px] w-[188px] shrink-0"
+                  className="relative h-[6.625rem] w-[11.75rem] shrink-0"
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                   <span className="text-body-large font-medium">{s.title}</span>
@@ -77,7 +77,7 @@ export function Library() {
                     · {expert?.displayName ?? 'AI expert'}
                   </span>
                   {s.recap[0] ? (
-                    <span className="mt-1 border-l-2 border-primary pl-[11px] text-body-medium text-on-surface-variant">
+                    <span className="mt-1 border-l-2 border-primary pl-[0.6875rem] text-body-medium text-on-surface-variant">
                       {s.recap[0]}
                     </span>
                   ) : null}

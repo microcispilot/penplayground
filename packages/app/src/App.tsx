@@ -122,10 +122,10 @@ function ScrollToTop() {
 function ShellFallback() {
   return (
     <div className="flex-1 px-6 pt-9 pb-20 sm:px-8" data-testid="route-loading">
-      <div className="mx-auto w-full max-w-[1100px]">
+      <div className="mx-auto w-full max-w-[68.75rem]">
         <Skeleton className="h-9 w-[min(18rem,60%)]" />
         <Skeleton className="mt-3 h-4 w-[min(32rem,85%)]" />
-        <Skeleton className="mt-9 h-[42vh] min-h-[220px] w-full rounded-lg" />
+        <Skeleton className="mt-9 h-[42vh] min-h-[13.75rem] w-full rounded-lg" />
       </div>
     </div>
   );

@@ -37,6 +37,20 @@
   [role="button"][aria-disabled="true"] {
     cursor: not-allowed;
   }
+  /*
+   * The desktop scale. Every role, every spacing step and every layout width is in rem, so
+   * the root font-size is the one dial: 85 % of the browser's default at 1024 px and up (the
+   * owner, 2026-09-26: "everything is too big; when I zoom out the browser 15 % that looks
+   * good"). Phones and tablets keep the default: 13.6 px body text is too small to read on a
+   * phone and iOS zooms a field under 16 px on focus. The media query is in rem on purpose:
+   * a query's rem is the browser default, so the breakpoint does not move with this rule.
+   */
+  @media (min-width: 64rem) {
+    html {
+      font-size: 85%;
+    }
+  }
+
   body {
     margin: 0;
     /*

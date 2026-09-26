@@ -88,13 +88,12 @@ function rowClass(rail: boolean, active: boolean): string {
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
-    // The current row is the brand's ink, icon and label alike, on the tint it always had
-    // (the owner, 2026-09-25: "make the text that primary color with icon, and use a
-    // different background that properly matches"), never a filled block with white on it.
-    // The ink is the brand itself in both themes: at night `primary` is rose, and the owner
-    // asked why the row was "not reddish, like the background of the login button"
-    // (2026-09-26). The background is not touched: it stays `primary` at 10 %.
-    active ? 'bg-primary/10 text-brand' : 'text-on-surface-variant',
+    // The current row is the brand fill at 80 % with white on it, the same by day and by
+    // night (9.3:1 on the dark page, 5.1:1 on white). The owner tried a brand-coloured label
+    // on a tint (2026-09-25), found it too dark at night, asked for "the background is the
+    // primary and the foreground is white", and of the solid fill, "too colory; maybe the
+    // brand color with a bit transparency" (2026-09-26).
+    active ? 'bg-primary-fixed/80 text-on-primary-fixed' : 'text-on-surface-variant',
   );
 }
 
@@ -222,7 +221,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
       data-rail={rail || undefined}
       className={cn(
         'flex h-full flex-col overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:thin]',
-        rail ? 'w-[80px] px-0.5' : 'w-[256px] px-3',
+        rail ? 'w-[5rem] px-0.5' : 'w-[16rem] px-3',
         className,
       )}
     >
@@ -282,7 +281,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
               />
             </button>
             {topicsOpen ? (
-              <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-[26px]">
+              <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-[1.625rem]">
                 {/* The way back. A topic chosen here filtered Home with no row to
                     un-choose it (the owner, 2026-09-23); this is the chips' "All",
                     where the topics are. */}
@@ -296,7 +295,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                   className={cn(
                     'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
-                      ? 'bg-primary/10 text-brand'
+                      ? 'bg-primary-fixed/80 text-on-primary-fixed'
                       : 'text-on-surface-variant',
                   )}
                   data-testid="sidebar-topic-all"
@@ -314,7 +313,9 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     }}
                     className={cn(
                       'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
-                      activeTopic === d.id ? 'bg-primary/10 text-brand' : 'text-on-surface-variant',
+                      activeTopic === d.id
+                        ? 'bg-primary-fixed/80 text-on-primary-fixed'
+                        : 'text-on-surface-variant',
                     )}
                   >
                     {d.label}
@@ -493,7 +494,7 @@ export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () =>
         // elevation already separate it from the page, and a second grey would
         // make the drawer a different sidebar from the one at desktop width.
         // `corner-large` on the trailing edge only.
-        className="animate-rise absolute inset-y-0 left-0 w-[268px] rounded-e-lg bg-surface-container-lowest shadow-level1 outline-none"
+        className="animate-rise absolute inset-y-0 left-0 w-[16.75rem] rounded-e-lg bg-surface-container-lowest shadow-level1 outline-none"
       >
         <div className="flex h-16 items-center gap-2 px-5">
           {/* The drawer has no header above it, so this is the one place the

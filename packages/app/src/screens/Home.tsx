@@ -292,7 +292,7 @@ export function Home() {
           hero becomes what it always was underneath — a question and the field
           that answers it — at a measure wide enough to carry the display type.
         */}
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col items-center px-6 pt-16 pb-20 text-center sm:pt-20 lg:pt-24 lg:pb-24">
+        <div className="mx-auto flex w-full max-w-[62.5rem] flex-col items-center px-6 pt-16 pb-20 text-center sm:pt-20 lg:pt-24 lg:pb-24">
           {/*
             One sentence, one voice: no word set apart in another colour, style
             or weight, and nothing underlining it. The question is the whole
@@ -325,7 +325,7 @@ export function Home() {
                * now: the bar is told from the page by its tone and its
                * border, which is what matte means.
                */
-              'animate-rise mt-10 flex min-h-[64px] w-full max-w-[900px] items-center gap-1 rounded-xl-increased border border-outline-variant bg-surface-container-high p-2 pl-5 text-left transition-colors duration-[var(--duration-base)]',
+              'animate-rise mt-10 flex min-h-[4rem] w-full max-w-[56.25rem] items-center gap-1 rounded-xl-increased border border-outline-variant bg-surface-container-high p-2 pl-5 text-left transition-colors duration-[var(--duration-base)]',
               /*
                * Focus thickens the same edge rather than adding a second
                * thing. It is deliberately **not** the brand: two pixels of
@@ -463,7 +463,7 @@ export function Home() {
           */}
           {unprepared ? (
             <div
-              className="animate-rise mt-5 flex w-full max-w-[900px] flex-col items-start gap-3.5"
+              className="animate-rise mt-5 flex w-full max-w-[56.25rem] flex-col items-start gap-3.5"
               data-testid="home-unprepared"
             >
               <p className="text-body-medium text-on-surface-variant text-pretty">
@@ -518,7 +518,7 @@ export function Home() {
           ) : null}
           {waiting && !unprepared ? (
             <div
-              className="animate-rise mt-5 flex max-w-[560px] flex-col items-start gap-3.5"
+              className="animate-rise mt-5 flex max-w-[35rem] flex-col items-start gap-3.5"
               style={{ animationDelay: '220ms' }}
               data-testid="home-allowance"
             >
@@ -544,7 +544,7 @@ export function Home() {
       {/* ── sessions ─────────────────────────────────────────────────────── */}
       {/* No band and no rule: the catalogue *is* the page. */}
       <section className="py-16">
-        <div className="mx-auto w-full max-w-[1280px] px-6">
+        <div className="mx-auto w-full max-w-[80rem] px-6">
           <SectionBand>
             <h2 className="mr-2 text-title-large">
               {sessions !== null && sessions.length === 0
@@ -570,7 +570,7 @@ export function Home() {
                     </Chip>
                   ))}
                 </div>
-                <label className="flex h-9 w-full shrink-0 items-center gap-2 rounded-full bg-surface-container px-3.5 hairline sm:w-[260px]">
+                <label className="flex h-9 w-full shrink-0 items-center gap-2 rounded-full bg-surface-container px-3.5 hairline sm:w-[16.25rem]">
                   <Search size={14} className="shrink-0 text-on-surface-dim" aria-hidden />
                   <input
                     className="min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-dim"
@@ -680,7 +680,7 @@ function SectionBand({ children }: { children: ReactNode }) {
         whole footer did exactly that, and `shell.spec.ts` caught it.
       */}
       <footer className="lg:hidden">
-        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-5 gap-y-2 px-6 pt-4 pb-10 text-body-medium text-on-surface-dim">
+        <div className="mx-auto flex w-full max-w-[80rem] flex-wrap items-center gap-x-5 gap-y-2 px-6 pt-4 pb-10 text-body-medium text-on-surface-dim">
           <NavLink to="/terms" className="hover:text-on-surface">
             Terms
           </NavLink>

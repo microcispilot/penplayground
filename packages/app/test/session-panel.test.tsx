@@ -428,7 +428,7 @@ describe('the panel folds away from its own edge', () => {
     expect(closed.getAttribute('aria-expanded')).toBe('false');
     expect(closed.getAttribute('aria-label')).toBe('Show the session panel');
     // Collapsed, the panel is a rail: the board gets the rest.
-    expect(screen.getByTestId('session-panel').className).toContain('w-[34px]');
+    expect(screen.getByTestId('session-panel').className).toContain('w-[2.125rem]');
   });
 
   it('remembers the choice across visits', () => {

@@ -88,14 +88,14 @@ export function ErrorScreen({
       className="grid min-h-screen place-items-center bg-surface px-6"
       data-testid="error-screen"
     >
-      <div className="flex w-full max-w-[460px] flex-col items-center text-center">
+      <div className="flex w-full max-w-[28.75rem] flex-col items-center text-center">
         <span className="animate-rise mb-6 grid size-14 place-items-center rounded-lg-increased bg-surface-container text-on-surface shadow-level2">
           <PenMark size={28} />
         </span>
         <h1 className="animate-rise text-headline-small text-on-surface text-pretty">
           This screen stopped drawing
         </h1>
-        <p className="animate-rise mt-3 max-w-[380px] text-title-small text-on-surface-variant text-pretty">
+        <p className="animate-rise mt-3 max-w-[23.75rem] text-title-small text-on-surface-variant text-pretty">
           Something in the page gave up halfway. Nothing you did caused it, and your sessions are
           safe. Try it again — it usually comes back.
         </p>

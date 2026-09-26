@@ -81,7 +81,9 @@ export function SignInInvite({ line }: { line: string }) {
       className="mt-6 flex flex-col items-center gap-3.5 text-center"
       data-testid="sign-in-invite"
     >
-      <p className="max-w-[420px] text-label-large text-on-surface-variant text-pretty">{line}</p>
+      <p className="max-w-[26.25rem] text-label-large text-on-surface-variant text-pretty">
+        {line}
+      </p>
       <Button
         type="button"
         variant="primary"
@@ -110,7 +112,7 @@ function Empty({ title, line, signIn, action }: EmptyProps) {
       data-testid="list-empty"
     >
       <p className="text-body-large text-on-surface">{title}</p>
-      <p className="mt-1.5 max-w-[440px] text-body-medium text-on-surface-variant text-pretty">
+      <p className="mt-1.5 max-w-[27.5rem] text-body-medium text-on-surface-variant text-pretty">
         {line}
       </p>
       {action ? <div className="mt-5">{action}</div> : null}
@@ -133,11 +135,11 @@ function SessionRow({
 }) {
   const live = session.endedAt === null;
   return (
-    <div className="group flex flex-col gap-3.5 rounded-lg bg-surface-container-low p-3.5 hairline transition-shadow hover:shadow-[0_0_0_1px_var(--color-outline)] sm:flex-row sm:gap-[18px]">
+    <div className="group flex flex-col gap-3.5 rounded-lg bg-surface-container-low p-3.5 hairline transition-shadow hover:shadow-[0_0_0_1px_var(--color-outline)] sm:flex-row sm:gap-[1.125rem]">
       <SessionThumb
         session={session}
         watch={live}
-        className="relative h-[124px] w-full shrink-0 sm:h-[106px] sm:w-[188px]"
+        className="relative h-[7.75rem] w-full shrink-0 sm:h-[6.625rem] sm:w-[11.75rem]"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="text-body-large font-medium">{session.title}</span>
@@ -227,7 +229,7 @@ function ListScreen({
       {rows === null && allowed ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 3 }, (_, i) => `sk-${i}`).map((k) => (
-            <Skeleton key={k} className="h-[136px]" />
+            <Skeleton key={k} className="h-[8.5rem]" />
           ))}
         </div>
       ) : !allowed ? (

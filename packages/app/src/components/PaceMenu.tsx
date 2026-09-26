@@ -154,7 +154,7 @@ export function PaceMenu({
         onFocus={() => setTip(true)}
         onBlur={() => setTip(false)}
         className={cn(
-          'inline-flex h-8 min-w-[52px] select-none items-center justify-center gap-1 rounded-full px-3 text-label-medium tabular transition-colors duration-[var(--duration-fast)]',
+          'inline-flex h-8 min-w-[3.25rem] select-none items-center justify-center gap-1 rounded-full px-3 text-label-medium tabular transition-colors duration-[var(--duration-fast)]',
           disabled
             ? 'cursor-not-allowed bg-surface-container-low text-on-surface-dim opacity-60 hairline'
             : open
@@ -188,7 +188,7 @@ export function PaceMenu({
           id={menuId}
           aria-label={label}
           onKeyDown={onMenuKey}
-          className="absolute right-0 bottom-[calc(100%+8px)] z-[20] m-0 w-[188px] min-w-0 rounded-md border-0 bg-surface-container p-1 shadow-level3 hairline animate-rise"
+          className="absolute right-0 bottom-[calc(100%+8px)] z-[20] m-0 w-[11.75rem] min-w-0 rounded-md border-0 bg-surface-container p-1 shadow-level3 hairline animate-rise"
         >
           <legend className="float-left w-full px-2.5 pt-1.5 pb-1 text-label-small font-medium tracking-widest text-on-surface-dim uppercase">
             {label}

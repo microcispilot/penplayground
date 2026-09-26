@@ -627,7 +627,7 @@ export function CaptionOverlay({
   // of a 1440 board is a line nobody can read in one movement. ~46 characters
   // is roughly what broadcast subtitling allows per line.
   const box =
-    'pointer-events-none absolute inset-x-3 bottom-3 z-[5] flex justify-center sm:inset-x-5 sm:bottom-[18px] lg:inset-x-6 lg:bottom-[22px]';
+    'pointer-events-none absolute inset-x-3 bottom-3 z-[5] flex justify-center sm:inset-x-5 sm:bottom-[1.125rem] lg:inset-x-6 lg:bottom-[1.375rem]';
   if (!on || !line)
     return hint ? (
       <div className={cn(box, 'text-center')} data-caption-box>
@@ -762,7 +762,7 @@ export function RecapPanel({
         <h3 className="mb-1.5 text-pretty" lang={lang} dir={dir}>
           {state.plan?.title ?? state.topic}
         </h3>
-        <p className="mb-[22px] text-body-medium text-on-surface-variant">
+        <p className="mb-[1.375rem] text-body-medium text-on-surface-variant">
           {expertFirstName} · {formatClock(state.clockMs)} · {questions.length} question
           {questions.length === 1 ? '' : 's'}
         </p>
@@ -776,7 +776,7 @@ export function RecapPanel({
           ))}
         </div>
         <h6 className="mb-2.5 text-on-surface-variant">Your questions</h6>
-        <div className="mb-[26px] flex flex-col gap-3">
+        <div className="mb-[1.625rem] flex flex-col gap-3">
           {questions.length === 0 ? (
             <p className="text-body-medium text-on-surface-dim">
               You didn't stop {expertFirstName} this time. Next one, jump in whenever.
@@ -831,10 +831,10 @@ export function PreparingView({
         compact ? 'h-full py-6' : 'min-h-screen py-12',
       )}
     >
-      <div className="flex w-full max-w-[380px] flex-col items-center text-center">
+      <div className="flex w-full max-w-[23.75rem] flex-col items-center text-center">
         <div
           className={cn(
-            'size-[92px] overflow-hidden rounded-full bg-surface-container-high shadow-[0_0_0_3px_oklch(1_0_0/10%)] animate-ring',
+            'size-[5.75rem] overflow-hidden rounded-full bg-surface-container-high shadow-[0_0_0_3px_oklch(1_0_0/10%)] animate-ring',
           )}
         >
           {portraitUrl ? (
@@ -854,23 +854,23 @@ export function PreparingView({
         <div className="mt-0.5 text-body-small text-on-surface-dim">
           AI expert · {expertRole.toLowerCase()}
         </div>
-        <div className="my-[26px] h-px w-11 bg-outline" />
+        <div className="my-[1.625rem] h-px w-11 bg-outline" />
         <div className="text-title-large font-medium text-on-surface text-pretty">
           {plan?.title ?? topic}
         </div>
-        <div className="mt-[7px] text-body-small text-on-surface-dim">
+        <div className="mt-[0.4375rem] text-body-small text-on-surface-dim">
           {plan
             ? `${plan.segments.length} steps · about ${Math.round(plan.seconds / 60)} minutes`
             : 'Getting the material together'}
         </div>
-        <div className="mt-[34px] h-0.5 w-full overflow-hidden rounded-full bg-surface-container-high">
+        <div className="mt-[2.125rem] h-0.5 w-full overflow-hidden rounded-full bg-surface-container-high">
           <div
             className="h-full bg-primary transition-[width] duration-[var(--duration-scene)] ease-[var(--ease-out)]"
             style={{ width: `${Math.round((progress?.fraction ?? 0.05) * 100)}%` }}
           />
         </div>
         <div className="mt-3.5 flex items-center gap-2" aria-live="polite">
-          <span className="block size-[13px] animate-spin rounded-full border-2 border-outline border-t-accent" />
+          <span className="block size-[0.8125rem] animate-spin rounded-full border-2 border-outline border-t-accent" />
           <span className="text-body-medium text-on-surface-variant">
             {progress?.status ?? 'Connecting…'}
           </span>

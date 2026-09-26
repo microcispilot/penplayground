@@ -118,7 +118,7 @@ export function RoomInviteGate({
       </header>
       <main
         aria-labelledby="room-invite-title"
-        className="mx-auto w-full max-w-[720px] flex-1 px-5 pt-6 pb-20 sm:px-8 sm:pt-12"
+        className="mx-auto w-full max-w-[45rem] flex-1 px-5 pt-6 pb-20 sm:px-8 sm:pt-12"
         data-testid="room-invite"
       >
         {live ? (
@@ -167,7 +167,7 @@ export function RoomInviteGate({
           {reason === 'room_full' ? (
             <>
               <h2 className="text-title-large text-on-surface">This room is full.</h2>
-              <p className="mt-2 max-w-[560px] text-body-large text-on-surface-variant text-pretty">
+              <p className="mt-2 max-w-[35rem] text-body-large text-on-surface-variant text-pretty">
                 Every one of its {invite.seats.total} seats is taken. Ask the host to let you know
                 when one opens, or start a session of your own.
               </p>
@@ -182,7 +182,7 @@ export function RoomInviteGate({
               <h2 className="text-title-large text-on-surface">
                 A subscription is required to join this session.
               </h2>
-              <p className="mt-2 max-w-[560px] text-body-large text-on-surface-variant text-pretty">
+              <p className="mt-2 max-w-[35rem] text-body-large text-on-surface-variant text-pretty">
                 Rooms are part of the Standard and Professional plans. Choose a plan and your seat
                 is ready the moment you come back.
               </p>

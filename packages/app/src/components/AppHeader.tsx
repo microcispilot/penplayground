@@ -188,7 +188,7 @@ export function AppHeader({
               initials={firstLetterOf(participant.name)}
               size={28}
             />
-            <span className="max-w-[120px] truncate">{firstNameOf(participant.name)}</span>
+            <span className="max-w-[7.5rem] truncate">{firstNameOf(participant.name)}</span>
           </button>
         ) : (
           <>

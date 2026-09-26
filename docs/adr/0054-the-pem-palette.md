@@ -89,15 +89,21 @@ longer admits `--color-ink-accent`, `-warn`, `-muted` or `-highlight`. The
 tokens themselves stay declared in `tokens.css` for the brand families'
 tuning; nothing on the board asks for them. `ink.test.ts` pins it.
 
-## Amendment (2026-09-26): a selected row's ink is the brand, by night too
+## Amendment (2026-09-26): a selected row is the brand with white on it, again
 
 "Rose by night" made the sidebar's current row, a chosen topic, a chosen
 feedback kind and a survey answer rose after dark, and the owner asked why
-the row was "not reddish, like the background of the login button". The ink
-of a selected tinted state is now the brand itself (`text-brand`) in both
-themes. Its background is unchanged: the `primary` tint at 10 %, as the
-owner set it on 2026-09-25 (a first attempt put the row on blush, and the
-owner rejected the changed background at once). The brand on the dark tint
-is 2.5:1; that is the owner's choice for this one state, and `primary` stays
-rose by night for prose, links and outlines. The sidebar test pins the
-classes.
+the row was "not reddish, like the background of the login button". The
+brand itself as ink on the dark tint is 2.2:1 and read "too darkish"; a
+blush fill under it was a background change the owner had not asked for and
+rejected; a lighter tint under a red ink cannot reach 4.5:1. The owner then
+ruled: "revert it back to the way it was: the background is the primary and
+the foreground is white." So the selected tinted state is M3's own pair,
+the brand fill with white on it. The solid fill was "too colory; maybe the
+brand color with a bit transparency", so the fill is `primary-fixed` at 80 %
+(`bg-primary-fixed/80 text-on-primary-fixed`): the brand letting a little of
+the page through, 9.3:1 for white on the dark page and 5.1:1 on the light
+one, and the `secondary-container` token itself stays the brand. The rows are rounded
+on the sides ("make the background rounded from the sides"), replacing the
+square ruling of 2026-09-25. `primary` stays rose by night for prose, links
+and outlines. The sidebar test pins the classes and the shape.

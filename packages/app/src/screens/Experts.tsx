@@ -73,7 +73,7 @@ export function Experts() {
           : `${experts.length} experts across science, software, coding, medicine, law, money, arts, and more. They can teach you in your language.`
       }
       actions={
-        <label className="flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-surface-container px-3.5 hairline">
+        <label className="flex h-9 w-[15rem] shrink-0 items-center gap-2 rounded-full bg-surface-container px-3.5 hairline">
           <Search size={14} className="shrink-0 text-on-surface-dim" aria-hidden />
           <input
             className="min-w-0 flex-1 bg-transparent text-body-medium text-on-surface outline-none placeholder:text-on-surface-dim"

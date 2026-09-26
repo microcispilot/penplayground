@@ -784,7 +784,7 @@ export function SessionPage() {
           box, the comments; and on a wide screen, what to watch next on the
           right. Nothing else lives in that column.
         */}
-        <div className="mx-auto grid max-w-[1280px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="mx-auto grid max-w-[80rem] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0">
             {/*
               The board is the player (ADR-0045). Idle: the board with one play
@@ -830,7 +830,7 @@ export function SessionPage() {
                       */}
                       <span
                         className={cn(
-                          'grid size-[72px] place-items-center rounded-full bg-white text-primary-fixed shadow-[0_2px_4px_rgba(0,0,0,0.16),0_12px_32px_rgba(0,0,0,0.28)] ring-1 ring-black/5 transition-transform duration-[var(--duration-fast)] ease-[var(--ease-emphasized)] group-hover:scale-[1.06] group-active:scale-[0.98]',
+                          'grid size-[4.5rem] place-items-center rounded-full bg-white text-primary-fixed shadow-[0_2px_4px_rgba(0,0,0,0.16),0_12px_32px_rgba(0,0,0,0.28)] ring-1 ring-black/5 transition-transform duration-[var(--duration-fast)] ease-[var(--ease-emphasized)] group-hover:scale-[1.06] group-active:scale-[0.98]',
                           starting && 'animate-pulse',
                         )}
                       >

@@ -510,8 +510,8 @@ export function SessionPanel(p: SessionPanelProps) {
           ? 'w-full max-w-[min(420px,92%)] shadow-level3'
           : p.open
             ? // A small laptop gives the board back the 50 px a wide screen can spare.
-              'w-[340px] xl:w-[390px]'
-            : 'w-[34px]',
+              'w-[21.25rem] xl:w-[24.375rem]'
+            : 'w-[2.125rem]',
       )}
     >
       {handle}

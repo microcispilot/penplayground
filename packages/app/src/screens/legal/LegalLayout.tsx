@@ -37,7 +37,7 @@ export function UL({ children }: { children: ReactNode }) {
 export function LI({ children }: { children: ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span className="mt-[9px] size-[5px] shrink-0 rounded-full bg-primary" aria-hidden />
+      <span className="mt-[0.5625rem] size-[5px] shrink-0 rounded-full bg-primary" aria-hidden />
       <span className="min-w-0 text-pretty">{children}</span>
     </li>
   );
@@ -125,7 +125,7 @@ export function LegalLayout({
 
   return (
     <div className="flex-1 px-6 pt-10 pb-24 sm:px-8">
-      <div className="mx-auto grid w-full max-w-[1040px] gap-12 xl:grid-cols-[minmax(0,1fr)_216px]">
+      <div className="mx-auto grid w-full max-w-[65rem] gap-12 xl:grid-cols-[minmax(0,1fr)_216px]">
         <article className="min-w-0 max-w-[68ch]">
           <h1 className="text-headline-medium text-on-surface">{title}</h1>
           <p className="mt-4 text-body-large text-on-surface-variant text-pretty">{intro}</p>

@@ -64,7 +64,7 @@ function Section({
   return (
     <section className="border-outline-variant border-t py-8 first:border-t-0 first:pt-0">
       <h3 className="text-title-medium">{title}</h3>
-      <p className="mt-1.5 max-w-[560px] text-body-medium text-on-surface-variant text-pretty">
+      <p className="mt-1.5 max-w-[35rem] text-body-medium text-on-surface-variant text-pretty">
         {intro}
       </p>
       <div className="mt-5">{children}</div>
@@ -140,7 +140,7 @@ function SurfaceCard({
         // `auto` has no board of its own to preview, so it shows the two it
         // stands for, split down the middle — each half a real board with the
         // same writing in its own ink, clipped along the diagonal.
-        <span className="relative block h-[112px] overflow-hidden rounded-md border-4 border-outline-variant">
+        <span className="relative block h-[7rem] overflow-hidden rounded-md border-4 border-outline-variant">
           <span
             data-board="whiteboard"
             className="absolute inset-0 bg-[var(--color-paper)] [clip-path:polygon(0_0,58%_0,42%_100%,0_100%)]"
@@ -157,7 +157,7 @@ function SurfaceCard({
       ) : (
         <span
           data-board={surface.id}
-          className="relative block h-[112px] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
+          className="relative block h-[7rem] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
         >
           <Handwriting tool={tool ?? defaultToolFor(surface)} />
         </span>
@@ -241,7 +241,7 @@ function ToolCard({
     <>
       <span
         data-board={surfaceId}
-        className="relative block h-[72px] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
+        className="relative block h-[4.5rem] overflow-hidden rounded-md border-4 border-[var(--board-frame-b)] bg-[var(--color-paper)]"
       >
         <Handwriting tool={tool} />
       </span>
@@ -340,7 +340,7 @@ function InkDot({
       </span>
       <span
         className={cn(
-          'block max-w-[64px] min-h-[1em] text-label-tiny text-balance',
+          'block max-w-[4rem] min-h-[1em] text-label-tiny text-balance',
           chosen ? 'text-on-secondary-container' : 'text-on-surface-variant',
         )}
       >
@@ -404,7 +404,7 @@ export function Settings() {
 
   return (
     <ShellPage title="Settings" intro="The board you learn on, and how Pen looks.">
-      <div className="max-w-[720px]">
+      <div className="max-w-[45rem]">
         <Section
           title="Board"
           intro="The surface every lesson is taught on. Follow the theme for a whiteboard by day and a blackboard at night, or pin one."

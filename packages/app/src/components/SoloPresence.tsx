@@ -151,7 +151,7 @@ function Tile({
     <>
       {children}
       <span className={cn('flex min-w-0 flex-col items-start', facesOnly && 'sr-only')}>
-        <span className="max-w-[128px] truncate text-label-medium text-on-surface" dir="auto">
+        <span className="max-w-[8rem] truncate text-label-medium text-on-surface" dir="auto">
           {name}
         </span>
         <span

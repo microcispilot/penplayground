@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           data-testid="sidebar-aside"
           className={cn(
             'sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 bg-surface-container-lowest lg:block',
-            rail ? 'w-[80px]' : 'w-[256px]',
+            rail ? 'w-[5rem]' : 'w-[16rem]',
           )}
         >
           <Sidebar rail={rail} />
@@ -88,12 +88,14 @@ export function ShellPage({
 }) {
   return (
     <div className="flex-1 px-6 pt-9 pb-20 sm:px-8">
-      <div className="mx-auto w-full max-w-[1100px]">
+      <div className="mx-auto w-full max-w-[68.75rem]">
         <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-headline-small">{title}</h2>
             {intro ? (
-              <p className="mt-2 max-w-[620px] text-body-medium text-on-surface-variant">{intro}</p>
+              <p className="mt-2 max-w-[38.75rem] text-body-medium text-on-surface-variant">
+                {intro}
+              </p>
             ) : null}
           </div>
           {actions}

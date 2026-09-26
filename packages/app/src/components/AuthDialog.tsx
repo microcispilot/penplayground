@@ -407,7 +407,7 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
     >
       {close}
       {mode === 'start' ? (
-        <p className="mx-auto mb-7 max-w-[400px] text-body-medium text-on-surface-variant text-pretty">
+        <p className="mx-auto mb-7 max-w-[25rem] text-body-medium text-on-surface-variant text-pretty">
           Keep your sessions, get a lesson prepared on any topic you name, and have the expert take
           your questions.
         </p>

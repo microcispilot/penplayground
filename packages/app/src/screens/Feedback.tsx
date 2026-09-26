@@ -104,7 +104,7 @@ export function Feedback() {
       title="Feedback and support"
       intro="Tell us what went wrong, what could be better, or what you would like next."
     >
-      <div className="max-w-[720px]">
+      <div className="max-w-[45rem]">
         {sent ? (
           <section
             className="hairline flex flex-col gap-3 rounded-lg bg-surface-container-low p-6"
@@ -146,7 +146,7 @@ export function Feedback() {
                     className={cn(
                       'state-layer flex cursor-pointer items-start gap-3 rounded-lg px-4 py-3.5 text-left transition-colors',
                       chosen
-                        ? 'bg-primary/10 text-brand shadow-[inset_0_0_0_1px_var(--color-brand)]'
+                        ? 'bg-primary-fixed/80 text-on-primary-fixed'
                         : 'hairline text-on-surface-variant',
                     )}
                   >

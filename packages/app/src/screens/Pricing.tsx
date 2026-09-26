@@ -177,9 +177,9 @@ export function Pricing() {
         />
       ) : null}
       <div className="flex-1 px-6 pt-14 pb-20 sm:px-8">
-        <div className="mx-auto flex max-w-[1100px] flex-col items-center">
+        <div className="mx-auto flex max-w-[68.75rem] flex-col items-center">
           <h1 className="text-center text-headline-small">Free to learn. Pay only for more.</h1>
-          <p className="mt-3 max-w-[560px] text-center text-body-medium text-on-surface-variant text-pretty">
+          <p className="mt-3 max-w-[35rem] text-center text-body-medium text-on-surface-variant text-pretty">
             Free is a full lesson, every time. Standard removes the ads and lets you ask, keep and
             share. Professional turns a session into a room for your whole group.
           </p>

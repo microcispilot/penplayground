@@ -403,7 +403,7 @@ export function Insights({ telemetry }: { telemetry: SessionTelemetry }) {
         {shown.length === 0 ? (
           <p className="text-body-medium text-on-surface-dim">No interactions were reported.</p>
         ) : (
-          <ol className="flex max-h-[360px] flex-col gap-1 overflow-auto">
+          <ol className="flex max-h-[22.5rem] flex-col gap-1 overflow-auto">
             {shown.map((i, idx) => (
               <li
                 // biome-ignore lint/suspicious/noArrayIndexKey: interactions are append-only

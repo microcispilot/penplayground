@@ -43,7 +43,7 @@ function Section({
     <section className="border-outline-variant border-t py-8 first:border-t-0 first:pt-0">
       <h3 className="text-title-medium">{title}</h3>
       {intro ? (
-        <p className="mt-1.5 max-w-[560px] text-body-medium text-on-surface-variant text-pretty">
+        <p className="mt-1.5 max-w-[35rem] text-body-medium text-on-surface-variant text-pretty">
           {intro}
         </p>
       ) : null}
@@ -102,7 +102,7 @@ export function Account() {
           }}
         />
       ) : null}
-      <div className="max-w-[720px]">
+      <div className="max-w-[45rem]">
         <Section title="You">
           <div className="flex flex-wrap items-center gap-3.5">
             <Avatar
@@ -155,7 +155,7 @@ export function Account() {
           intro="Shown to the expert, and to anyone you invite to a room."
         >
           <form
-            className="flex max-w-[420px] flex-col gap-3"
+            className="flex max-w-[26.25rem] flex-col gap-3"
             onSubmit={async (e) => {
               e.preventDefault();
               setBusy(true);
@@ -230,7 +230,7 @@ export function Account() {
         */}
         <Section title="Delete account">
           {confirmingDelete ? (
-            <div className="flex max-w-[560px] flex-col gap-3">
+            <div className="flex max-w-[35rem] flex-col gap-3">
               <p className="text-body-medium text-on-surface-variant text-pretty">
                 This removes your account and every session you started, including their recordings.
                 It cannot be undone. Subscriptions are managed separately in billing.

@@ -641,7 +641,7 @@ export function ParticipantRoster(p: ParticipantRosterProps) {
 
       {open && p.sectionOpen ? (
         <div id={listId} className="mt-1 px-3">
-          <ul className="flex max-h-[240px] flex-col gap-0.5 overflow-auto rounded-md bg-surface-container-high/60 p-1">
+          <ul className="flex max-h-[15rem] flex-col gap-0.5 overflow-auto rounded-md bg-surface-container-high/60 p-1">
             {people.map((person) => {
               const voice = voiceOf(person, p.selfId, p.audio);
               const presence = presenceOf(person);

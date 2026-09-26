@@ -105,7 +105,7 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
           {status !== 'playing' ? (
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
               <div className="flex items-center gap-2 text-body-medium text-white/75">
-                <span className="block size-[13px] animate-spin rounded-full border-2 border-white/25 border-t-white/85" />
+                <span className="block size-[0.8125rem] animate-spin rounded-full border-2 border-white/25 border-t-white/85" />
                 {status === 'ended' ? 'Back to the lesson…' : 'Loading ad…'}
               </div>
             </div>
@@ -145,7 +145,7 @@ export function VideoAd({ ad, locale, onEvent, onEnd }: VideoAdProps) {
             disabled={!skippable}
             onClick={() => playerRef.current?.skip()}
             className={cn(
-              'absolute right-3 bottom-3 inline-flex h-9 min-w-[118px] select-none items-center justify-center gap-2 rounded-md px-4 text-body-medium font-medium tabular transition-[background-color,color,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)]',
+              'absolute right-3 bottom-3 inline-flex h-9 min-w-[7.375rem] select-none items-center justify-center gap-2 rounded-md px-4 text-body-medium font-medium tabular transition-[background-color,color,transform] duration-[var(--duration-fast)] ease-[var(--ease-out)]',
               skippable
                 ? 'bg-white text-black hover:bg-white/90 active:scale-[0.985]'
                 : 'cursor-default bg-black/55 text-white/80 ring-1 ring-white/20',
