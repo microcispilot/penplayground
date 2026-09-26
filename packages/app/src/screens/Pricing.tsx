@@ -1,4 +1,9 @@
-import { BOARDS_BY_PLAN, INKS_BY_PLAN, LEGENDS_BY_PLAN } from '@pen/contracts';
+import {
+  BOARDS_BY_PLAN,
+  INKS_BY_PLAN,
+  LEGENDS_BY_PLAN,
+  monthlyEquivalentUsd,
+} from '@pen/contracts';
 import { Button, cn, Pill, SegmentedButtons, useToast } from '@pen/design';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -8,7 +13,14 @@ import { trackAction } from '../lib/analytics.js';
 import { useApp } from '../lib/context.js';
 
 /**
- * What each plan says for itself.
+ * What each plan says for itself. The prices are `PLAN_PRICES_USD` in
+ * contracts (ADR-0056); this file never writes a number.
+ *
+ * The voice (the owner, 2026-09-25): professional and unhurried, never
+ * cheap; nothing that shows the machinery ("nobody has prepared it yet" said
+ * how a lesson is made, not what the learner gets); and no dashes as
+ * punctuation, which read as written by a machine. A sentence ends and the
+ * next begins.
  *
  * One rule, and it is the owner’s: a line earns its place only if it names
  * something this plan has that the plan below it does not. Voice is not a
@@ -36,52 +48,46 @@ const PLANS = [
   {
     code: 'free',
     name: 'Free',
-    monthly: 0,
-    annual: 0,
-    blurb: 'Real sessions, not a trial — as many as you like, with a short ad between segments.',
+    blurb: 'Real lessons, taught one to one, with a short ad between segments.',
     features: [
-      'Every lesson that is already prepared, taught one to one, as often as you like',
-      'One lesson prepared on a topic of your own, when you sign in',
+      'Every lesson in the library, taught one to one, as often as you like',
+      'One lesson on a topic of your choosing, once you sign in',
       'Every modern expert',
-      'Check-ins, your pace, your board',
+      'Check-ins, your pace, your choice of board',
       'Your history, saves and likes, kept on your account',
-      'Standard voices, one short skippable ad between segments',
+      'Standard voices, with one short skippable ad between segments',
     ],
   },
   {
     code: 'standard',
     name: 'Standard',
-    monthly: 19,
-    annual: 190,
     blurb:
-      'No ads, the expert takes your questions, and what you learn is yours to keep and to send on.',
+      'No ads. Ask the expert anything as you learn, keep every lesson, and share it with friends.',
     features: [
-      'Everything in Free, with the ads gone',
-      'Ask anything, any time — the expert answers live',
-      `${LEGENDS_BY_PLAN.standard} legendary teachers, Socrates and Ada Lovelace among them`,
-      'Premium voices, with the range to carry a long explanation',
-      `${BOARDS_BY_PLAN.standard} boards to be taught on \u2014 whiteboard, blackboard, green board \u2014 written in chalk or marker, in ${INKS_BY_PLAN.standard} colours`,
-      'Any topic you can name: nobody has prepared it yet, so it is prepared for you',
-      'Your recording as video, with or without your questions, yours to keep',
-      'Share a link to any lesson',
+      'Everything in Free, without the ads',
+      'Ask anything at any moment, and the expert answers live',
+      `${LEGENDS_BY_PLAN.standard} legendary teachers, including Socrates and Ada Lovelace`,
+      'Premium voices with the range to carry a long explanation',
+      `${BOARDS_BY_PLAN.standard} boards, including whiteboard, blackboard and green board, written in chalk or marker in ${INKS_BY_PLAN.standard} colours`,
+      'Any topic you can name, taught as a full lesson',
+      'Your lessons as video, with or without your questions, yours to keep',
+      'Share any lesson with friends by link',
     ],
     highlight: true,
   },
   {
     code: 'professional',
     name: 'Professional',
-    monthly: 38,
-    annual: 380,
-    blurb: 'Turn a session into a room: one expert, your whole group, at the same time.',
+    blurb: 'Bring your whole group into one room, with one expert, live.',
     features: [
       'Everything in Standard',
-      `All ${LEGENDS_BY_PLAN.professional} legendary teachers — Newton and Shakespeare among them`,
-      'Every board, smoked glass included',
-      'Rooms for up to 12 people, taught live',
-      'The expert hears the whole room and takes each question by name',
-      'Who asked what, in the chat, so nobody is talked over',
-      'The whole class recorded for you to watch or export, like a call recording',
-      'Host controls: pause, resume, end',
+      `All ${LEGENDS_BY_PLAN.professional} legendary teachers, including Newton and Shakespeare`,
+      'Every board, including smoked glass',
+      'Live rooms for up to 12 people',
+      'The expert hears the whole room and answers each person by name',
+      'A chat that shows who asked what, so no one is talked over',
+      'The whole class recorded, to watch again or export',
+      'Host controls to pause, resume and end the session',
     ],
   },
 ] as const;
@@ -101,7 +107,7 @@ export function Pricing() {
   }, [api]);
   useEffect(() => {
     const r = params.get('checkout');
-    if (r === 'success') toast('Welcome aboard — your plan is active.', 'success');
+    if (r === 'success') toast('Welcome aboard. Your plan is active.', 'success');
     if (r === 'cancelled') toast('Checkout cancelled.');
   }, [params, toast]);
   const buy = async (plan: 'standard' | 'professional') => {
@@ -134,8 +140,8 @@ export function Pricing() {
         <div className="mx-auto flex max-w-[1100px] flex-col items-center">
           <h1 className="text-center text-headline-small">Free to learn. Pay only for more.</h1>
           <p className="mt-3 max-w-[560px] text-center text-body-medium text-on-surface-variant text-pretty">
-            Sessions are cheap enough to run that the free plan is real. Standard removes ads and
-            unlocks sharing; Professional turns a session into a room.
+            Free is a full lesson, every time. Standard removes the ads and lets you ask, keep and
+            share. Professional turns a session into a room for your whole group.
           </p>
           {/* Exactly what M3 calls a segmented button: one question, two
               answers, the chosen one filled rather than merely coloured. */}
@@ -155,7 +161,7 @@ export function Pricing() {
           <div className="mt-10 grid w-full grid-cols-1 gap-4 md:grid-cols-3">
             {PLANS.map((p) => {
               const current = participant?.plan === p.code;
-              const price = interval === 'month' ? p.monthly : Math.round(p.annual / 12);
+              const price = monthlyEquivalentUsd(p.code, interval);
               return (
                 <div
                   key={p.code}

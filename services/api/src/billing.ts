@@ -1,4 +1,4 @@
-import type { PlanCode } from '@pen/contracts';
+import { type BillingInterval, PLAN_PRICES_USD, type PlanCode } from '@pen/contracts';
 import type { ParticipantRepository, StatsRepository } from '@pen/db';
 import Stripe from 'stripe';
 import type { Config } from './config.js';
@@ -18,6 +18,20 @@ export const BILLING_WEBHOOK_EVENTS = [
 export interface BillingPlanPrices {
   standard: Record<Interval, string>;
   professional: Record<Interval, string>;
+}
+
+/** One configured Stripe price held against the contract (`PLAN_PRICES_USD`). */
+export interface PriceCheck {
+  plan: Exclude<PlanCode, 'free'>;
+  interval: BillingInterval;
+  ok: boolean;
+  expectedCents: number;
+  unitAmount: number | null;
+  currency: string | null;
+  recurring: string | null;
+  active: boolean | null;
+  /** Stripe's own words when the price could not be read at all. */
+  error?: string;
 }
 
 /**
@@ -68,6 +82,74 @@ export class Billing {
       : null;
     if (!this.enabled)
       logger.warn('billing disabled: set STRIPE_SECRET_KEY and the four STRIPE_PRICE_* ids');
+  }
+
+  /**
+   * Read each configured price back from Stripe and hold it against the
+   * contract: the amount the page shows is `PLAN_PRICES_USD`, and the amount
+   * Checkout charges is whatever the `STRIPE_PRICE_*` id points at. The two
+   * are set in different places by different hands, so the API checks at boot
+   * that they agree and says so loudly (Sentry, `billing.price_mismatch`)
+   * when they do not. It never throws, and never blocks the boot: a wrong
+   * price is a fault to report, not a reason to serve nothing.
+   */
+  async verifyPrices(): Promise<PriceCheck[]> {
+    if (!this.stripe || !this.prices) return [];
+    const checks: PriceCheck[] = [];
+    for (const plan of ['standard', 'professional'] as const) {
+      for (const interval of ['month', 'year'] as const) {
+        const expectedCents = PLAN_PRICES_USD[plan][interval] * 100;
+        try {
+          const price = await this.stripe.prices.retrieve(this.prices[plan][interval]);
+          const recurring = price.recurring?.interval ?? null;
+          checks.push({
+            plan,
+            interval,
+            expectedCents,
+            unitAmount: price.unit_amount,
+            currency: price.currency,
+            recurring,
+            active: price.active,
+            ok:
+              price.active &&
+              price.unit_amount === expectedCents &&
+              price.currency === 'usd' &&
+              recurring === interval,
+          });
+        } catch (error) {
+          checks.push({
+            plan,
+            interval,
+            expectedCents,
+            unitAmount: null,
+            currency: null,
+            recurring: null,
+            active: null,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+    const wrong = checks.filter((c) => !c.ok);
+    if (wrong.length > 0) {
+      const detail = wrong
+        .map(
+          (c) =>
+            `${c.plan}/${c.interval}: expected ${c.expectedCents} usd, ` +
+            (c.error ??
+              `found ${c.unitAmount} ${c.currency} per ${c.recurring}, active=${c.active}`),
+        )
+        .join('; ');
+      logger.error(
+        { wrong },
+        `billing: configured Stripe prices disagree with the contract: ${detail}`,
+      );
+      observer.error('billing.price_mismatch', new Error(detail), { wrong });
+    } else {
+      logger.info('billing: the four Stripe prices match the contract');
+    }
+    return checks;
   }
 
   /** Returns the Checkout URL for a plan; the participant id rides in client_reference_id and metadata. */

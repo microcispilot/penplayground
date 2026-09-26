@@ -26,8 +26,10 @@ Round 2 lists what is still needed from you.
 6. **Search.** SearXNG (self-hosted, free) takes precedence when
    `SEARXNG_URL` is set; it ships in `deploy/docker-compose.yml` next to the API.
    Curated open sources work with no search at all.
-7. **Prices.** Free / Standard $19 ($190 yearly) / Professional $38 ($380
-   yearly). Stripe products still need creating (round 2).
+7. **Prices.** Free / Standard $29 ($290 yearly) / Professional $49 ($490
+   yearly), set by the owner on 2026-09-25 (ADR-0056; they were 19/190 and
+   38/380). `pnpm --filter @pen/api stripe:prices` creates the Stripe prices
+   from the contract and prints the four ids.
 8. **Ads.** On a topic miss the free plan shows one card while sources are
    gathered (ends the moment the session is usable), and that card is taken out
    of the session's ad budget (one card every 3 segments); otherwise never an ad

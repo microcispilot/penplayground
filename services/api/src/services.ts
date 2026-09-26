@@ -595,6 +595,9 @@ export async function buildServices(
     );
 
   const billing = new Billing(cfg, participants, stats);
+  // What the page shows and what Checkout charges are set by different hands; agree or say so (ADR-0056).
+  if (billing.enabled)
+    void billing.verifyPrices().catch((error: unknown) => observer.error('billing.verify', error));
   const googleVerifier =
     opts.googleVerifier ??
     (cfg.GOOGLE_CLIENT_ID ? new GoogleLibraryVerifier(cfg.GOOGLE_CLIENT_ID) : null);

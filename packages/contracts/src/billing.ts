@@ -145,6 +145,27 @@ export type PlanUsage = z.infer<typeof PlanUsage>;
 export const BillingInterval = z.enum(['month', 'year']);
 export type BillingInterval = z.infer<typeof BillingInterval>;
 
+/**
+ * What a plan costs, in whole US dollars, by billing interval (ADR-0056).
+ * The one place the number is written: the pricing page reads it, the API
+ * checks the configured Stripe prices against it at boot, and the Stripe
+ * script creates prices from it. A year is ten months, so the page can say
+ * "two months free" and mean it.
+ *
+ * The owner, 2026-09-25: *"I want the subscription prices to be 29 and 49."*
+ */
+export const PLAN_PRICES_USD: Record<PlanCode, Record<BillingInterval, number>> = {
+  free: { month: 0, year: 0 },
+  standard: { month: 29, year: 290 },
+  professional: { month: 49, year: 490 },
+};
+
+/** What a month costs on the given interval: the yearly price spread over twelve months, rounded. */
+export function monthlyEquivalentUsd(plan: PlanCode, interval: BillingInterval): number {
+  const prices = PLAN_PRICES_USD[plan];
+  return interval === 'month' ? prices.month : Math.round(prices.year / 12);
+}
+
 export const PlanCatalogEntry = z.object({
   code: PlanCode,
   name: z.string(),

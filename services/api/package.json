@@ -22,6 +22,7 @@
     "sentry:alerts": "node --env-file=../../.env --import tsx scripts/sentry-alerts.ts",
     "stats:backfill": "node --env-file-if-exists=../../.env --import tsx scripts/stats-backfill.ts",
     "stripe:webhook": "node --env-file=../../.env --import tsx scripts/stripe-webhook.ts",
+    "stripe:prices": "node --env-file=../../.env --import tsx scripts/stripe-prices.ts",
     "telemetry:pull": "node --env-file=../../.env --import tsx scripts/pull-telemetry.ts",
     "thumbnails:backfill": "node --env-file=../../.env --import tsx scripts/thumbnails-backfill.ts",
     "thumbnails:probe": "node --env-file=../../.env --import tsx scripts/thumbnail-probe.ts",

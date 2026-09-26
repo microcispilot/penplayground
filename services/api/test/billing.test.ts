@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { describe, expect, it, vi } from 'vitest';
 import { Billing, type Interval } from '../src/billing.js';
 import { loadConfig } from '../src/config.js';
+import { observer } from '../src/observability.js';
 
 interface Row {
   id: string;
@@ -162,6 +163,94 @@ describe('Billing configuration', () => {
     const payload = event('checkout.session.completed', {});
     await expect(billing.webhook(payload, sign(payload))).rejects.toThrow('BILLING_DISABLED');
   });
+});
+
+/** Reaches the private Stripe client and answers `prices.retrieve` from a table. */
+function stubPrices(billing: Billing, table: Record<string, Partial<Stripe.Price> | Error>) {
+  const s = (billing as unknown as { stripe: Stripe | null }).stripe;
+  if (!s) throw new Error('stripe client not constructed');
+  const retrieve = vi.fn(async (id: string) => {
+    const row = table[id];
+    if (!row) throw new Error(`No such price: '${id}'`);
+    if (row instanceof Error) throw row;
+    return row as Stripe.Price;
+  });
+  s.prices.retrieve = retrieve as unknown as typeof s.prices.retrieve;
+  return retrieve;
+}
+
+const price = (
+  unit_amount: number,
+  interval: Interval,
+  extra: Partial<Stripe.Price> = {},
+): Partial<Stripe.Price> => ({
+  active: true,
+  currency: 'usd',
+  unit_amount,
+  recurring: { interval } as Stripe.Price.Recurring,
+  ...extra,
+});
+
+describe('Billing.verifyPrices (ADR-0056)', () => {
+  const agreeing = {
+    price_std_month: price(2900, 'month'),
+    price_std_year: price(29000, 'year'),
+    price_pro_month: price(4900, 'month'),
+    price_pro_year: price(49000, 'year'),
+  };
+
+  it('is a no-op while billing is disabled', async () => {
+    const billing = new Billing(loadConfig(base), new FakeParticipants().asRepository());
+    await expect(billing.verifyPrices()).resolves.toEqual([]);
+  });
+
+  it('passes the four configured prices when Stripe agrees with the contract', async () => {
+    const billing = new Billing(configured(), new FakeParticipants().asRepository());
+    const retrieve = stubPrices(billing, agreeing);
+    const error = vi.spyOn(observer, 'error');
+    const checks = await billing.verifyPrices();
+    expect(checks).toHaveLength(4);
+    expect(checks.every((c) => c.ok)).toBe(true);
+    expect(retrieve.mock.calls.map((c) => c[0])).toEqual([
+      'price_std_month',
+      'price_std_year',
+      'price_pro_month',
+      'price_pro_year',
+    ]);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it.each([
+    ['a stale amount', { price_std_month: price(1900, 'month') }, 'expected 2900 usd, found 1900'],
+    ['the wrong currency', { price_pro_year: price(49000, 'year', { currency: 'eur' }) }, 'eur'],
+    ['the wrong interval', { price_pro_month: price(4900, 'year') }, 'per year'],
+    [
+      'an archived price',
+      { price_std_year: price(29000, 'year', { active: false }) },
+      'active=false',
+    ],
+    [
+      'an id Stripe does not know',
+      { price_std_month: new Error("No such price: 'price_std_month'") },
+      'No such price',
+    ],
+  ] as const)(
+    'reports %s to Sentry and in the log, and never throws',
+    async (_name, wrong, said) => {
+      const billing = new Billing(configured(), new FakeParticipants().asRepository());
+      stubPrices(billing, { ...agreeing, ...wrong });
+      const error = vi.spyOn(observer, 'error').mockImplementation(() => undefined);
+      const checks = await billing.verifyPrices();
+      expect(checks.filter((c) => !c.ok)).toHaveLength(1);
+      expect(error).toHaveBeenCalledTimes(1);
+      const [area, err] = error.mock.calls[0] ?? [];
+      expect(area).toBe('billing.price_mismatch');
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toContain(said);
+      error.mockRestore();
+    },
+  );
 });
 
 describe('Billing.checkout', () => {
