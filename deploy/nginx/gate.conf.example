@@ -1,0 +1,11 @@
+# The gate cookie's value for STACK (ADR-0061). deploy.sh renders this to /etc/nginx/STACK.gate.conf
+# on the host when it writes the password, and again on --rotate-gate; the token is a secret and
+# never enters the repository. A browser that has passed the password prompt once is handed this
+# value as a cookie and is not asked again for thirty days.
+map $host $STACK_ID_gate_token {
+    default "TOKEN";
+}
+map $cookie_pen_gate $STACK_ID_gate_ok {
+    default 0;
+    "TOKEN" 1;
+}

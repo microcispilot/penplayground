@@ -362,24 +362,31 @@ log "rendering vhost $PEN_STACK.conf"
 rendered="$(mktemp -d)"
 trap 'rm -rf "$rendered"' EXIT
 deploy/nginx/render.sh "$ENVIRONMENT" "$rendered" || die "the edge templates did not render for $ENVIRONMENT"
+cp deploy/nginx/gate.conf.example "$rendered/"
 rsync -rltz -e "$RSYNC_SSH" "$rendered/" "$PEN_DEPLOY_HOST:$PEN_DEPLOY_ROOT/nginx/"
 echo "  $(ls "$rendered" | tr '\n' ' ')→ $PEN_DEPLOY_ROOT/nginx/"
 
 # The gate (ADR-0061): one shared user, its hash where nginx's workers can read it, the password
-# where only root can, and neither in this output. Written once, kept across deploys, replaced
-# on --rotate-gate. An open environment keeps no gate files at all.
+# where only root can, the cookie token in a config only nginx's master reads, and none of the
+# three in this output. Written once, kept across deploys, replaced together on --rotate-gate
+# (which also signs every remembered browser out). An open environment keeps no gate files.
 gate_htpasswd="/etc/nginx/$PEN_STACK.htpasswd"
+gate_conf="/etc/nginx/$PEN_STACK.gate.conf"
 gate_credentials="$PEN_DEPLOY_ROOT/edge.credentials"
 if [ "$PEN_EDGE_GATE" = 1 ]; then
-  if [ "$ROTATE_GATE" = 1 ] || ! remote "[ -s '$gate_htpasswd' ] && [ -s '$gate_credentials' ]"; then
-    log "gate: writing a new password for https://$PEN_DOMAIN"
+  if [ "$ROTATE_GATE" = 1 ] || ! remote "[ -s '$gate_htpasswd' ] && [ -s '$gate_credentials' ] && [ -s '$gate_conf' ]"; then
+    log "gate: writing a new password and cookie token for https://$PEN_DOMAIN"
     remote "set -e
       umask 077
       pass=\$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24)
       hash=\$(printf '%s' \"\$pass\" | openssl passwd -apr1 -stdin)
+      token=\$(openssl rand -hex 32)
       printf 'pen:%s\n' \"\$hash\" > '$gate_htpasswd.next'
       chown root:www-data '$gate_htpasswd.next' && chmod 0640 '$gate_htpasswd.next'
       mv -f '$gate_htpasswd.next' '$gate_htpasswd'
+      sed -e \"s|TOKEN|\$token|g\" -e 's|STACK_ID|$STACK_ID|g' -e 's|STACK|$PEN_STACK|g' \
+        '$PEN_DEPLOY_ROOT/nginx/gate.conf.example' > '$gate_conf.next'
+      chmod 0600 '$gate_conf.next' && mv -f '$gate_conf.next' '$gate_conf'
       {
         printf '# The gate on https://%s (ADR-0061). Share with whoever should see %s.\n' '$PEN_DOMAIN' '$ENVIRONMENT'
         printf '# Rotate with: deploy/deploy.sh %s --rotate-gate\n' '$ENVIRONMENT'
@@ -387,12 +394,12 @@ if [ "$PEN_EDGE_GATE" = 1 ]; then
       } > '$gate_credentials.next'
       chmod 0600 '$gate_credentials.next' && mv -f '$gate_credentials.next' '$gate_credentials'" \
       || die "could not write the gate's password on the host"
-    echo "  written: $gate_htpasswd (root:www-data 0640) and $gate_credentials (root 0600)"
+    echo "  written: $gate_htpasswd (root:www-data 0640), $gate_conf (root 0600) and $gate_credentials (root 0600)"
   else
     echo "  gate: on; the password is kept (read it on the host: $gate_credentials; new one: --rotate-gate)"
   fi
 else
-  remote "rm -f '$gate_htpasswd' '$gate_credentials'"
+  remote "rm -f '$gate_htpasswd' '$gate_conf' '$gate_credentials'"
 fi
 
 # ── 5. secrets present? (.env is managed here; api.env / postgres.env are never generated) ──
@@ -571,13 +578,23 @@ if [ "$EDGE" = 1 ] || remote "[ -e '$enabled' ]"; then
     gate_user="$(remote "sed -n 's/^user=//p' '$gate_credentials'")"
     gate_pass="$(remote "sed -n 's/^password=//p' '$gate_credentials'")"
     [ -n "$gate_user" ] && [ -n "$gate_pass" ] || die "$gate_credentials on the host names no user/password"
+    gate_jar="$(mktemp)"
     printf 'user = "%s:%s"\n' "$gate_user" "$gate_pass" \
-      | curl -fsS -m 10 -K - "https://$PEN_DOMAIN/" | grep -q "name=\"pen-environment\" content=\"$PEN_ENVIRONMENT\"" \
+      | curl -fsS -m 10 -K - -c "$gate_jar" "https://$PEN_DOMAIN/" | grep -q "name=\"pen-environment\" content=\"$PEN_ENVIRONMENT\"" \
       || die "https://$PEN_DOMAIN/ did not open with the gate's password"
     unset gate_pass
+    grep -q 'pen_gate' "$gate_jar" || die "the gate did not set its cookie on the response that passed"
+    # Remembered: the cookie alone opens the shell, and an API call that carries the app's own
+    # Authorization header is answered by the API (its 401 has no WWW-Authenticate), not by the gate.
+    curl -fsS -m 10 -b "$gate_jar" "https://$PEN_DOMAIN/" | grep -q "name=\"pen-environment\" content=\"$PEN_ENVIRONMENT\"" \
+      || die "the gate's cookie alone did not open https://$PEN_DOMAIN/"
+    api_headers="$(curl -sSI -m 10 -b "$gate_jar" -H 'Authorization: Bearer not-a-token' "https://$PEN_DOMAIN/api/me" | tr -d '\r')"
+    rm -f "$gate_jar"
+    ! printf '%s\n' "$api_headers" | grep -qi '^www-authenticate: basic' \
+      || die "an API call with the cookie and a Bearer token was answered by the gate, not the API: the browser would ask again"
     webhook_status="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' -X POST "https://$PEN_DOMAIN/api/billing/webhook")"
     [ "$webhook_status" != 401 ] || die "the gate is in front of Stripe's webhook (401); it must reach the API"
-    echo "  gate: on — 401 for a stranger, the app with the password, /api/health and Stripe's webhook open"
+    echo "  gate: on — 401 for a stranger; the password opens the app and sets the cookie; the cookie alone opens it; /api/health and Stripe's webhook open"
   else
     [ "$front_status" = 200 ] || die "https://$PEN_DOMAIN/ answered $front_status, not 200"
   fi

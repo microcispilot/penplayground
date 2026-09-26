@@ -47,6 +47,15 @@ property of the environment (`PEN_EDGE_GATE=1` in `deploy/env/staging.conf`; pro
     break lessons for some reviewers while protecting nothing extra.
   - `/livekit/` is its own location and was never inside the gate; the media server admits
     only signed room tokens, also issued behind the gate.
+- **Asked once, then remembered.** The app authenticates its own API calls with
+  `Authorization: Bearer`, the header Basic auth also uses, so a gate that checked the password
+  on `/api` made every API call a 401 and the browser asked again on every load (the owner,
+  2026-09-26: "it should not require every time the user refreshes. once authenticated, it
+  should remember"). So the password is asked only of a request without the gate cookie: the
+  response that passes sets `pen_gate` (Secure, HttpOnly, SameSite=Lax, thirty days), and every
+  request carrying it goes straight through with its own Authorization header untouched. The
+  cookie's value is a 32-byte random token in `/etc/nginx/pen-staging.gate.conf`, written with
+  the password and rotated with it, so rotating signs every remembered browser out.
 - **The host itself passes** (`satisfy any; allow 127.0.0.1`), so the deploy's own checks need
   no password.
 - **The credential** is one user (`pen`) with a 24-character random password. `deploy.sh`
@@ -57,14 +66,15 @@ property of the environment (`PEN_EDGE_GATE=1` in `deploy/env/staging.conf`; pro
   written to a log: an operator reads it on the host. An open environment (`PEN_EDGE_GATE=0`)
   has neither file.
 - **Verified on every deploy:** the front door answers `401` to a request without the password
-  and serves the environment-stamped shell with it; Stripe's webhook path does not answer
-  `401`; `noindex` is on the `401` too. `deploy/nginx/test.sh` renders both environments and
+  and serves the environment-stamped shell with it, setting the cookie; the cookie alone opens
+  the shell; an API call with the cookie and a Bearer token is answered by the API, not the
+  gate; Stripe's webhook path does not answer `401`; `noindex` is on the `401` too. `deploy/nginx/test.sh` renders both environments and
   has the host's nginx (1.24, in Docker) accept them side by side, and CI runs it.
 
 ## Consequences
 
-- Anyone who should see staging gets the password from the owner, once per browser. On a phone
-  the browser asks the same way. Sign-in with Google, checkout and the billing portal all
+- Anyone who should see staging gets the password from the owner, once per browser, and is not
+  asked again for thirty days. On a phone the browser asks the same way. Sign-in with Google, checkout and the billing portal all
   return to the same origin, where the browser already holds the credential.
 - Playwright and other tools that target staging pass `httpCredentials`; nothing in the repo
   does so today (every suite runs against a local stack).

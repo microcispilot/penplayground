@@ -4,8 +4,10 @@
 #   deploy/nginx/render.sh <staging|production> <out-dir>
 #
 # Writes STACK.conf (the vhost), STACK-acme.conf (the port-80 answer while the certificate is
-# being issued), servers.inc, server.inc, web.inc (the web location, open or gated) and
-# proxy-web.inc (the proxy directives both forms of web.inc include). deploy.sh renders into a
+# being issued), servers.inc, server.inc, http.inc (what the environment adds at http level),
+# web.inc (the web location, open or gated) and proxy-web.inc (the proxy directives both forms
+# of web.inc include). The gate's cookie token is not rendered here: deploy.sh writes
+# /etc/nginx/STACK.gate.conf on the host from gate.conf.example, and test.sh a stand-in. deploy.sh renders into a
 # temporary directory and syncs it to <root>/nginx on the host; deploy/nginx/test.sh renders
 # both environments and has nginx check them.
 set -Eeuo pipefail
@@ -31,7 +33,13 @@ render acme.conf.example "$PEN_STACK-acme.conf"
 render "servers-$PEN_ENVIRONMENT.inc" servers.inc
 render "server-$PEN_ENVIRONMENT.inc" server.inc
 render proxy-web.inc proxy-web.inc
-if [ "$PEN_EDGE_GATE" = 1 ]; then render web-gated.inc web.inc; else render web-open.inc web.inc; fi
+if [ "$PEN_EDGE_GATE" = 1 ]; then
+  render web-gated.inc web.inc
+  render http-gated.inc http.inc
+else
+  render web-open.inc web.inc
+  render http-open.inc http.inc
+fi
 
 if [ "$PEN_ENVIRONMENT" = staging ] && [ -z "$PEN_LEGACY_PREFIX" ]; then
   # No prefix to redirect from: the two locations would otherwise match "/".

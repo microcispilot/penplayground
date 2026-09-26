@@ -109,8 +109,9 @@ A brand-new environment needs, once, on the host: its root with `api.env` and `p
   `VITE_*` values.
 - **Secrets stay on the host.** CI never sees `api.env`. The deploy writes only the two public
   URLs and, when the operator's shell has them, the keys listed in `deploy/deploy.sh`'s header.
-- **Staging is private (ADR-0061).** Its edge asks for one shared password (HTTP Basic) before
-  anything but `/api/health`, Stripe's webhook and the lesson WebSocket; production is open.
+- **Staging is private (ADR-0061).** Its edge asks for one shared password (HTTP Basic) once
+  per browser, then remembers it by cookie for thirty days; `/api/health`, Stripe's webhook and
+  the lesson WebSocket are never asked; production is open.
   The password is on the host in `/srv/pen-staging/edge.credentials` (root only); the deploy
   writes it once and never prints it. New one: `deploy/deploy.sh staging --rotate-gate`. The
   gate is `PEN_EDGE_GATE` in `deploy/env/<env>.conf`, and `pnpm test:edge` (also in CI) renders

@@ -18,6 +18,9 @@ map $http_upgrade $STACK_ID_connection_upgrade {
     ""      close;
 }
 
+# What the environment adds at http level (staging: the gate's cookie maps). Empty for production.
+include ENV_ROOT/nginx/http.inc;
+
 # Per-environment server blocks (production: www → apex). Empty for staging.
 include ENV_ROOT/nginx/servers.inc;
 

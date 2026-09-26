@@ -78,7 +78,7 @@ Config-only change (`api.env`): edit on the host, then
 ```sh
 # read it (root only; never printed by a deploy)
 ssh root@100.118.252.64 cat /srv/pen-staging/edge.credentials
-# replace it; the old one stops working at the reload
+# replace it; the old one stops working at the reload, and every remembered browser is asked again
 deploy/deploy.sh staging --rotate-gate
 ```
 

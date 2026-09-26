@@ -13,7 +13,7 @@ command -v openssl >/dev/null || fail "openssl is required (a throwaway certific
 
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
-mkdir -p "$out/sites-enabled" "$out/letsencrypt"
+mkdir -p "$out/sites-enabled" "$out/letsencrypt" "$out/etc-nginx"
 
 # ── render, as deploy.sh renders ──────────────────────────────────────────────
 # shellcheck source=deploy/env/load.sh
@@ -24,6 +24,11 @@ for env in staging production; do
   mkdir -p "$dir"
   deploy/nginx/render.sh "$env" "$dir"
   cp "$dir/$PEN_STACK.conf" "$out/sites-enabled/"
+  if [ "$PEN_EDGE_GATE" = 1 ]; then
+    # What deploy.sh writes on the host from the same template, with a stand-in token.
+    sed -e "s|TOKEN|0123456789abcdef0123456789abcdef|g" -e "s|STACK_ID|$STACK_ID|g" -e "s|STACK|$PEN_STACK|g" \
+      deploy/nginx/gate.conf.example > "$out/etc-nginx/$PEN_STACK.gate.conf"
+  fi
   # nginx opens the certificate at -t time; a self-signed one per name stands in.
   for domain in "$PEN_DOMAIN" $SERVER_NAMES_EXTRA; do
     mkdir -p "$out/letsencrypt/live/$domain"
@@ -51,6 +56,11 @@ pass "both environments render with their own names, ports and robots policy"
 # The gate (ADR-0061): staging asks for the password, production never does, and the three
 # paths a stranger's machine must reach stay open on staging.
 grep -q 'auth_basic "Pen Playground staging";' "$st/web.inc" || fail "staging's web location is not gated"
+grep -q 'if (\$pen_staging_gate_ok = 0)' "$st/web.inc" || fail "staging does not remember a browser that passed (no cookie check)"
+grep -q 'Set-Cookie "pen_gate=\$pen_staging_gate_token; Path=/; Max-Age=2592000; Secure; HttpOnly; SameSite=Lax"' "$st/web.inc" \
+  || fail "staging's gate does not set the cookie, or sets it without Secure/HttpOnly/SameSite"
+grep -q 'include /etc/nginx/pen-staging.gate.conf;' "$st/http.inc" || fail "staging's http.inc does not load the cookie maps"
+! grep -q 'include' "$pr/http.inc" || fail "production's http.inc must be empty"
 grep -q 'auth_basic_user_file /etc/nginx/pen-staging.htpasswd;' "$st/web.inc" || fail "staging's gate reads the wrong htpasswd"
 { grep -q 'satisfy any;' "$st/web.inc" && grep -q 'allow 127.0.0.1;' "$st/web.inc"; } || fail "the host itself must pass staging's gate"
 for open in 'location = /api/health' 'location = /api/billing/webhook' 'location \^~ /ws/'; do
@@ -58,7 +68,7 @@ for open in 'location = /api/health' 'location = /api/billing/webhook' 'location
 done
 ! grep -q 'auth_basic' "$pr/web.inc" || fail "production must not be gated"
 grep -q 'location / {' "$pr/web.inc" || fail "production has no web location"
-pass "staging is gated with health, Stripe's webhook and the lesson socket open; production is open"
+pass "staging is gated, remembers a browser by cookie, and leaves health, Stripe's webhook and the lesson socket open; production is open"
 
 # ── nginx accepts the set ─────────────────────────────────────────────────────
 cat > "$out/nginx.conf" <<'CONF'
@@ -73,6 +83,7 @@ if ! result="$(docker run --rm \
     -v "$out/sites-enabled:/etc/nginx/sites-enabled:ro" \
     -v "$out/srv:/srv:ro" \
     -v "$out/letsencrypt:/etc/letsencrypt:ro" \
+    -v "$out/etc-nginx/pen-staging.gate.conf:/etc/nginx/pen-staging.gate.conf:ro" \
     nginx:1.24 nginx -t 2>&1)"; then
   printf '%s\n' "$result" >&2
   fail "nginx rejected the rendered vhosts"
