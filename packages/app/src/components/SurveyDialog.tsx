@@ -79,7 +79,7 @@ export function SurveyDialog({
               key={o.id}
               className={cn(
                 'state-layer flex cursor-pointer items-center justify-between rounded-md px-3.5 py-2.5 text-left text-body-large transition-colors',
-                chosen ? 'bg-selected text-on-primary-fixed' : 'text-on-surface',
+                chosen ? 'bg-selected text-on-surface' : 'text-on-surface',
               )}
             >
               <input

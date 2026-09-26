@@ -145,9 +145,7 @@ export function Feedback() {
                     key={k.kind}
                     className={cn(
                       'state-layer flex cursor-pointer items-start gap-3 rounded-lg px-4 py-3.5 text-left transition-colors',
-                      chosen
-                        ? 'bg-selected text-on-primary-fixed'
-                        : 'hairline text-on-surface-variant',
+                      chosen ? 'bg-selected text-on-surface' : 'hairline text-on-surface-variant',
                     )}
                   >
                     <input
