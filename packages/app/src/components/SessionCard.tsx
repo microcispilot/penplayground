@@ -228,7 +228,9 @@ export function SessionCard({
       <div className="relative aspect-video">
         <SessionThumb
           session={session}
-          className="absolute inset-0 transition-[transform,box-shadow] duration-[var(--duration-base)] group-hover:scale-[1.01] group-hover:shadow-[var(--shadow-thumb-hover)]"
+          // Hover lifts the edge, never the size: a card that grows under the pointer is a
+          // motion nobody asked for (the owner, 2026-09-25).
+          className="absolute inset-0 transition-shadow duration-[var(--duration-base)] group-hover:shadow-[var(--shadow-thumb-hover)]"
         />
         <CardActions session={session} className="z-20" />
         <span className="absolute right-2 bottom-2 rounded-sm bg-scrim/85 px-1.5 py-0.5 text-body-small text-white tabular">

@@ -220,9 +220,12 @@
   /* ──────────────────────────────────────────────────────────────────────
    * Shape — the M3 corner scale. `rounded-full` is Tailwind's own and is the
    * Expressive default for anything that reads as a control: buttons, chips,
-   * segmented selectors, nav rows, FABs.
+   * segmented selectors, FABs. Not the sidebar's rows: the owner (2026-09-25,
+   * of the Home and Computing pills) — "i don't like these to be rounded.
+   * only 2px round is fine" — so they take `xxs`.
    * ────────────────────────────────────────────────────────────────────── */
   --radius-*: initial;
+  --radius-xxs: 2px;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -464,9 +467,17 @@
    * lifts it. Product-specific on purpose — it is the only place a shadow and
    * a border are both needed.
    */
-  /* A hairline only: the owner, 2026-09-25, "a big outstanding border … so the card doesn't look 3d". The lift is for hover. */
-  --shadow-thumb: 0 0 0 1px var(--color-outline-variant);
-  --shadow-thumb-hover: 0 0 0 1px var(--color-outline), var(--shadow-level1);
+  /*
+   * A hairline only: the owner, 2026-09-25, "a big outstanding border … so the
+   * card doesn't look 3d", and that evening, "make their borders more
+   * transparent": the ring is the outline at under half strength, so it
+   * reads as an edge and not a frame. Hover lifts the card (level 1) and
+   * firms the edge a little; it never scales it ("hovering on these should
+   * not make them zoomed").
+   */
+  --shadow-thumb: 0 0 0 1px color-mix(in oklch, var(--color-outline-variant) 45%, transparent);
+  --shadow-thumb-hover: 0 0 0 1px color-mix(in oklch, var(--color-outline-variant) 70%, transparent),
+    var(--shadow-level1);
   /* The board itself: paper, so it needs the same boundary at room scale. */
   --shadow-board: 0 0 0 1px var(--color-outline-variant), var(--shadow-level2);
 

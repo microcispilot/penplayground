@@ -39,6 +39,14 @@ function card(onOpen: () => void) {
 }
 
 describe('a session card', () => {
+  /** Hover lifts the edge and never the size (the owner, 2026-09-25: "hovering on these should not make them zoomed"). */
+  it('does not grow under the pointer', () => {
+    renderWithApp(card(() => {}));
+    const thumb = screen.getByTestId('session-thumb');
+    expect(thumb.className).not.toMatch(/scale/);
+    expect(thumb.className).toContain('group-hover:shadow-[var(--shadow-thumb-hover)]');
+  });
+
   /**
    * A control may not contain other controls (axe's `nested-interactive`, rated
    * serious). The card is a plain container; what you press to open the session

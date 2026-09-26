@@ -80,7 +80,8 @@ interface RowProps {
  */
 function rowClass(rail: boolean, active: boolean): string {
   return cn(
-    'state-layer group relative flex items-center rounded-full transition-colors duration-[var(--duration-fast)]',
+    // rounded-xxs (2px): the owner does not want these rows to be pills (2026-09-25).
+    'state-layer group relative flex items-center rounded-xxs transition-colors duration-[var(--duration-fast)]',
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
@@ -288,7 +289,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     onNavigate?.();
                   }}
                   className={cn(
-                    'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
+                    'state-layer rounded-xxs px-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
                       ? 'bg-secondary-container text-on-secondary-container'
                       : 'text-on-surface-variant',
@@ -307,7 +308,7 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                       onNavigate?.();
                     }}
                     className={cn(
-                      'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
+                      'state-layer rounded-xxs px-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
                         ? 'bg-secondary-container text-on-secondary-container'
                         : 'text-on-surface-variant',

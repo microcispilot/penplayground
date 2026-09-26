@@ -192,6 +192,16 @@ describe('the scales are M3 to the number', () => {
     expect(TOKENS).toContain('--radius-*: initial;');
   });
 
+  /** The card's edge is the outline at under half strength (the owner, 2026-09-25: "make their borders more transparent"). */
+  it('draws a session thumbnail with a translucent hairline and no scale on hover', () => {
+    expect(decl('--shadow-thumb')).toBe(
+      '0 0 0 1px color-mix(in oklch, var(--color-outline-variant) 45%, transparent)',
+    );
+    expect(TOKENS).toMatch(
+      /--shadow-thumb-hover:\s*0 0 0 1px color-mix\(in oklch, var\(--color-outline-variant\) 70%, transparent\),\s*var\(--shadow-level1\);/,
+    );
+  });
+
   it('carries M3 state-layer opacities', () => {
     expect(decl('--state-hover')).toBe('8%');
     expect(decl('--state-focus')).toBe('12%');
