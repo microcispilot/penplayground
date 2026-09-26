@@ -159,14 +159,13 @@ describe('Sidebar rows', () => {
   });
 
   /**
-   * The current row is the brand fill at 80 % with white on it, on the
-   * expanded sidebar and on the 72 px rail alike. The owner (2026-09-26),
-   * after a brand-coloured label on a tint read too dark at night: "the
-   * background is the primary and the foreground is white", then of the solid
-   * fill, "too colory; maybe the brand color with a bit transparency". An
-   * unselected row is neither.
+   * The current row is the `selected` fill (the brand letting the page
+   * through) with white on it, on the expanded sidebar and on the 72 px rail
+   * alike. The owner (2026-09-26): "the background is the primary and the
+   * foreground is white", then "too colory; maybe the brand color with a bit
+   * transparency", then "more transparent". An unselected row is neither.
    */
-  it('marks the current row as the brand at 80 % with white on it, and no other row', async () => {
+  it('marks the current row as the selected fill with white on it, and no other row', async () => {
     for (const rail of [true, false]) {
       cleanup();
       renderWithApp(<Sidebar rail={rail} />, { participant: ANONYMOUS, route: '/' });
@@ -174,31 +173,31 @@ describe('Sidebar rows', () => {
       expect(current?.getAttribute('aria-current')).toBe('page');
       const cls = current?.className ?? '';
       expect(cls).toContain('text-on-primary-fixed');
-      expect(cls).toContain('bg-primary-fixed/80');
+      expect(cls).toContain('bg-selected');
       // And an unselected row is neither.
       const other = screen.getByText('Experts').closest('a')?.className ?? '';
       expect(other).toContain('text-on-surface-variant');
-      expect(other).not.toContain('bg-primary-fixed/80');
+      expect(other).not.toContain('bg-selected');
     }
   });
 
   /**
-   * The rows are rounded on the sides. The owner (2026-09-25) first wanted
-   * them square ("no corner radius"), then (2026-09-26) "make the background
-   * rounded from the sides". `rounded-full` on every row and on the topic
-   * sub-rows alike; the state layer inherits it.
+   * The rows have 4 px corners. The owner (2026-09-25) first wanted them
+   * square ("no corner radius"), then (2026-09-26) "rounded from the sides",
+   * then "make it 4 px rounded". `rounded-xs` (the 4 px role) on every row and
+   * on the topic sub-rows alike; the state layer inherits it.
    */
-  it('every row and sub-row is rounded on the sides', async () => {
+  it('every row and sub-row has 4 px corners', async () => {
     // A topic in the URL opens the Topics list, so the sub-rows are on screen too.
     renderWithApp(<Sidebar />, { participant: ANONYMOUS, route: '/?topic=computing-data' });
     const home = (await screen.findByText('Home')).closest('a');
     const experts = screen.getByText('Experts').closest('a');
     const all = screen.getByTestId('sidebar-topic-all');
     const computing = screen.getByRole('button', { name: 'Computing' });
-    expect(computing.className).toContain('bg-primary-fixed/80');
+    expect(computing.className).toContain('bg-selected');
     for (const el of [home, experts, all, computing]) {
-      expect(el?.className).toContain('rounded-full');
-      expect(el?.className).not.toContain('rounded-none');
+      expect(el?.className).toContain('rounded-xs');
+      expect(el?.className).not.toContain('rounded-full');
     }
   });
 

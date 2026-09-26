@@ -100,10 +100,13 @@ rejected; a lighter tint under a red ink cannot reach 4.5:1. The owner then
 ruled: "revert it back to the way it was: the background is the primary and
 the foreground is white." So the selected tinted state is M3's own pair,
 the brand fill with white on it. The solid fill was "too colory; maybe the
-brand color with a bit transparency", so the fill is `primary-fixed` at 80 %
-(`bg-primary-fixed/80 text-on-primary-fixed`): the brand letting a little of
-the page through, 9.3:1 for white on the dark page and 5.1:1 on the light
-one, and the `secondary-container` token itself stays the brand. The rows are rounded
+brand color with a bit transparency", and 80 % still "too colory, I want it
+more transparent". So the fill is a token of its own, `selected`: the brand
+in oklch letting the page through, 75 % by day (white on it 4.6:1 over the
+light sidebar) and 50 % by night (13:1 over the dark one), used as
+`bg-selected text-on-primary-fixed`. The `secondary-container` token itself
+stays the brand. The corners are 4 px (`rounded-xs`): "make it 4 px rounded"
+replaced "rounded from the sides" the same hour. The rows are rounded
 on the sides ("make the background rounded from the sides"), replacing the
 square ruling of 2026-09-25. `primary` stays rose by night for prose, links
 and outlines. The sidebar test pins the classes and the shape.

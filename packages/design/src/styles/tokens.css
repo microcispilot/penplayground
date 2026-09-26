@@ -48,12 +48,12 @@
  *   the owner's ruling: `primary-fixed`, `secondary-container`,
  *   `mark-accent`, `glow` and `highlight` carry the same value by day and
  *   by night; `primary`, the text role, is rose by night (below). A selected
- *   row, chip or option is the brand fill at 80 % with white on it
- *   (`bg-primary-fixed/80 text-on-primary-fixed`), the same by day and by
- *   night: the owner (2026-09-26), after a brand-coloured label on a tint read
- *   too dark at night, asked for "the background is the primary and the
- *   foreground is white", and of the solid fill, "too colory; maybe the brand
- *   color with a bit transparency". 9.3:1 on the dark page, 5.1:1 on white.
+ *   row, chip or option is `selected` with white on it: the brand letting the
+ *   page through, 75 % by day and 50 % by night (`bg-selected
+ *   text-on-primary-fixed`, 4 px corners). The owner (2026-09-26), after a
+ *   brand-coloured label on a tint read too dark at night, asked for "the
+ *   background is the primary and the foreground is white", then of the
+ *   solid fill "too colory", then of 80 % "more transparent".
  *
  *   Measured: white on the brand is 7.3:1; the brand on the light `surface`
  *   6.9:1 and on the highest light grey 5.6:1. On the dark `surface` it is
@@ -324,6 +324,13 @@
   /* Selected — a nav row, a chosen chip — is the brand with white on it (7.3:1), both themes. */
   --color-secondary-container: #a9124a;
   --color-on-secondary-container: #ffffff;
+  /*
+   * The selected fill (a nav row you are on, a chosen topic, chip or option): the brand
+   * letting the page through, with white on it. 75 % by day (white on it 4.6:1 over the
+   * white sidebar) and 50 % by night (13:1 over the dark one; the owner, 2026-09-26, of the
+   * solid brand and then of 80 %: "too colory, I want it more transparent").
+   */
+  --color-selected: oklch(0.4777 0.1818 7.57 / 75%);
 
   --color-tertiary: #7f0d3f;
   --color-on-tertiary: #ffffff;
@@ -577,6 +584,7 @@
     /* Selected is the brand with white on it here too: the same object as by day. */
     --color-secondary-container: #a9124a;
     --color-on-secondary-container: #ffffff;
+    --color-selected: oklch(0.4777 0.1818 7.57 / 50%);
     --color-error: #ffb3b0;
     --color-on-error: #68000f;
     --color-error-container: #93001a;
@@ -624,6 +632,7 @@
   /* Selected is the brand with white on it here too: the same object as by day. */
   --color-secondary-container: #a9124a;
   --color-on-secondary-container: #ffffff;
+  --color-selected: oklch(0.4777 0.1818 7.57 / 50%);
   --color-error: #ffb3b0;
   --color-on-error: #68000f;
   --color-error-container: #93001a;

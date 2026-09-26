@@ -81,19 +81,18 @@ interface RowProps {
  */
 function rowClass(rail: boolean, active: boolean): string {
   return cn(
-    // Rounded on the sides (the owner, 2026-09-26: "make the background rounded from the
-    // sides"), the shape Material gives a drawer's active indicator; square was the ruling the
-    // day before, and this replaces it.
-    'state-layer group relative flex items-center rounded-full transition-colors duration-[var(--duration-fast)]',
+    // 4 px corners (the owner, 2026-09-26: "rounded from the sides", then "make it 4 px
+    // rounded"); square was the ruling the day before, and this replaces it.
+    'state-layer group relative flex items-center rounded-xs transition-colors duration-[var(--duration-fast)]',
     // gap-3: a step in from the 3.5 this carried, so the label sits with its
     // icon rather than across a gutter from it.
     rail ? 'mx-0.5 flex-col gap-1.5 px-0.5 py-3 text-center' : 'h-10 gap-3 px-4',
-    // The current row is the brand fill at 80 % with white on it, the same by day and by
-    // night (9.3:1 on the dark page, 5.1:1 on white). The owner tried a brand-coloured label
-    // on a tint (2026-09-25), found it too dark at night, asked for "the background is the
-    // primary and the foreground is white", and of the solid fill, "too colory; maybe the
-    // brand color with a bit transparency" (2026-09-26).
-    active ? 'bg-primary-fixed/80 text-on-primary-fixed' : 'text-on-surface-variant',
+    // The current row is `selected` with white on it: the brand letting the page through,
+    // 75 % by day and 50 % by night (tokens.css says why and how much). The owner tried a
+    // brand-coloured label on a tint (2026-09-25), found it too dark at night, asked for
+    // "the background is the primary and the foreground is white", then "too colory; maybe
+    // the brand color with a bit transparency", then "more transparent" (2026-09-26).
+    active ? 'bg-selected text-on-primary-fixed' : 'text-on-surface-variant',
   );
 }
 
@@ -293,9 +292,9 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                     onNavigate?.();
                   }}
                   className={cn(
-                    'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
+                    'state-layer rounded-xs px-4 py-1.5 text-left text-label-large transition-colors',
                     activeTopic === null && location.pathname === '/'
-                      ? 'bg-primary-fixed/80 text-on-primary-fixed'
+                      ? 'bg-selected text-on-primary-fixed'
                       : 'text-on-surface-variant',
                   )}
                   data-testid="sidebar-topic-all"
@@ -312,9 +311,9 @@ export function Sidebar({ rail = false, onNavigate, className }: SidebarProps) {
                       onNavigate?.();
                     }}
                     className={cn(
-                      'state-layer rounded-full px-4 py-1.5 text-left text-label-large transition-colors',
+                      'state-layer rounded-xs px-4 py-1.5 text-left text-label-large transition-colors',
                       activeTopic === d.id
-                        ? 'bg-primary-fixed/80 text-on-primary-fixed'
+                        ? 'bg-selected text-on-primary-fixed'
                         : 'text-on-surface-variant',
                     )}
                   >
